@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.DS_Store
+.env
+.env.*
+coverage/
+
+# Experiment output is large; keep configs, ignore raw results by default
+experiments/**/results/
+*.csv
+
+# Local tooling
+.claude/
