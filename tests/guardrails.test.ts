@@ -31,6 +31,14 @@ const forbidden: { pattern: RegExp; why: string }[] = [
   { pattern: /new\s+Date\s*\(/, why: "simulation time is ticks, never Date" },
   { pattern: /performance\.now\s*\(/, why: "simulation time is ticks, never performance.now()" },
   { pattern: /\bcrypto\.getRandomValues\b/, why: "use the seeded Rng for all randomness" },
+  {
+    // Browsers may round these differently in the last digit, which would make
+    // the same seed play out differently in Chrome vs Safari vs Firefox.
+    // Exact operations (+ - * / sqrt floor fround min max abs) are safe.
+    pattern: /Math\.(sin|cos|tan|asin|acos|atan2?|exp|expm1|log|log1p|log2|log10|pow|sinh|cosh|tanh|asinh|acosh|atanh|cbrt|hypot)\s*\(/,
+    why: "this Math function is not bit-identical across browsers; use exact arithmetic",
+  },
+  { pattern: /\*\*/, why: "the ** operator is not bit-identical across browsers; multiply explicitly" },
   { pattern: /\b(window|document|navigator|localStorage|sessionStorage)\b/, why: "sim-core must not use browser APIs" },
   { pattern: /\b(HTMLElement|HTMLCanvasElement|CanvasRenderingContext2D|requestAnimationFrame)\b/, why: "sim-core must not use browser APIs" },
   { pattern: /from\s+["']node:/, why: "sim-core must stay runtime-neutral (no Node-only imports)" },

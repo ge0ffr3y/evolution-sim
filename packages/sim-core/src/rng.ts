@@ -79,12 +79,18 @@ export class Rng {
     return this.next() < probability;
   }
 
-  /** Approximately normal (bell-curve) random number. Handy for small mutations. */
+  /**
+   * Approximately normal (bell-curve) random number. Handy for small mutations.
+   *
+   * Sums 12 uniform numbers (the Irwin-Hall method) instead of using log/cos,
+   * because Math.log and Math.cos can differ in the last digit between browsers.
+   * Plain addition is exact everywhere, so every browser gets the same history.
+   * Output is limited to within 6 standard deviations of the mean.
+   */
   gaussian(mean = 0, stdDev = 1): number {
-    // Box-Muller transform. 1 - next() keeps the log argument above zero.
-    const u = 1 - this.next();
-    const v = this.next();
-    return mean + stdDev * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+    let sum = 0;
+    for (let i = 0; i < 12; i++) sum += this.next();
+    return mean + stdDev * (sum - 6);
   }
 
   /** Copy of the internal state, so a run can be saved and resumed exactly. */
