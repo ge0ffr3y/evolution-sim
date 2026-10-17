@@ -4,7 +4,9 @@ A browser-based artificial-life simulation where simple organisms evolve in a dy
 
 Nobody is told to be a predator, a herbivore or a scavenger. Those roles, along with arms races, speciation and eventually multicellular life, **emerge** from random mutation plus one universal rule: everything costs energy.
 
-> **Status:** Phase 0 (foundations). The project skeleton, tooling and tests are in place. The simulation itself starts in Phase 1.
+**Live demo:** https://ge0ffr3y.github.io/evolution-sim/
+
+> **Status:** Phase 0 (foundations) complete. The project skeleton, tooling, tests and deployment are in place. The simulation itself starts in Phase 1.
 
 ## Goals
 
