@@ -8,15 +8,19 @@
   <body>
     <header class="page-header">
       <h1>Evolution Sim</h1>
-      <p>Phase 1: a minimal living world. Dots eat, reproduce, mutate and die.</p>
+      <p>Phase 2: genes and trade-offs. Every trait costs energy; click an organism to inspect it.</p>
     </header>
 
     <main class="layout">
       <section class="world-panel">
-        <canvas id="world" aria-label="The simulated world: food in green, organisms as dots"></canvas>
-        <p class="legend">
-          <span class="swatch"></span> slow <span class="arrow">&rarr;</span> fast (dot color) &middot; bigger dot = bigger body &middot; green = food
-        </p>
+        <canvas id="world" aria-label="The simulated world: food in green, organisms as dots. Click an organism to inspect it."></canvas>
+        <div class="legend-row">
+          <label class="inline-label">Color dots by
+            <select id="color-by"></select>
+          </label>
+          <p class="legend"><span id="legend-low"></span> <span id="legend-swatch" class="swatch"></span> <span id="legend-high"></span></p>
+        </div>
+        <p class="hint">Bigger dot = bigger body. Brighter green = more food; the faint base tint is how fertile the land is.</p>
       </section>
 
       <aside class="side-panel">
@@ -31,19 +35,57 @@
           <button id="random-seed" type="button">Random</button>
         </form>
 
+        <div class="preset-block">
+          <label class="inline-label">World
+            <select id="preset"></select>
+          </label>
+          <p id="preset-description" class="hint"></p>
+        </div>
+
         <p id="notice" class="notice" hidden></p>
 
         <dl class="stats">
           <div><dt>Tick</dt><dd id="stat-tick">0</dd></div>
           <div><dt>Population</dt><dd id="stat-pop">0</dd></div>
           <div><dt>Total food</dt><dd id="stat-food">0</dd></div>
-          <div><dt>Mean speed</dt><dd id="stat-speed">0</dd></div>
-          <div><dt>Mean size</dt><dd id="stat-size">0</dd></div>
           <div><dt>Mean energy</dt><dd id="stat-energy">0</dd></div>
+          <div><dt>Mean size</dt><dd id="stat-size">0</dd></div>
+          <div><dt>Mean speed</dt><dd id="stat-speed">0</dd></div>
+          <div><dt>Mean sense</dt><dd id="stat-sense">0</dd></div>
+          <div><dt>Mean metabolism</dt><dd id="stat-metab">0</dd></div>
           <div><dt>Births</dt><dd id="stat-births">0</dd></div>
           <div><dt>Deaths</dt><dd id="stat-deaths">0</dd></div>
           <div><dt>Ticks / second</dt><dd id="stat-tps">0</dd></div>
         </dl>
+
+        <section class="block" aria-labelledby="flows-title">
+          <h2 id="flows-title">Energy flows <span class="muted">(last ~1,000 ticks)</span></h2>
+          <p id="flows-intro" class="hint">Collecting data...</p>
+          <div id="flows-bar" class="flows-bar" hidden></div>
+          <ul id="flows-legend" class="flows-legend" hidden></ul>
+        </section>
+
+        <section class="block" aria-labelledby="inspector-title">
+          <h2 id="inspector-title">Inspector</h2>
+          <p id="inspector-empty" class="hint">Click an organism in the world to see its genes, energy, age and parent.</p>
+          <div id="inspector" hidden>
+            <div class="inspector-head">
+              <strong id="insp-title"></strong>
+              <button id="insp-clear" type="button">Clear</button>
+            </div>
+            <p id="insp-status" class="hint"></p>
+            <dl class="stats compact">
+              <div><dt>Age</dt><dd id="insp-age"></dd></div>
+              <div><dt>Parent</dt><dd id="insp-parent"></dd></div>
+            </dl>
+            <p class="bar-label"><span>Energy</span><span id="insp-energy-text"></span></p>
+            <div class="bar"><div id="insp-energy-bar" class="bar-fill"></div></div>
+            <p class="bar-label"><span>Genes</span><span class="muted">(bar = gene, text = trait)</span></p>
+            <ul id="insp-genes" class="gene-list"></ul>
+            <p class="bar-label"><span>Energy burned per tick</span></p>
+            <p id="insp-costs" class="hint"></p>
+          </div>
+        </section>
       </aside>
     </main>
 
@@ -52,6 +94,10 @@
       <div id="chart-pop" class="chart"></div>
       <h2>Average traits</h2>
       <div id="chart-traits" class="chart"></div>
+      <h2>Trait distribution over time</h2>
+      <div id="heatmap-tabs" class="tabs" role="tablist" aria-label="Trait"></div>
+      <p class="hint">Time runs left to right and the trait's value runs bottom to top. Brighter = more organisms at that value (each column is scaled to its own busiest value, so you can see its shape). Two bright bands mean two strategies living side by side.</p>
+      <div id="heatmap" class="chart"></div>
     </section>
 
     <script type="module" src="/src/main.ts"></script>

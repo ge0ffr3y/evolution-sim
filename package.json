@@ -18,7 +18,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && npm run typecheck --workspaces --if-present",
     "build": "npm run build -w apps/viewer",
     "dev": "npm run dev -w apps/viewer",
-    "sim": "npm run start -w apps/runner --"
+    "sim": "npm run start -w apps/runner --",
+    "bench": "npm run bench -w apps/runner"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",

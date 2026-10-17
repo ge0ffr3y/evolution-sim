@@ -1,0 +1,8 @@
+{
+  "name": "Flat and fair",
+  "description": "A control world: every patch equally fertile and food shared in proportion to appetite. With no niches, everyone converges on one tiny, cheap body.",
+  "config": {
+    "fertilityVariation": 0,
+    "contestStrength": 0
+  }
+}

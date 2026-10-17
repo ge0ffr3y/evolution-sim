@@ -33,6 +33,8 @@ export class Charts {
   private readonly food: number[] = [];
   private readonly speed: number[] = [];
   private readonly size: number[] = [];
+  private readonly metabolism: number[] = [];
+  private readonly sense: number[] = [];
   private stride = 1;
   private seen = 0;
 
@@ -75,15 +77,21 @@ export class Charts {
         height: CHART_HEIGHT,
         legend: { live: true },
         cursor: { drag: { x: false, y: false } },
-        scales: { x: { time: false } },
-        axes: [baseAxis({ label: "tick" }), baseAxis({ label: "average trait value" })],
+        scales: { x: { time: false }, sense: { auto: true } },
+        axes: [
+          baseAxis({ label: "tick" }),
+          baseAxis({ label: "speed, size, metabolism", scale: "y" }),
+          baseAxis({ label: "sense range", scale: "sense", side: 1, grid: { show: false } }),
+        ],
         series: [
           { label: "tick" },
-          { label: "mean speed", stroke: "#ffb454", width: 2 },
-          { label: "mean size", stroke: "#c792ea", width: 2 },
+          { label: "mean speed", stroke: "#ffb454", width: 2, scale: "y" },
+          { label: "mean size", stroke: "#c792ea", width: 2, scale: "y" },
+          { label: "mean metabolism", stroke: "#ff7a90", width: 2, scale: "y" },
+          { label: "mean sense range", stroke: "#4cc2ff", width: 2, scale: "sense", dash: [6, 4] },
         ],
       },
-      [[], [], []],
+      [[], [], [], [], []],
       traitContainer,
     );
 
@@ -104,6 +112,8 @@ export class Charts {
     this.food.length = 0;
     this.speed.length = 0;
     this.size.length = 0;
+    this.metabolism.length = 0;
+    this.sense.length = 0;
     this.stride = 1;
     this.seen = 0;
     this.redraw();
@@ -118,12 +128,14 @@ export class Charts {
       this.food.push(p.totalFood);
       this.speed.push(p.meanSpeed);
       this.size.push(p.meanSize);
+      this.metabolism.push(p.meanMetabolism);
+      this.sense.push(p.meanSense);
       if (this.ticks.length > MAX_POINTS) this.thin();
     }
   }
 
   private thin(): void {
-    for (const series of [this.ticks, this.population, this.food, this.speed, this.size]) {
+    for (const series of [this.ticks, this.population, this.food, this.speed, this.size, this.metabolism, this.sense]) {
       let write = 0;
       for (let read = 0; read < series.length; read += 2) series[write++] = series[read]!;
       series.length = write;
@@ -133,6 +145,6 @@ export class Charts {
 
   redraw(): void {
     this.popChart.setData([this.ticks, this.population, this.food]);
-    this.traitChart.setData([this.ticks, this.speed, this.size]);
+    this.traitChart.setData([this.ticks, this.speed, this.size, this.metabolism, this.sense]);
   }
 }

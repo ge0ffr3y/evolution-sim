@@ -93,6 +93,17 @@ export class Rng {
     return mean + stdDev * (sum - 6);
   }
 
+  /**
+   * A cheaper, rougher bell curve (4 uniform numbers instead of 12, so it stays
+   * within about 3.5 standard deviations). Good for noise that is needed for
+   * every organism every tick, where the exact tail shape does not matter.
+   */
+  gaussianFast(mean = 0, stdDev = 1): number {
+    const sum = this.next() + this.next() + this.next() + this.next();
+    // 1.7320508075688772 is the square root of 3, which rescales the spread to 1.
+    return mean + stdDev * (sum - 2) * 1.7320508075688772;
+  }
+
   /** Copy of the internal state, so a run can be saved and resumed exactly. */
   getState(): RngState {
     return [this.s0, this.s1, this.s2, this.s3];

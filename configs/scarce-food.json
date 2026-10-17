@@ -1,0 +1,7 @@
+{
+  "name": "Scarce food",
+  "description": "Plants regrow at half the normal rate. Smaller population, and speed pays off more.",
+  "config": {
+    "foodRegrowPerTick": 0.04
+  }
+}

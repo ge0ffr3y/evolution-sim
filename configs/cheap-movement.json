@@ -1,0 +1,7 @@
+{
+  "name": "Cheap movement",
+  "description": "Moving costs one fifth as much. Expect much faster organisms.",
+  "config": {
+    "moveCostCoeff": 0.002
+  }
+}

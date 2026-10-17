@@ -1,0 +1,7 @@
+{
+  "name": "Costly movement",
+  "description": "Moving is 5x more expensive. Expect slower organisms that sniff out food instead of roaming.",
+  "config": {
+    "moveCostCoeff": 0.05
+  }
+}

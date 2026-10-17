@@ -103,6 +103,24 @@ describe("Rng statistics (sanity checks)", () => {
     expect(std).toBeLessThan(2.05);
   });
 
+  it("gaussianFast() has roughly the requested mean and spread", () => {
+    const rng = new Rng(14);
+    const n = 100000;
+    let sum = 0;
+    let sumSq = 0;
+    for (let i = 0; i < n; i++) {
+      const x = rng.gaussianFast(5, 3);
+      sum += x;
+      sumSq += x * x;
+    }
+    const mean = sum / n;
+    const std = Math.sqrt(sumSq / n - mean * mean);
+    expect(mean).toBeGreaterThan(4.95);
+    expect(mean).toBeLessThan(5.05);
+    expect(std).toBeGreaterThan(2.95);
+    expect(std).toBeLessThan(3.05);
+  });
+
   it("chance() fires at about the requested rate", () => {
     const rng = new Rng(13);
     let hits = 0;

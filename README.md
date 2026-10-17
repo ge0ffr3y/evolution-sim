@@ -6,7 +6,7 @@ Nobody is told to be a predator, a herbivore or a scavenger. Those roles, along 
 
 **Live demo:** https://ge0ffr3y.github.io/evolution-sim/
 
-> **Status:** Phase 1 (a minimal living world) complete. Organisms wander, eat, reproduce with small mutations and die, in a seeded, deterministic world with a live viewer and a headless runner.
+> **Status:** Phase 2 (genome and trade-offs) in progress. Organisms now carry a six-gene genome (size, speed, sense range, metabolism, color, mutation rate), every trait costs energy, and an energy ledger tracks where it all goes. Click any organism in the viewer to inspect it.
 
 ## Goals
 
@@ -31,6 +31,7 @@ Nobody is told to be a predator, a herbivore or a scavenger. Those roles, along 
 | `packages/sim-core` | The simulation: pure TypeScript, no UI, no browser APIs |
 | `apps/viewer` | Browser app: world view, charts, inspector |
 | `apps/runner` | Node CLI for headless batch experiments |
+| `configs/` | Preset worlds (JSON) |
 | `tests/` | Repo-wide guardrail tests |
 | `docs/devlog` | One entry per development phase |
 
@@ -40,12 +41,16 @@ Requires Node.js 20 or newer.
 
 ```bash
 npm install
-npm test            # run all tests
-npm run dev         # start the viewer at http://localhost:5173 (add ?seed=7 to pick a seed)
-npm run sim -- --seed 42 --ticks 100000   # headless run, writes stats to experiments/results/seed-42.csv
+npm test            # run all tests (about 40 seconds)
+npm run dev         # start the viewer at http://localhost:5173 (add ?seed=7 and ?preset=costly-movement)
+npm run sim -- --seed 42 --ticks 100000   # one headless run -> experiments/results/seed-42.csv (+ trait histograms)
+npm run sim -- --seeds 1-12 --ticks 50000 # many seeds in parallel, then compare how they differ
+npm run bench       # how fast is the simulation?
 ```
 
-The headless runner also accepts `--every N` (stats interval), `--out PATH`, and `--set name=value` to override any number in the config, for example `--set foodRegrowPerTick=0.05`. Run `npm run sim -- --help` for details.
+The headless runner also accepts `--config configs/<preset>.json` to run a named world, `--set name=value` to override any number in the config (for example `--set moveCostCoeff=0.05`), `--every N` (stats interval) and `--hist-every N` (histogram interval). Run `npm run sim -- --help` for details.
+
+Preset worlds live in [`configs/`](configs). Each is a short JSON file naming the settings it changes, so the same world can be run under different costs and compared.
 
 ## Roadmap
 
