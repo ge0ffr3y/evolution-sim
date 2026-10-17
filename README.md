@@ -6,7 +6,7 @@ Nobody is told to be a predator, a herbivore or a scavenger. Those roles, along 
 
 **Live demo:** https://ge0ffr3y.github.io/evolution-sim/
 
-> **Status:** Phase 0 (foundations) complete. The project skeleton, tooling, tests and deployment are in place. The simulation itself starts in Phase 1.
+> **Status:** Phase 1 (a minimal living world) complete. Organisms wander, eat, reproduce with small mutations and die, in a seeded, deterministic world with a live viewer and a headless runner.
 
 ## Goals
 
@@ -41,9 +41,11 @@ Requires Node.js 20 or newer.
 ```bash
 npm install
 npm test            # run all tests
-npm run dev         # start the viewer at http://localhost:5173
-npm run sim -- --seed 42   # headless runner (placeholder until Phase 1)
+npm run dev         # start the viewer at http://localhost:5173 (add ?seed=7 to pick a seed)
+npm run sim -- --seed 42 --ticks 100000   # headless run, writes stats to experiments/results/seed-42.csv
 ```
+
+The headless runner also accepts `--every N` (stats interval), `--out PATH`, and `--set name=value` to override any number in the config, for example `--set foodRegrowPerTick=0.05`. Run `npm run sim -- --help` for details.
 
 ## Roadmap
 

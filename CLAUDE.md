@@ -10,6 +10,7 @@ Planning notes live in the owner's Obsidian vault: `Projects/Evolution Sim Proje
 
 1. `packages/sim-core` must never use browser APIs (no `window`, `document`, DOM, canvas) or Node-only imports. It must run unchanged in a browser, a Web Worker and Node.
 2. Never use `Math.random()`, `Date.now()`, `new Date()` or `performance.now()` in simulation logic. All randomness comes from the seeded `Rng` in `sim-core`.
+   In `sim-core`, also avoid `Math.sin/cos/log/exp/pow/atan2` and the `**` operator: browsers may round them differently in the last digit, so the same seed would play out differently in Chrome, Safari and Firefox. Use only exact operations (`+ - * /`, `Math.sqrt`, `Math.floor`, `Math.fround`, `Math.min/max/abs`). For a power like `size^0.75`, build it from `sqrt`. A guardrail test enforces this.
 3. The simulation advances in fixed **ticks**, never real time. Rendering speed must never change simulation results.
 4. All tuning numbers (costs, rates, thresholds, caps) live in a single config object. No magic numbers in logic.
 5. Same seed + same config must give exactly the same history. Do not iterate over unordered structures in a way that changes results, and do not depend on timing.

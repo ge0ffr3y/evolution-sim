@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@evo/sim-core": "*"
+    "@evo/sim-core": "*",
+    "uplot": "^1.6.32"
   }
 }

@@ -6,7 +6,54 @@
     <title>Evolution Sim</title>
   </head>
   <body>
-    <main id="app"></main>
+    <header class="page-header">
+      <h1>Evolution Sim</h1>
+      <p>Phase 1: a minimal living world. Dots eat, reproduce, mutate and die.</p>
+    </header>
+
+    <main class="layout">
+      <section class="world-panel">
+        <canvas id="world" aria-label="The simulated world: food in green, organisms as dots"></canvas>
+        <p class="legend">
+          <span class="swatch"></span> slow <span class="arrow">&rarr;</span> fast (dot color) &middot; bigger dot = bigger body &middot; green = food
+        </p>
+      </section>
+
+      <aside class="side-panel">
+        <div class="row">
+          <button id="play" type="button" class="primary">Pause</button>
+          <div id="speeds" class="speeds" role="group" aria-label="Simulation speed"></div>
+        </div>
+
+        <form id="seed-form" class="row">
+          <label>Seed <input id="seed" type="number" step="1" min="0" value="42" /></label>
+          <button type="submit">Restart</button>
+          <button id="random-seed" type="button">Random</button>
+        </form>
+
+        <p id="notice" class="notice" hidden></p>
+
+        <dl class="stats">
+          <div><dt>Tick</dt><dd id="stat-tick">0</dd></div>
+          <div><dt>Population</dt><dd id="stat-pop">0</dd></div>
+          <div><dt>Total food</dt><dd id="stat-food">0</dd></div>
+          <div><dt>Mean speed</dt><dd id="stat-speed">0</dd></div>
+          <div><dt>Mean size</dt><dd id="stat-size">0</dd></div>
+          <div><dt>Mean energy</dt><dd id="stat-energy">0</dd></div>
+          <div><dt>Births</dt><dd id="stat-births">0</dd></div>
+          <div><dt>Deaths</dt><dd id="stat-deaths">0</dd></div>
+          <div><dt>Ticks / second</dt><dd id="stat-tps">0</dd></div>
+        </dl>
+      </aside>
+    </main>
+
+    <section class="charts">
+      <h2>Population and food</h2>
+      <div id="chart-pop" class="chart"></div>
+      <h2>Average traits</h2>
+      <div id="chart-traits" class="chart"></div>
+    </section>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
