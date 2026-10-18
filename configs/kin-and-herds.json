@@ -1,0 +1,10 @@
+{
+  "name": "Kin recognition and herds",
+  "description": "Brains on. Relatives (genetically close organisms) never attack each other, brains can sense how many relatives are near and which way they lie, and prey with relatives close by are harder to kill (the selfish herd). Watch whether prey cluster (the 'relatives nearby' sense in the brain viewer).",
+  "config": {
+    "brainMode": 2,
+    "brainAppetiteSenses": 1,
+    "kinDistance": 0.2,
+    "herdBonus": 1.5
+  }
+}

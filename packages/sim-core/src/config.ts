@@ -339,6 +339,22 @@ export interface SimConfig {
    * that cannot afford its own body is not born.
    */
 
+  // --- Kin recognition and herding (off by default) ---
+  /**
+   * Organisms recognize relatives: genetically this close (root-mean-square gene difference, 0 to 1,
+   * the same measure as speciesDistance) counts as kin. With kinDistance above 0, nobody attacks
+   * kin, and brains can sense how many relatives are near and in which direction. 0 = off.
+   */
+  kinDistance: number;
+  /**
+   * The selfish herd: prey with relatives close by are harder to kill. An attack's odds use the
+   * prey's defense times (1 + herdBonus x relatives within herdRange / herdCap), counting at most
+   * herdCap relatives. herdBonus 0 = off; it needs kinDistance above 0.
+   */
+  herdBonus: number;
+  herdRange: number;
+  herdCap: number;
+
   // --- Sexual reproduction (off by default) ---
   /**
    * 0 = organisms split in two when they have enough energy (the original way). 1 = two
@@ -580,6 +596,10 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   agingCoeff: 0,
   agingPrimeFraction: 0.5,
   agingRepairCoeff: 0.3,
+  kinDistance: 0,
+  herdBonus: 0,
+  herdRange: 8,
+  herdCap: 5,
   sexualReproduction: 0,
   mateRange: 6,
   mateDistance: 0.25,
@@ -742,6 +762,11 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     if (c.seasonGrowthSwing < 0 || c.seasonGrowthSwing > 1) problems.push("seasonGrowthSwing must be between 0 and 1");
     if (c.seasonTempSwing < 0 || c.climateDriftAmplitude < 0 || c.latitudeCooling < 0 || c.mountainCooling < 0) problems.push("temperature swings and cooling cannot be negative");
   }
+  if (c.kinDistance < 0 || c.kinDistance > 1) problems.push("kinDistance must be between 0 and 1");
+  if (c.herdBonus < 0) problems.push("herdBonus cannot be negative");
+  if (c.herdBonus > 0 && c.kinDistance <= 0) problems.push("herdBonus needs kinDistance above 0 (who counts as a relative)");
+  if (!(c.herdRange > 0)) problems.push("herdRange must be positive");
+  if (!(c.herdCap >= 1)) problems.push("herdCap must be at least 1");
   if (![0, 1].includes(c.sexualReproduction)) problems.push("sexualReproduction must be 0 or 1");
   if (!(c.mateRange > 0)) problems.push("mateRange must be positive");
   if (![0, 1].includes(c.matePreference)) problems.push("matePreference must be 0 (nearest) or 1 (most similar)");

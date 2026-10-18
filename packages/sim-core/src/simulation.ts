@@ -225,6 +225,7 @@ const SCENT_FULL = 4;
 const SENSE_VISION = 1;
 const SENSE_SMELL = 2;
 const SENSE_BODY = 4;
+const SENSE_SOCIAL = 8;
 /** Strength of the founders' plant-smell reflex. */
 const FOUNDER_REFLEX_WEIGHT = 1.5;
 /** The founders' chase reflex: turning strength per ray away from the middle, and the speed-up when prey is dead ahead. */
@@ -451,6 +452,12 @@ export class Simulation {
   private readonly ready: Uint8Array;
   private readonly pairs: Uint32Array;
   private readonly mateMask: number[];
+  /** Kin recognition: how close genetically counts as a relative (squared; 0 = off), and scratch for counting relatives. */
+  private readonly kinLimitSq: number;
+  private kinCount = 0;
+  private kinVx = 0;
+  private kinVy = 0;
+  private herdSelf = 0;
   private mateSelf = 0;
   private mateBest = -1;
   private mateBestDistSq = Infinity;
@@ -519,6 +526,8 @@ export class Simulation {
   private pickSizeLimit = 0;
   private readonly considerPrey = (index: number, distSq: number): void => {
     if (index === this.pickAttacker || this.killed[index] === 1 || this.size[index]! > this.pickSizeLimit) return;
+    // Nobody attacks a relative.
+    if (this.kinLimitSq > 0 && this.geneDistanceSq(this.pickAttacker, index) <= this.kinLimitSq) return;
     if (distSq < this.pickBestDistSq || (distSq === this.pickBestDistSq && index < this.pickBest)) {
       this.pickBest = index;
       this.pickBestDistSq = distSq;
@@ -659,6 +668,7 @@ export class Simulation {
         (k === GENE.lifespan && this.agingOn) ||
         (k === GENE.litter && this.litterOn),
     );
+    this.kinLimitSq = c.kinDistance * c.kinDistance;
     this.sexOn = c.sexualReproduction === 1;
     this.parent2Id = new Uint32Array(this.sexOn ? n : 0);
     this.ready = new Uint8Array(this.sexOn ? n : 0);
@@ -1150,10 +1160,46 @@ export class Simulation {
       if (source >= INPUT_COUNT) continue; // hidden units read other inputs, which are counted on their own
       if (source < INPUT.smellPlantAhead) senses |= SENSE_VISION;
       else if (source < INPUT.energy) senses |= SENSE_SMELL;
+      else if (source >= INPUT.kinDensity && source <= INPUT.kinSide) senses |= SENSE_SOCIAL;
       else senses |= SENSE_BODY;
     }
     this.brainSenses[i] = senses;
     this.brainCost[i] = c.brainBaseCost + c.brainCostPerNeuron * size.hidden + c.brainCostPerConnection * size.connections;
+  }
+
+  /** Used while sensing relatives: count the genetically close ones in range and add up the directions to them. */
+  private readonly seeKin = (index: number, distSq: number): void => {
+    if (index === this.visSelf || this.killed[index] === 1 || distSq <= 0) return;
+    if (this.geneDistanceSq(this.visSelf, index) > this.kinLimitSq) return;
+    const W = this.config.worldWidth;
+    const H = this.config.worldHeight;
+    let dx = this.x[index]! - this.visX;
+    let dy = this.y[index]! - this.visY;
+    if (dx > W / 2) dx -= W;
+    else if (dx < -W / 2) dx += W;
+    if (dy > H / 2) dy -= H;
+    else if (dy < -H / 2) dy += H;
+    const inv = 1 / Math.sqrt(dx * dx + dy * dy);
+    this.kinCount++;
+    this.kinVx += dx * inv;
+    this.kinVy += dy * inv;
+  };
+
+  /** Used while counting a prey animal's herd (see herdFactor). */
+  private readonly countHerd = (index: number, distSq: number): void => {
+    if (index === this.herdSelf || this.killed[index] === 1 || distSq <= 0) return;
+    if (this.geneDistanceSq(this.herdSelf, index) <= this.kinLimitSq) this.kinCount++;
+  };
+
+  /** How much harder this animal is to kill because of the relatives around it (1 = alone, or herding is off). */
+  private herdFactor(prey: number): number {
+    const c = this.config;
+    if (c.herdBonus <= 0) return 1;
+    this.herdSelf = prey;
+    this.kinCount = 0;
+    this.hash.forEachNear(this.x[prey]!, this.y[prey]!, c.herdRange, this.countHerd);
+    const crowd = this.kinCount < c.herdCap ? this.kinCount : c.herdCap;
+    return 1 + (c.herdBonus * crowd) / c.herdCap;
   }
 
   /** What an organism notices when something is within sight: sorts it into the vision ray it falls in. */
@@ -1313,6 +1359,41 @@ export class Simulation {
       inputs[INPUT.smellPlantAhead] = inputs[INPUT.smellPlantAhead]! * plant;
       inputs[INPUT.smellPlantSide] = inputs[INPUT.smellPlantSide]! * plant;
       inputs[INPUT.plantHere] = inputs[INPUT.plantHere]! * plant;
+    }
+
+    // Relatives nearby: how many, and which way the herd lies.
+    if (this.kinLimitSq > 0 && ((senses & SENSE_SOCIAL) !== 0 || traced)) {
+      this.visSelf = i;
+      this.visX = x;
+      this.visY = y;
+      this.kinCount = 0;
+      this.kinVx = 0;
+      this.kinVy = 0;
+      this.hash.forEachNear(x, y, c.herdRange, this.seeKin);
+      const count = this.kinCount;
+      inputs[INPUT.kinDensity] = Math.min(1, count / c.herdCap);
+      if (count > 0) {
+        inputs[INPUT.kinAhead] = clampUnit((this.kinVx * hx + this.kinVy * hy) / count);
+        inputs[INPUT.kinSide] = clampUnit((hx * this.kinVy - hy * this.kinVx) / count);
+      }
+    }
+    // Comfort: is it hotter (+) or colder (-) here than this organism likes?
+    if (this.thermalOn) {
+      const here = Math.floor(y / cs) * gw + Math.floor(x / cs);
+      inputs[INPUT.comfort] = clampUnit((this.temperature[here]! - this.thermalPref[i]!) / 0.5);
+    }
+    // Water ahead: 1 if it is within three quarters of a cell, 0.5 if within a cell and three quarters more.
+    if (this.terrainOn) {
+      const W = c.worldWidth;
+      const H = c.worldHeight;
+      const blockedAt = (d: number): boolean => {
+        let px = x + hx * d;
+        let py = y + hy * d;
+        px -= Math.floor(px / W) * W;
+        py -= Math.floor(py / H) * H;
+        return this.passable[Math.floor(py / cs) * gw + Math.floor(px / cs)] === 0;
+      };
+      inputs[INPUT.barrier] = blockedAt(0.75 * cs) ? 1 : blockedAt(1.75 * cs) ? 0.5 : 0;
     }
 
     // The body: hunger, age, its own diet, a constant, and a little noise (a deterministic scramble of the tick and the organism).
@@ -1578,7 +1659,7 @@ export class Simulation {
         this.attempted[i] = 1;
         this.totalAttacks++;
         const power = this.attackPower[i]!;
-        const odds = power / (power + this.defense[prey]!);
+        const odds = power / (power + this.defense[prey]! * this.herdFactor(prey));
         if (this.rng.next() < odds) this.kill(i, prey);
       }
     }

@@ -54,10 +54,15 @@ export const INPUT = {
   age: VISION_INPUTS + 11,
   diet: VISION_INPUTS + 12,
   stamina: VISION_INPUTS + 13,
-  bias: VISION_INPUTS + 14,
-  noise: VISION_INPUTS + 15,
+  kinDensity: VISION_INPUTS + 14,
+  kinAhead: VISION_INPUTS + 15,
+  kinSide: VISION_INPUTS + 16,
+  comfort: VISION_INPUTS + 17,
+  barrier: VISION_INPUTS + 18,
+  bias: VISION_INPUTS + 19,
+  noise: VISION_INPUTS + 20,
 } as const;
-export const INPUT_COUNT = VISION_INPUTS + 16;
+export const INPUT_COUNT = VISION_INPUTS + 21;
 
 export const HIDDEN_MAX = 12;
 export const HIDDEN_START = INPUT_COUNT;
@@ -68,9 +73,9 @@ export const NODE_COUNT = OUTPUT_START + OUTPUT_COUNT;
 
 /**
  * Most connections one brain can hold. A fully wired fixed-layout brain needs
- * hidden x (INPUT_COUNT + OUTPUT_COUNT) of them (312 for 8 hidden units).
+ * hidden x (INPUT_COUNT + OUTPUT_COUNT) of them (352 for 8 hidden units).
  */
-export const CONN_MAX = 320;
+export const CONN_MAX = 384;
 /** Weights are kept within this range. */
 export const WEIGHT_LIMIT = 4;
 
@@ -98,6 +103,11 @@ export function inputLabel(index: number): string {
     [INPUT.age]: "age",
     [INPUT.diet]: "my diet (meaty)",
     [INPUT.stamina]: "stamina left",
+    [INPUT.kinDensity]: "relatives nearby",
+    [INPUT.kinAhead]: "relatives: ahead",
+    [INPUT.kinSide]: "relatives: left",
+    [INPUT.comfort]: "too hot (+) or cold (-)",
+    [INPUT.barrier]: "water ahead",
     [INPUT.bias]: "bias",
     [INPUT.noise]: "noise",
   };
