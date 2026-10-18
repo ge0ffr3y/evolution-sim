@@ -1,6 +1,6 @@
-# Devlog 10: The grand world (work in progress)
+# Devlog 10: The grand world
 
-*Phase 8b. Evolvable social genes, richer environments, memory and chemical signals for brains, and colonies with brains, all in one large world. This file is filled in as each step lands.*
+*Phase 8b. Evolvable social genes, richer environments, kinds of plant, memory and chemical signals for brains, and colonies with brains, all switchable and all available together in one large world. Much of it did not catch on by itself, and the findings below say which parts.*
 
 ## Step 1: big-world benchmark
 
@@ -89,3 +89,47 @@ So there is **no sign that evolution uses home or memory**, and bonding and stre
 ## Step 8: colonies whose cells have brains
 
 The rule that colonies needed brains off is gone. Every cell keeps its own brain, and the bond springs and shared heading pull the colony together. Tested: two bonded cells whose brains want to go opposite ways stay together; a world of colonies with brains, memory and chemicals is deterministic, conserves energy and matter exactly, keeps its bonds consistent and saves and reloads exactly. **Not yet tested:** whether colonies with brains do better or worse than colonies without.
+
+## Step 5: kinds of plant and the palate gene (the 23rd gene)
+
+Optional (`plantTypes` 1 to 6; 1 = one kind of plant, the old way). Each cell grows one kind of plant, in smooth patches with the same number of cells of each kind. The kinds peak at different times of year (spread evenly over the year) and like slightly different temperatures. A new gene, the **palate**, says which kind an animal digests best: full efficiency for its favorite kind, falling in a straight line to a floor (10%) one kind-spacing away. So being good at one kind means being worse at its neighbors (tested: no palate digests two neighboring kinds better than half as well). Animals' brains smell plants in proportion to how well they can digest them, and brainless animals lean toward digestible food.
+
+**Founder spread** (`founderSpread`): the first generation gets a random starting value for each of the newer genes that is switched on (tolerance, mate-seeking, fat, torpor, palate), so selection starts with variety instead of a population of clones. It is off by default.
+
+12 worlds per arm, 300,000 ticks, seasons on (growth swing 0.5), no brains:
+
+| World | Mean population | Meat eaters at end | Palate match to local plant | Species alive |
+|---|---|---|---|---|
+| One kind of plant (control) | 495 | 29 | n/a | 2.0 |
+| 3 kinds, everyone starts with the same palate | 247 | 0 | 0.43 | 1.3 |
+| 3 kinds, palate spread across the founders | 394 | 0 | 0.56 | 1.6 |
+| 5 kinds, everyone starts with the same palate | 424 | 18 | 0.55 | 2.0 |
+| 5 kinds, palate spread across the founders | 365 | 15 | 0.53 | 2.2 |
+
+(A random palate would match its local plant about 0.37 of the way with 3 kinds and 0.41 with 5.)
+
+- **Animals do adapt to local plants, but only partly.** Match is 0.43 to 0.56 where chance would give 0.37 to 0.41, and the spread of palates within a world falls over time (0.28 to 0.19 for 3 kinds) as poor matches are weeded out. They do not settle into clearly separate specialists.
+- **Kinds of plant make life harder, not richer.** Population is 20 to 50% lower than with one kind, because every mismatch wastes food, and the number of species alive did not rise much (1.3 to 2.2, against 2.0).
+- **3 kinds suppressed meat eaters completely** (none in 24 of 24 worlds) while 5 kinds did not (15 to 18 on average). I did not find out why. A guess is that with 3 kinds, patches are bigger and the population is smaller and sparser, so predators never get a foothold.
+- Founder spread helped the 3-kind world (population 394 against 247) and made no clear difference with 5 kinds.
+
+## Step 9: the grand world preset
+
+`configs/grand-world.json` turns on everything at once in a 512 x 512 world with sparse food (0.03): terrain, seasons, weather fronts, harsh and mild years, random ice ages, droughts and meteors, three kinds of plant, brains with memory, home and chemical signals, disease, camouflage, aging, litter size, fat, torpor, tolerance and sex as genes, and colonies with specialized cells, with a little founder variety. A world this big with everything on has been **smoke-tested only** (3 seeds, 20,000 ticks, as you asked no pilot runs): all 3 survived with 100 to 300 animals and 5 to 38 colonies, the first predator appeared in all 3, and 12% of births already had two parents at tick 1,200 in one world. Nothing has been tuned. The population is small for the area, which makes drift and extinction likely on long runs; the first thing to tune is probably food (0.03) or the starting population.
+
+## Viewer
+
+New map layer **Kinds of plant**; a **Palate** dot color; trait charts for tolerance, mate-seeking, fat, torpor and palate; a **Births with two parents** readout (worlds where sex is a gene); inspector labels for the new genes.
+
+## What this adds up to
+
+Honest summary of Phase 8b:
+
+- **Worked as designed:** making tolerance of relatives a gene brings predators back; weather and harsh winters give real boom and bust cycles; colonies work with brains; the grand world runs.
+- **Did not emerge on its own:** sex, fat, torpor (except as a lifesaver when already present), home, memory, the stress and bond signals. The plain reason in each case is that nothing in the world makes them pay quickly enough, or they cost something at the start before they help. That is a finding, not a bug.
+- **Mixed:** reward and calm signals get used in a few worlds; palate adapts partly.
+- **Surprise worth following:** the selfish-herd bonus, not kin restraint, was what stopped predators (devlog 7 got that wrong).
+
+## Next
+
+Ideas to explore from here (none done): population size and world size (everything above is hampered by small populations); a rule where specialization has a visible payoff (for example kinds of plant with very different energy values, or a toxic kind); learning inside a lifetime (reward-driven weight changes) so reward and memory have a use; and the experiments at scale.

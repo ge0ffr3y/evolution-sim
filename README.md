@@ -10,7 +10,7 @@ Nobody is told to be a predator, a herbivore or a scavenger. Those roles, along 
 
 *Seed 12 over 60,000 ticks. Everyone starts as a green, unarmed plant eater. The first kill happens at tick 60, the first scavenger at 566, and by tick 8,690 a lineage lives mostly on meat (red). Larger dots are larger bodies.*
 
-> **Status: v0.4 (Phase 8, multicellularity), on top of Phase 7 (ecological depth, v0.3), Phase 6 (a dynamic world), v0.2 (species and family trees), Phase 4 (senses and brains) and the v0.1 food webs.** Predators, plant eaters and scavengers emerge on their own, from nothing but mutation and the rule that everything costs energy. In 12 of 12 seeds a lineage that lives mostly on meat evolves, and all 12 ecosystems were still going after 1,000,000 ticks. Phase 4 adds evolvable neural-network brains: prey evolve to run from threats, and meat eaters evolve to ambush. Chasing has not evolved yet (see the [Phase 4 devlog](docs/devlog/0004-senses-and-brains.md) for why). Phase 5 adds a family tree of species, saving and loading worlds, and sexual reproduction. Phase 6 adds terrain, climate, seasons and catastrophes, and Phase 7 adds aging, litter size, kin recognition, disease and camouflage, and Phase 8 adds bonded colonies with specialized cells (all optional, see the presets).
+> **Status: Phase 8b (the grand world) on top of v0.4 (Phase 8, multicellularity), on top of Phase 7 (ecological depth, v0.3), Phase 6 (a dynamic world), v0.2 (species and family trees), Phase 4 (senses and brains) and the v0.1 food webs.** Predators, plant eaters and scavengers emerge on their own, from nothing but mutation and the rule that everything costs energy. In 12 of 12 seeds a lineage that lives mostly on meat evolves, and all 12 ecosystems were still going after 1,000,000 ticks. Phase 4 adds evolvable neural-network brains: prey evolve to run from threats, and meat eaters evolve to ambush. Chasing has not evolved yet (see the [Phase 4 devlog](docs/devlog/0004-senses-and-brains.md) for why). Phase 5 adds a family tree of species, saving and loading worlds, and sexual reproduction. Phase 6 adds terrain, climate, seasons and catastrophes, and Phase 7 adds aging, litter size, kin recognition, disease and camouflage, and Phase 8 adds bonded colonies with specialized cells (all optional, see the presets).
 
 ![A family tree: green branches are plant eaters, orange and red are meat eaters, red crosses mark extinctions](docs/media/family-tree.png)
 
@@ -119,6 +119,7 @@ Each preset is a short JSON file in [`configs/`](configs) naming the settings it
 | Disease | Pathogens that hunt the common genotype: about a fifth sick, more genetic variety |
 | Camouflage and search images | A background color; matching it hides you, hunters learn the colors they eat |
 | Sexual reproduction with color choice | Sex where the color gene is the mating signal |
+| The grand world | Everything at once in a 512 x 512 world with sparse food (untuned: an open experiment) |
 | Colonies | Cells can stay attached to their parents, move together and share energy |
 | Sunlit colonies | The niche where colonies pay: specialized cells (feeders, movers, photosynthesizers, armor, sensors) in a low-food world |
 | Symbiosis | Cells can bond with any cell they touch; nothing rewards it (it does not catch on, see devlog 8) |
@@ -142,6 +143,7 @@ Each preset is a short JSON file in [`configs/`](configs) naming the settings it
 | 6 | Dynamic world | Terrain, climate, seasons, catastrophes (**done**) |
 | 7 | Ecological depth | Aging, litter size, kin, disease, camouflage (**v0.3, done**; symbiosis not built) |
 | 8 | Multicellularity | Colonies, cell types, body plans (**v0.4, done**; arises rarely from scratch) |
+| 8b | The grand world | Evolvable kin tolerance and sex, weather, kinds of plant, brain memory and chemical signals, colonies with brains (**built**; see devlog 10) |
 | 9 | Experiments at scale | Parameter sweeps and findings |
 | 10 | Ship it | Portfolio page and write-ups (v1.0) |
 
