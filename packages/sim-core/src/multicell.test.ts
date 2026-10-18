@@ -75,7 +75,7 @@ describe("multicellularity: bonds and colonies", () => {
     expect(sim.bondTo).toHaveLength(0);
     sim.run(500);
     for (let i = 0; i < sim.count; i++) expect(sim.genes[i * GENE_COUNT + GENE.bond]).toBe(0);
-    expect(sim.stats().colonies).toEqual({ count: 0, cells: 0, meanSize: 0, maxSize: 0, meanTypes: 0, maxTypes: 0, symmetry: 0 });
+    expect(sim.stats().colonies).toEqual({ count: 0, cells: 0, meanSize: 0, maxSize: 0, meanTypes: 0, maxTypes: 0, symmetry: 0, mixed: 0 });
   });
 
   it("a baby stays attached with the chance given by its parent's bonding gene: always at 1, never at 0", () => {
@@ -261,4 +261,141 @@ describe("multicellularity: bonds and colonies", () => {
     expect(() => new Simulation(1, { multicellular: 1, bondStiffness: 2 })).toThrow(/bondStiffness/);
     expect(() => new Simulation(1, { multicellular: 2 })).toThrow(/multicellular/);
   });
+});
+
+describe("bonding with strangers (contactBonding)", () => {
+  /** Two unrelated, touching cells with the given stickiness. */
+  function touching(stickA: number, stickB: number, extra: Partial<SimConfig> = {}): Simulation {
+    const sim = new Simulation(1, quiet({ initialOrganisms: 2, contactBonding: 1, bondShare: 0, bondAlign: 0, ...extra }));
+    sim.genes[0 * GENE_COUNT + GENE.stick] = stickA;
+    sim.genes[1 * GENE_COUNT + GENE.stick] = stickB;
+    sim.x[0] = 30;
+    sim.y[0] = 30;
+    sim.x[1] = 31;
+    sim.y[1] = 30;
+    for (let i = 0; i < 2; i++) sim.energy[i] = 1e6;
+    return sim;
+  }
+  const bonded = (sim: Simulation): boolean => sim.bondTo[0] === 1 && sim.bondTo[1 * BOND_SLOTS] === 0;
+
+  it("is off by default, and needs multicellularity", () => {
+    expect(() => new Simulation(1, { contactBonding: 1 })).toThrow(/needs multicellular/);
+    const sim = new Simulation(1, quiet({ initialOrganisms: 2 }));
+    sim.x[1] = sim.x[0]! + 1;
+    sim.y[1] = sim.y[0]!;
+    sim.run(20);
+    expect(sim.bondTo[0]).toBe(-1);
+  });
+
+  it("two touching cells that are both fully sticky bond; if either is not sticky at all, they never do", () => {
+    const both = touching(1, 1);
+    both.step();
+    expect(bonded(both)).toBe(true);
+    checkBonds(both);
+    for (const [a, b] of [[1, 0], [0, 1], [0, 0]] as const) {
+      const sim = touching(a, b);
+      sim.run(30);
+      expect(sim.bondTo[0]).toBe(-1);
+    }
+  });
+
+  it("the chance per tick is the product of the two stickiness genes", () => {
+    let formed = 0;
+    for (let seed = 1; seed <= 400; seed++) {
+      const sim = new Simulation(seed, quiet({ initialOrganisms: 2, contactBonding: 1, bondShare: 0, bondAlign: 0, bondStiffness: 0 }));
+      sim.genes[GENE.stick] = 0.5;
+      sim.genes[GENE_COUNT + GENE.stick] = 0.5;
+      sim.x[0] = 30;
+      sim.y[0] = 30;
+      sim.x[1] = 31;
+      sim.y[1] = 30;
+      sim.energy[0] = sim.energy[1] = 1e6;
+      sim.step();
+      if (sim.bondTo[0] === 1) formed++;
+    }
+    expect(formed / 400).toBeGreaterThan(0.17);
+    expect(formed / 400).toBeLessThan(0.33); // 0.5 x 0.5 = 0.25
+  });
+
+  it("cells too far apart do not bond, and bond limits and colony size limits are respected", () => {
+    const far = touching(1, 1);
+    far.x[1] = 40;
+    far.step();
+    expect(far.bondTo[0]).toBe(-1);
+    const full = touching(1, 1, { bondLinksMax: 1 });
+    // Cell 0 already has its one bond (to a third cell parked elsewhere).
+    const sim3 = new Simulation(1, quiet({ initialOrganisms: 3, contactBonding: 1, bondLinksMax: 1, bondShare: 0, bondAlign: 0 }));
+    for (let i = 0; i < 3; i++) sim3.genes[i * GENE_COUNT + GENE.stick] = 1;
+    sim3.x[0] = 30;
+    sim3.y[0] = 30;
+    sim3.x[1] = 31;
+    sim3.y[1] = 30;
+    sim3.x[2] = 10;
+    sim3.y[2] = 10;
+    sim3.bondTo[0] = 2;
+    sim3.bondTo[2 * BOND_SLOTS] = 0;
+    for (let i = 0; i < 3; i++) sim3.energy[i] = 1e6;
+    sim3.run(5);
+    expect(sim3.bondTo[1 * BOND_SLOTS]).toBe(-1); // cell 0 had no free bond left
+    void full;
+    const capped = new Simulation(1, quiet({ initialOrganisms: 4, contactBonding: 1, colonyMax: 3, bondShare: 0, bondAlign: 0 }));
+    for (let i = 0; i < 4; i++) {
+      capped.genes[i * GENE_COUNT + GENE.stick] = 1;
+      capped.x[i] = 30 + i * 1.2;
+      capped.y[i] = 30;
+      capped.energy[i] = 1e6;
+    }
+    capped.run(10);
+    expect(Math.max(...capped.colonySizes())).toBeLessThanOrEqual(3);
+    checkBonds(capped);
+  });
+
+  it("mixed colonies (cells from different species) are counted", () => {
+    const sim = new Simulation(1, quiet({ initialOrganisms: 4, bondShare: 0, bondAlign: 0, speciesEvery: 10, speciesProbation: 50, speciesSampleEvery: 50, speciesMinMembers: 2, speciesDistance: 0.1 }));
+    // Two groups of two, far apart in genes, each pair bonded together, plus one cross bond.
+    for (let g = 0; g < GENE_COUNT; g++) {
+      sim.genes[2 * GENE_COUNT + g] = 0.9;
+      sim.genes[3 * GENE_COUNT + g] = 0.9;
+    }
+    sim.genes[GENE.hue] = 0.1;
+    for (let i = 0; i < 4; i++) {
+      sim.x[i] = 30 + i * 1.2;
+      sim.y[i] = 30;
+      sim.energy[i] = 1e6;
+    }
+    const link = (a: number, b: number): void => {
+      sim.bondTo[a * BOND_SLOTS + (sim.bondTo[a * BOND_SLOTS] === -1 ? 0 : 1)] = b;
+      sim.bondTo[b * BOND_SLOTS + (sim.bondTo[b * BOND_SLOTS] === -1 ? 0 : 1)] = a;
+    };
+    link(0, 1);
+    link(1, 2);
+    link(2, 3);
+    sim.run(200);
+    expect(sim.stats().species.alive).toBeGreaterThanOrEqual(2);
+    expect(sim.stats().colonies.mixed).toBe(1);
+  });
+
+  it("a world with it on is deterministic, conserves energy and matter, and saves and loads exactly", () => {
+    const config = { worldWidth: 128, worldHeight: 128, initialOrganisms: 150, multicellular: 1, contactBonding: 1, initialStick: 0.3, bondShare: 0.2 } as Partial<SimConfig>;
+    const a = new Simulation(5, config);
+    const b = new Simulation(5, config);
+    const energy0 = a.energyAudit().total;
+    const matter0 = a.matterAudit().total;
+    for (let block = 0; block < 4; block++) {
+      a.run(500);
+      b.run(500);
+      checkBonds(a);
+      const L = a.ledger;
+      const burned = L.basalBurned + L.movementBurned + L.sensingBurned + L.attackBurned + L.armorBurned + L.brainBurned;
+      const expected = energy0 + L.sunlightIn - burned - L.digestionLoss - L.decayLoss;
+      expect(Math.abs(a.energyAudit().total - expected) / expected).toBeLessThan(1e-9);
+      expect(Math.abs(a.matterAudit().total - matter0) / matter0).toBeLessThan(1e-9);
+    }
+    expect(a.fingerprint()).toBe(b.fingerprint());
+    expect(a.stats().colonies.count).toBeGreaterThan(0);
+    const loaded = Simulation.load(a.save());
+    a.run(500);
+    loaded.run(500);
+    expect(loaded.fingerprint()).toBe(a.fingerprint());
+  }, 120_000);
 });

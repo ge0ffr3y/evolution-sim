@@ -1,0 +1,13 @@
+{
+  "name": "Symbiosis (cells bond with strangers)",
+  "description": "A sunlit, low-food world where cells can bond to ANY cell that touches them (not just their own babies), with a stickiness gene deciding how readily. Nothing rewards it: bonded cells simply share energy, so a mixed colony can help both partners (mutualism) or let one drain the other (parasitism), and selection decides. Mixed colonies are counted in the colonies readout. Color the dots by Colony size.",
+  "config": {
+    "multicellular": 1,
+    "cellTypes": 1,
+    "contactBonding": 1,
+    "initialStick": 0.3,
+    "initialBond": 0,
+    "foodRegrowPerTick": 0.012,
+    "typePhotoGain": 0.07
+  }
+}

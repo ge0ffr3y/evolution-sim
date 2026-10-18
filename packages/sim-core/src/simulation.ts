@@ -128,6 +128,8 @@ export interface ColonyStats {
   meanTypes: number;
   maxTypes: number;
   symmetry: number;
+  /** Colonies made of cells from more than one species (0 when species tracking is off). */
+  mixed: number;
 }
 
 /** Things that happen to the whole world: catastrophes and their ends. */
@@ -756,7 +758,8 @@ export class Simulation {
         (k === GENE.lifespan && this.agingOn) ||
         (k === GENE.litter && this.litterOn) ||
         (k === GENE.bond && this.bondsOn) ||
-        ((k === GENE.plan1 || k === GENE.plan2 || k === GENE.plan3) && this.typeOn),
+        ((k === GENE.plan1 || k === GENE.plan2 || k === GENE.plan3) && this.typeOn) ||
+        (k === GENE.stick && this.bondsOn && c.contactBonding === 1),
     );
     this.kinLimitSq = c.kinDistance * c.kinDistance;
     this.sexOn = c.sexualReproduction === 1;
@@ -769,7 +772,7 @@ export class Simulation {
       if (name === "hue" || name === "mutationRate") continue;
       if (!this.activeGene[GENE[name]]) continue;
       // The bonding and body-plan genes describe how a body is built, not what kind of organism it is.
-      if (name === "bond" || name === "plan1" || name === "plan2" || name === "plan3") continue;
+      if (name === "bond" || name === "plan1" || name === "plan2" || name === "plan3" || name === "stick") continue;
       this.mateMask.push(GENE[name]);
     }
     this.species = new Uint32Array(c.speciesEvery > 0 ? n : 0);
@@ -832,6 +835,7 @@ export class Simulation {
     founder[GENE.lifespan] = traitToGene(c.initialLifespan, this.ranges.lifespan);
     founder[GENE.litter] = traitToGene(c.initialLitter, this.ranges.litter);
     founder[GENE.bond] = c.initialBond;
+    founder[GENE.stick] = c.initialStick;
     for (let i = 0; i < c.initialOrganisms; i++) {
       let fx = this.rng.range(0, c.worldWidth);
       let fy = this.rng.range(0, c.worldHeight);
@@ -1773,6 +1777,43 @@ export class Simulation {
     }
   }
 
+  /** Used while a sticky cell looks for a stranger to bond to. */
+  private bondSelf = 0;
+  private readonly tryContact = (index: number, distSq: number): void => {
+    const i = this.bondSelf;
+    if (index <= i || distSq <= 0 || this.killed[index] === 1) return;
+    const c = this.config;
+    const stickJ = this.genes[index * GENE_COUNT + GENE.stick]!;
+    if (stickJ <= 0) return;
+    // Both need a free bond, and they must not be bonded already.
+    let slotI = -1;
+    let slotJ = -1;
+    for (let k = 0; k < c.bondLinksMax; k++) {
+      const a = this.bondTo[i * BOND_SLOTS + k]!;
+      const b = this.bondTo[index * BOND_SLOTS + k]!;
+      if (a === index) return;
+      if (a === -1 && slotI < 0) slotI = k;
+      if (b === -1 && slotJ < 0) slotJ = k;
+    }
+    if (slotI < 0 || slotJ < 0) return;
+    if (this.rng.next() >= this.genes[i * GENE_COUNT + GENE.stick]! * stickJ) return;
+    if (this.colonySize(i, c.colonyMax) + this.colonySize(index, c.colonyMax) > c.colonyMax) return;
+    this.bondTo[i * BOND_SLOTS + slotI] = index;
+    this.bondTo[index * BOND_SLOTS + slotJ] = i;
+  };
+
+  /** Every cell with some stickiness looks for touching cells to bond to. */
+  private contactBond(n: number): void {
+    const c = this.config;
+    this.hash.rebuild(this.x, this.y, n);
+    const reach = c.bondRestLength * 1.5;
+    for (let i = 0; i < n; i++) {
+      if (this.genes[i * GENE_COUNT + GENE.stick]! <= 0 || this.killed[i] === 1) continue;
+      this.bondSelf = i;
+      this.hash.forEachNear(this.x[i]!, this.y[i]!, reach, this.tryContact);
+    }
+  }
+
   /** Pull every bonded pair toward its rest length (a few passes), then update where each cell stands. */
   private holdBonds(n: number): void {
     const c = this.config;
@@ -1827,7 +1868,7 @@ export class Simulation {
 
   /** The complexity of the colonies right now (all zeros without multicellularity). */
   private colonyStats(): ColonyStats {
-    const none: ColonyStats = { count: 0, cells: 0, meanSize: 0, maxSize: 0, meanTypes: 0, maxTypes: 0, symmetry: 0 };
+    const none: ColonyStats = { count: 0, cells: 0, meanSize: 0, maxSize: 0, meanTypes: 0, maxTypes: 0, symmetry: 0, mixed: 0 };
     if (!this.bondsOn) return none;
     const colonies = this.colonyMembers();
     if (colonies.length === 0) return none;
@@ -1837,7 +1878,12 @@ export class Simulation {
     let maxTypes = 0;
     let symmetrySum = 0;
     let symmetric = 0;
+    let mixed = 0;
     for (const members of colonies) {
+      if (this.tracker) {
+        const firstSpecies = this.speciesOf(members[0]!);
+        if (members.some((cell) => this.speciesOf(cell) !== firstSpecies)) mixed++;
+      }
       cells += members.length;
       if (members.length > maxSize) maxSize = members.length;
       let seen = 0;
@@ -1860,6 +1906,7 @@ export class Simulation {
       meanTypes: typeSum / colonies.length,
       maxTypes,
       symmetry: symmetric > 0 ? symmetrySum / symmetric : 0,
+      mixed,
     };
   }
 
@@ -2319,6 +2366,8 @@ export class Simulation {
 
     // Bonds pull linked cells back together after everyone has moved.
     if (this.bondsOn) this.holdBonds(n);
+    // Touching cells may bond with strangers.
+    if (this.bondsOn && c.contactBonding === 1) this.contactBond(n);
 
     // Scent trails: old scent fades, then everyone leaves fresh scent where they now stand.
     if (this.scentOn) this.layScent(n);
@@ -2940,6 +2989,7 @@ export class Simulation {
       case "plan1":
       case "plan2":
       case "plan3":
+      case "stick":
         return this.genes[i * GENE_COUNT + GENE[name]]!;
       case "lifespan": {
         const range = this.ranges.lifespan;

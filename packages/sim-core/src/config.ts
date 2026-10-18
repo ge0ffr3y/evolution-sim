@@ -417,6 +417,18 @@ export interface SimConfig {
   /** The bonding gene of the first generation (the chance a baby stays attached). 0 = nobody bonds until mutation makes it happen. */
   initialBond: number;
 
+  // --- Cross-lineage bonding (off by default; needs multicellular) ---
+  /**
+   * 0 = cells only bond to their own babies. 1 = a gene ("stickiness") lets cells bond to ANY cell that
+   * touches them, relative or not: each tick, two touching cells with free bonds join with probability
+   * equal to the product of their stickiness genes. Nothing rewards it: a colony of unrelated cells
+   * shares energy like any other, so it can help both (mutualism) or let one cell drain the other
+   * (parasitism), and selection decides. Mixed colonies are counted in the colony stats.
+   */
+  contactBonding: number;
+  /** Stickiness of the first generation (0 = nobody is sticky until mutation makes it so). */
+  initialStick: number;
+
   // --- Cell types (off by default; needs multicellular) ---
   /**
    * 0 = every cell is the same. 1 = a baby that stays attached to its parent becomes one of six types,
@@ -714,6 +726,8 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   bondShare: 0.1,
   bondAlign: 0.3,
   initialBond: 0,
+  contactBonding: 0,
+  initialStick: 0,
   cellTypes: 0,
   typeFeederBite: 2,
   typeFeederSpeed: 0.4,
@@ -916,6 +930,9 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     if (c.bondShare < 0 || c.bondShare > 1 || c.bondAlign < 0 || c.bondAlign > 1) problems.push("bondShare and bondAlign must be between 0 and 1");
     if (c.initialBond < 0 || c.initialBond > 1) problems.push("initialBond must be between 0 and 1");
   }
+  if (![0, 1].includes(c.contactBonding)) problems.push("contactBonding must be 0 or 1");
+  if (c.contactBonding === 1 && c.multicellular !== 1) problems.push("contactBonding needs multicellular to be 1");
+  if (c.initialStick < 0 || c.initialStick > 1) problems.push("initialStick must be between 0 and 1");
   if (![0, 1].includes(c.cellTypes)) problems.push("cellTypes must be 0 or 1");
   if (c.cellTypes === 1) {
     if (c.multicellular !== 1) problems.push("cellTypes needs multicellular to be 1");

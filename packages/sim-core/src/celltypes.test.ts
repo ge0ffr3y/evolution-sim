@@ -255,7 +255,7 @@ describe("colony complexity", () => {
     expect(pair.stats().colonies.symmetry).toBe(0);
     expect(pair.stats().colonies.count).toBe(1);
     const alone = new Simulation(1, quiet({ initialOrganisms: 3 }));
-    expect(alone.stats().colonies).toEqual({ count: 0, cells: 0, meanSize: 0, maxSize: 0, meanTypes: 0, maxTypes: 0, symmetry: 0 });
+    expect(alone.stats().colonies).toEqual({ count: 0, cells: 0, meanSize: 0, maxSize: 0, meanTypes: 0, maxTypes: 0, symmetry: 0, mixed: 0 });
   });
 
   it("works across the wrap-around edge of the world", () => {
