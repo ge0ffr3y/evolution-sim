@@ -189,9 +189,12 @@ export interface SimConfig {
   /** Connections weaker than this are treated as absent: free, and they do nothing. */
   brainPruneBelow: number;
   /**
-   * 1 = founders start with one reflex wired in: plant smell turns them toward richer
-   * ground (as an ordinary evolvable weight). This matches the steering the brains-off
-   * control has built in, so brains do not start out handicapped. 0 = start blank.
+   * Reflexes founders start with, as ordinary evolvable weights (not fixed rules).
+   * 0 = start blank. 1 = plant smell turns them toward richer ground (this matches the
+   * steering the brains-off control has built in, so brains do not start out
+   * handicapped). 2 = that, plus a pull toward things smaller than themselves that they
+   * can see (so predators start with a way to approach prey, as prey have no such head
+   * start in fleeing). Hunting and fleeing still have to be refined by evolution.
    */
   brainFounderReflex: number;
   /** Chances per birth of the layout changing (mode 2 only). */
@@ -385,6 +388,7 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   ] as const) {
     if (value < 0 || value > 1) problems.push(`${name} must be between 0 and 1`);
   }
+  if (![0, 1, 2].includes(c.brainFounderReflex)) problems.push("brainFounderReflex must be 0, 1 or 2");
   if (c.brainWeightZeroProb < 0 || c.brainWeightZeroProb > 1) problems.push("brainWeightZeroProb must be between 0 and 1");
   if (c.brainPruneBelow < 0) problems.push("brainPruneBelow cannot be negative");
   if (c.brainMode > 0 && c.brainVisionRange + c.senseRangeMax >= Math.min(c.worldWidth, c.worldHeight) / 2) {

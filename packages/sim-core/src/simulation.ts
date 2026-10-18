@@ -208,6 +208,9 @@ const SENSE_SMELL = 2;
 const SENSE_BODY = 4;
 /** Strength of the founders' plant-smell reflex. */
 const FOUNDER_REFLEX_WEIGHT = 1.5;
+/** The founders' chase reflex: turning strength per ray away from the middle, and the speed-up when prey is dead ahead. */
+const CHASE_REFLEX_TURN = 0.8;
+const CHASE_REFLEX_SPEED = 0.5;
 /** Distance within which behavior is judged (world units), so every world is measured the same way. */
 const BEHAVIOR_RANGE = 6;
 /** How old (in ticks) an organism must be for its age input to read "old". */
@@ -731,8 +734,17 @@ export class Simulation {
     const base = i * CONN_MAX;
     let count = c.brainMode === 1 ? initFixedBrain(this.brainFrom, this.brainTo, this.brainWeight, base, c.brainHidden) : 0;
     if (c.brainFounderReflex > 0) {
-      // The one reflex founders start with: turn toward the side where plants are richer.
+      // Founders start with a reflex: turn toward the side where plants are richer.
       count = setConnection(this.brainFrom, this.brainTo, this.brainWeight, base, count, INPUT.smellPlantSide, OUTPUT_START + OUTPUT.turn, FOUNDER_REFLEX_WEIGHT);
+    }
+    if (c.brainFounderReflex > 1) {
+      // And a pull toward things smaller than themselves: turn toward them, and speed up when one is dead ahead.
+      const turn = OUTPUT_START + OUTPUT.turn;
+      for (let ray = 0; ray < RAY_COUNT; ray++) {
+        const strength = (ray - (RAY_COUNT - 1) / 2) * CHASE_REFLEX_TURN; // right rays turn right (negative), left rays turn left
+        if (strength !== 0) count = setConnection(this.brainFrom, this.brainTo, this.brainWeight, base, count, INPUT.visionStart + ray * RAY_CHANNELS, turn, strength);
+      }
+      count = setConnection(this.brainFrom, this.brainTo, this.brainWeight, base, count, INPUT.visionStart + 2 * RAY_CHANNELS, OUTPUT_START + OUTPUT.speed, CHASE_REFLEX_SPEED);
     }
     this.brainCount[i] = count;
     this.refreshBrain(i);

@@ -345,6 +345,29 @@ describe("worlds with brains", () => {
     expect(fixed.brainConnections[0]).toBe(1);
   });
 
+  it("founders with reflex 2 start with a pull toward smaller things: left prey turns them left, right prey right, bigger things do nothing", () => {
+    const turnToward = (angleDeg: number, preySize: number): number => {
+      const sim = new Simulation(1, stage({ brainFounderReflex: 2, brainVisionRange: 8, initialSenseRange: 0 }));
+      place(sim, 0, 32, 32);
+      const a = (angleDeg * Math.PI) / 180;
+      place(sim, 1, 32 + 5 * Math.cos(a), 32 + 5 * Math.sin(a), 0, 1);
+      setGene(sim, 1, "size", preySize);
+      setGene(sim, 1, "speed", 0.1);
+      sim.step();
+      return sim.headingY[0]!; // facing east: positive y = turned left
+    };
+    expect(turnToward(35, 0.6)).toBeGreaterThan(0.05);
+    expect(turnToward(-35, 0.6)).toBeLessThan(-0.05);
+    expect(Math.abs(turnToward(35, 2.5))).toBeLessThan(0.01); // bigger: not chased
+  });
+
+  it("reflex 2 includes the plant-smell reflex too, and reflex 1 has no chase", () => {
+    const two = new Simulation(1, { ...SMALL, brainMode: 2, brainFounderReflex: 2 });
+    expect(two.brainCount[0]).toBeGreaterThanOrEqual(1 + 4 + 1);
+    const one = new Simulation(1, { ...SMALL, brainMode: 2, brainFounderReflex: 1 });
+    expect(one.brainCount[0]).toBe(1);
+  });
+
   it("a newborn gets a copy of its parent's brain when nothing mutates", () => {
     const sim = new Simulation(3, {
       ...SMALL,
