@@ -12,7 +12,7 @@ import {
   type Traits,
 } from "./genome";
 import { polarness, smoothWave } from "./climate";
-import { BIOME, generateBackground, generateBiomes, generateWeatherMap, growthMultipliers, moveMultipliers } from "./terrain";
+import { BIOME, generateBackground, generateBiomes, generatePlantTypes, generateWeatherMap, growthMultipliers, moveMultipliers } from "./terrain";
 import { SNAPSHOT_FORMAT, type SimSnapshot, type SnapshotArray } from "./snapshot";
 import { SpeciesTracker, type SpeciesEvent, type SpeciesRecord } from "./species";
 import {
@@ -521,6 +521,11 @@ export class Simulation {
   private readonly homeY: Float32Array;
   /** Weather fronts: two fixed smooth maps (blended and drifted over time), and whether the fat and torpor genes are in use. */
   private readonly weatherOn: boolean;
+  /** Kinds of plant: which kind grows in each cell (fixed from the seed), and the seasonal wave each kind follows this tick. */
+  private readonly plantKinds: number;
+  private readonly plantTypeOf: Uint8Array;
+  private readonly kindGrowth: Float64Array;
+  private readonly kindOptimum: Float64Array;
   private readonly weatherA: Float32Array;
   private readonly weatherB: Float32Array;
   private readonly fatOn: boolean;
@@ -686,6 +691,10 @@ export class Simulation {
     this.tempBase = new Float64Array(climateCells);
     this.tempSwing = new Float64Array(climateCells);
     this.lightBase = new Float64Array(climateCells);
+    this.plantKinds = c.plantTypes;
+    this.plantTypeOf = c.plantTypes > 1 ? generatePlantTypes(seed, this.gridWidth, this.gridHeight, c.plantTypeScale, c.plantTypes) : new Uint8Array(0);
+    this.kindGrowth = new Float64Array(c.plantTypes);
+    this.kindOptimum = new Float64Array(c.plantTypes);
     this.weatherOn = this.climateOn && c.weatherAmplitude > 0;
     this.weatherA = this.weatherOn ? generateWeatherMap(seed, this.gridWidth, this.gridHeight, c.weatherScale, 0x51f3a7c9) : new Float32Array(0);
     this.weatherB = this.weatherOn ? generateWeatherMap(seed, this.gridWidth, this.gridHeight, c.weatherScale, 0x1d8e4b27) : new Float32Array(0);
@@ -810,7 +819,8 @@ export class Simulation {
         (k === GENE.tolerance && c.kinTolerance === 1) ||
         (k === GENE.sex && c.sexualReproduction === 2) ||
         (k === GENE.fat && c.fatMax > 0) ||
-        (k === GENE.torpor && this.climateOn && c.torporSaving > 0),
+        (k === GENE.torpor && this.climateOn && c.torporSaving > 0) ||
+        (k === GENE.palate && c.plantTypes > 1),
     );
     this.kinLimitSq = c.kinDistance * c.kinDistance;
     this.fatOn = c.fatMax > 0;
@@ -918,6 +928,7 @@ export class Simulation {
     founder[GENE.sex] = c.initialSex;
     founder[GENE.fat] = c.initialFat;
     founder[GENE.torpor] = c.initialTorpor;
+    founder[GENE.palate] = c.initialPalate;
     for (let i = 0; i < c.initialOrganisms; i++) {
       let fx = this.rng.range(0, c.worldWidth);
       let fy = this.rng.range(0, c.worldHeight);
@@ -929,6 +940,12 @@ export class Simulation {
       const index = this.spawn(0, fx, fy);
       for (let g = 0; g < GENE_COUNT; g++) this.genes[index * GENE_COUNT + g] = founder[g]!;
       this.genes[index * GENE_COUNT + GENE.hue] = this.rng.next();
+      if (c.founderSpread > 0) {
+        // Standing variety: the newer genes that are switched on start a random amount above their starting value.
+        for (const gene of [GENE.tolerance, GENE.sex, GENE.fat, GENE.torpor, GENE.palate]) {
+          if (this.activeGene[gene]) this.genes[index * GENE_COUNT + gene] = clamp01(this.genes[index * GENE_COUNT + gene]! + c.founderSpread * this.rng.next());
+        }
+      }
       if (this.typeOn) for (const plan of [GENE.plan1, GENE.plan2, GENE.plan3]) this.genes[index * GENE_COUNT + plan] = this.rng.next();
       this.express(index);
       this.initBrain(index);
@@ -959,12 +976,13 @@ export class Simulation {
   private updateClimate(): void {
     const c = this.config;
     const t = this.tick;
-    let season = c.yearLength > 0 ? smoothWave(t / c.yearLength + 0.25) : 0;
+    let yearMult = 1;
     if (c.yearVariability > 0) {
       // Harsh and mild years: a fixed scramble of the year number stretches or shrinks that year's swing.
       const year = Math.floor(t / c.yearLength);
-      season *= 1 + c.yearVariability * (2 * unitHash(year, this.seed) - 1);
+      yearMult = 1 + c.yearVariability * (2 * unitHash(year, this.seed) - 1);
     }
+    const season = (c.yearLength > 0 ? smoothWave(t / c.yearLength + 0.25) : 0) * yearMult;
     const daylight = c.dayLength > 0 ? 1 - c.dayNightDepth * (1 - (smoothWave(t / c.dayLength + 0.25) + 1) / 2) : 1;
     const drift = c.climateDriftPeriod > 0 ? c.climateDriftAmplitude * smoothWave(t / c.climateDriftPeriod + 0.25) : 0;
     // A catastrophe in progress builds up and fades smoothly, worst in the middle.
@@ -981,6 +999,16 @@ export class Simulation {
     const seasonGrowth = (swungGrowth > 0 ? swungGrowth : 0) * dryness;
     const optimum = c.plantTempOptimum;
     const tolerance = c.plantTempTolerance;
+    // Kinds of plant: each peaks at a different time of year and likes a slightly different temperature.
+    const kinds = this.plantKinds;
+    if (kinds > 1) {
+      for (let j = 0; j < kinds; j++) {
+        const wave = c.yearLength > 0 ? smoothWave(t / c.yearLength + 0.25 - (j / kinds) * c.plantTypePhase) * yearMult : 0;
+        const swung = 1 + c.seasonGrowthSwing * wave;
+        this.kindGrowth[j] = (swung > 0 ? swung : 0) * dryness;
+        this.kindOptimum[j] = optimum + (j - (kinds - 1) / 2) * c.plantTypeTempSpread;
+      }
+    }
     // Weather: the two weather maps shift east and south as time passes and are blended, so fronts move and change shape.
     let shiftX = 0;
     let shiftY = 0;
@@ -1002,9 +1030,10 @@ export class Simulation {
       }
       const temp = this.tempBase[cell]! + this.tempSwing[cell]! * season + drift - cooling + weather;
       this.temperature[cell] = temp;
-      const off = (temp - optimum) / tolerance;
+      const kind = kinds > 1 ? this.plantTypeOf[cell]! : 0;
+      const off = (temp - (kinds > 1 ? this.kindOptimum[kind]! : optimum)) / tolerance;
       const comfort = 1 - off * off;
-      this.growthFactor[cell] = comfort > 0 ? this.lightBase[cell]! * daylight * seasonGrowth * comfort : 0;
+      this.growthFactor[cell] = comfort > 0 ? this.lightBase[cell]! * daylight * (kinds > 1 ? this.kindGrowth[kind]! : seasonGrowth) * comfort : 0;
     }
   }
 
@@ -1452,6 +1481,15 @@ export class Simulation {
     this.brainCost[i] = c.brainBaseCost + c.brainCostPerNeuron * size.hidden + c.brainCostPerConnection * size.connections + (readsChem && this.chemOn ? c.chemicalsCost : 0);
   }
 
+  /** How well organism i digests the plants growing in a cell: 1 for its favorite kind, falling to the floor (kinds are spaced evenly from 0 to 1). */
+  private palateMatch(i: number, cell: number): number {
+    const c = this.config;
+    const position = this.plantTypeOf[cell]! / (this.plantKinds - 1);
+    const distance = Math.abs(this.genes[i * GENE_COUNT + GENE.palate]! - position);
+    const match = 1 - distance / c.plantPalateWidth;
+    return match > c.plantPalateFloor ? match : c.plantPalateFloor;
+  }
+
   /** Move organism i's four chemical signals (reward, stress, bond, calm) on by one thought. */
   private updateChemicals(i: number): void {
     const c = this.config;
@@ -1641,8 +1679,10 @@ export class Simulation {
       const south = ((cy + 1) % gh) * gw + cx;
       const north = ((cy + gh - 1) % gh) * gw + cx;
       const plantScale = 1 / c.foodCap;
-      const gxPlant = (this.food[east]! - this.food[west]!) * plantScale;
-      const gyPlant = (this.food[south]! - this.food[north]!) * plantScale;
+      // With kinds of plant, what an animal smells is food it can digest.
+      const kinds = this.plantKinds > 1;
+      const gxPlant = (this.food[east]! * (kinds ? this.palateMatch(i, east) : 1) - this.food[west]! * (kinds ? this.palateMatch(i, west) : 1)) * plantScale;
+      const gyPlant = (this.food[south]! * (kinds ? this.palateMatch(i, south) : 1) - this.food[north]! * (kinds ? this.palateMatch(i, north) : 1)) * plantScale;
       inputs[INPUT.smellPlantAhead] = clampUnit(gxPlant * hx + gyPlant * hy);
       inputs[INPUT.smellPlantSide] = clampUnit(hx * gyPlant - hy * gxPlant);
       const meatScale = 1 / MEAT_SMELL_FULL;
@@ -1650,7 +1690,7 @@ export class Simulation {
       const gyMeat = (this.corpseEnergy[south]! - this.corpseEnergy[north]!) * meatScale;
       inputs[INPUT.smellMeatAhead] = clampUnit(gxMeat * hx + gyMeat * hy);
       inputs[INPUT.smellMeatSide] = clampUnit(hx * gyMeat - hy * gxMeat);
-      inputs[INPUT.plantHere] = Math.min(1, this.food[here]! * plantScale);
+      inputs[INPUT.plantHere] = Math.min(1, this.food[here]! * (kinds ? this.palateMatch(i, here) : 1) * plantScale);
       inputs[INPUT.meatHere] = Math.min(1, this.corpseEnergy[here]! * meatScale);
 
       // Trails: which way does plant-eater and meat-eater scent get fresher?
@@ -2479,13 +2519,16 @@ export class Simulation {
         // behavior, kept exactly as the control.)
         const sense = this.senseRange[i]!;
         if (sense > 0) {
-          const here = food[Math.floor(y0 / cs) * gw + Math.floor(x0 / cs)]!;
+          const hereCell = Math.floor(y0 / cs) * gw + Math.floor(x0 / cs);
+          const kinds = this.plantKinds > 1;
+          // (With kinds of plant it leans toward food it can digest.)
+          const here = food[hereCell]! * (kinds ? this.palateMatch(i, hereCell) : 1);
           let gx = 0;
           let gy = 0;
           for (let d = 0; d < 8; d++) {
             const cx = wrapCell(Math.floor((x0 + DIR_X[d]! * sense) / cs), gw);
             const cy = wrapCell(Math.floor((y0 + DIR_Y[d]! * sense) / cs), gh);
-            const diff = food[cy * gw + cx]! - here;
+            const diff = food[cy * gw + cx]! * (kinds ? this.palateMatch(i, cy * gw + cx) : 1) - here;
             gx += DIR_X[d]! * diff;
             gy += DIR_Y[d]! * diff;
           }
@@ -2664,7 +2707,7 @@ export class Simulation {
       meatClaim[cell] = meatClaim[cell]! + meatMass;
       const plantRaw = plantMass * energyPerFood;
       const meatRaw = meatMass * meatDensity[cell]!;
-      const plantGain = plantRaw * this.plantEff[i]!;
+      const plantGain = plantRaw * this.plantEff[i]! * (this.plantKinds > 1 ? this.palateMatch(i, cell) : 1);
       const meatGain = meatRaw * this.meatEff[i]!;
       plantEnergyTaken += plantRaw;
       meatEnergyTaken += meatRaw;
@@ -3262,6 +3305,7 @@ export class Simulation {
       case "sex":
       case "fat":
       case "torpor":
+      case "palate":
         return this.genes[i * GENE_COUNT + GENE[name]]!;
       case "lifespan": {
         const range = this.ranges.lifespan;

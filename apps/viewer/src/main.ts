@@ -273,6 +273,7 @@ const GENE_LABELS: Record<GeneName, string> = {
   sex: "Mate-seeking (chance of looking for a mate)",
   fat: "Fat (energy banked before reproducing)",
   torpor: "Torpor (dormancy when plants stop growing)",
+  palate: "Palate (which kind of plant it digests best)",
 };
 
 function traitText(gene: GeneName, value: number): string {

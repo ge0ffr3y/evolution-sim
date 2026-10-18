@@ -376,6 +376,34 @@ export interface SimConfig {
   torporUpkeep: number;
   initialTorpor: number;
 
+  // --- Kinds of plant (off by default: 1 = every plant is alike) ---
+  /**
+   * How many kinds of plant there are (1 to 6). Each cell grows one kind, in smooth patches
+   * (plantTypeScale food cells across; it must divide the grid). The kinds differ in the time of
+   * year they grow best (their peaks are spread over plantTypePhase of a year, which needs seasons)
+   * and the temperature they like (plantTypeTempSpread apart, which needs a climate). A new gene,
+   * the palate (the 23rd), says which kind an animal digests best: it digests the kind it matches
+   * at full efficiency, and a kind that is plantPalateWidth away at the floor efficiency
+   * (plantPalateFloor), falling in a straight line in between. Being good at one kind therefore
+   * means being worse at the others, and the kinds are spaced evenly from 0 to 1. Brains smell
+   * plants in proportion to how well they can digest them.
+   */
+  plantTypes: number;
+  plantTypeScale: number;
+  plantTypePhase: number;
+  plantTypeTempSpread: number;
+  plantPalateWidth: number;
+  plantPalateFloor: number;
+  /** The first generation's palate. */
+  initialPalate: number;
+  /**
+   * Standing variety in the first generation: each of the newer genes that is switched on
+   * (tolerance, mate-seeking, fat, torpor, palate) starts at its initial value plus a random amount
+   * between 0 and this, so selection has something to work with from the start. 0 = every
+   * founder is alike (the original way).
+   */
+  founderSpread: number;
+
   // --- Catastrophes (off by default) ---
   /**
    * 0 = none. 1 = an ice age (the whole world gets colder, then recovers). 2 = a drought
@@ -797,6 +825,14 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   seasonTempSwing: 0.15,
   climateDriftPeriod: 0,
   climateDriftAmplitude: 0.15,
+  plantTypes: 1,
+  plantTypeScale: 8,
+  plantTypePhase: 1,
+  plantTypeTempSpread: 0.1,
+  plantPalateWidth: 0.5,
+  plantPalateFloor: 0.1,
+  initialPalate: 0.5,
+  founderSpread: 0,
   weatherAmplitude: 0,
   weatherScale: 8,
   weatherDriftTicks: 400,
@@ -1044,6 +1080,19 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     }
     if (c.weatherDriftTicks < 0 || c.weatherDriftYTicks < 0 || c.weatherMorphPeriod < 0) problems.push("weather drift and morph times cannot be negative");
   }
+  if (!Number.isInteger(c.plantTypes) || c.plantTypes < 1 || c.plantTypes > 6) problems.push("plantTypes must be a whole number from 1 to 6");
+  if (c.plantTypes > 1) {
+    const gw = c.worldWidth / c.foodCellSize;
+    const gh = c.worldHeight / c.foodCellSize;
+    if (!Number.isInteger(c.plantTypeScale) || c.plantTypeScale < 1 || gw % c.plantTypeScale !== 0 || gh % c.plantTypeScale !== 0) problems.push("plantTypeScale must be a whole number of food cells that divides the grid evenly");
+    if (c.plantTypePhase < 0 || c.plantTypePhase > 1) problems.push("plantTypePhase must be between 0 and 1");
+    if (c.plantTypePhase > 0 && c.climateMode !== 1) problems.push("plantTypePhase above 0 needs a climate with seasons (set climateMode to 1 and a yearLength), or set it to 0");
+    if (c.plantTypeTempSpread < 0) problems.push("plantTypeTempSpread cannot be negative");
+    if (!(c.plantPalateWidth > 0)) problems.push("plantPalateWidth must be positive");
+    if (c.plantPalateFloor < 0 || c.plantPalateFloor > 1) problems.push("plantPalateFloor must be between 0 and 1");
+    if (c.initialPalate < 0 || c.initialPalate > 1) problems.push("initialPalate must be between 0 and 1");
+  }
+  if (c.founderSpread < 0 || c.founderSpread > 1) problems.push("founderSpread must be between 0 and 1");
   if (c.yearVariability < 0 || c.yearVariability > 1) problems.push("yearVariability must be between 0 and 1");
   if (c.yearVariability > 0 && (c.climateMode !== 1 || c.yearLength <= 0)) problems.push("yearVariability needs a climate with seasons (climateMode 1 and a yearLength)");
   if (c.fatMax < 0 || c.fatMoveCost < 0 || c.fatUpkeep < 0) problems.push("the fat settings cannot be negative");

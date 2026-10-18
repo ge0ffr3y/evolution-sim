@@ -151,3 +151,20 @@ export function generateWeatherMap(seed: number, gw: number, gh: number, scale: 
   for (let k = 0; k < noise.length; k++) out[k] = ((noise[k]! - lo) / span) * 2 - 1;
   return out;
 }
+
+/**
+ * Which kind of plant grows in each cell: smooth patches from their own random stream, with
+ * the same number of cells of each kind (the type boundaries are quantiles of the noise).
+ */
+export function generatePlantTypes(seed: number, gw: number, gh: number, scale: number, kinds: number): Uint8Array {
+  const rng = new Rng((seed ^ 0x6b43a9b5) >>> 0);
+  const noise = layeredNoise(rng, gw, gh, scale);
+  const sorted = Float64Array.from(noise).sort();
+  const out = new Uint8Array(gw * gh);
+  for (let k = 0; k < noise.length; k++) {
+    let type = 0;
+    for (let j = 1; j < kinds; j++) if (noise[k]! >= sorted[Math.min(sorted.length - 1, Math.floor((j * sorted.length) / kinds))]!) type = j;
+    out[k] = type;
+  }
+  return out;
+}
