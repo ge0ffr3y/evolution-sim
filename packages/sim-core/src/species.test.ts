@@ -221,6 +221,19 @@ describe("species tracking", () => {
     expect(life.meanAge).toBeCloseTo(1010, 0);
   });
 
+  it("a yearly swing in a seasonal world is not logged as a crash, but a real collapse still is", () => {
+    const config = { worldWidth: 128, worldHeight: 128, initialOrganisms: 200, climateMode: 1, yearLength: 600, seasonGrowthSwing: 0.9, speciesEvery: 50, speciesSampleEvery: 500, speciesCrashWindow: 2000, speciesCrashDrop: 0.4 } as Partial<SimConfig>;
+    const sim = new Simulation(2, config);
+    sim.run(12000);
+    expect(sim.speciesEvents.filter((e) => e.kind === "crash")).toHaveLength(0);
+    // Keep wiping out 90% of everyone for a year (the population recovers fast, so one wipe-out would not last).
+    for (let t = 0; t < 700; t++) {
+      if (t % 5 === 0) for (let i = 0; i < sim.count; i++) if (i % 10 !== 0) sim.energy[i] = 0;
+      sim.step();
+    }
+    expect(sim.speciesEvents.filter((e) => e.kind === "crash").length).toBeGreaterThan(0);
+  }, 60_000);
+
   it("rejects settings that make no sense", () => {
     expect(() => new Simulation(1, { speciesEvery: 30, speciesSampleEvery: 100 })).toThrow(/multiple of speciesEvery/);
     expect(() => new Simulation(1, { speciesDistance: 0 })).toThrow(/speciesDistance/);
