@@ -452,6 +452,12 @@ export class Simulation {
   readonly staminaMax: Float32Array;
   readonly staminaCost: Float32Array;
   private readonly staminaOn: boolean;
+  /** Preferred temperature, and the cost scale, of each organism (only when the thermal gene is in use). */
+  readonly thermalPref: Float32Array;
+  private readonly thermalScale: Float32Array;
+  private readonly thermalOn: boolean;
+  /** Which genes are doing anything in this world (the rest are copied as they are, never mutated). */
+  private readonly activeGene: boolean[];
   /** Who has first claim on the meat in each cell, and until which tick. Used only with killOwnershipTicks. */
   readonly corpseOwner: Uint32Array;
   readonly corpseOwnerUntil: Uint32Array;
@@ -620,6 +626,10 @@ export class Simulation {
     this.outAttack = new Float32Array(brainOrganisms);
     this.moveScale = new Float32Array(brainOrganisms);
     this.staminaOn = c.brainMode > 0 && c.sprintFatigue === 1;
+    this.thermalOn = c.climateMode === 1 && c.thermalCostCoeff > 0;
+    this.thermalPref = new Float32Array(this.thermalOn ? n : 0);
+    this.thermalScale = new Float32Array(this.thermalOn ? n : 0);
+    this.activeGene = GENES.map((_, k) => k < CORE_GENE_COUNT || (k === GENE.stamina && this.staminaOn) || (k === GENE.thermal && this.thermalOn));
     this.sexOn = c.sexualReproduction === 1;
     this.parent2Id = new Uint32Array(this.sexOn ? n : 0);
     this.ready = new Uint8Array(this.sexOn ? n : 0);
@@ -629,10 +639,11 @@ export class Simulation {
     for (const name of GENES) {
       if (name === "hue" || name === "mutationRate") continue;
       if (name === "stamina" && !this.staminaOn) continue;
+      if (name === "thermal" && !this.thermalOn) continue;
       this.mateMask.push(GENE[name]);
     }
     this.species = new Uint32Array(c.speciesEvery > 0 ? n : 0);
-    this.tracker = c.speciesEvery > 0 ? new SpeciesTracker(c, this.ranges, this.staminaOn) : null;
+    this.tracker = c.speciesEvery > 0 ? new SpeciesTracker(c, this.ranges, this.staminaOn, this.thermalOn) : null;
     const staminaOrganisms = this.staminaOn ? n : 0;
     this.stamina = new Float32Array(staminaOrganisms);
     this.staminaMax = new Float32Array(staminaOrganisms);
@@ -653,6 +664,7 @@ export class Simulation {
       this.float32Fields.push(this.brainCost, this.outTurn, this.outSpeed, this.outAttack, this.moveScale);
     }
     if (this.staminaOn) this.float32Fields.push(this.stamina, this.staminaMax, this.staminaCost);
+    if (this.thermalOn) this.float32Fields.push(this.thermalPref, this.thermalScale);
     this.float64Fields = [this.energy, this.plantTaken, this.meatTaken];
     this.uint32Fields = [this.id, this.parentId, this.age, this.kills];
     if (this.tracker) this.uint32Fields.push(this.species);
@@ -675,6 +687,7 @@ export class Simulation {
     founder[GENE.attack] = traitToGene(c.initialAttack, this.ranges.attack);
     founder[GENE.armor] = traitToGene(c.initialArmor, this.ranges.armor);
     founder[GENE.stamina] = traitToGene(c.initialStamina, this.ranges.stamina);
+    founder[GENE.thermal] = traitToGene(c.initialThermal, this.ranges.thermal);
     for (let i = 0; i < c.initialOrganisms; i++) {
       let fx = this.rng.range(0, c.worldWidth);
       let fy = this.rng.range(0, c.worldHeight);
@@ -872,6 +885,11 @@ export class Simulation {
       this.stamina[i] = this.age[i] === 0 ? reserve : Math.min(this.stamina[i]!, reserve);
     }
 
+    if (this.thermalOn) {
+      this.thermalPref[i] = at("thermal");
+      this.thermalScale[i] = c.thermalCostCoeff * sizeToThreeQuarters;
+    }
+
     // Eating. The diet gene splits appetite between plants (diet 0) and meat (diet 1),
     // and a specialist digests its own food better than a generalist does.
     const eatingSize = (1 - c.biteSizeBlend) * sizeToThreeQuarters + c.biteSizeBlend * size;
@@ -902,11 +920,13 @@ export class Simulation {
   private inheritGenes(child: number, parent: number): void {
     const meta = this.config.metaMutationStd;
     const rate = this.mutationRate[parent]!;
-    // Without sprint fatigue the stamina gene is inert, so it is copied without a random draw
-    // (which keeps those worlds identical to how they played out before the gene existed).
-    const genes = this.staminaOn ? GENE_COUNT : CORE_GENE_COUNT;
-    if (genes < GENE_COUNT) this.genes[child * GENE_COUNT + GENE.stamina] = this.genes[parent * GENE_COUNT + GENE.stamina]!;
-    for (let k = 0; k < genes; k++) {
+    for (let k = 0; k < GENE_COUNT; k++) {
+      // A gene that is not doing anything in this world (see activeGene) is copied without a random
+      // draw, which keeps worlds without it identical to how they played out before it existed.
+      if (!this.activeGene[k]) {
+        this.genes[child * GENE_COUNT + k] = this.genes[parent * GENE_COUNT + k]!;
+        continue;
+      }
       const std = k === GENE.mutationRate ? meta : rate;
       this.genes[child * GENE_COUNT + k] = clamp01(this.genes[parent * GENE_COUNT + k]! + this.rng.gaussian() * std);
     }
@@ -927,9 +947,11 @@ export class Simulation {
   private inheritGenesFromTwo(child: number, a: number, b: number): void {
     const meta = this.config.metaMutationStd;
     const rate = (this.mutationRate[a]! + this.mutationRate[b]!) / 2;
-    const genes = this.staminaOn ? GENE_COUNT : CORE_GENE_COUNT;
-    if (genes < GENE_COUNT) this.genes[child * GENE_COUNT + GENE.stamina] = this.genes[a * GENE_COUNT + GENE.stamina]!;
-    for (let k = 0; k < genes; k++) {
+    for (let k = 0; k < GENE_COUNT; k++) {
+      if (!this.activeGene[k]) {
+        this.genes[child * GENE_COUNT + k] = this.genes[a * GENE_COUNT + k]!;
+        continue;
+      }
       const donor = this.rng.next() < 0.5 ? a : b;
       const std = k === GENE.mutationRate ? meta : rate;
       this.genes[child * GENE_COUNT + k] = clamp01(this.genes[donor * GENE_COUNT + k]! + this.rng.gaussian() * std);
@@ -1501,7 +1523,13 @@ export class Simulation {
         this.logEvent("firstScavenger", this.id[i]!, `Organism #${this.id[i]!} lived mostly off a corpse: the first scavenger`);
       }
 
-      const basal = this.basalCost[i]!;
+      let basal = this.basalCost[i]!;
+      if (this.thermalOn) {
+        // Too hot or too cold for comfort costs extra upkeep.
+        const off = this.temperature[cell]! - this.thermalPref[i]!;
+        const excess = (off < 0 ? -off : off) - c.thermalTolerance;
+        if (excess > 0) basal += this.thermalScale[i]! * excess * excess;
+      }
       // Moving costs more the faster the brain drives the body (cost grows with speed squared).
       let move = brainMode > 0 ? this.moveCost[i]! * this.moveScale[i]! * this.moveScale[i]! : this.moveCost[i]!;
       if (this.terrainOn) move *= this.terrainMove[cell]!; // mountains and forest cost more to cross
@@ -1936,6 +1964,10 @@ export class Simulation {
         return this.attack[i]!;
       case "armor":
         return this.armor[i]!;
+      case "thermal": {
+        const range = this.ranges.thermal;
+        return range.min + this.genes[i * GENE_COUNT + GENE.thermal]! * (range.max - range.min);
+      }
       case "stamina": {
         const range = this.ranges.stamina;
         return range.min + this.genes[i * GENE_COUNT + GENE.stamina]! * (range.max - range.min);
@@ -2248,8 +2280,7 @@ export class Simulation {
     mixBits(this.meatTaken, n);
     // Genes first, leaving stamina out unless it is in use (see CORE_GENE_COUNT).
     const geneBits = new Uint32Array(this.genes.buffer, this.genes.byteOffset, n * GENE_COUNT);
-    const mixedGenes = this.staminaOn ? GENE_COUNT : CORE_GENE_COUNT;
-    for (let i = 0; i < n; i++) for (let k = 0; k < mixedGenes; k++) mix(geneBits[i * GENE_COUNT + k]!);
+    for (let i = 0; i < n; i++) for (let k = 0; k < GENE_COUNT; k++) if (this.activeGene[k]) mix(geneBits[i * GENE_COUNT + k]!);
     mixBits(this.food, this.food.length);
     mixBits(this.nutrient, this.nutrient.length);
     mixBits(this.corpseMatter, this.corpseMatter.length);

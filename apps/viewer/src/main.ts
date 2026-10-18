@@ -257,6 +257,7 @@ const GENE_LABELS: Record<GeneName, string> = {
   hue: "Color",
   mutationRate: "Mutation rate",
   stamina: "Stamina (sprint reserve)",
+  thermal: "Preferred temperature",
 };
 
 function traitText(gene: GeneName, value: number): string {
@@ -404,7 +405,7 @@ function dietWord(diet: number): string {
   return diet < 0.25 ? "plant eaters" : diet > 0.75 ? "meat eaters" : "mixed feeders";
 }
 
-const COMPARED_GENES: readonly GeneName[] = ["size", "speed", "senseRange", "metabolism", "diet", "attack", "armor", "stamina"];
+const COMPARED_GENES: readonly GeneName[] = ["size", "speed", "senseRange", "metabolism", "diet", "attack", "armor", "stamina", "thermal"];
 
 function renderSpeciesDetail(id: number | null): void {
   const box = el<HTMLDivElement>("species-detail");
@@ -441,7 +442,7 @@ function renderSpeciesDetail(id: number | null): void {
     const ancestor = record.ancestorTraits?.[index];
     const founder = record.founderTraits[index]!;
     const now = record.traits[index]!;
-    if (gene === "stamina" && Math.abs(founder - now) < 1e-9 && (ancestor === undefined || Math.abs(ancestor - founder) < 1e-9)) continue;
+    if ((gene === "stamina" || gene === "thermal") && Math.abs(founder - now) < 1e-9 && (ancestor === undefined || Math.abs(ancestor - founder) < 1e-9)) continue;
     const row = body.insertRow();
     row.insertCell().textContent = GENE_LABELS[gene];
     row.insertCell().textContent = ancestor === undefined ? "" : traitText(gene, ancestor);

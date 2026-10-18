@@ -67,6 +67,8 @@ export interface SimConfig {
   initialArmor: number;
   /** Starting sprint reserve of the first generation (see sprintFatigue). */
   initialStamina: number;
+  /** Starting preferred temperature of the first generation (0 to 1, see thermalCostCoeff). */
+  initialThermal: number;
   /** Fraction of the reproduction threshold that new organisms start with. */
   initialEnergyFraction: number;
 
@@ -92,6 +94,9 @@ export interface SimConfig {
   /** Range of the stamina gene: the biggest sprint reserve, counted in ticks of flat-out running. */
   staminaMin: number;
   staminaMax: number;
+  /** Range of the thermal gene: the temperature an organism is comfortable at. */
+  thermalMin: number;
+  thermalMax: number;
   /** How much the mutation-rate gene itself changes between generations (in gene units). */
   metaMutationStd: number;
 
@@ -279,6 +284,15 @@ export interface SimConfig {
   climateDriftPeriod: number;
   climateDriftAmplitude: number;
 
+  /**
+   * The thermal gene (preferred temperature). With thermalCostCoeff above 0 (and a climate), an
+   * organism that is more than thermalTolerance away from its preferred temperature pays extra
+   * upkeep: thermalCostCoeff x body size^0.75 x (how far past the tolerance)^2. 0 = the gene
+   * does nothing.
+   */
+  thermalCostCoeff: number;
+  thermalTolerance: number;
+
   // --- Sexual reproduction (off by default) ---
   /**
    * 0 = organisms split in two when they have enough energy (the original way). 1 = two
@@ -405,6 +419,7 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   initialAttack: 0,
   initialArmor: 0,
   initialStamina: 10,
+  initialThermal: 0.5,
   initialEnergyFraction: 0.6,
 
   sizeMin: 0.3,
@@ -425,6 +440,8 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   armorMax: 2,
   staminaMin: 0,
   staminaMax: 30,
+  thermalMin: 0,
+  thermalMax: 1,
   metaMutationStd: 0.05,
 
   turnStd: 0.3,
@@ -499,6 +516,8 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   seasonTempSwing: 0.15,
   climateDriftPeriod: 0,
   climateDriftAmplitude: 0.15,
+  thermalCostCoeff: 0,
+  thermalTolerance: 0.1,
   sexualReproduction: 0,
   mateRange: 6,
   mateDistance: 0.25,
@@ -572,6 +591,7 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     ["attack", c.attackMin, c.attackMax, c.initialAttack],
     ["armor", c.armorMin, c.armorMax, c.initialArmor],
     ["stamina", c.staminaMin, c.staminaMax, c.initialStamina],
+    ["thermal", c.thermalMin, c.thermalMax, c.initialThermal],
   ];
   for (const [name, min, max, start] of ranges) {
     if (min > max) problems.push(`${name}Min exceeds ${name}Max`);
@@ -630,6 +650,8 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
       if (value < 0) problems.push(`${name} cannot be negative`);
     }
   }
+  if (c.thermalCostCoeff < 0 || c.thermalTolerance < 0) problems.push("thermalCostCoeff and thermalTolerance cannot be negative");
+  if (c.thermalCostCoeff > 0 && c.climateMode !== 1) problems.push("thermalCostCoeff needs a climate (set climateMode to 1)");
   if (![0, 1].includes(c.climateMode)) problems.push("climateMode must be 0 (no climate) or 1 (climate)");
   if (c.climateMode === 1) {
     for (const [name, value] of [["dayLength", c.dayLength], ["yearLength", c.yearLength], ["climateDriftPeriod", c.climateDriftPeriod]] as const) {

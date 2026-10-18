@@ -1,0 +1,9 @@
+{
+  "name": "Climate adaptation",
+  "description": "Organisms get a preferred-temperature gene: being warmer or colder than they like costs extra energy every tick. The world is warm in the middle and cold toward the top and bottom edges. Over time, lineages in the cold bands evolve to like the cold and lineages near the equator like the warm. Watch the 'Preferred temperature' trait heatmap and the family tree.",
+  "config": {
+    "climateMode": 1,
+    "yearLength": 2000,
+    "thermalCostCoeff": 1.5
+  }
+}
