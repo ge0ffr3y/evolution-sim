@@ -1,0 +1,14 @@
+{
+  "name": "Brains: big world (chase test)",
+  "description": "A world four times the area (512 by 512) with scarce prey, brains, sprint stamina and kill ownership. Meat eaters that crash in one region can be rescued by neighbors from another, so their lineage (and anything it has evolved) can survive. About 1,000 organisms: runs slower than the standard world.",
+  "config": {
+    "brainMode": 2,
+    "brainAppetiteSenses": 1,
+    "sprintFatigue": 1,
+    "killOwnershipTicks": 30,
+    "foodRegrowPerTick": 0.02,
+    "worldWidth": 512,
+    "worldHeight": 512,
+    "initialOrganisms": 800
+  }
+}
