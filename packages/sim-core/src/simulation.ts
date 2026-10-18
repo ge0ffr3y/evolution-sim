@@ -1481,6 +1481,11 @@ export class Simulation {
     this.brainCost[i] = c.brainBaseCost + c.brainCostPerNeuron * size.hidden + c.brainCostPerConnection * size.connections + (readsChem && this.chemOn ? c.chemicalsCost : 0);
   }
 
+  /** Which kind of plant grows in each cell (empty when there is only one kind). Fixed for the whole run. */
+  plantKindMap(): Uint8Array {
+    return this.plantTypeOf;
+  }
+
   /** How well organism i digests the plants growing in a cell: 1 for its favorite kind, falling to the floor (kinds are spaced evenly from 0 to 1). */
   private palateMatch(i: number, cell: number): number {
     const c = this.config;

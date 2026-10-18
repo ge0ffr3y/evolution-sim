@@ -629,6 +629,8 @@ function updateStats(frame: FrameMessage): void {
   const w = frame.world;
   el("stat-colonies-box").hidden = !w.multicellular;
   if (w.multicellular) setText("stat-colonies", `${s.colonies.count} / ${format.int.format(s.colonies.cells)} / ${s.colonies.maxSize}`);
+  el("stat-sexual-box").hidden = !w.sexGeneOn;
+  if (w.sexGeneOn) setText("stat-sexual", s.totalBirths > 0 ? `${Math.round((100 * s.sexualBirths) / s.totalBirths)}%` : "-");
   el("stat-disease-box").hidden = !w.diseaseOn;
   if (w.diseaseOn) setText("stat-disease", `${format.int.format(s.disease.infected)} / ${s.disease.strains}`);
   el("stat-climate-box").hidden = w.climateMode === 0 || (w.yearLength === 0 && w.dayLength === 0);

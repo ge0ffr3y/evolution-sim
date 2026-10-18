@@ -162,6 +162,8 @@ function worldInfo(s: Simulation): WorldInfo {
     multicellular: s.config.multicellular === 1,
     diseaseOn: s.config.diseaseTransmission > 0,
     camouflageOn: s.config.camouflageMode === 1,
+    plantKinds: s.config.plantTypes,
+    sexGeneOn: s.config.sexualReproduction === 2,
     climateMode: s.config.climateMode,
     yearLength: s.config.yearLength,
     dayLength: s.config.dayLength,
@@ -211,6 +213,12 @@ function postFrame(s: Simulation): void {
   const capacity = sendCapacity ? s.foodCapacity.slice() : null;
   const terrain = sendCapacity && s.biome.length > 0 ? s.biome.slice() : null;
   const background = sendCapacity && s.background.length > 0 ? s.background.slice() : null;
+  const plantKindMap = sendCapacity && s.config.plantTypes > 1 ? s.plantKindMap().slice() : null;
+  let palate: Float32Array | null = null;
+  if (s.config.plantTypes > 1) {
+    palate = new Float32Array(n);
+    for (let i = 0; i < n; i++) palate[i] = s.traitOf("palate", i);
+  }
   let bonds: Uint32Array | null = null;
   let colonySize: Uint16Array | null = null;
   if (s.config.multicellular === 1) {
@@ -258,6 +266,8 @@ function postFrame(s: Simulation): void {
     colonySize,
     cellType: s.cellType.length > 0 ? s.cellType.slice(0, n) : null,
     background,
+    plantKindMap,
+    palate,
     health,
     climate,
     points,
@@ -282,6 +292,8 @@ function postFrame(s: Simulation): void {
   if (capacity) transfer.push(capacity.buffer);
   if (terrain) transfer.push(terrain.buffer);
   if (background) transfer.push(background.buffer);
+  if (plantKindMap) transfer.push(plantKindMap.buffer);
+  if (palate) transfer.push(palate.buffer);
   if (bonds) transfer.push(bonds.buffer);
   if (colonySize) transfer.push(colonySize.buffer);
   if (message.cellType) transfer.push(message.cellType.buffer);

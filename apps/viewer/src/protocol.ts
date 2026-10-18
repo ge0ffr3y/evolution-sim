@@ -105,6 +105,9 @@ export interface WorldInfo {
   /** Whether the world has disease and camouflage. */
   diseaseOn: boolean;
   camouflageOn: boolean;
+  /** How many kinds of plant there are (1 = one kind), and whether sex is a gene. */
+  plantKinds: number;
+  sexGeneOn: boolean;
   /** Whether the world has a climate, and the length of its year and its day in ticks (0 = none). */
   climateMode: number;
   yearLength: number;
@@ -145,6 +148,10 @@ export interface FrameMessage {
   climate: { temperature: Float32Array; growth: Float32Array } | null;
   /** The background color of each cell (0 to 1 round the color wheel); null except in the first frame after a restart, and in worlds without camouflage. */
   background: Float32Array | null;
+  /** Which kind of plant grows in each cell (sent with the land, only in worlds with several kinds). */
+  plantKindMap: Uint8Array | null;
+  /** Each animal's palate gene (0 to 1), only in worlds with several kinds of plant. */
+  palate: Float32Array | null;
   /** Bonds between cells as pairs of organism indices (a, b, a, b, ...), and the size of each organism's colony (null without multicellularity). */
   bonds: Uint32Array | null;
   colonySize: Uint16Array | null;
