@@ -1,0 +1,7 @@
+{
+  "name": "Camouflage and search images",
+  "description": "The world has a smooth background color in patches (switch the map to Background color). An organism whose color gene matches the background where it stands is hard for hunters to notice. Hunters also learn: after a kill they remember the color of their meal and are better at spotting that color, which favors rare colors. Color the dots by the Color gene and watch plant eaters take on the color of the patch they live in.",
+  "config": {
+    "camouflageMode": 1
+  }
+}

@@ -376,6 +376,26 @@ export interface SimConfig {
   diseaseMutationProb: number;
   diseaseDrift: number;
 
+  // --- Signals and camouflage (off by default) ---
+  /**
+   * 0 = the color gene does nothing. 1 = the world has a smooth background color, and an
+   * organism whose color differs from the background where it stands is easier to spot: a
+   * viewer (a hunter, or a brain looking around) notices a perfectly matching organism with
+   * probability camoDetectMin and a completely mismatched one always. Each pair rolls
+   * afresh every camoGlance ticks, so a hidden animal stays hidden for a while. Hunters learn:
+   * after a kill they remember the color of what they ate, and are camoLearning times more
+   * likely to notice that color (which favors rare colors). The same color gene is also what
+   * matePreference 2 chooses mates by.
+   */
+  camouflageMode: number;
+  /** Size of the broad patches of background color, in food cells (must divide the grid). */
+  camoScale: number;
+  camoDetectMin: number;
+  camoGlance: number;
+  camoLearning: number;
+  /** How far a hunter's remembered color moves toward the color of each new kill (0 to 1). */
+  camoLearnRate: number;
+
   // --- Sexual reproduction (off by default) ---
   /**
    * 0 = organisms split in two when they have enough energy (the original way). 1 = two
@@ -630,6 +650,12 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   diseaseIntroEvery: 3000,
   diseaseMutationProb: 0.05,
   diseaseDrift: 0.2,
+  camouflageMode: 0,
+  camoScale: 8,
+  camoDetectMin: 0.2,
+  camoGlance: 20,
+  camoLearning: 1,
+  camoLearnRate: 0.3,
   sexualReproduction: 0,
   mateRange: 6,
   mateDistance: 0.25,
@@ -808,7 +834,17 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   }
   if (![0, 1].includes(c.sexualReproduction)) problems.push("sexualReproduction must be 0 or 1");
   if (!(c.mateRange > 0)) problems.push("mateRange must be positive");
-  if (![0, 1].includes(c.matePreference)) problems.push("matePreference must be 0 (nearest) or 1 (most similar)");
+  if (![0, 1, 2].includes(c.matePreference)) problems.push("matePreference must be 0 (nearest), 1 (most similar genes) or 2 (most similar color)");
+  if (![0, 1].includes(c.camouflageMode)) problems.push("camouflageMode must be 0 or 1");
+  if (c.camouflageMode === 1) {
+    const gw = c.worldWidth / c.foodCellSize;
+    const gh = c.worldHeight / c.foodCellSize;
+    if (!Number.isInteger(c.camoScale) || c.camoScale < 1 || gw % c.camoScale !== 0 || gh % c.camoScale !== 0) problems.push("camoScale must be a whole number of food cells that divides the grid evenly");
+    if (c.camoDetectMin < 0 || c.camoDetectMin > 1) problems.push("camoDetectMin must be between 0 and 1");
+    if (!Number.isInteger(c.camoGlance) || c.camoGlance < 1) problems.push("camoGlance must be a whole number of ticks, 1 or more");
+    if (c.camoLearning < 0) problems.push("camoLearning cannot be negative");
+    if (c.camoLearnRate < 0 || c.camoLearnRate > 1) problems.push("camoLearnRate must be between 0 and 1");
+  }
   if (!(c.mateDistance > 0 && c.mateDistance <= 1)) problems.push("mateDistance must be above 0 and at most 1");
   if (c.macroMutationProb < 0 || c.macroMutationProb > 1) problems.push("macroMutationProb must be between 0 and 1");
   if (c.macroMutationStd < 0) problems.push("macroMutationStd cannot be negative");

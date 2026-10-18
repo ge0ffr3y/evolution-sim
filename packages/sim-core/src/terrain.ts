@@ -115,3 +115,20 @@ export function growthMultipliers(c: SimConfig): number[] {
 export function moveMultipliers(c: SimConfig): number[] {
   return [1, 1, c.terrainMoveForest, c.terrainMoveDesert, c.terrainMoveMountain];
 }
+
+/** The background color of every cell (0 to 1 around the color wheel): smooth patches, from the seed. */
+export function generateBackground(seed: number, gw: number, gh: number, scale: number): Float32Array {
+  const rng = new Rng((seed ^ 0x2c1b3c6d) >>> 0);
+  const noise = layeredNoise(rng, gw, gh, scale);
+  const out = new Float32Array(gw * gh);
+  // Stretch the noise so it covers the whole color wheel, not just the middle of it.
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (let k = 0; k < noise.length; k++) {
+    if (noise[k]! < lo) lo = noise[k]!;
+    if (noise[k]! > hi) hi = noise[k]!;
+  }
+  const span = hi - lo > 1e-9 ? hi - lo : 1;
+  for (let k = 0; k < noise.length; k++) out[k] = Math.min(0.999999, (noise[k]! - lo) / span);
+  return out;
+}

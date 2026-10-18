@@ -12,7 +12,7 @@ import {
   type Traits,
 } from "./genome";
 import { polarness, smoothWave } from "./climate";
-import { BIOME, generateBiomes, growthMultipliers, moveMultipliers } from "./terrain";
+import { BIOME, generateBackground, generateBiomes, growthMultipliers, moveMultipliers } from "./terrain";
 import { SNAPSHOT_FORMAT, type SimSnapshot, type SnapshotArray } from "./snapshot";
 import { SpeciesTracker, type SpeciesEvent, type SpeciesRecord } from "./species";
 import {
@@ -491,6 +491,14 @@ export class Simulation {
   totalInfections = 0;
   private readonly diseaseOn: boolean;
   private diseaseHost = 0;
+  /**
+   * Camouflage (only when camouflageMode is 1): the background color of every cell, and, for each
+   * hunter, the color of what it last ate (its "search image"), if it has eaten anything.
+   */
+  readonly background: Float32Array;
+  readonly searchHue: Float32Array;
+  readonly hasImage: Uint8Array;
+  private readonly camoOn: boolean;
   /** Lifespan (ticks) and litter size of each organism (only when those genes are in use). */
   readonly lifespan: Float32Array;
   readonly litter: Float32Array;
@@ -541,6 +549,7 @@ export class Simulation {
   private pickSizeLimit = 0;
   private readonly considerPrey = (index: number, distSq: number): void => {
     if (index === this.pickAttacker || this.killed[index] === 1 || this.size[index]! > this.pickSizeLimit) return;
+    if (this.camoOn && !this.detects(this.pickAttacker, index)) return; // never noticed it
     // Nobody attacks a relative.
     if (this.kinLimitSq > 0 && this.geneDistanceSq(this.pickAttacker, index) <= this.kinLimitSq) return;
     if (distSq < this.pickBestDistSq || (distSq === this.pickBestDistSq && index < this.pickBest)) {
@@ -671,6 +680,10 @@ export class Simulation {
     this.thermalOn = c.climateMode === 1 && c.thermalCostCoeff > 0;
     this.thermalPref = new Float32Array(this.thermalOn ? n : 0);
     this.thermalScale = new Float32Array(this.thermalOn ? n : 0);
+    this.camoOn = c.camouflageMode === 1;
+    this.background = this.camoOn ? generateBackground(seed, this.gridWidth, this.gridHeight, c.camoScale) : new Float32Array(0);
+    this.searchHue = new Float32Array(this.camoOn ? n : 0);
+    this.hasImage = new Uint8Array(this.camoOn ? n : 0);
     this.diseaseOn = c.diseaseTransmission > 0;
     this.infection = new Uint16Array(this.diseaseOn ? n : 0);
     this.sickFor = new Uint16Array(this.diseaseOn ? n : 0);
@@ -730,6 +743,10 @@ export class Simulation {
     if (this.tracker) this.uint32Fields.push(this.species);
     if (this.sexOn) this.uint32Fields.push(this.parent2Id);
     this.uint8Fields = [this.killed, this.attempted];
+    if (this.camoOn) {
+      this.uint8Fields.push(this.hasImage);
+      this.float32Fields.push(this.searchHue);
+    }
     this.uint16Fields = [this.resting];
     if (this.diseaseOn) this.uint16Fields.push(this.infection, this.sickFor, this.immuneFor);
     if (c.brainMode > 0) {
@@ -948,6 +965,7 @@ export class Simulation {
     this.id[i] = this.nextId++;
     this.parentId[i] = parent;
     if (this.sexOn) this.parent2Id[i] = 0;
+    if (this.camoOn) this.hasImage[i] = 0;
     if (this.diseaseOn) {
       this.infection[i] = 0;
       this.sickFor[i] = 0;
@@ -1231,6 +1249,7 @@ export class Simulation {
   /** What an organism notices when something is within sight: sorts it into the vision ray it falls in. */
   private readonly seeOther = (index: number, distSq: number): void => {
     if (index === this.visSelf || this.killed[index] === 1) return;
+    if (this.camoOn && !this.detects(this.visSelf, index)) return; // well hidden
     const W = this.config.worldWidth;
     const H = this.config.worldHeight;
     let dx = this.x[index]! - this.visX;
@@ -1470,6 +1489,34 @@ export class Simulation {
     }
   }
 
+  /**
+   * Does `viewer` notice `target` right now? Always, without camouflage. With it, the odds depend on how
+   * well the target's color matches the background where it stands (and on what the viewer has been
+   * eating). The answer is a fixed function of the pair and of which glance period it is (no random
+   * numbers are drawn), so a hidden animal stays hidden for camoGlance ticks at a time.
+   */
+  private detects(viewer: number, target: number): boolean {
+    if (!this.camoOn) return true;
+    const c = this.config;
+    const cs = c.foodCellSize;
+    const cell = Math.floor(this.y[target]! / cs) * this.gridWidth + Math.floor(this.x[target]! / cs);
+    const hue = this.genes[target * GENE_COUNT + GENE.hue]!;
+    let d = hue - this.background[cell]!;
+    if (d < 0) d = -d;
+    if (d > 0.5) d = 1 - d;
+    let p = c.camoDetectMin + (1 - c.camoDetectMin) * (d * 2);
+    if (c.camoLearning > 0 && this.hasImage[viewer] === 1) {
+      let sd = hue - this.searchHue[viewer]!;
+      if (sd < 0) sd = -sd;
+      if (sd > 0.5) sd = 1 - sd;
+      p *= 1 + c.camoLearning * (1 - 2 * sd);
+      if (p > 1) p = 1;
+    }
+    const glance = Math.floor(this.tick / c.camoGlance);
+    const u = ((Math.imul(glance + 1, 0x9e3779b1) ^ Math.imul(this.id[viewer]! + 1, 0x85ebca6b) ^ Math.imul(this.id[target]! + 1, 0xc2b2ae35)) >>> 0) / 4294967296;
+    return u < p;
+  }
+
   /** How well a strain fits an organism's genes: 1 when they match exactly, falling toward 0 as they differ. */
   private susceptibility(host: number, antigen: Float64Array): number {
     const g = this.genes;
@@ -1598,7 +1645,13 @@ export class Simulation {
     const geneSq = this.geneDistanceSq(this.mateSelf, index);
     if (geneSq > limit * limit) return;
     // The score to beat: how near (default) or how genetically similar (matePreference 1, nearer wins a tie).
-    const score = this.config.matePreference === 1 ? geneSq : distSq;
+    let score = distSq;
+    if (this.config.matePreference === 1) score = geneSq;
+    else if (this.config.matePreference === 2) {
+      let hd = this.genes[this.mateSelf * GENE_COUNT + GENE.hue]! - this.genes[index * GENE_COUNT + GENE.hue]!;
+      if (hd < 0) hd = -hd;
+      score = hd > 0.5 ? 1 - hd : hd; // how far apart the colors are, round the color wheel
+    }
     if (score > this.mateBestScore || (score === this.mateBestScore && distSq >= this.mateBestDistSq)) return;
     this.mateBest = index;
     this.mateBestScore = score;
@@ -2108,6 +2161,22 @@ export class Simulation {
 
   private kill(attacker: number, prey: number): void {
     const cell = this.cellOf[prey]!;
+    if (this.camoOn) {
+      // The hunter remembers the color of its meal: its search image moves toward it (the short way round the color wheel).
+      const preyHue = this.genes[prey * GENE_COUNT + GENE.hue]!;
+      if (this.hasImage[attacker] === 0) {
+        this.searchHue[attacker] = preyHue;
+        this.hasImage[attacker] = 1;
+      } else {
+        let diff = preyHue - this.searchHue[attacker]!;
+        if (diff > 0.5) diff -= 1;
+        else if (diff < -0.5) diff += 1;
+        let next = this.searchHue[attacker]! + this.config.camoLearnRate * diff;
+        if (next < 0) next += 1;
+        else if (next >= 1) next -= 1;
+        this.searchHue[attacker] = next;
+      }
+    }
     if (this.guardOn) {
       this.corpseOwner[cell] = this.id[attacker]!;
       this.corpseOwnerUntil[cell] = this.tick + this.config.killOwnershipTicks;
@@ -2239,6 +2308,7 @@ export class Simulation {
       ["corpseMatter", this.corpseMatter],
       ["corpseEnergy", this.corpseEnergy],
       ["detritus", this.detritus],
+      ["background", this.background],
       ["biome", this.biome],
       ["passable", this.passable],
       ["terrainMove", this.terrainMove],
@@ -2697,6 +2767,10 @@ export class Simulation {
       mixBits(this.outAttack, n);
     }
     if (this.staminaOn) mixBits(this.stamina, n);
+    if (this.camoOn) {
+      mixBits(this.searchHue, n);
+      for (let i = 0; i < n; i++) mix(this.hasImage[i]!);
+    }
     if (this.diseaseOn) {
       for (let i = 0; i < n; i++) mix(this.infection[i]! | (this.sickFor[i]! << 16));
       mix(this.totalInfections);
