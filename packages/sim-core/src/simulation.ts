@@ -519,6 +519,8 @@ export class Simulation {
   private readonly chemHit: Uint8Array;
   private readonly homeX: Float32Array;
   private readonly homeY: Float32Array;
+  /** With homeMode 3: how good a meal the remembered place gave (as a share of reproduction energy in one tick; it fades). */
+  private readonly homeValue: Float32Array;
   /** Weather fronts: two fixed smooth maps (blended and drifted over time), and whether the fat and torpor genes are in use. */
   private readonly weatherOn: boolean;
   /** Kinds of plant: which kind grows in each cell (fixed from the seed), and the seasonal wave each kind follows this tick. */
@@ -837,6 +839,7 @@ export class Simulation {
     this.chemHit = new Uint8Array(this.chemOn ? n : 0);
     this.homeX = new Float32Array(c.brainMode > 0 && c.homeMode > 0 ? n : 0);
     this.homeY = new Float32Array(c.brainMode > 0 && c.homeMode > 0 ? n : 0);
+    this.homeValue = new Float32Array(c.brainMode > 0 && c.homeMode === 3 ? n : 0);
     this.kinToleranceOn = c.kinTolerance === 1;
     this.toleranceSq = new Float32Array(this.kinToleranceOn ? n : 0);
     this.sexOn = c.sexualReproduction >= 1;
@@ -888,6 +891,7 @@ export class Simulation {
     if (this.litterOn) this.float32Fields.push(this.litter);
     if (this.kinToleranceOn) this.float32Fields.push(this.toleranceSq);
     if (this.homeX.length > 0) this.float32Fields.push(this.homeX, this.homeY);
+    if (this.homeValue.length > 0) this.float32Fields.push(this.homeValue);
 
     if (this.chemOn) this.float32Fields.push(this.chemIntake);
     this.float64Fields = [this.energy, this.plantTaken, this.meatTaken];
@@ -1187,6 +1191,7 @@ export class Simulation {
     if (this.homeX.length > 0) {
       this.homeX[i] = x;
       this.homeY[i] = y;
+      if (this.homeValue.length > 0) this.homeValue[i] = 0;
     }
     if (this.bondsOn) this.bondTo.fill(-1, i * BOND_SLOTS, (i + 1) * BOND_SLOTS);
     if (this.typeOn) this.cellType[i] = 0;
@@ -2720,6 +2725,17 @@ export class Simulation {
       this.plantTaken[i] = this.plantTaken[i]! + plantGain;
       this.meatTaken[i] = this.meatTaken[i]! + meatGain;
       if (this.chemOn) this.chemIntake[i] = this.chemIntake[i]! + plantGain + meatGain;
+      if (this.homeValue.length > 0) {
+        // Place memory: a better meal than any it remembers makes this spot home.
+        const meal = (plantGain + meatGain) / this.threshold[i]!;
+        let best = this.homeValue[i]! * c.homeMemoryDecay;
+        if (meal >= c.homeMemoryMin && meal >= best) {
+          this.homeX[i] = this.x[i]!;
+          this.homeY[i] = this.y[i]!;
+          best = meal;
+        }
+        this.homeValue[i] = best;
+      }
       let energy = this.energy[i]! + plantGain + meatGain;
       if (this.typeOn) {
         // A photosynthesizing cell collects sunlight directly (the only new energy that enters the world, so it goes in the ledger as sunlight).
@@ -2915,9 +2931,10 @@ export class Simulation {
           const child = this.spawn(this.id[a]!, this.x[a]!, this.y[a]!);
           if (child < 0) break birthsLoop;
           this.parent2Id[child] = this.id[b]!;
-          if (this.homeX.length > 0 && c.homeMode === 2) {
+          if (this.homeX.length > 0 && c.homeMode >= 2) {
             this.homeX[child] = this.homeX[a]!;
             this.homeY[child] = this.homeY[a]!;
+            if (this.homeValue.length > 0) this.homeValue[child] = this.homeValue[a]!;
           }
           this.inheritGenesFromTwo(child, a, b);
           this.macroMutate(child);
@@ -2956,9 +2973,10 @@ export class Simulation {
           const savedNextId = this.nextId;
           const child = this.spawn(this.id[parent]!, this.x[parent]!, this.y[parent]!);
           if (child < 0) break birthsLoop;
-          if (this.homeX.length > 0 && c.homeMode === 2) {
+          if (this.homeX.length > 0 && c.homeMode >= 2) {
             this.homeX[child] = this.homeX[parent]!;
             this.homeY[child] = this.homeY[parent]!;
+            if (this.homeValue.length > 0) this.homeValue[child] = this.homeValue[parent]!;
           }
           this.inheritGenes(child, parent);
           this.macroMutate(child);

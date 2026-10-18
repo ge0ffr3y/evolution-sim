@@ -230,10 +230,15 @@ export interface SimConfig {
    * Home (needs brains): 0 = no sense of home. 1 = each organism can sense the direction and
    * distance of the place it was born. 2 = the same, but a baby inherits its parent's home, so a
    * whole lineage shares a home range. homeRange is how far away counts as "far" (the distance
-   * input reaches 1 there).
+   * input reaches 1 there). 3 = home is the best feeding place the organism remembers: whenever
+   * it eats at a better rate than the best it remembers (which fades by homeMemoryDecay a tick),
+   * home moves to where it stands (only if the meal is at least homeMemoryMin of its reproduction
+   * energy in one tick). A baby inherits its parent's remembered place.
    */
   homeMode: number;
   homeRange: number;
+  homeMemoryDecay: number;
+  homeMemoryMin: number;
   /**
    * Chemical signals (needs brains): each organism has four slow internal signals that its brain can
    * read: a reward signal that jumps when it eats, a stress signal that jumps when it is attacked,
@@ -807,6 +812,8 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   chemicalsCost: 0.0005,
   homeMode: 0,
   homeRange: 64,
+  homeMemoryDecay: 0.999,
+  homeMemoryMin: 0.005,
   brainBaseCost: 0.001,
   brainCostPerNeuron: 0.0005,
   brainCostPerConnection: 0.0001,
@@ -1050,7 +1057,8 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (c.chemRewardGain < 0 || c.chemStressHit < 0 || c.chemStressSick < 0 || c.chemStressHunger < 0 || c.chemBondGain < 0 || c.chemCalmRate < 0 || c.chemicalsCost < 0) problems.push("the chemical settings cannot be negative");
   if (c.chemHungerBelow <= 0 || c.chemHungerBelow > 1) problems.push("chemHungerBelow must be above 0 and at most 1");
   if (c.brainMemory === 1 && c.brainMode === 0) problems.push("brainMemory needs brains (set brainMode to 1 or 2)");
-  if (![0, 1, 2].includes(c.homeMode)) problems.push("homeMode must be 0, 1 or 2");
+  if (![0, 1, 2, 3].includes(c.homeMode)) problems.push("homeMode must be 0, 1, 2 or 3");
+  if (c.homeMemoryDecay < 0 || c.homeMemoryDecay > 1 || c.homeMemoryMin < 0) problems.push("homeMemoryDecay must be between 0 and 1 and homeMemoryMin cannot be negative");
   if (c.homeMode > 0 && c.brainMode === 0) problems.push("homeMode needs brains (set brainMode to 1 or 2)");
   if (!(c.homeRange > 0)) problems.push("homeRange must be positive");
   if (![0, 1].includes(c.terrainMode)) problems.push("terrainMode must be 0 (open plain) or 1 (biomes)");
