@@ -532,6 +532,9 @@ export class Simulation {
   private readonly weatherA: Float32Array;
   private readonly weatherB: Float32Array;
   private readonly fatOn: boolean;
+  /** Harmful mutations: which of the genome's spots have gone bad, one bit each (see mutationLoadRate). */
+  private readonly loadOn: boolean;
+  private readonly loadMask: Uint32Array;
   /** Energy held in the fat reserve (counted in the energy audit; it goes into the corpse when the body dies). */
   private readonly fatStore: Float64Array;
   private readonly torporOn: boolean;
@@ -829,6 +832,8 @@ export class Simulation {
         ((k === GENE.stressResponse || k === GENE.calmResponse) && c.brainMode > 0 && c.chemicals === 1 && c.chemBodyEffects === 1),
     );
     this.kinLimitSq = c.kinDistance * c.kinDistance;
+    this.loadOn = c.mutationLoadRate > 0;
+    this.loadMask = new Uint32Array(this.loadOn ? n : 0);
     this.fatOn = c.fatDepositRate > 0;
     this.fatStore = new Float64Array(this.fatOn ? n : 0);
     this.torporOn = this.climateOn && c.torporSaving > 0;
@@ -912,6 +917,7 @@ export class Simulation {
       this.float32Fields.push(this.searchHue);
     }
     if (this.sexGeneOn) this.uint8Fields.push(this.sexMode);
+    if (this.loadOn) this.uint32Fields.push(this.loadMask);
     if (this.chemOn) this.uint8Fields.push(this.chemHit);
     this.uint16Fields = [this.resting];
     if (this.diseaseOn) this.uint16Fields.push(this.infection, this.sickFor, this.immuneFor);
@@ -1186,6 +1192,7 @@ export class Simulation {
     if (this.sexOn) this.parent2Id[i] = 0;
     if (this.sexGeneOn) this.sexMode[i] = 0;
     if (this.fatOn) this.fatStore[i] = 0;
+    if (this.loadOn) this.loadMask[i] = 0;
     if (this.memoryOn) this.memState.fill(0, i * MEMORY_COUNT, (i + 1) * MEMORY_COUNT);
     if (this.chemOn) {
       this.chem.fill(0, i * 4, i * 4 + 4);
@@ -1363,6 +1370,7 @@ export class Simulation {
     this.bodyMatter[i] = c.bodyMatterPerSize * size;
     this.threshold[i] = c.reproThresholdPerSize * size;
     if (this.torporOn) this.basalCost[i] = this.basalCost[i]! * (1 + c.torporUpkeep * genes[g + GENE.torpor]!);
+    if (this.loadOn) this.basalCost[i] = this.basalCost[i]! * (1 + c.mutationLoadCost * this.badSpots(i));
   }
 
   /** Give a new organism (at index `child`) a mutated copy of its parent's genes. */
@@ -1390,6 +1398,51 @@ export class Simulation {
       sum += d * d;
     }
     return sum / this.mateMask.length;
+  }
+
+  /** How many of organism i's spots have gone bad. */
+  private badSpots(i: number): number {
+    let v = this.loadMask[i]!;
+    let count = 0;
+    while (v !== 0) {
+      v &= v - 1;
+      count++;
+    }
+    return count;
+  }
+
+  /** The average number of bad spots per organism (0 when harmful mutations are off). */
+  meanMutationLoad(): number {
+    if (!this.loadOn || this.count === 0) return 0;
+    let sum = 0;
+    for (let i = 0; i < this.count; i++) sum += this.badSpots(i);
+    return sum / this.count;
+  }
+
+  /** Hand down the harmful mutations: all of one parent's, or a mix of two parents' (each spot from one or the other), then new ones. */
+  private inheritLoad(child: number, a: number, b: number): void {
+    const c = this.config;
+    const loci = c.mutationLoadLoci;
+    const fromA = this.loadMask[a]!;
+    let mask = fromA;
+    if (b >= 0) {
+      const fromB = this.loadMask[b]!;
+      mask = 0;
+      for (let j = 0; j < loci; j++) {
+        const bit = 1 << j;
+        if (((this.rng.next() < 0.5 ? fromA : fromB) & bit) !== 0) mask |= bit;
+      }
+    }
+    const chance = c.mutationLoadRate / loci;
+    for (let j = 0; j < loci; j++) {
+      const bit = 1 << j;
+      if ((mask & bit) !== 0) {
+        if (this.rng.next() < c.mutationLoadBack) mask &= ~bit;
+      } else if (this.rng.next() < chance) {
+        mask |= bit;
+      }
+    }
+    this.loadMask[child] = mask >>> 0;
   }
 
   /** Mix two parents' genes (each gene comes from one or the other) and mutate the result. */
@@ -2952,6 +3005,7 @@ export class Simulation {
             if (this.homeValue.length > 0) this.homeValue[child] = this.homeValue[a]!;
           }
           this.inheritGenesFromTwo(child, a, b);
+          if (this.loadOn) this.inheritLoad(child, a, b);
           this.macroMutate(child);
           if (this.tracker) this.species[child] = this.species[a]!;
           this.express(child);
@@ -2994,6 +3048,7 @@ export class Simulation {
             if (this.homeValue.length > 0) this.homeValue[child] = this.homeValue[parent]!;
           }
           this.inheritGenes(child, parent);
+          if (this.loadOn) this.inheritLoad(child, parent, -1);
           this.macroMutate(child);
           if (this.tracker) this.species[child] = this.species[parent]!;
           this.express(child);

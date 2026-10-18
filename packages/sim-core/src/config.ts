@@ -437,6 +437,22 @@ export interface SimConfig {
    */
   founderSpread: number;
 
+  // --- Harmful mutations (off by default) ---
+  /**
+   * Most real mutations do harm, and a line that never mixes its genes cannot get rid of them
+   * (Muller's ratchet): each birth, every one of mutationLoadLoci spots in the genome that is still
+   * sound goes bad with chance mutationLoadRate / mutationLoadLoci, and a spot that has gone bad
+   * mends with chance mutationLoadBack. Every bad spot raises upkeep by mutationLoadCost (as a share of
+   * normal upkeep). A baby that splits off keeps all its parent's bad spots (plus new ones); a
+   * baby of two parents takes each spot from one parent or the other, so sexual lineages can
+   * shed bad spots and put good ones back together. Nobody is told that sex helps: this only
+   * makes mixing matter. 0 = off (mutationLoadRate).
+   */
+  mutationLoadRate: number;
+  mutationLoadLoci: number;
+  mutationLoadBack: number;
+  mutationLoadCost: number;
+
   // --- Catastrophes (off by default) ---
   /**
    * 0 = none. 1 = an ice age (the whole world gets colder, then recovers). 2 = a drought
@@ -875,6 +891,10 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   plantPalateFloor: 0.1,
   initialPalate: 0.5,
   founderSpread: 0,
+  mutationLoadRate: 0,
+  mutationLoadLoci: 24,
+  mutationLoadBack: 0.01,
+  mutationLoadCost: 0.03,
   weatherAmplitude: 0,
   weatherScale: 8,
   weatherDriftTicks: 400,
@@ -1146,6 +1166,12 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     if (c.initialPalate < 0 || c.initialPalate > 1) problems.push("initialPalate must be between 0 and 1");
   }
   if (c.founderSpread < 0 || c.founderSpread > 1) problems.push("founderSpread must be between 0 and 1");
+  if (c.mutationLoadRate < 0) problems.push("mutationLoadRate cannot be negative");
+  if (c.mutationLoadRate > 0) {
+    if (!Number.isInteger(c.mutationLoadLoci) || c.mutationLoadLoci < 1 || c.mutationLoadLoci > 30) problems.push("mutationLoadLoci must be a whole number from 1 to 30");
+    if (c.mutationLoadBack < 0 || c.mutationLoadBack > 1 || c.mutationLoadCost < 0) problems.push("mutationLoadBack must be between 0 and 1 and mutationLoadCost cannot be negative");
+    if (c.mutationLoadRate > c.mutationLoadLoci) problems.push("mutationLoadRate cannot be more than mutationLoadLoci");
+  }
   if (c.yearVariability < 0 || c.yearVariability > 1) problems.push("yearVariability must be between 0 and 1");
   if (c.yearVariability > 0 && (c.climateMode !== 1 || c.yearLength <= 0)) problems.push("yearVariability needs a climate with seasons (climateMode 1 and a yearLength)");
   if (c.fatDepositRate < 0 || c.fatDepositRate > 1 || c.fatDrawRate < 0 || c.fatCap < 0 || c.fatMoveCost < 0 || c.fatUpkeep < 0) problems.push("the fat settings cannot be negative (and fatDepositRate is at most 1)");
