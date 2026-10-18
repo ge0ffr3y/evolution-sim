@@ -158,3 +158,13 @@ describe("weather, harsh years, fat and torpor together", () => {
     expect(loaded.fingerprint()).toBe(a.fingerprint());
   }, 60_000);
 });
+
+describe("harsh years never make plants shrink", () => {
+  it("even when the swing is stretched past what plants can take, growth just stops", () => {
+    const sim = new Simulation(5, quiet({ ...climate, yearLength: 1000, seasonGrowthSwing: 1, yearVariability: 1 }));
+    for (let year = 0; year < 30; year++) {
+      sim.run(1000);
+      for (let k = 0; k < sim.growthFactor.length; k++) expect(sim.growthFactor[k]!).toBeGreaterThanOrEqual(0);
+    }
+  });
+});

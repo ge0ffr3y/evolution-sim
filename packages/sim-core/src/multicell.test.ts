@@ -256,7 +256,6 @@ describe("multicellularity: bonds and colonies", () => {
   }, 120_000);
 
   it("rejects settings that make no sense", () => {
-    expect(() => new Simulation(1, { multicellular: 1, brainMode: 2 })).toThrow(/do not support brains/);
     expect(() => new Simulation(1, { multicellular: 1, bondLinksMax: 9 })).toThrow(/bondLinksMax/);
     expect(() => new Simulation(1, { multicellular: 1, bondStiffness: 2 })).toThrow(/bondStiffness/);
     expect(() => new Simulation(1, { multicellular: 2 })).toThrow(/multicellular/);

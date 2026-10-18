@@ -512,6 +512,11 @@ export class Simulation {
   /** Brain memory (what each brain wrote last time, MEMORY_COUNT numbers per organism) and the place each organism calls home. */
   private readonly memoryOn: boolean;
   private readonly memState: Float32Array;
+  /** Chemical signals: four per organism (reward, stress, bond, calm), plus what has happened to the organism since it last thought. */
+  private readonly chemOn: boolean;
+  private readonly chem: Float32Array;
+  private readonly chemIntake: Float32Array;
+  private readonly chemHit: Uint8Array;
   private readonly homeX: Float32Array;
   private readonly homeY: Float32Array;
   /** Weather fronts: two fixed smooth maps (blended and drifted over time), and whether the fat and torpor genes are in use. */
@@ -813,6 +818,10 @@ export class Simulation {
     this.torpid = new Uint8Array(this.torporOn ? n : 0);
     this.memoryOn = c.brainMode > 0 && c.brainMemory === 1;
     this.memState = new Float32Array(this.memoryOn ? n * MEMORY_COUNT : 0);
+    this.chemOn = c.brainMode > 0 && c.chemicals === 1;
+    this.chem = new Float32Array(this.chemOn ? n * 4 : 0);
+    this.chemIntake = new Float32Array(this.chemOn ? n : 0);
+    this.chemHit = new Uint8Array(this.chemOn ? n : 0);
     this.homeX = new Float32Array(c.brainMode > 0 && c.homeMode > 0 ? n : 0);
     this.homeY = new Float32Array(c.brainMode > 0 && c.homeMode > 0 ? n : 0);
     this.kinToleranceOn = c.kinTolerance === 1;
@@ -866,6 +875,7 @@ export class Simulation {
     if (this.litterOn) this.float32Fields.push(this.litter);
     if (this.kinToleranceOn) this.float32Fields.push(this.toleranceSq);
     if (this.homeX.length > 0) this.float32Fields.push(this.homeX, this.homeY);
+    if (this.chemOn) this.float32Fields.push(this.chemIntake);
     this.float64Fields = [this.energy, this.plantTaken, this.meatTaken];
     this.uint32Fields = [this.id, this.parentId, this.age, this.kills];
     if (this.tracker) this.uint32Fields.push(this.species);
@@ -880,6 +890,7 @@ export class Simulation {
       this.float32Fields.push(this.searchHue);
     }
     if (this.sexGeneOn) this.uint8Fields.push(this.sexMode);
+    if (this.chemOn) this.uint8Fields.push(this.chemHit);
     this.uint16Fields = [this.resting];
     if (this.diseaseOn) this.uint16Fields.push(this.infection, this.sickFor, this.immuneFor);
     if (c.brainMode > 0) {
@@ -965,7 +976,9 @@ export class Simulation {
       if (this.catKind === 1) cooling = c.iceAgeCooling * hump;
       else dryness = 1 - c.droughtSeverity * hump;
     }
-    const seasonGrowth = (1 + c.seasonGrowthSwing * season) * dryness;
+    // (A harsh year can push the swing past what plants can take: growth stops, it never goes negative.)
+    const swungGrowth = 1 + c.seasonGrowthSwing * season;
+    const seasonGrowth = (swungGrowth > 0 ? swungGrowth : 0) * dryness;
     const optimum = c.plantTempOptimum;
     const tolerance = c.plantTempTolerance;
     // Weather: the two weather maps shift east and south as time passes and are blended, so fronts move and change shape.
@@ -1130,6 +1143,12 @@ export class Simulation {
     if (this.sexOn) this.parent2Id[i] = 0;
     if (this.sexGeneOn) this.sexMode[i] = 0;
     if (this.memoryOn) this.memState.fill(0, i * MEMORY_COUNT, (i + 1) * MEMORY_COUNT);
+    if (this.chemOn) {
+      this.chem.fill(0, i * 4, i * 4 + 4);
+      this.chem[i * 4 + 3] = 0.5; // a newborn starts out neither calm nor stressed
+      this.chemIntake[i] = 0;
+      this.chemHit[i] = 0;
+    }
     if (this.homeX.length > 0) {
       this.homeX[i] = x;
       this.homeY[i] = y;
@@ -1416,19 +1435,59 @@ export class Simulation {
     this.brainConnections[i] = size.connections;
     // Work out which kinds of input any working connection reads, so thinking can skip the rest.
     let senses = 0;
+    let readsChem = false;
     const base = i * CONN_MAX;
     for (let k = 0; k < this.brainCount[i]!; k++) {
       const w = this.brainWeight[base + k]!;
       if (w < c.brainPruneBelow && w > -c.brainPruneBelow) continue;
       const source = this.brainFrom[base + k]!;
       if (source >= INPUT_COUNT) continue; // hidden units read other inputs, which are counted on their own
+      if (source >= INPUT.chemReward && source <= INPUT.chemCalm) readsChem = true;
       if (source < INPUT.smellPlantAhead) senses |= SENSE_VISION;
       else if (source < INPUT.energy) senses |= SENSE_SMELL;
       else if (source >= INPUT.kinDensity && source <= INPUT.kinSide) senses |= SENSE_SOCIAL;
       else senses |= SENSE_BODY;
     }
     this.brainSenses[i] = senses;
-    this.brainCost[i] = c.brainBaseCost + c.brainCostPerNeuron * size.hidden + c.brainCostPerConnection * size.connections;
+    this.brainCost[i] = c.brainBaseCost + c.brainCostPerNeuron * size.hidden + c.brainCostPerConnection * size.connections + (readsChem && this.chemOn ? c.chemicalsCost : 0);
+  }
+
+  /** Move organism i's four chemical signals (reward, stress, bond, calm) on by one thought. */
+  private updateChemicals(i: number): void {
+    const c = this.config;
+    const at = i * 4;
+    const decay = c.chemDecay;
+    const energyFraction = Math.min(this.energy[i]! / this.threshold[i]!, 1);
+    // Reward: food just eaten.
+    const reward = this.chem[at]! * decay + (c.chemRewardGain * this.chemIntake[i]!) / this.threshold[i]!;
+    // Stress: being attacked, being very hungry, being sick.
+    let stress = this.chem[at + 1]! * decay;
+    if (this.chemHit[i] === 1) stress += c.chemStressHit;
+    if (energyFraction < c.chemHungerBelow) stress += (c.chemStressHunger * (c.chemHungerBelow - energyFraction)) / c.chemHungerBelow;
+    if (this.diseaseOn && this.sickFor[i]! > 0) stress += c.chemStressSick;
+    // Bonding: relatives close by (or bonded neighbors).
+    let company = 0;
+    if (this.kinLimitSq > 0) {
+      this.visSelf = i;
+      this.visX = this.x[i]!;
+      this.visY = this.y[i]!;
+      this.kinCount = 0;
+      this.kinVx = 0;
+      this.kinVy = 0;
+      this.hash.forEachNear(this.visX, this.visY, c.herdRange, this.seeKin);
+      company = Math.min(1, this.kinCount / c.herdCap);
+    }
+    if (this.bondsOn) company = Math.max(company, this.bondCount(i) / BOND_SLOTS);
+    const bond = this.chem[at + 2]! * decay + c.chemBondGain * company;
+    // Calm: well fed and not stressed.
+    const clampedStress = stress > 1 ? 1 : stress;
+    const calm = this.chem[at + 3]! + c.chemCalmRate * (energyFraction * (1 - clampedStress) - this.chem[at + 3]!);
+    this.chem[at] = reward > 1 ? 1 : reward;
+    this.chem[at + 1] = clampedStress;
+    this.chem[at + 2] = bond > 1 ? 1 : bond;
+    this.chem[at + 3] = calm;
+    this.chemIntake[i] = 0;
+    this.chemHit[i] = 0;
   }
 
   /** Used while sensing relatives: count the genetically close ones in range and add up the directions to them. */
@@ -1674,6 +1733,11 @@ export class Simulation {
       inputs[INPUT.barrier] = blockedAt(0.75 * cs) ? 1 : blockedAt(1.75 * cs) ? 0.5 : 0;
     }
 
+    // Chemical signals: update them from what has happened since the last thought, then offer them as inputs.
+    if (this.chemOn) {
+      this.updateChemicals(i);
+      for (let k = 0; k < 4; k++) inputs[INPUT.chemReward + k] = this.chem[i * 4 + k]!;
+    }
     // Home: which way, and how far, is the place this organism (or its lineage) calls home?
     if (this.homeX.length > 0) {
       const W = c.worldWidth;
@@ -2537,6 +2601,7 @@ export class Simulation {
         if (prey < 0) continue;
         this.attempted[i] = 1;
         this.totalAttacks++;
+        if (this.chemOn) this.chemHit[prey] = 1; // whether or not it works, the prey knows it was attacked
         const power = this.attackPower[i]!;
         const odds = power / (power + this.defendedBy(prey));
         if (this.rng.next() < odds) this.kill(i, prey);
@@ -2606,6 +2671,7 @@ export class Simulation {
       digestionLoss += plantRaw - plantGain + (meatRaw - meatGain);
       this.plantTaken[i] = this.plantTaken[i]! + plantGain;
       this.meatTaken[i] = this.meatTaken[i]! + meatGain;
+      if (this.chemOn) this.chemIntake[i] = this.chemIntake[i]! + plantGain + meatGain;
       let energy = this.energy[i]! + plantGain + meatGain;
       if (this.typeOn) {
         // A photosynthesizing cell collects sunlight directly (the only new energy that enters the world, so it goes in the ledger as sunlight).
@@ -2990,6 +3056,7 @@ export class Simulation {
       this.brainTo.copyWithin(target, source, source + count);
       this.brainWeight.copyWithin(target, source, source + count);
       if (this.memoryOn) this.memState.copyWithin(to * MEMORY_COUNT, from * MEMORY_COUNT, (from + 1) * MEMORY_COUNT);
+      if (this.chemOn) this.chem.copyWithin(to * 4, from * 4, from * 4 + 4);
     }
   }
 
@@ -3021,6 +3088,7 @@ export class Simulation {
     organism("brainTo", this.brainTo, CONN_MAX);
     organism("brainWeight", this.brainWeight, CONN_MAX);
     if (this.memoryOn) organism("memState", this.memState, MEMORY_COUNT);
+    if (this.chemOn) organism("chem", this.chem, 4);
     // The land and the scent trails, in full.
     for (const [name, array] of this.landArrays()) arrays[name] = array.slice();
     const state: Record<string, unknown> = {
@@ -3124,6 +3192,7 @@ export class Simulation {
     take("brainTo", this.brainTo);
     take("brainWeight", this.brainWeight);
     if (this.memoryOn) take("memState", this.memState);
+    if (this.chemOn) take("chem", this.chem);
     for (const [name, array] of this.landArrays()) take(name, array);
     this.tick = s.tick;
     this.count = s.count;

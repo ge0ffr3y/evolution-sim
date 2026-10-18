@@ -234,6 +234,30 @@ export interface SimConfig {
    */
   homeMode: number;
   homeRange: number;
+  /**
+   * Chemical signals (needs brains): each organism has four slow internal signals that its brain can
+   * read: a reward signal that jumps when it eats, a stress signal that jumps when it is attacked,
+   * starving or sick, a bonding signal that rises with relatives close by (or bonded neighbors),
+   * and a calm signal that is high when it is well fed and unstressed. Nothing is rewarded for
+   * having them: they only tell the brain things it could not otherwise know about the recent past,
+   * and an organism that does not read them just does not pay for them (chemicalsCost, per tick,
+   * for a brain that reads at least one). 0 = off (the inputs stay at zero).
+   */
+  chemicals: number;
+  /** Each signal keeps this share of its value from one thought to the next (0 to 1). */
+  chemDecay: number;
+  /** Reward rises by this much per unit of food energy eaten, as a share of the energy needed to reproduce. */
+  chemRewardGain: number;
+  /** Stress rises by chemStressHit when an attack is made on the organism, chemStressSick while sick, and up to chemStressHunger when its energy is below chemHungerBelow of what it needs to reproduce. */
+  chemStressHit: number;
+  chemStressSick: number;
+  chemStressHunger: number;
+  chemHungerBelow: number;
+  /** Bonding rises by this much when the relatives it can count (up to herdCap) are all around it. */
+  chemBondGain: number;
+  /** How fast calm moves toward (well fed x not stressed). */
+  chemCalmRate: number;
+  chemicalsCost: number;
   /** Energy per tick for having a brain at all, per hidden unit, and per working connection. */
   brainBaseCost: number;
   brainCostPerNeuron: number;
@@ -464,7 +488,7 @@ export interface SimConfig {
    * 0 = every organism lives alone. 1 = cells can stay together: a gene gives the chance that a baby
    * stays attached to its parent, forming a colony. Bonded cells are held near each other like
    * linked beads, turn toward their neighbors' heading so the colony moves as one, and share
-   * energy (a hungry cell is fed by a fed neighbor). Needs brainMode 0 for now.
+   * energy (a hungry cell is fed by a fed neighbor). With brains, every cell keeps its own brain.
    */
   multicellular: number;
   /** The most bonds one cell can have (at most 6) and the most cells one colony can hold; a baby that would exceed either floats off alone. */
@@ -730,6 +754,16 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   brainRemoveConnectionProb: 0.03,
   brainRemoveNodeProb: 0.01,
   brainMemory: 0,
+  chemicals: 0,
+  chemDecay: 0.95,
+  chemRewardGain: 20,
+  chemStressHit: 0.5,
+  chemStressSick: 0.05,
+  chemStressHunger: 0.1,
+  chemHungerBelow: 0.3,
+  chemBondGain: 0.1,
+  chemCalmRate: 0.02,
+  chemicalsCost: 0.0005,
   homeMode: 0,
   homeRange: 64,
   brainBaseCost: 0.001,
@@ -955,6 +989,11 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   }
   if (c.brainVisionRange < 0) problems.push("brainVisionRange cannot be negative");
   if (![0, 1].includes(c.brainMemory)) problems.push("brainMemory must be 0 or 1");
+  if (![0, 1].includes(c.chemicals)) problems.push("chemicals must be 0 or 1");
+  if (c.chemicals === 1 && c.brainMode === 0) problems.push("chemicals need brains (set brainMode to 1 or 2)");
+  if (c.chemDecay < 0 || c.chemDecay >= 1) problems.push("chemDecay must be at least 0 and under 1");
+  if (c.chemRewardGain < 0 || c.chemStressHit < 0 || c.chemStressSick < 0 || c.chemStressHunger < 0 || c.chemBondGain < 0 || c.chemCalmRate < 0 || c.chemicalsCost < 0) problems.push("the chemical settings cannot be negative");
+  if (c.chemHungerBelow <= 0 || c.chemHungerBelow > 1) problems.push("chemHungerBelow must be above 0 and at most 1");
   if (c.brainMemory === 1 && c.brainMode === 0) problems.push("brainMemory needs brains (set brainMode to 1 or 2)");
   if (![0, 1, 2].includes(c.homeMode)) problems.push("homeMode must be 0, 1 or 2");
   if (c.homeMode > 0 && c.brainMode === 0) problems.push("homeMode needs brains (set brainMode to 1 or 2)");
@@ -1043,7 +1082,6 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   }
   if (![0, 1].includes(c.multicellular)) problems.push("multicellular must be 0 or 1");
   if (c.multicellular === 1) {
-    if (c.brainMode !== 0) problems.push("multicellular worlds do not support brains yet (set brainMode to 0)");
     if (!Number.isInteger(c.bondLinksMax) || c.bondLinksMax < 1 || c.bondLinksMax > 6) problems.push("bondLinksMax must be a whole number from 1 to 6");
     if (!Number.isInteger(c.colonyMax) || c.colonyMax < 2) problems.push("colonyMax must be a whole number of 2 or more");
     if (!(c.bondRestLength > 0)) problems.push("bondRestLength must be positive");
