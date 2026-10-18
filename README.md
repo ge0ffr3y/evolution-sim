@@ -10,7 +10,7 @@ Nobody is told to be a predator, a herbivore or a scavenger. Those roles, along 
 
 *Seed 12 over 60,000 ticks. Everyone starts as a green, unarmed plant eater. The first kill happens at tick 60, the first scavenger at 566, and by tick 8,690 a lineage lives mostly on meat (red). Larger dots are larger bodies.*
 
-> **Status: v0.3 (Phase 7, ecological depth), on top of Phase 6 (a dynamic world), v0.2 (species and family trees), Phase 4 (senses and brains) and the v0.1 food webs.** Predators, plant eaters and scavengers emerge on their own, from nothing but mutation and the rule that everything costs energy. In 12 of 12 seeds a lineage that lives mostly on meat evolves, and all 12 ecosystems were still going after 1,000,000 ticks. Phase 4 adds evolvable neural-network brains: prey evolve to run from threats, and meat eaters evolve to ambush. Chasing has not evolved yet (see the [Phase 4 devlog](docs/devlog/0004-senses-and-brains.md) for why). Phase 5 adds a family tree of species, saving and loading worlds, and sexual reproduction. Phase 6 adds terrain, climate, seasons and catastrophes, and Phase 7 adds aging, litter size, kin recognition, disease and camouflage (all optional, see the presets).
+> **Status: Phase 8 (multicellularity, heading for v0.4), on top of Phase 7 (ecological depth, v0.3), Phase 6 (a dynamic world), v0.2 (species and family trees), Phase 4 (senses and brains) and the v0.1 food webs.** Predators, plant eaters and scavengers emerge on their own, from nothing but mutation and the rule that everything costs energy. In 12 of 12 seeds a lineage that lives mostly on meat evolves, and all 12 ecosystems were still going after 1,000,000 ticks. Phase 4 adds evolvable neural-network brains: prey evolve to run from threats, and meat eaters evolve to ambush. Chasing has not evolved yet (see the [Phase 4 devlog](docs/devlog/0004-senses-and-brains.md) for why). Phase 5 adds a family tree of species, saving and loading worlds, and sexual reproduction. Phase 6 adds terrain, climate, seasons and catastrophes, and Phase 7 adds aging, litter size, kin recognition, disease and camouflage, and Phase 8 adds bonded colonies with specialized cells (all optional, see the presets).
 
 ![A family tree: green branches are plant eaters, orange and red are meat eaters, red crosses mark extinctions](docs/media/family-tree.png)
 
@@ -35,7 +35,8 @@ What emerged (details in the [devlog](docs/devlog)):
 5. A family tree grows: over 1,000,000 ticks every one of 12 seeds made 23 to 50 species (3 to 4 alive at the end), with a stream of short-lived offshoots from three lasting groups.
 6. In a dynamic world, populations separated by water drift apart (nine times as far as without the barrier, and each continent grows its own species), an ice age halves the population and leaves survivors that prefer the cold, and the population swells and shrinks with the seasons.
 7. Switch on ecological depth and each piece shows up in the numbers: with disease the plant eaters keep about a third more genetic variety, with camouflage their colors come to match the background, with a litter-size gene the population doubles, and with kin recognition sexual worlds stop collapsing (at the price of suppressing predators).
-8. With brains on, prey evolve to turn away from threats (about 0.68 of the time, against 0.52 for the no-brain control), and meat eaters evolve to ambush: they slow down and let prey walk into reach. They do not chase. In sparse worlds the meat eaters repeatedly crash and re-evolve, which wipes out any chasing wiring.
+8. Switch on multicellularity and colonies of specialized cells do arise and can beat single cells: in a sunlit, low-food world with no predators, a lineage of colonies roughly doubled the average population (628 against 331) in 7 of 12 worlds where it was given a head start. It rarely starts from nothing, it loses once predators evolve, and cells did not choose to bond across lineages (see devlog 8).
+9. With brains on, prey evolve to turn away from threats (about 0.68 of the time, against 0.52 for the no-brain control), and meat eaters evolve to ambush: they slow down and let prey walk into reach. They do not chase. In sparse worlds the meat eaters repeatedly crash and re-evolve, which wipes out any chasing wiring.
 
 ## Goals
 
@@ -118,6 +119,9 @@ Each preset is a short JSON file in [`configs/`](configs) naming the settings it
 | Disease | Pathogens that hunt the common genotype: about a fifth sick, more genetic variety |
 | Camouflage and search images | A background color; matching it hides you, hunters learn the colors they eat |
 | Sexual reproduction with color choice | Sex where the color gene is the mating signal |
+| Colonies | Cells can stay attached to their parents, move together and share energy |
+| Sunlit colonies | The niche where colonies pay: specialized cells (feeders, movers, photosynthesizers, armor, sensors) in a low-food world |
+| Symbiosis | Cells can bond with any cell they touch; nothing rewards it (it does not catch on, see devlog 8) |
 | Sexual reproduction | Pairs of ready, compatible neighbors have babies with mixed genes. Result: one species, no meat eaters (see devlog 5) |
 | Rare big mutations | One baby in fifty gets a big jump in three genes: the family tree branches about three times as much |
 | Brains: evolvable layout | Neural-network brains whose layout evolves: click an organism to watch it think |
@@ -137,7 +141,7 @@ Each preset is a short JSON file in [`configs/`](configs) naming the settings it
 | 5 | Species and phylogeny | Species tracking, family tree, sexual reproduction, save and load (**v0.2, done**) |
 | 6 | Dynamic world | Terrain, climate, seasons, catastrophes (**done**) |
 | 7 | Ecological depth | Aging, litter size, kin, disease, camouflage (**v0.3, done**; symbiosis not built) |
-| 8 | Multicellularity | Colonies, cell types, body plans (v0.4) |
+| 8 | Multicellularity | Colonies, cell types, body plans (**done, v0.4 pending**; arises rarely from scratch) |
 | 9 | Experiments at scale | Parameter sweeps and findings |
 | 10 | Ship it | Portfolio page and write-ups (v1.0) |
 
