@@ -143,6 +143,8 @@ export interface FrameMessage {
   /** Bonds between cells as pairs of organism indices (a, b, a, b, ...), and the size of each organism's colony (null without multicellularity). */
   bonds: Uint32Array | null;
   colonySize: Uint16Array | null;
+  /** The cell type of each organism (0 generalist, 1 feeder, 2 mover, 3 photosynthesizer, 4 armor, 5 sensor); null without cell types. */
+  cellType: Uint8Array | null;
   /** For each organism: 0 healthy, 1 sick, 2 immune (null in worlds without disease). */
   health: Uint8Array | null;
   /** The biome of each cell (0 water, 1 plains, 2 forest, 3 desert, 4 mountains); null except in the first frame after a restart, and in worlds without terrain. */

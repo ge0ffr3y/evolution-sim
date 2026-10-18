@@ -208,6 +208,9 @@ export interface OrganismSnapshot {
   brain: BrainSnapshot | null;
   /** Disease (all 0 without it): ticks of sickness and of immunity left, and which strain it carries. */
   health: { sickFor: number; immuneFor: number; strain: number };
+  /** Its cell type (0 generalist, 1 feeder, 2 mover, 3 photosynthesizer, 4 armor, 5 sensor) and how many cells are bonded to it. */
+  cellType: number;
+  bonds: number;
   /** Lifespan in ticks (0 without aging) and litter size (1 without the litter gene). */
   lifespan: number;
   litter: number;
@@ -521,6 +524,10 @@ export class Simulation {
   private readonly visitMark: Uint32Array;
   private visitStamp = 0;
   private colonyRoot = new Int32Array(0);
+  /** Cell types (only when cellTypes is 1): the type of each cell (0 generalist ... 5 sensor) and the sunlight a photosynthesizing cell collects each tick. */
+  readonly cellType: Uint8Array;
+  private readonly photoGain: Float32Array;
+  private readonly typeOn: boolean;
   private readonly colonyStack: Int32Array;
   /** Lifespan (ticks) and litter size of each organism (only when those genes are in use). */
   readonly lifespan: Float32Array;
@@ -708,6 +715,9 @@ export class Simulation {
     this.searchHue = new Float32Array(this.camoOn ? n : 0);
     this.hasImage = new Uint8Array(this.camoOn ? n : 0);
     this.bondsOn = c.multicellular === 1;
+    this.typeOn = this.bondsOn && c.cellTypes === 1;
+    this.cellType = new Uint8Array(this.typeOn ? n : 0);
+    this.photoGain = new Float32Array(this.typeOn ? n : 0);
     this.bondTo = new Int32Array(this.bondsOn ? n * BOND_SLOTS : 0).fill(-1);
     this.alignX = new Float64Array(this.bondsOn ? n : 0);
     this.alignY = new Float64Array(this.bondsOn ? n : 0);
@@ -730,7 +740,8 @@ export class Simulation {
         (k === GENE.thermal && this.thermalOn) ||
         (k === GENE.lifespan && this.agingOn) ||
         (k === GENE.litter && this.litterOn) ||
-        (k === GENE.bond && this.bondsOn),
+        (k === GENE.bond && this.bondsOn) ||
+        ((k === GENE.plan1 || k === GENE.plan2 || k === GENE.plan3) && this.typeOn),
     );
     this.kinLimitSq = c.kinDistance * c.kinDistance;
     this.sexOn = c.sexualReproduction === 1;
@@ -742,6 +753,8 @@ export class Simulation {
     for (const name of GENES) {
       if (name === "hue" || name === "mutationRate") continue;
       if (!this.activeGene[GENE[name]]) continue;
+      // The bonding and body-plan genes describe how a body is built, not what kind of organism it is.
+      if (name === "bond" || name === "plan1" || name === "plan2" || name === "plan3") continue;
       this.mateMask.push(GENE[name]);
     }
     this.species = new Uint32Array(c.speciesEvery > 0 ? n : 0);
@@ -774,6 +787,10 @@ export class Simulation {
     if (this.tracker) this.uint32Fields.push(this.species);
     if (this.sexOn) this.uint32Fields.push(this.parent2Id);
     this.uint8Fields = [this.killed, this.attempted];
+    if (this.typeOn) {
+      this.uint8Fields.push(this.cellType);
+      this.float32Fields.push(this.photoGain);
+    }
     if (this.camoOn) {
       this.uint8Fields.push(this.hasImage);
       this.float32Fields.push(this.searchHue);
@@ -811,6 +828,7 @@ export class Simulation {
       const index = this.spawn(0, fx, fy);
       for (let g = 0; g < GENE_COUNT; g++) this.genes[index * GENE_COUNT + g] = founder[g]!;
       this.genes[index * GENE_COUNT + GENE.hue] = this.rng.next();
+      if (this.typeOn) for (const plan of [GENE.plan1, GENE.plan2, GENE.plan3]) this.genes[index * GENE_COUNT + plan] = this.rng.next();
       this.express(index);
       this.initBrain(index);
       this.energy[index] = this.threshold[index]! * c.initialEnergyFraction;
@@ -998,6 +1016,7 @@ export class Simulation {
     this.parentId[i] = parent;
     if (this.sexOn) this.parent2Id[i] = 0;
     if (this.bondsOn) this.bondTo.fill(-1, i * BOND_SLOTS, (i + 1) * BOND_SLOTS);
+    if (this.typeOn) this.cellType[i] = 0;
     if (this.camoOn) this.hasImage[i] = 0;
     if (this.diseaseOn) {
       this.infection[i] = 0;
@@ -1049,8 +1068,42 @@ export class Simulation {
     const at = (gene: GeneName): number => r[gene].min + genes[g + GENE[gene]]! * (r[gene].max - r[gene].min);
 
     const size = at("size");
-    const speed = at("speed");
-    const sense = at("senseRange");
+    // A specialized cell is better than a generalist at one job and worse at the others.
+    let speedFactor = 1;
+    let biteFactor = 1;
+    let defenseFactor = 1;
+    let upkeepFactor = 1;
+    let senseBonus = 0;
+    let photo = 0;
+    if (this.typeOn) {
+      switch (this.cellType[i]) {
+        case 1:
+          biteFactor = c.typeFeederBite;
+          speedFactor = c.typeFeederSpeed;
+          break;
+        case 2:
+          speedFactor = c.typeMoverSpeed;
+          biteFactor = c.typeMoverBite;
+          break;
+        case 3:
+          photo = c.typePhotoGain;
+          biteFactor = c.typePhotoBite;
+          speedFactor = c.typePhotoSpeed;
+          break;
+        case 4:
+          defenseFactor = c.typeArmorDefense;
+          speedFactor = c.typeArmorSpeed;
+          upkeepFactor = c.typeArmorUpkeep;
+          break;
+        case 5:
+          senseBonus = c.typeSensorRange;
+          biteFactor = c.typeSensorBite;
+          speedFactor = c.typeSensorSpeed;
+          break;
+      }
+    }
+    const speed = at("speed") * speedFactor;
+    const sense = at("senseRange") + senseBonus;
     const metabolism = at("metabolism");
     const mutation = at("mutationRate");
     const diet = at("diet");
@@ -1069,7 +1122,8 @@ export class Simulation {
     // size^0.75 is built from square roots: the Math.pow function is not
     // guaranteed to give identical results in every browser.
     const sizeToThreeQuarters = Math.sqrt(size) * Math.sqrt(Math.sqrt(size));
-    this.basalCost[i] = c.basalCostCoeff * metabolism * sizeToThreeQuarters;
+    this.basalCost[i] = c.basalCostCoeff * metabolism * sizeToThreeQuarters * upkeepFactor;
+    if (this.typeOn) this.photoGain[i] = photo * sizeToThreeQuarters;
     this.moveCost[i] = c.moveCostCoeff * size * speed * speed * (1 + c.armorMoveFactor * armor);
     this.senseCost[i] = c.senseCostCoeff * sense;
     const fightingPenalty = 1 + c.herbivoreAttackPenalty * (1 - diet);
@@ -1098,7 +1152,7 @@ export class Simulation {
     // Eating. The diet gene splits appetite between plants (diet 0) and meat (diet 1),
     // and a specialist digests its own food better than a generalist does.
     const eatingSize = (1 - c.biteSizeBlend) * sizeToThreeQuarters + c.biteSizeBlend * size;
-    const bite = c.biteRate * metabolism * eatingSize;
+    const bite = c.biteRate * metabolism * eatingSize * biteFactor;
     // Claim on scarce food: bite (strength 0), bite squared (1) or bite cubed (2),
     // blending smoothly in between.
     const k = c.contestStrength;
@@ -1112,7 +1166,7 @@ export class Simulation {
 
     // Fighting.
     this.attackPower[i] = attack * size;
-    this.defense[i] = (armor + c.armorBase) * size;
+    this.defense[i] = (armor + c.armorBase) * size * defenseFactor;
     this.reach[i] = c.reachBase + c.reachPerSize * size;
 
     // Bodies.
@@ -1267,6 +1321,19 @@ export class Simulation {
     if (index === this.herdSelf || this.killed[index] === 1 || distSq <= 0) return;
     if (this.geneDistanceSq(this.herdSelf, index) <= this.kinLimitSq) this.kinCount++;
   };
+
+  /** How much this cell can resist an attack: its own defense (and herd, if on), plus a share of its bonded neighbors' defense. */
+  private defendedBy(prey: number): number {
+    let defense = this.defense[prey]! * this.herdFactor(prey);
+    const share = this.config.colonyDefenseShare;
+    if (this.bondsOn && share > 0) {
+      for (let k = 0; k < BOND_SLOTS; k++) {
+        const partner = this.bondTo[prey * BOND_SLOTS + k]!;
+        if (partner >= 0) defense += share * this.defense[partner]!;
+      }
+    }
+    return defense;
+  }
 
   /** How much harder this animal is to kill because of the relatives around it (1 = alone, or herding is off). */
   private herdFactor(prey: number): number {
@@ -1552,6 +1619,13 @@ export class Simulation {
 
   // ---- Multicellularity ----
 
+  /** How many cells are bonded to cell i. */
+  private bondCount(i: number): number {
+    let count = 0;
+    for (let k = 0; k < BOND_SLOTS; k++) if (this.bondTo[i * BOND_SLOTS + k]! >= 0) count++;
+    return count;
+  }
+
   /** Cut all of cell i's bonds (it is about to leave the world). */
   private breakBonds(i: number): void {
     for (let k = 0; k < BOND_SLOTS; k++) {
@@ -1559,6 +1633,11 @@ export class Simulation {
       if (partner < 0) continue;
       for (let m = 0; m < BOND_SLOTS; m++) if (this.bondTo[partner * BOND_SLOTS + m] === i) this.bondTo[partner * BOND_SLOTS + m] = -1;
       this.bondTo[i * BOND_SLOTS + k] = -1;
+      // A specialized cell only works as part of a body: left with no bonds, it goes back to being a generalist.
+      if (this.typeOn && this.cellType[partner] !== 0 && this.bondCount(partner) === 0) {
+        this.cellType[partner] = 0;
+        this.express(partner);
+      }
     }
   }
 
@@ -1598,6 +1677,13 @@ export class Simulation {
     if (slot < 0 || this.colonySize(parent, c.colonyMax) >= c.colonyMax) return;
     this.bondTo[parent * BOND_SLOTS + slot] = child;
     this.bondTo[child * BOND_SLOTS] = parent;
+    if (this.typeOn) {
+      // The body plan: what kind of cell this is depends on how many bonds its parent already had.
+      const plan = slot === 0 ? GENE.plan1 : slot === 1 ? GENE.plan2 : GENE.plan3;
+      const type = Math.min(5, Math.floor(this.genes[parent * GENE_COUNT + plan]! * 6));
+      this.cellType[child] = type;
+      this.express(child);
+    }
     // The baby sits one bond-length from its parent, in the direction it faces (unless that is water).
     const W = c.worldWidth;
     const H = c.worldHeight;
@@ -2123,7 +2209,7 @@ export class Simulation {
         this.attempted[i] = 1;
         this.totalAttacks++;
         const power = this.attackPower[i]!;
-        const odds = power / (power + this.defense[prey]! * this.herdFactor(prey));
+        const odds = power / (power + this.defendedBy(prey));
         if (this.rng.next() < odds) this.kill(i, prey);
       }
     }
@@ -2169,6 +2255,8 @@ export class Simulation {
     let plantEnergyTaken = 0;
     let meatEnergyTaken = 0;
     let digestionLoss = 0;
+    let photoIn = 0;
+    const climateOn = this.climateOn;
     for (let i = 0; i < n; i++) {
       if (this.killed[i] === 1) continue;
       const cell = this.cellOf[i]!;
@@ -2190,6 +2278,15 @@ export class Simulation {
       this.plantTaken[i] = this.plantTaken[i]! + plantGain;
       this.meatTaken[i] = this.meatTaken[i]! + meatGain;
       let energy = this.energy[i]! + plantGain + meatGain;
+      if (this.typeOn) {
+        // A photosynthesizing cell collects sunlight directly (the only new energy that enters the world, so it goes in the ledger as sunlight).
+        const gain = this.photoGain[i]!;
+        if (gain > 0) {
+          const collected = climateOn ? gain * this.growthFactor[cell]! : gain;
+          energy += collected;
+          photoIn += collected;
+        }
+      }
 
       if (!this.seenScavenger && this.meatTaken[i]! >= SCAVENGER_MIN_MEAT) {
         this.seenScavenger = true;
@@ -2244,7 +2341,8 @@ export class Simulation {
       this.energy[i] = energy;
       this.age[i]!++;
 
-      if (energy >= this.threshold[i]!) this.parents[parentCount++] = i;
+      // Specialized cells are sterile: only generalist ("germ") cells reproduce.
+      if (energy >= this.threshold[i]! && !(this.typeOn && this.cellType[i] !== 0)) this.parents[parentCount++] = i;
     }
 
     // The land: eaten food and meat come off the ground (the matter they held is
@@ -2259,7 +2357,6 @@ export class Simulation {
     const meatDecay = c.meatDecayRate;
     const mineralize = c.detritusMineralizeRate;
     const halfSat = c.nutrientHalfSaturation;
-    const climateOn = this.climateOn;
     for (let cell = 0; cell < food.length; cell++) {
       // Eaten plants.
       const eatenPlants = plantClaim[cell]!;
@@ -2406,7 +2503,7 @@ export class Simulation {
     this.totalStarved += starved;
     this.count = alive;
 
-    ledger.sunlightIn += sunlightIn;
+    ledger.sunlightIn += sunlightIn + photoIn;
     ledger.plantEaten += plantEnergyTaken;
     ledger.meatEaten += meatEnergyTaken;
     ledger.digestionLoss += digestionLoss;
@@ -2706,7 +2803,10 @@ export class Simulation {
       case "armor":
         return this.armor[i]!;
       case "bond":
-        return this.genes[i * GENE_COUNT + GENE.bond]!;
+      case "plan1":
+      case "plan2":
+      case "plan3":
+        return this.genes[i * GENE_COUNT + GENE[name]]!;
       case "lifespan": {
         const range = this.ranges.lifespan;
         return range.min + this.genes[i * GENE_COUNT + GENE.lifespan]! * (range.max - range.min);
@@ -2858,6 +2958,8 @@ export class Simulation {
       parentId: this.parentId[i]!,
       otherParentId: this.sexOn ? this.parent2Id[i]! : 0,
       health: this.diseaseOn ? { sickFor: this.sickFor[i]!, immuneFor: this.immuneFor[i]!, strain: this.infection[i]! } : { sickFor: 0, immuneFor: 0, strain: 0 },
+      cellType: this.typeOn ? this.cellType[i]! : 0,
+      bonds: this.bondsOn ? this.bondCount(i) : 0,
       lifespan: this.agingOn ? this.lifespan[i]! : 0,
       litter: this.litterOn ? this.litter[i]! : 1,
       age: this.age[i]!,

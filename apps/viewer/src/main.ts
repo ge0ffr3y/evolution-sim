@@ -262,6 +262,9 @@ const GENE_LABELS: Record<GeneName, string> = {
   lifespan: "Lifespan (ticks)",
   litter: "Litter size (babies)",
   bond: "Bonding (chance a baby stays attached)",
+  plan1: "Body plan: first bond",
+  plan2: "Body plan: second bond",
+  plan3: "Body plan: later bonds",
 };
 
 function traitText(gene: GeneName, value: number): string {

@@ -6,7 +6,7 @@ import type { SimConfig } from "./config";
  * worked out from the genes ("phenotype mapping") by stretching each gene
  * across that trait's allowed range from the config.
  */
-export const GENES = ["size", "speed", "senseRange", "metabolism", "hue", "mutationRate", "diet", "attack", "armor", "stamina", "thermal", "lifespan", "litter", "bond"] as const;
+export const GENES = ["size", "speed", "senseRange", "metabolism", "hue", "mutationRate", "diet", "attack", "armor", "stamina", "thermal", "lifespan", "litter", "bond", "plan1", "plan2", "plan3"] as const;
 export type GeneName = (typeof GENES)[number];
 export const GENE_COUNT = GENES.length;
 
@@ -35,6 +35,9 @@ export const GENE = {
   lifespan: 11,
   litter: 12,
   bond: 13,
+  plan1: 14,
+  plan2: 15,
+  plan3: 16,
 } as const satisfies Record<GeneName, number>;
 
 /** Real-world values for every gene, e.g. { size: 1.2, speed: 0.8, ... }. */
@@ -63,6 +66,10 @@ export function traitRanges(c: SimConfig): Record<GeneName, TraitRange> {
     litter: { min: c.litterMin, max: c.litterMax },
     // The chance a baby stays attached to its parent: a plain 0 to 1.
     bond: { min: 0, max: 1 },
+    // The body plan: which cell type a bonded baby becomes (see cellTypes in the config), as a plain 0 to 1.
+    plan1: { min: 0, max: 1 },
+    plan2: { min: 0, max: 1 },
+    plan3: { min: 0, max: 1 },
   };
 }
 

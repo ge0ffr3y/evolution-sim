@@ -252,6 +252,7 @@ function postFrame(s: Simulation): void {
     terrain,
     bonds,
     colonySize,
+    cellType: s.cellType.length > 0 ? s.cellType.slice(0, n) : null,
     background,
     health,
     climate,
@@ -279,6 +280,7 @@ function postFrame(s: Simulation): void {
   if (background) transfer.push(background.buffer);
   if (bonds) transfer.push(bonds.buffer);
   if (colonySize) transfer.push(colonySize.buffer);
+  if (message.cellType) transfer.push(message.cellType.buffer);
   if (health) transfer.push(health.buffer);
   if (climate) transfer.push(climate.temperature.buffer, climate.growth.buffer);
   // The options form of postMessage works in both a worker and the DOM typings.
