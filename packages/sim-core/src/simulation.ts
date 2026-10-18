@@ -469,6 +469,11 @@ export class Simulation {
   readonly thermalPref: Float32Array;
   private readonly thermalScale: Float32Array;
   private readonly thermalOn: boolean;
+  /** Lifespan (ticks) and litter size of each organism (only when those genes are in use). */
+  readonly lifespan: Float32Array;
+  readonly litter: Float32Array;
+  private readonly agingOn: boolean;
+  private readonly litterOn: boolean;
   /** Which genes are doing anything in this world (the rest are copied as they are, never mutated). */
   private readonly activeGene: boolean[];
   /** Who has first claim on the meat in each cell, and until which tick. Used only with killOwnershipTicks. */
@@ -642,7 +647,18 @@ export class Simulation {
     this.thermalOn = c.climateMode === 1 && c.thermalCostCoeff > 0;
     this.thermalPref = new Float32Array(this.thermalOn ? n : 0);
     this.thermalScale = new Float32Array(this.thermalOn ? n : 0);
-    this.activeGene = GENES.map((_, k) => k < CORE_GENE_COUNT || (k === GENE.stamina && this.staminaOn) || (k === GENE.thermal && this.thermalOn));
+    this.agingOn = c.agingCoeff > 0;
+    this.litterOn = c.litterMax > 1;
+    this.lifespan = new Float32Array(this.agingOn ? n : 0);
+    this.litter = new Float32Array(this.litterOn ? n : 0);
+    this.activeGene = GENES.map(
+      (_, k) =>
+        k < CORE_GENE_COUNT ||
+        (k === GENE.stamina && this.staminaOn) ||
+        (k === GENE.thermal && this.thermalOn) ||
+        (k === GENE.lifespan && this.agingOn) ||
+        (k === GENE.litter && this.litterOn),
+    );
     this.sexOn = c.sexualReproduction === 1;
     this.parent2Id = new Uint32Array(this.sexOn ? n : 0);
     this.ready = new Uint8Array(this.sexOn ? n : 0);
@@ -651,12 +667,11 @@ export class Simulation {
     this.mateMask = [];
     for (const name of GENES) {
       if (name === "hue" || name === "mutationRate") continue;
-      if (name === "stamina" && !this.staminaOn) continue;
-      if (name === "thermal" && !this.thermalOn) continue;
+      if (!this.activeGene[GENE[name]]) continue;
       this.mateMask.push(GENE[name]);
     }
     this.species = new Uint32Array(c.speciesEvery > 0 ? n : 0);
-    this.tracker = c.speciesEvery > 0 ? new SpeciesTracker(c, this.ranges, this.staminaOn, this.thermalOn) : null;
+    this.tracker = c.speciesEvery > 0 ? new SpeciesTracker(c, this.ranges, this.activeGene) : null;
     const staminaOrganisms = this.staminaOn ? n : 0;
     this.stamina = new Float32Array(staminaOrganisms);
     this.staminaMax = new Float32Array(staminaOrganisms);
@@ -678,6 +693,8 @@ export class Simulation {
     }
     if (this.staminaOn) this.float32Fields.push(this.stamina, this.staminaMax, this.staminaCost);
     if (this.thermalOn) this.float32Fields.push(this.thermalPref, this.thermalScale);
+    if (this.agingOn) this.float32Fields.push(this.lifespan);
+    if (this.litterOn) this.float32Fields.push(this.litter);
     this.float64Fields = [this.energy, this.plantTaken, this.meatTaken];
     this.uint32Fields = [this.id, this.parentId, this.age, this.kills];
     if (this.tracker) this.uint32Fields.push(this.species);
@@ -701,6 +718,8 @@ export class Simulation {
     founder[GENE.armor] = traitToGene(c.initialArmor, this.ranges.armor);
     founder[GENE.stamina] = traitToGene(c.initialStamina, this.ranges.stamina);
     founder[GENE.thermal] = traitToGene(c.initialThermal, this.ranges.thermal);
+    founder[GENE.lifespan] = traitToGene(c.initialLifespan, this.ranges.lifespan);
+    founder[GENE.litter] = traitToGene(c.initialLitter, this.ranges.litter);
     for (let i = 0; i < c.initialOrganisms; i++) {
       let fx = this.rng.range(0, c.worldWidth);
       let fy = this.rng.range(0, c.worldHeight);
@@ -978,6 +997,12 @@ export class Simulation {
       this.stamina[i] = this.age[i] === 0 ? reserve : Math.min(this.stamina[i]!, reserve);
     }
 
+    if (this.agingOn) {
+      this.lifespan[i] = at("lifespan");
+      // Keeping a long-lived body in repair costs upkeep all the time.
+      this.basalCost[i] = this.basalCost[i]! * (1 + c.agingRepairCoeff * genes[g + GENE.lifespan]!);
+    }
+    if (this.litterOn) this.litter[i] = at("litter");
     if (this.thermalOn) {
       this.thermalPref[i] = at("thermal");
       this.thermalScale[i] = c.thermalCostCoeff * sizeToThreeQuarters;
@@ -1338,6 +1363,15 @@ export class Simulation {
     }
   }
 
+  /** How many babies this birth makes (1 unless the litter gene is in use; a fraction is rounded at random). */
+  private litterSize(a: number, b: number): number {
+    if (!this.litterOn) return 1;
+    const trait = b < 0 ? this.litter[a]! : (this.litter[a]! + this.litter[b]!) / 2;
+    let k = Math.floor(trait);
+    if (this.rng.next() < trait - k) k++;
+    return k < 1 ? 1 : k;
+  }
+
   /** Used while looking for a mate: remember the nearest other ready, compatible organism. */
   private readonly considerMate = (index: number, distSq: number): void => {
     if (index === this.mateSelf || this.ready[index] !== 1) return;
@@ -1618,6 +1652,16 @@ export class Simulation {
       }
 
       let basal = this.basalCost[i]!;
+      if (this.agingOn) {
+        // Past its prime, a body wears out faster and faster.
+        const lifespan = this.lifespan[i]!;
+        const prime = lifespan * c.agingPrimeFraction;
+        const age = this.age[i]!;
+        if (age > prime) {
+          const worn = (age - prime) / (lifespan - prime);
+          basal += c.agingCoeff * this.basalCost[i]! * worn * worn;
+        }
+      }
       if (this.thermalOn) {
         // Too hot or too cold for comfort costs extra upkeep.
         const off = this.temperature[cell]! - this.thermalPref[i]!;
@@ -1723,59 +1767,67 @@ export class Simulation {
     // (With sexual reproduction, two ready organisms pair up and each hands over half as much.)
     if (this.sexOn) {
       const pairCount = this.pairUp(parentCount);
-      for (let p = 0; p < pairCount; p++) {
+      birthsLoop: for (let p = 0; p < pairCount; p++) {
         const a = this.pairs[2 * p]!;
         const b = this.pairs[2 * p + 1]!;
-        const savedNextId = this.nextId;
-        const child = this.spawn(this.id[a]!, this.x[a]!, this.y[a]!);
-        if (child < 0) break;
-        this.parent2Id[child] = this.id[b]!;
-        this.inheritGenesFromTwo(child, a, b);
-        this.macroMutate(child);
-        if (this.tracker) this.species[child] = this.species[a]!;
-        this.express(child);
-        this.inheritBrainFromTwo(child, a, b);
-        const cell = this.cellOf[a]!;
-        const givenA = this.energy[a]! * c.offspringEnergyFraction * 0.5;
-        const givenB = this.energy[b]! * c.offspringEnergyFraction * 0.5;
-        const store = givenA + givenB - this.bodyEnergy[child]!;
-        if (nutrient[cell]! < this.bodyMatter[child]! || store < 0) {
-          this.count--;
-          this.nextId = savedNextId;
-          this.blockedBirths++;
-          continue;
+        const litter = this.litterSize(a, b);
+        // Each parent hands over half of the usual total, split between the babies.
+        const eachA = (this.energy[a]! * c.offspringEnergyFraction * 0.5) / litter;
+        const eachB = (this.energy[b]! * c.offspringEnergyFraction * 0.5) / litter;
+        for (let baby = 0; baby < litter; baby++) {
+          const savedNextId = this.nextId;
+          const child = this.spawn(this.id[a]!, this.x[a]!, this.y[a]!);
+          if (child < 0) break birthsLoop;
+          this.parent2Id[child] = this.id[b]!;
+          this.inheritGenesFromTwo(child, a, b);
+          this.macroMutate(child);
+          if (this.tracker) this.species[child] = this.species[a]!;
+          this.express(child);
+          this.inheritBrainFromTwo(child, a, b);
+          const cell = this.cellOf[a]!;
+          const store = eachA + eachB - this.bodyEnergy[child]!;
+          if (nutrient[cell]! < this.bodyMatter[child]! || store < 0) {
+            this.count--;
+            this.nextId = savedNextId;
+            this.blockedBirths++;
+            continue;
+          }
+          nutrient[cell] = nutrient[cell]! - this.bodyMatter[child]!;
+          this.energy[a] = this.energy[a]! - eachA;
+          this.energy[b] = this.energy[b]! - eachB;
+          this.energy[child] = store;
+          this.totalBirths++;
         }
-        nutrient[cell] = nutrient[cell]! - this.bodyMatter[child]!;
-        this.energy[a] = this.energy[a]! - givenA;
-        this.energy[b] = this.energy[b]! - givenB;
-        this.energy[child] = store;
-        this.totalBirths++;
       }
     } else {
-      for (let p = 0; p < parentCount; p++) {
+      birthsLoop: for (let p = 0; p < parentCount; p++) {
         const parent = this.parents[p]!;
-        const savedNextId = this.nextId;
-        const child = this.spawn(this.id[parent]!, this.x[parent]!, this.y[parent]!);
-        if (child < 0) break;
-        this.inheritGenes(child, parent);
-        this.macroMutate(child);
-        if (this.tracker) this.species[child] = this.species[parent]!;
-        this.express(child);
-        this.inheritBrain(child, parent);
-        const cell = this.cellOf[parent]!;
-        const given = this.energy[parent]! * c.offspringEnergyFraction;
-        const store = given - this.bodyEnergy[child]!;
-        if (nutrient[cell]! < this.bodyMatter[child]! || store < 0) {
-          // Cannot afford this baby right now: undo it. The parent keeps its energy and tries again later.
-          this.count--;
-          this.nextId = savedNextId;
-          this.blockedBirths++;
-          continue;
+        const litter = this.litterSize(parent, -1);
+        // The same total as always, split between the babies (a litter of one hands over exactly what it always did).
+        const each = (this.energy[parent]! * c.offspringEnergyFraction) / litter;
+        for (let baby = 0; baby < litter; baby++) {
+          const savedNextId = this.nextId;
+          const child = this.spawn(this.id[parent]!, this.x[parent]!, this.y[parent]!);
+          if (child < 0) break birthsLoop;
+          this.inheritGenes(child, parent);
+          this.macroMutate(child);
+          if (this.tracker) this.species[child] = this.species[parent]!;
+          this.express(child);
+          this.inheritBrain(child, parent);
+          const cell = this.cellOf[parent]!;
+          const store = each - this.bodyEnergy[child]!;
+          if (nutrient[cell]! < this.bodyMatter[child]! || store < 0) {
+            // Cannot afford this baby right now: undo it. The parent keeps its energy and tries again later.
+            this.count--;
+            this.nextId = savedNextId;
+            this.blockedBirths++;
+            continue;
+          }
+          nutrient[cell] = nutrient[cell]! - this.bodyMatter[child]!;
+          this.energy[parent] = this.energy[parent]! - each;
+          this.energy[child] = store;
+          this.totalBirths++;
         }
-        nutrient[cell] = nutrient[cell]! - this.bodyMatter[child]!;
-        this.energy[parent] = this.energy[parent]! - given;
-        this.energy[child] = store;
-        this.totalBirths++;
       }
     }
 
@@ -2065,6 +2117,14 @@ export class Simulation {
         return this.attack[i]!;
       case "armor":
         return this.armor[i]!;
+      case "lifespan": {
+        const range = this.ranges.lifespan;
+        return range.min + this.genes[i * GENE_COUNT + GENE.lifespan]! * (range.max - range.min);
+      }
+      case "litter": {
+        const range = this.ranges.litter;
+        return range.min + this.genes[i * GENE_COUNT + GENE.litter]! * (range.max - range.min);
+      }
       case "thermal": {
         const range = this.ranges.thermal;
         return range.min + this.genes[i * GENE_COUNT + GENE.thermal]! * (range.max - range.min);
@@ -2176,7 +2236,11 @@ export class Simulation {
     const counts = new Uint32Array(bins);
     const { min, max } = this.ranges[name];
     const span = max - min;
-    if (span <= 0) return counts;
+    if (span <= 0) {
+      // A trait that cannot vary (its range is a single value): everyone is at that value.
+      counts[0] = this.count;
+      return counts;
+    }
     for (let i = 0; i < this.count; i++) {
       const bin = Math.floor(((this.traitOf(name, i) - min) / span) * bins);
       const clamped = bin < 0 ? 0 : bin >= bins ? bins - 1 : bin;

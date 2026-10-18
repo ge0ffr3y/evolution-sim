@@ -1,0 +1,8 @@
+{
+  "name": "Litter size (many cheap babies or few well-fed ones)",
+  "description": "A gene sets how many babies one birth makes (1 to 4). The parent hands over the same total energy, so a big litter means many babies each starting with little. Watch the litter size trait: fast-growing, crowded or boom-and-bust worlds reward different strategies.",
+  "config": {
+    "litterMax": 4,
+    "initialLitter": 1.5
+  }
+}

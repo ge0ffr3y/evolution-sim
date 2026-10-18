@@ -1,0 +1,7 @@
+{
+  "name": "Aging",
+  "description": "Bodies wear out: past its prime (half its lifespan) an organism pays rising extra upkeep, and a longer lifespan costs more upkeep all the time. Watch the lifespan trait evolve and the oldest organisms die off.",
+  "config": {
+    "agingCoeff": 3
+  }
+}

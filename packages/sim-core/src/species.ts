@@ -112,16 +112,15 @@ export class SpeciesTracker {
   constructor(
     private readonly config: SimConfig,
     private readonly ranges: Record<GeneName, TraitRange>,
-    staminaInUse: boolean,
-    thermalInUse: boolean,
+    /** Which genes are doing anything in this world (see Simulation.activeGene). */
+    active: readonly boolean[],
   ) {
     // Genes that count toward "how different": everything except color and mutation rate
     // (and stamina, unless it is doing something).
     this.mask = [];
     for (const name of GENES) {
       if (name === "hue" || name === "mutationRate") continue;
-      if (name === "stamina" && !staminaInUse) continue;
-      if (name === "thermal" && !thermalInUse) continue;
+      if (!active[GENE[name]]) continue;
       this.mask.push(GENE[name]);
     }
     this.distanceSq = config.speciesDistance * config.speciesDistance;

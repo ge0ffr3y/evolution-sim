@@ -69,6 +69,9 @@ export interface SimConfig {
   initialStamina: number;
   /** Starting preferred temperature of the first generation (0 to 1, see thermalCostCoeff). */
   initialThermal: number;
+  /** Starting lifespan (ticks) and litter size of the first generation. */
+  initialLifespan: number;
+  initialLitter: number;
   /** Fraction of the reproduction threshold that new organisms start with. */
   initialEnergyFraction: number;
 
@@ -97,6 +100,11 @@ export interface SimConfig {
   /** Range of the thermal gene: the temperature an organism is comfortable at. */
   thermalMin: number;
   thermalMax: number;
+  /** Range of the lifespan gene, in ticks (see agingCoeff), and of the litter gene (babies per birth). */
+  lifespanMin: number;
+  lifespanMax: number;
+  litterMin: number;
+  litterMax: number;
   /** How much the mutation-rate gene itself changes between generations (in gene units). */
   metaMutationStd: number;
 
@@ -313,6 +321,24 @@ export interface SimConfig {
   /** The radius of a meteor strike, in world units. */
   meteorRadius: number;
 
+  // --- Aging and litter size (off by default) ---
+  /**
+   * Aging (0 = off: organisms never grow old). With aging, an organism past its prime pays extra
+   * upkeep that rises with the square of how far past it is: at an age equal to its lifespan
+   * gene it pays agingCoeff times its normal upkeep extra. The prime is agingPrimeFraction of the
+   * lifespan. A longer lifespan costs upkeep all the time (up to agingRepairCoeff times normal at
+   * the longest), the price of keeping a body in repair.
+   */
+  agingCoeff: number;
+  agingPrimeFraction: number;
+  agingRepairCoeff: number;
+  /**
+   * Litter size: with litterMax above 1, a gene sets how many babies one birth makes (a fraction
+   * is rounded up or down at random). The parent hands over the same total energy as before, split
+   * between the babies, so a big litter means many babies each starting with little, and a baby
+   * that cannot afford its own body is not born.
+   */
+
   // --- Sexual reproduction (off by default) ---
   /**
    * 0 = organisms split in two when they have enough energy (the original way). 1 = two
@@ -440,6 +466,8 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   initialArmor: 0,
   initialStamina: 10,
   initialThermal: 0.5,
+  initialLifespan: 8000,
+  initialLitter: 1,
   initialEnergyFraction: 0.6,
 
   sizeMin: 0.3,
@@ -462,6 +490,10 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   staminaMax: 30,
   thermalMin: 0,
   thermalMax: 1,
+  lifespanMin: 1000,
+  lifespanMax: 30000,
+  litterMin: 1,
+  litterMax: 1,
   metaMutationStd: 0.05,
 
   turnStd: 0.3,
@@ -545,6 +577,9 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   iceAgeCooling: 0.3,
   droughtSeverity: 0.8,
   meteorRadius: 40,
+  agingCoeff: 0,
+  agingPrimeFraction: 0.5,
+  agingRepairCoeff: 0.3,
   sexualReproduction: 0,
   mateRange: 6,
   mateDistance: 0.25,
@@ -619,6 +654,8 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     ["armor", c.armorMin, c.armorMax, c.initialArmor],
     ["stamina", c.staminaMin, c.staminaMax, c.initialStamina],
     ["thermal", c.thermalMin, c.thermalMax, c.initialThermal],
+    ["lifespan", c.lifespanMin, c.lifespanMax, c.initialLifespan],
+    ["litter", c.litterMin, c.litterMax, c.initialLitter],
   ];
   for (const [name, min, max, start] of ranges) {
     if (min > max) problems.push(`${name}Min exceeds ${name}Max`);
@@ -677,6 +714,10 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
       if (value < 0) problems.push(`${name} cannot be negative`);
     }
   }
+  if (c.agingCoeff < 0 || c.agingRepairCoeff < 0) problems.push("agingCoeff and agingRepairCoeff cannot be negative");
+  if (!(c.agingPrimeFraction >= 0 && c.agingPrimeFraction < 1)) problems.push("agingPrimeFraction must be from 0 up to (but not including) 1");
+  if (c.lifespanMin <= 0) problems.push("lifespanMin must be positive");
+  if (c.litterMin < 1) problems.push("litterMin must be at least 1");
   if (c.thermalCostCoeff < 0 || c.thermalTolerance < 0) problems.push("thermalCostCoeff and thermalTolerance cannot be negative");
   if (c.thermalCostCoeff > 0 && c.climateMode !== 1) problems.push("thermalCostCoeff needs a climate (set climateMode to 1)");
   if (![0, 1, 2, 3, 4].includes(c.catastropheKind)) problems.push("catastropheKind must be 0 (none), 1 (ice age), 2 (drought), 3 (meteor) or 4 (random)");
