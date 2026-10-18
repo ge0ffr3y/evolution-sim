@@ -135,7 +135,8 @@ export class WorldRenderer {
     const scaleY = canvas.height / world.height;
     for (let i = 0; i < frame.count; i++) {
       // Dot area grows with body size.
-      const radius = scaleX * (0.35 + 0.45 * Math.sqrt(frame.size[i]!));
+      // (never smaller than about a pixel and a half, so organisms stay visible in big worlds)
+      const radius = Math.max(scaleX * (0.35 + 0.45 * Math.sqrt(frame.size[i]!)), 1.5);
       ctx.fillStyle = organismColor(this.colorBy, frame, i);
       ctx.beginPath();
       ctx.arc(frame.x[i]! * scaleX, frame.y[i]! * scaleY, radius, 0, Math.PI * 2);
