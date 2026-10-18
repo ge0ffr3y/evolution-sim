@@ -48,14 +48,18 @@ export interface SpeciesRecord {
   history: number[];
 }
 
-export type SpeciesEventKind = "speciation" | "extinction";
+export type SpeciesEventKind = "speciation" | "extinction" | "crash";
 
 export interface SpeciesEvent {
   tick: number;
   kind: SpeciesEventKind;
+  /** The species concerned (0 for a population crash, which is about everyone). */
   species: number;
   /** For a speciation, the species it split from. */
   parent: number;
+  /** For a crash: the highest recent population and the population now. */
+  from?: number;
+  to?: number;
 }
 
 interface Live {
@@ -77,6 +81,9 @@ export class SpeciesTracker {
   private readonly byId = new Map<number, SpeciesRecord>();
   private nextId = 1;
   private nextCandidate = CANDIDATE_BASE;
+  /** Recent population (one value per update), for spotting crashes. */
+  private readonly recentPopulation: number[] = [];
+  private inCrash = false;
   private readonly mask: number[];
   private readonly distanceSq: number;
 
@@ -178,8 +185,25 @@ export class SpeciesTracker {
     };
   }
 
+  /** Log a population crash when numbers fall far below the recent high, and again only after they recover. */
+  private watchPopulation(tick: number, n: number): void {
+    const keep = Math.max(1, Math.floor(this.config.speciesCrashWindow / this.config.speciesEvery));
+    this.recentPopulation.push(n);
+    if (this.recentPopulation.length > keep) this.recentPopulation.shift();
+    let high = 0;
+    for (const value of this.recentPopulation) if (value > high) high = value;
+    const drop = this.config.speciesCrashDrop;
+    if (!this.inCrash && n < (1 - drop) * high) {
+      this.inCrash = true;
+      this.events.push({ tick, kind: "crash", species: 0, parent: 0, from: high, to: n });
+    } else if (this.inCrash && n >= (1 - drop / 2) * high) {
+      this.inCrash = false;
+    }
+  }
+
   /** Re-check everyone's species. Call every `speciesEvery` ticks, after births and deaths. */
   update(tick: number, n: number, genes: Float32Array, species: Uint32Array): void {
+    this.watchPopulation(tick, n);
     // 1. Everyone stays, joins a nearby species, or starts a candidate.
     for (const live of this.live.values()) {
       live.count = 0;

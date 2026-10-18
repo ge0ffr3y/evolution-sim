@@ -1,11 +1,12 @@
 import "./style.css";
-import { GENES, parsePreset, type GeneName, type Preset, type SimEvent } from "@evo/sim-core";
+import { GENE, GENES, parsePreset, type GeneName, type Preset, type SimEvent, type SpeciesEvent, type SpeciesRecord } from "@evo/sim-core";
 import { drawBrain } from "./brainview";
 import { Charts } from "./charts";
 import { FlowTracker } from "./flows";
 import { HEATMAP_TRAITS, Heatmap } from "./heatmap";
 import type { FrameMessage, InspectedState, ToWorker } from "./protocol";
 import { COLOR_MODES, OVERLAYS, WorldRenderer, legendGradient, type ColorBy, type Overlay } from "./render";
+import { TreeView } from "./treeview";
 
 const DEFAULT_SEED = 42;
 /** Speed buttons: label and simulation ticks per real second. */
@@ -58,6 +59,13 @@ const overlaySelect = el<HTMLSelectElement>("overlay");
 const notice = el<HTMLParagraphElement>("notice");
 
 const renderer = new WorldRenderer(canvas);
+
+// Family tree state (declared early: clearHistory below uses it).
+const tree = new TreeView(el<HTMLCanvasElement>("tree-canvas"));
+let speciesRecords: SpeciesRecord[] = [];
+let speciesEventList: SpeciesEvent[] = [];
+let firstsList: readonly SimEvent[] = [];
+let timelineKey = "";
 const charts = new Charts(el("chart-pop"), el("chart-traits"), el("chart-web"), el("chart-brain"));
 const heatmap = new Heatmap(el("heatmap"));
 const flows = new FlowTracker();
@@ -114,6 +122,7 @@ function clearHistory(): void {
   heatmap.clear();
   flows.clear();
   renderInspector(null);
+  resetTree();
 }
 
 // --- Controls ---
@@ -388,6 +397,107 @@ function renderEvents(events: readonly SimEvent[]): void {
   );
 }
 
+// --- Family tree and timeline ---
+
+function dietWord(diet: number): string {
+  return diet < 0.25 ? "plant eaters" : diet > 0.75 ? "meat eaters" : "mixed feeders";
+}
+
+const COMPARED_GENES: readonly GeneName[] = ["size", "speed", "senseRange", "metabolism", "diet", "attack", "armor", "stamina"];
+
+function renderSpeciesDetail(id: number | null): void {
+  const box = el<HTMLDivElement>("species-detail");
+  const record = speciesRecords.find((r) => r.id === id);
+  if (!record) {
+    box.hidden = true;
+    return;
+  }
+  box.hidden = false;
+  const parent = speciesRecords.find((r) => r.id === record.parent);
+  const status = record.diedTick === null ? `alive, ${format.int.format(record.count)} members now` : `extinct at tick ${format.int.format(record.diedTick)}`;
+  const title = document.createElement("strong");
+  title.textContent = `Species #${record.id}`;
+  const lines = document.createElement("p");
+  lines.className = "hint";
+  lines.textContent =
+    `${parent ? `Split from #${parent.id}` : "A first-generation species"} at tick ${format.int.format(record.bornTick)}. ` +
+    `${status[0]!.toUpperCase()}${status.slice(1)}. Most members at once: ${format.int.format(record.peak)}. Mostly ${dietWord(record.traits[GENE.diet]!)}.`;
+  const table = document.createElement("table");
+  const head = table.createTHead().insertRow();
+  for (const text of ["Trait", parent ? `#${parent.id} when it split` : "", "Founders", record.diedTick === null ? "Now" : "At the end"]) {
+    const th = document.createElement("th");
+    th.textContent = text;
+    head.append(th);
+  }
+  const body = table.createTBody();
+  for (const gene of COMPARED_GENES) {
+    const index = GENES.indexOf(gene);
+    const ancestor = record.ancestorTraits?.[index];
+    const founder = record.founderTraits[index]!;
+    const now = record.traits[index]!;
+    if (gene === "stamina" && Math.abs(founder - now) < 1e-9 && (ancestor === undefined || Math.abs(ancestor - founder) < 1e-9)) continue;
+    const row = body.insertRow();
+    row.insertCell().textContent = GENE_LABELS[gene];
+    row.insertCell().textContent = ancestor === undefined ? "" : traitText(gene, ancestor);
+    const foundCell = row.insertCell();
+    foundCell.textContent = traitText(gene, founder);
+    if (ancestor !== undefined && Math.abs(founder - ancestor) > 0.05 * Math.max(Math.abs(ancestor), 0.2)) foundCell.className = founder > ancestor ? "up" : "down";
+    row.insertCell().textContent = traitText(gene, now);
+  }
+  const note = document.createElement("p");
+  note.className = "hint";
+  note.textContent = parent ? "Green or red marks a trait that differed noticeably from the ancestor at the moment of the split." : "";
+  box.replaceChildren(title, lines, table, note);
+}
+
+tree.onSelect = (id) => renderSpeciesDetail(id);
+
+/** Forget the old world's family tree (the simulation was restarted). */
+function resetTree(): void {
+  speciesRecords = [];
+  speciesEventList = [];
+  firstsList = [];
+  timelineKey = "";
+  tree.selected = null;
+  tree.setData([], 1);
+  renderSpeciesDetail(null);
+  renderTimeline();
+}
+
+function renderTimeline(): void {
+  const key = `${firstsList.length}/${speciesEventList.length}`;
+  if (key === timelineKey) return;
+  timelineKey = key;
+  interface Entry {
+    tick: number;
+    text: string;
+  }
+  const entries: Entry[] = firstsList.map((e) => ({ tick: e.tick, text: e.text }));
+  for (const e of speciesEventList) {
+    const record = speciesRecords.find((r) => r.id === e.species);
+    if (e.kind === "speciation") {
+      entries.push({ tick: e.tick, text: `New species #${e.species} splits from #${e.parent}${record ? ` (${dietWord(record.founderTraits[GENE.diet]!)})` : ""}` });
+    } else if (e.kind === "extinction") {
+      entries.push({ tick: e.tick, text: `Species #${e.species} goes extinct${record ? ` after peaking at ${format.int.format(record.peak)} members` : ""}` });
+    } else {
+      entries.push({ tick: e.tick, text: `Population crash: from ${format.int.format(e.from ?? 0)} down to ${format.int.format(e.to ?? 0)}` });
+    }
+  }
+  entries.sort((a, b) => b.tick - a.tick);
+  el("timeline-list").replaceChildren(
+    ...entries.slice(0, 300).map((entry) => {
+      const item = document.createElement("li");
+      const tick = document.createElement("span");
+      tick.className = "event-tick";
+      tick.textContent = `tick ${format.int.format(entry.tick)}`;
+      const text = document.createElement("span");
+      text.textContent = entry.text;
+      item.append(tick, text);
+      return item;
+    }),
+  );
+}
+
 // --- Worker frames ---
 worker.onmessage = (event: MessageEvent<FrameMessage>) => {
   const frame = event.data;
@@ -407,6 +517,15 @@ worker.onmessage = (event: MessageEvent<FrameMessage>) => {
 
   renderInspector(frame.inspected);
   renderEvents(frame.events);
+  firstsList = frame.events;
+  if (frame.species) {
+    speciesRecords = frame.species;
+    speciesEventList = frame.speciesEvents ?? [];
+    tree.setData(frame.species, frame.stats.tick);
+    renderSpeciesDetail(tree.selected);
+    timelineKey = "";
+    renderTimeline();
+  }
 
   if (frame.extinct) {
     running = false;
@@ -433,6 +552,7 @@ function updateStats(frame: FrameMessage): void {
   setText("stat-tick", format.int.format(s.tick));
   setText("stat-pop", format.int.format(s.population));
   setText("stat-classes", `${s.classes.herbivores} / ${s.classes.omnivores} / ${s.classes.carnivores}`);
+  setText("stat-species", `${s.species.alive} / ${s.species.ever}`);
   setText("stat-kills", format.int.format(s.totalKills));
   setText("stat-blocked", format.int.format(s.blockedBirths));
   const b = frame.behavior;

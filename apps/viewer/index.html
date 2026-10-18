@@ -8,7 +8,7 @@
   <body>
     <header class="page-header">
       <h1>Evolution Sim</h1>
-      <p>Phase 4: senses and brains. Pick a world with brains, then click an organism to watch it think.</p>
+      <p>Phase 5: species. Pick a world with brains and click an organism to watch it think, or scroll down for the family tree.</p>
     </header>
 
     <main class="layout">
@@ -51,6 +51,7 @@
           <div><dt>Tick</dt><dd id="stat-tick">0</dd></div>
           <div><dt>Population</dt><dd id="stat-pop">0</dd></div>
           <div><dt>Plant / mixed / meat eaters</dt><dd id="stat-classes">0</dd></div>
+          <div><dt>Species (alive / ever)</dt><dd id="stat-species">0 / 0</dd></div>
           <div><dt>Kills</dt><dd id="stat-kills">0</dd></div>
           <div><dt>Hunters turn toward prey</dt><dd id="stat-chase">-</dd></div>
           <div><dt>Prey turn away from threats</dt><dd id="stat-flee">-</dd></div>
@@ -126,6 +127,14 @@
       <div id="heatmap-tabs" class="tabs" role="tablist" aria-label="Trait"></div>
       <p class="hint">Time runs left to right and the trait's value runs bottom to top. Brighter = more organisms at that value (each column is scaled to its own busiest value, so you can see its shape). Two bright bands mean two strategies living side by side.</p>
       <div id="heatmap" class="chart"></div>
+
+      <h2 id="tree-title">Family tree</h2>
+      <p class="hint">Time runs left to right. Each row is a species (a group of organisms with similar genes). A branch's thickness is how many members it has and its color is its average diet (green plants, red meat). A thin line joins a branch to the species it split from, and a red cross marks an extinction. Click a branch to see how it differs from its ancestor.</p>
+      <div id="tree-scroll" class="tree-scroll"><canvas id="tree-canvas" aria-label="Family tree of species"></canvas></div>
+      <div id="species-detail" class="species-detail" hidden></div>
+      <h2>Timeline</h2>
+      <p class="hint">New species, extinctions, population crashes and the notable firsts, newest first.</p>
+      <ul id="timeline-list" class="events-list timeline"></ul>
     </section>
 
     <script type="module" src="/src/main.ts"></script>

@@ -189,6 +189,22 @@ describe("species tracking", () => {
     expect(JSON.stringify(a.speciesEvents)).toBe(JSON.stringify(b.speciesEvents));
   });
 
+  it("logs a population crash once when numbers fall far below the recent high, and again only after a recovery", () => {
+    const sim = new Simulation(1, quiet({ speciesEvery: 10, speciesCrashWindow: 200, speciesCrashDrop: 0.4 }));
+    sim.run(100);
+    expect(sim.speciesEvents.filter((e) => e.kind === "crash")).toHaveLength(0);
+    // Wipe out two thirds of the population.
+    const before = sim.count;
+    for (let i = 0; i < sim.count; i++) if (i % 3 !== 0) sim.energy[i] = 0;
+    sim.run(10);
+    const crashes = sim.speciesEvents.filter((e) => e.kind === "crash");
+    expect(crashes).toHaveLength(1);
+    expect(crashes[0]!.from).toBe(before);
+    expect(crashes[0]!.to).toBeLessThan(0.6 * before);
+    sim.run(30);
+    expect(sim.speciesEvents.filter((e) => e.kind === "crash")).toHaveLength(1); // not logged again while low
+  });
+
   it("rejects settings that make no sense", () => {
     expect(() => new Simulation(1, { speciesEvery: 30, speciesSampleEvery: 100 })).toThrow(/multiple of speciesEvery/);
     expect(() => new Simulation(1, { speciesDistance: 0 })).toThrow(/speciesDistance/);

@@ -1,4 +1,4 @@
-import type { BehaviorStats, GeneName, OrganismSnapshot, SimConfig, SimEvent, SimStats, TraitRange } from "@evo/sim-core";
+import type { BehaviorStats, GeneName, OrganismSnapshot, SimConfig, SimEvent, SimStats, SpeciesEvent, SpeciesRecord, TraitRange } from "@evo/sim-core";
 
 /** Messages from the page to the simulation worker. */
 export type ToWorker =
@@ -115,4 +115,11 @@ export interface FrameMessage {
   events: SimEvent[];
   /** How purposefully organisms have been turning recently (0.5 = random). */
   behavior: BehaviorStats;
+  /**
+   * The family tree so far. Large (it carries each species' whole history), so it is only
+   * sent every second or so; null on the frames in between.
+   */
+  species: SpeciesRecord[] | null;
+  /** Speciations, extinctions and population crashes (sent along with `species`). */
+  speciesEvents: SpeciesEvent[] | null;
 }

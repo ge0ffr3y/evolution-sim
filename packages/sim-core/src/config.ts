@@ -235,6 +235,13 @@ export interface SimConfig {
   /** Every this many ticks each living species records its size and average traits (a multiple of speciesEvery). */
   speciesSampleEvery: number;
 
+  /**
+   * A population crash is logged when the population falls below (1 - speciesCrashDrop) times its
+   * highest value over the last speciesCrashWindow ticks.
+   */
+  speciesCrashDrop: number;
+  speciesCrashWindow: number;
+
   // --- Sprinting and stamina (only with brains) ---
   /**
    * 0 = off: brains can run flat out for as long as they like (paying the energy), and the
@@ -381,6 +388,8 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   speciesMinMembers: 10,
   speciesProbation: 2000,
   speciesSampleEvery: 500,
+  speciesCrashDrop: 0.4,
+  speciesCrashWindow: 2000,
   sprintFatigue: 0,
   staminaRegen: 0.1,
   staminaRestBonus: 1,
@@ -484,6 +493,8 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     if (!(c.speciesDistance > 0 && c.speciesDistance <= 1)) problems.push("speciesDistance must be above 0 and at most 1");
     if (!Number.isInteger(c.speciesMinMembers) || c.speciesMinMembers < 1) problems.push("speciesMinMembers must be a whole number of 1 or more");
     if (!Number.isInteger(c.speciesProbation) || c.speciesProbation < 0) problems.push("speciesProbation must be a whole number of ticks");
+    if (!(c.speciesCrashDrop > 0 && c.speciesCrashDrop < 1)) problems.push("speciesCrashDrop must be between 0 and 1");
+    if (!Number.isInteger(c.speciesCrashWindow) || c.speciesCrashWindow < c.speciesEvery) problems.push("speciesCrashWindow must be at least speciesEvery ticks");
     if (!Number.isInteger(c.speciesSampleEvery) || c.speciesSampleEvery < c.speciesEvery || c.speciesSampleEvery % c.speciesEvery !== 0) {
       problems.push("speciesSampleEvery must be a multiple of speciesEvery");
     }
