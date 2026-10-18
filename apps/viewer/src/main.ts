@@ -274,6 +274,8 @@ const GENE_LABELS: Record<GeneName, string> = {
   fat: "Fat (energy banked before reproducing)",
   torpor: "Torpor (dormancy when plants stop growing)",
   palate: "Palate (which kind of plant it digests best)",
+  stressResponse: "Stress response (how strongly stress acts on the body)",
+  calmResponse: "Calm response (how strongly calm acts on the body)",
 };
 
 function traitText(gene: GeneName, value: number): string {

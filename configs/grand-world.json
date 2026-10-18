@@ -32,6 +32,7 @@
     "brainMemory": 1,
     "homeMode": 2,
     "chemicals": 1,
+    "chemBodyEffects": 1,
 
     "kinDistance": 0.05,
     "kinTolerance": 1,

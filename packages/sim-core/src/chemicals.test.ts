@@ -170,3 +170,68 @@ describe("chemical signals", () => {
     expect(loaded.fingerprint()).toBe(a.fingerprint());
   }, 90_000);
 });
+
+describe("chemical body effects", () => {
+  function run(extra: Partial<SimConfig>, stressResponse: number, calmResponse: number, hit = false): { moved: number; basal: number } {
+    const sim = new Simulation(1, stage({ chemBodyEffects: 1, chemCalmRate: 0, chemDecay: 0, ...extra }));
+    wire(sim, 0, INPUT.bias, OUTPUT_START + OUTPUT.speed, 1);
+    sim.genes[GENE.stressResponse] = stressResponse;
+    sim.genes[GENE.calmResponse] = calmResponse;
+    sim.express(0);
+    sim.x[0] = 30;
+    sim.y[0] = 30;
+    sim.headingX[0] = 1;
+    sim.headingY[0] = 0;
+    if (hit) internals(sim).chemHit[0] = 1;
+    sim.step();
+    return { moved: Math.hypot(sim.x[0]! - 30, sim.y[0]! - 30), basal: sim.ledger.basalBurned };
+  }
+
+  it("stress, scaled by the gene, speeds the organism up and raises its upkeep", () => {
+    const calmOnly = { chemCalmSaving: 0, chemCalmSlow: 0 };
+    const none = run(calmOnly, 0, 0, true);
+    const full = run(calmOnly, 1, 0, true);
+    // A hit sets stress to chemStressHit (0.5); full response: 1 + 0.5 x 0.5 faster and the same more upkeep.
+    expect(full.moved / none.moved).toBeCloseTo(1.25, 3);
+    expect(full.basal / none.basal).toBeCloseTo(1.25, 3);
+    const half = run(calmOnly, 0.5, 0, true);
+    expect(half.moved / none.moved).toBeCloseTo(1.125, 3);
+  });
+
+  it("calm, scaled by the gene, saves upkeep and slows the organism down", () => {
+    const stressOff = { chemStressSpeed: 0, chemStressUpkeep: 0 };
+    const none = run(stressOff, 0, 0);
+    const full = run(stressOff, 0, 1);
+    // A newborn starts at calm 0.5, so a full response saves 0.3 x 0.5 of upkeep and is 0.3 x 0.5 slower.
+    expect(full.moved / none.moved).toBeCloseTo(1 - 0.15, 3);
+    expect(full.basal / none.basal).toBeCloseTo(1 - 0.15, 3);
+  });
+
+  it("the genes do nothing when body effects are off", () => {
+    const off = run({ chemBodyEffects: 0 }, 1, 1, true);
+    const base = run({ chemBodyEffects: 0 }, 0, 0, true);
+    expect(off.moved).toBeCloseTo(base.moved, 9);
+    expect(off.basal).toBeCloseTo(base.basal, 9);
+    expect(() => new Simulation(1, { brainMode: 2, chemBodyEffects: 1 })).toThrow(/needs chemicals/);
+  });
+
+  it("a world with them is deterministic, conserves energy and matter, and a saved world carries on exactly", () => {
+    const config = { worldWidth: 128, worldHeight: 128, initialOrganisms: 150, brainMode: 2, chemicals: 1, chemBodyEffects: 1, founderSpread: 0.7, kinDistance: 0.1, brainAddConnectionProb: 0.3, foodRegrowPerTick: 0.05 } as Partial<SimConfig>;
+    const a = new Simulation(5, config);
+    const b = new Simulation(5, config);
+    const energy0 = a.energyAudit().total;
+    const matter0 = a.matterAudit().total;
+    a.run(2000);
+    b.run(2000);
+    const L = a.ledger;
+    const burned = L.basalBurned + L.movementBurned + L.sensingBurned + L.attackBurned + L.armorBurned + L.brainBurned;
+    const expected = energy0 + L.sunlightIn - burned - L.digestionLoss - L.decayLoss;
+    expect(Math.abs(a.energyAudit().total - expected) / expected).toBeLessThan(1e-9);
+    expect(Math.abs(a.matterAudit().total - matter0) / matter0).toBeLessThan(1e-9);
+    expect(a.fingerprint()).toBe(b.fingerprint());
+    const loaded = Simulation.load(a.save());
+    a.run(500);
+    loaded.run(500);
+    expect(loaded.fingerprint()).toBe(a.fingerprint());
+  }, 90_000);
+});

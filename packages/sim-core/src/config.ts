@@ -263,6 +263,21 @@ export interface SimConfig {
   /** How fast calm moves toward (well fed x not stressed). */
   chemCalmRate: number;
   chemicalsCost: number;
+  /**
+   * Body effects of the signals (needs chemicals; 1 = on). Two more genes (the 24th and 25th) say how
+   * strongly the stress and calm signals act on an organism's own body, so evolution sets how
+   * much of a stress response to have. Stress, scaled by the gene, speeds the organism up by up to
+   * chemStressSpeed (as a share of its speed) and raises its upkeep by up to chemStressUpkeep.
+   * Calm, scaled by the gene, cuts upkeep by up to chemCalmSaving and slows the organism by up to
+   * chemCalmSlow. Neither is a reward: each has a price as well as a use.
+   */
+  chemBodyEffects: number;
+  chemStressSpeed: number;
+  chemStressUpkeep: number;
+  chemCalmSaving: number;
+  chemCalmSlow: number;
+  initialStressResponse: number;
+  initialCalmResponse: number;
   /** Energy per tick for having a brain at all, per hidden unit, and per working connection. */
   brainBaseCost: number;
   brainCostPerNeuron: number;
@@ -810,6 +825,13 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   chemBondGain: 0.1,
   chemCalmRate: 0.02,
   chemicalsCost: 0.0005,
+  chemBodyEffects: 0,
+  chemStressSpeed: 0.5,
+  chemStressUpkeep: 0.5,
+  chemCalmSaving: 0.3,
+  chemCalmSlow: 0.3,
+  initialStressResponse: 0,
+  initialCalmResponse: 0,
   homeMode: 0,
   homeRange: 64,
   homeMemoryDecay: 0.999,
@@ -1053,6 +1075,10 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (![0, 1].includes(c.brainMemory)) problems.push("brainMemory must be 0 or 1");
   if (![0, 1].includes(c.chemicals)) problems.push("chemicals must be 0 or 1");
   if (c.chemicals === 1 && c.brainMode === 0) problems.push("chemicals need brains (set brainMode to 1 or 2)");
+  if (![0, 1].includes(c.chemBodyEffects)) problems.push("chemBodyEffects must be 0 or 1");
+  if (c.chemBodyEffects === 1 && c.chemicals !== 1) problems.push("chemBodyEffects needs chemicals (set chemicals to 1)");
+  if (c.chemStressSpeed < 0 || c.chemStressUpkeep < 0 || c.chemCalmSaving < 0 || c.chemCalmSaving > 1 || c.chemCalmSlow < 0 || c.chemCalmSlow > 1) problems.push("the chemical body-effect settings must not be negative, and the calm ones at most 1");
+  if (c.initialStressResponse < 0 || c.initialStressResponse > 1 || c.initialCalmResponse < 0 || c.initialCalmResponse > 1) problems.push("initialStressResponse and initialCalmResponse must be between 0 and 1");
   if (c.chemDecay < 0 || c.chemDecay >= 1) problems.push("chemDecay must be at least 0 and under 1");
   if (c.chemRewardGain < 0 || c.chemStressHit < 0 || c.chemStressSick < 0 || c.chemStressHunger < 0 || c.chemBondGain < 0 || c.chemCalmRate < 0 || c.chemicalsCost < 0) problems.push("the chemical settings cannot be negative");
   if (c.chemHungerBelow <= 0 || c.chemHungerBelow > 1) problems.push("chemHungerBelow must be above 0 and at most 1");

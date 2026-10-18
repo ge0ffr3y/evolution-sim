@@ -514,6 +514,7 @@ export class Simulation {
   private readonly memState: Float32Array;
   /** Chemical signals: four per organism (reward, stress, bond, calm), plus what has happened to the organism since it last thought. */
   private readonly chemOn: boolean;
+  private readonly bodyChemOn: boolean;
   private readonly chem: Float32Array;
   private readonly chemIntake: Float32Array;
   private readonly chemHit: Uint8Array;
@@ -824,7 +825,8 @@ export class Simulation {
         (k === GENE.sex && c.sexualReproduction === 2) ||
         (k === GENE.fat && c.fatDepositRate > 0) ||
         (k === GENE.torpor && this.climateOn && c.torporSaving > 0) ||
-        (k === GENE.palate && c.plantTypes > 1),
+        (k === GENE.palate && c.plantTypes > 1) ||
+        ((k === GENE.stressResponse || k === GENE.calmResponse) && c.brainMode > 0 && c.chemicals === 1 && c.chemBodyEffects === 1),
     );
     this.kinLimitSq = c.kinDistance * c.kinDistance;
     this.fatOn = c.fatDepositRate > 0;
@@ -834,6 +836,7 @@ export class Simulation {
     this.memoryOn = c.brainMode > 0 && c.brainMemory === 1;
     this.memState = new Float32Array(this.memoryOn ? n * MEMORY_COUNT : 0);
     this.chemOn = c.brainMode > 0 && c.chemicals === 1;
+    this.bodyChemOn = this.chemOn && c.chemBodyEffects === 1;
     this.chem = new Float32Array(this.chemOn ? n * 4 : 0);
     this.chemIntake = new Float32Array(this.chemOn ? n : 0);
     this.chemHit = new Uint8Array(this.chemOn ? n : 0);
@@ -859,12 +862,12 @@ export class Simulation {
       // The bonding and body-plan genes describe how a body is built, not what kind of organism it is.
       if (name === "bond" || name === "plan1" || name === "plan2" || name === "plan3" || name === "stick") continue;
       // How tolerant an organism is of relatives is a behavior setting, not part of what kind of organism it is.
-      if (name === "tolerance" || name === "sex") continue;
+      if (name === "tolerance" || name === "sex" || name === "stressResponse" || name === "calmResponse") continue;
       this.mateMask.push(GENE[name]);
     }
     this.species = new Uint32Array(c.speciesEvery > 0 ? n : 0);
     // Species, like compatibility, ignore tolerance of relatives: it is a behavior setting, not a kind of body.
-    const speciesGenes = this.activeGene.map((on, k) => on && k !== GENE.tolerance && k !== GENE.sex);
+    const speciesGenes = this.activeGene.map((on, k) => on && k !== GENE.tolerance && k !== GENE.sex && k !== GENE.stressResponse && k !== GENE.calmResponse);
     this.tracker = c.speciesEvery > 0 ? new SpeciesTracker(c, this.ranges, speciesGenes) : null;
     const staminaOrganisms = this.staminaOn ? n : 0;
     this.stamina = new Float32Array(staminaOrganisms);
@@ -938,6 +941,8 @@ export class Simulation {
     founder[GENE.fat] = c.initialFat;
     founder[GENE.torpor] = c.initialTorpor;
     founder[GENE.palate] = c.initialPalate;
+    founder[GENE.stressResponse] = c.initialStressResponse;
+    founder[GENE.calmResponse] = c.initialCalmResponse;
     for (let i = 0; i < c.initialOrganisms; i++) {
       let fx = this.rng.range(0, c.worldWidth);
       let fy = this.rng.range(0, c.worldHeight);
@@ -951,7 +956,7 @@ export class Simulation {
       this.genes[index * GENE_COUNT + GENE.hue] = this.rng.next();
       if (c.founderSpread > 0) {
         // Standing variety: the newer genes that are switched on start a random amount above their starting value.
-        for (const gene of [GENE.tolerance, GENE.sex, GENE.fat, GENE.torpor, GENE.palate]) {
+        for (const gene of [GENE.tolerance, GENE.sex, GENE.fat, GENE.torpor, GENE.palate, GENE.stressResponse, GENE.calmResponse]) {
           if (this.activeGene[gene]) this.genes[index * GENE_COUNT + gene] = clamp01(this.genes[index * GENE_COUNT + gene]! + c.founderSpread * this.rng.next());
         }
       }
@@ -2596,6 +2601,11 @@ export class Simulation {
         }
         this.moveScale[i] = mult;
         stepSpeed *= mult;
+        if (this.bodyChemOn) {
+          // Stress speeds the body up and calm slows it, as far as the organism's own genes let the signals act.
+          const at = i * 4;
+          stepSpeed *= 1 + c.chemStressSpeed * this.genes[i * GENE_COUNT + GENE.stressResponse]! * this.chem[at + 1]! - c.chemCalmSlow * this.genes[i * GENE_COUNT + GENE.calmResponse]! * this.chem[at + 3]!;
+        }
       }
       this.headingX[i] = hx;
       this.headingY[i] = hy;
@@ -2785,6 +2795,11 @@ export class Simulation {
         }
       }
       if (this.diseaseOn && this.sickFor[i]! > 0) basal += c.diseaseCost * this.basalCost[i]!; // being sick costs upkeep
+      if (this.bodyChemOn) {
+        // Stress burns energy; calm saves it.
+        const at = i * 4;
+        basal *= 1 + c.chemStressUpkeep * this.genes[i * GENE_COUNT + GENE.stressResponse]! * this.chem[at + 1]! - c.chemCalmSaving * this.genes[i * GENE_COUNT + GENE.calmResponse]! * this.chem[at + 3]!;
+      }
       if (this.fatOn) basal += c.fatUpkeep * (this.fatStore[i]! / this.threshold[i]!) * this.basalCost[i]!; // carrying fat costs upkeep
       if (this.torporOn) basal *= 1 - c.torporSaving * this.torpid[i]!;
       if (this.thermalOn) {
@@ -3353,6 +3368,8 @@ export class Simulation {
       case "fat":
       case "torpor":
       case "palate":
+      case "stressResponse":
+      case "calmResponse":
         return this.genes[i * GENE_COUNT + GENE[name]]!;
       case "lifespan": {
         const range = this.ranges.lifespan;
