@@ -1,0 +1,9 @@
+{
+  "name": "Brains: fixed layout",
+  "description": "Every organism has the same small network (a few thinking units wired to every sense and every action), and only the strengths of the connections evolve. Expect more connections, and more energy spent on thinking, than the evolvable layout.",
+  "config": {
+    "brainMode": 1,
+    "brainHidden": 4,
+    "brainWeightZeroProb": 0.7
+  }
+}

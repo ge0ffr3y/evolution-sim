@@ -1,3 +1,5 @@
+import { CONN_MAX, INPUT_COUNT, OUTPUT_COUNT } from "./brain";
+
 /**
  * Every tuning number for the simulation lives here, and nowhere else.
  * To change how the world behaves, change a value in this object (or pass an
@@ -153,6 +155,55 @@ export interface SimConfig {
   /** After a kill, an attacker needs this many ticks to deal with its prey before it can attack again. */
   killCooldown: number;
 
+  // --- Senses and brains ---
+  /**
+   * 0 = no brains: organisms wander at random and steer toward food with a fixed rule
+   * (the Phase 3 behavior, kept as the control). 1 = every organism has a small neural
+   * network with a fixed layout whose weights evolve. 2 = the layout itself can evolve
+   * (connections and hidden units can be added and removed).
+   */
+  brainMode: number;
+  /** Hidden units in the fixed-layout brain (mode 1). */
+  brainHidden: number;
+  /**
+   * How far every organism with a brain can see, as a baseline. The sense-range gene adds
+   * extra reach on top (at an energy cost). Without a baseline, vision would be selected
+   * away before any brain had learned to use it.
+   */
+  brainVisionRange: number;
+  /** A brain thinks once every this many ticks (and keeps its last decision in between). */
+  brainEvery: number;
+  /** Radians per tick of turning when the brain's turn output is at its maximum. */
+  brainTurnMax: number;
+  /** The random wobble in heading that organisms with brains keep (they do not need as much as wanderers). */
+  brainTurnNoise: number;
+  /** Standing still lets an organism eat up to this much faster (a full stop gets the full bonus). */
+  brainStillEatBonus: number;
+  /** A brain can hold back an attack by driving its attack output below this. */
+  brainAttackGate: number;
+  /** Chance that each connection weight changes when a baby is born, and by how much (typically). */
+  brainWeightMutationProb: number;
+  brainWeightMutationStd: number;
+  /** When a weight mutates, the chance it is set back to zero (deleting the connection) instead of nudged. */
+  brainWeightZeroProb: number;
+  /** Connections weaker than this are treated as absent: free, and they do nothing. */
+  brainPruneBelow: number;
+  /**
+   * 1 = founders start with one reflex wired in: plant smell turns them toward richer
+   * ground (as an ordinary evolvable weight). This matches the steering the brains-off
+   * control has built in, so brains do not start out handicapped. 0 = start blank.
+   */
+  brainFounderReflex: number;
+  /** Chances per birth of the layout changing (mode 2 only). */
+  brainAddConnectionProb: number;
+  brainAddNodeProb: number;
+  brainRemoveConnectionProb: number;
+  brainRemoveNodeProb: number;
+  /** Energy per tick for having a brain at all, per hidden unit, and per working connection. */
+  brainBaseCost: number;
+  brainCostPerNeuron: number;
+  brainCostPerConnection: number;
+
   // --- Reproduction ---
   /** An organism splits when its energy reaches this x its size. */
   reproThresholdPerSize: number;
@@ -233,6 +284,27 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   herbivoreAttackPenalty: 4,
   killCooldown: 20,
 
+  brainMode: 0,
+  brainHidden: 8,
+  brainVisionRange: 6,
+  brainEvery: 2,
+  brainTurnMax: 0.5,
+  brainTurnNoise: 0.1,
+  brainStillEatBonus: 0.5,
+  brainAttackGate: -0.5,
+  brainWeightMutationProb: 0.03,
+  brainWeightMutationStd: 0.4,
+  brainWeightZeroProb: 0.3,
+  brainFounderReflex: 1,
+  brainPruneBelow: 0.05,
+  brainAddConnectionProb: 0.08,
+  brainAddNodeProb: 0.03,
+  brainRemoveConnectionProb: 0.03,
+  brainRemoveNodeProb: 0.01,
+  brainBaseCost: 0.001,
+  brainCostPerNeuron: 0.0005,
+  brainCostPerConnection: 0.0001,
+
   reproThresholdPerSize: 30,
   offspringEnergyFraction: 0.5,
 };
@@ -298,6 +370,27 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (c.armorBase <= 0) problems.push("armorBase must be positive");
   if (c.preyMaxSizeRatio <= 0) problems.push("preyMaxSizeRatio must be positive");
   if (c.herbivoreAttackPenalty < 0) problems.push("herbivoreAttackPenalty cannot be negative");
+  if (![0, 1, 2].includes(c.brainMode)) problems.push("brainMode must be 0 (no brains), 1 (fixed layout) or 2 (evolvable layout)");
+  if (!Number.isInteger(c.brainHidden) || c.brainHidden < 1 || c.brainHidden > 12) problems.push("brainHidden must be a whole number from 1 to 12");
+  else if (c.brainMode === 1 && c.brainHidden * (INPUT_COUNT + OUTPUT_COUNT) > CONN_MAX) {
+    problems.push(`brainHidden ${c.brainHidden} needs ${c.brainHidden * (INPUT_COUNT + OUTPUT_COUNT)} connections per brain, but only ${CONN_MAX} fit (use at most ${Math.floor(CONN_MAX / (INPUT_COUNT + OUTPUT_COUNT))})`);
+  }
+  if (!Number.isInteger(c.brainEvery) || c.brainEvery < 1) problems.push("brainEvery must be a whole number of 1 or more");
+  if (c.brainWeightMutationProb < 0 || c.brainWeightMutationProb > 1) problems.push("brainWeightMutationProb must be between 0 and 1");
+  for (const [name, value] of [
+    ["brainAddConnectionProb", c.brainAddConnectionProb],
+    ["brainAddNodeProb", c.brainAddNodeProb],
+    ["brainRemoveConnectionProb", c.brainRemoveConnectionProb],
+    ["brainRemoveNodeProb", c.brainRemoveNodeProb],
+  ] as const) {
+    if (value < 0 || value > 1) problems.push(`${name} must be between 0 and 1`);
+  }
+  if (c.brainWeightZeroProb < 0 || c.brainWeightZeroProb > 1) problems.push("brainWeightZeroProb must be between 0 and 1");
+  if (c.brainPruneBelow < 0) problems.push("brainPruneBelow cannot be negative");
+  if (c.brainMode > 0 && c.brainVisionRange + c.senseRangeMax >= Math.min(c.worldWidth, c.worldHeight) / 2) {
+    problems.push("brainVisionRange plus senseRangeMax must be under half the world");
+  }
+  if (c.brainVisionRange < 0) problems.push("brainVisionRange cannot be negative");
   if (!Number.isInteger(c.killCooldown) || c.killCooldown < 0 || c.killCooldown > 65000) {
     problems.push("killCooldown must be a whole number of ticks from 0 to 65000");
   }

@@ -1,4 +1,4 @@
-import type { GeneName, OrganismSnapshot, SimConfig, SimEvent, SimStats, TraitRange } from "@evo/sim-core";
+import type { BehaviorStats, GeneName, OrganismSnapshot, SimConfig, SimEvent, SimStats, TraitRange } from "@evo/sim-core";
 
 /** Messages from the page to the simulation worker. */
 export type ToWorker =
@@ -35,6 +35,12 @@ export interface HistoryPoint {
   sensingBurned: number;
   attackBurned: number;
   armorBurned: number;
+  brainBurned: number;
+  /** Average brain size (working hidden units and connections) by diet class. */
+  hiddenHerbivores: number;
+  connectionsHerbivores: number;
+  hiddenCarnivores: number;
+  connectionsCarnivores: number;
 }
 
 /** How many organisms fall in each slice of every trait's range, at one moment. */
@@ -63,6 +69,8 @@ export interface WorldInfo {
   ranges: Record<GeneName, TraitRange>;
   histogramBins: number;
   histogramEvery: number;
+  /** 0 = no brains, 1 = fixed layout, 2 = evolvable layout. */
+  brainMode: number;
 }
 
 /** Everything the page needs to draw one picture of the world. */
@@ -99,4 +107,6 @@ export interface FrameMessage {
   inspected: InspectedState | null;
   /** Notable firsts so far (the first kill, the first carnivore...). */
   events: SimEvent[];
+  /** How purposefully organisms have been turning recently (0.5 = random). */
+  behavior: BehaviorStats;
 }

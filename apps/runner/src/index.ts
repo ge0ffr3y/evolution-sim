@@ -136,7 +136,7 @@ async function runSweep(seeds: number[]): Promise<void> {
   await Promise.all(workers);
 
   summaries.sort((a, b) => a.seed - b.seed);
-  const header = ["seed", "extinct", "tick", "population", "herbivores", "omnivores", "carnivores", "totalKills", "firstScavenger", "firstKill", "firstPredator", "firstCarnivore", ...GENES.map((g) => `mean_${g}`)];
+  const header = ["seed", "extinct", "tick", "population", "herbivores", "omnivores", "carnivores", "totalKills", "totalAttacks", "brainConnHerbivores", "brainConnCarnivores", "chaseTurn", "fleeTurn", "firstScavenger", "firstKill", "firstPredator", "firstCarnivore", ...GENES.map((g) => `mean_${g}`)];
   const tickOrBlank = (t: number | null): string => (t === null ? "" : String(t));
   const rows = summaries.map((s) =>
     [
@@ -148,6 +148,11 @@ async function runSweep(seeds: number[]): Promise<void> {
       s.omnivores,
       s.carnivores,
       s.totalKills,
+      s.totalAttacks,
+      s.brainConnectionsHerbivores.toFixed(2),
+      s.brainConnectionsCarnivores.toFixed(2),
+      s.chaseTurn.toFixed(3),
+      s.fleeTurn.toFixed(3),
       tickOrBlank(s.firsts.firstScavenger),
       tickOrBlank(s.firsts.firstKill),
       tickOrBlank(s.firsts.firstPredator),
@@ -174,6 +179,20 @@ async function runSweep(seeds: number[]): Promise<void> {
   console.log(`  first predator:   ${web.emerged.firstPredator.seeds} of ${summaries.length} seeds (median ${median(web.emerged.firstPredator.medianTick)})`);
   console.log(`  first carnivore (survives mostly on meat): ${web.emerged.firstCarnivore.seeds} of ${summaries.length} seeds (median ${median(web.emerged.firstCarnivore.medianTick)})`);
   console.log(`  seeds ending with at least ${web.carnivoreThreshold} carnivores: ${web.withCarnivoresAtEnd} of ${summaries.length}`);
+
+  const alive = summaries.filter((s) => !s.extinct);
+  if (alive.length > 0) {
+    const avg = (pick: (s: SeedSummary) => number): number => alive.reduce((total, s) => total + pick(s), 0) / alive.length;
+    console.log("\nHow purposeful is behavior? (turning at random scores 50%)");
+    console.log(`  hunters that can see prey off to one side turn toward it: ${(avg((s) => s.chaseTurn) * 100).toFixed(0)}%`);
+    console.log(`  plant eaters that can see a threat off to one side turn away: ${(avg((s) => s.fleeTurn) * 100).toFixed(0)}%`);
+    const attacks = avg((s) => s.totalAttacks);
+    if (attacks > 0) console.log(`  attacks that killed (whole run): ${((avg((s) => s.totalKills) / attacks) * 100).toFixed(0)}%`);
+    const brainSize = avg((s) => s.brainConnectionsHerbivores + s.brainConnectionsCarnivores);
+    if (brainSize > 0) {
+      console.log(`  average working connections per brain: plant eaters ${avg((s) => s.brainConnectionsHerbivores).toFixed(1)}, meat eaters ${avg((s) => s.brainConnectionsCarnivores).toFixed(1)}`);
+    }
+  }
   console.log(`\nWrote ${summaries.length} run files and summary.csv to ${folder}`);
 }
 

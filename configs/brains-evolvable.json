@@ -1,0 +1,7 @@
+{
+  "name": "Brains: evolvable layout",
+  "description": "Every organism gets a small neural network that sees, smells and feels, and decides how to turn, how fast to move and whether to attack. Brains start empty and mutations can add or remove connections and thinking units. Click an organism to watch it think.",
+  "config": {
+    "brainMode": 2
+  }
+}

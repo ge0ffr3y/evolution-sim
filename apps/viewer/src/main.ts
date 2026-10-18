@@ -1,5 +1,6 @@
 import "./style.css";
 import { GENES, parsePreset, type GeneName, type Preset, type SimEvent } from "@evo/sim-core";
+import { drawBrain } from "./brainview";
 import { Charts } from "./charts";
 import { FlowTracker } from "./flows";
 import { HEATMAP_TRAITS, Heatmap } from "./heatmap";
@@ -57,7 +58,7 @@ const overlaySelect = el<HTMLSelectElement>("overlay");
 const notice = el<HTMLParagraphElement>("notice");
 
 const renderer = new WorldRenderer(canvas);
-const charts = new Charts(el("chart-pop"), el("chart-traits"), el("chart-web"));
+const charts = new Charts(el("chart-pop"), el("chart-traits"), el("chart-web"), el("chart-brain"));
 const heatmap = new Heatmap(el("heatmap"));
 const flows = new FlowTracker();
 const worker = new Worker(new URL("./sim.worker.ts", import.meta.url), { type: "module" });
@@ -293,8 +294,16 @@ function renderInspector(state: InspectedState | null): void {
   const c = s.costs;
   el("insp-costs").textContent =
     `upkeep ${c.basal.toFixed(3)}, movement ${c.movement.toFixed(3)}, sensing ${c.sensing.toFixed(3)}, ` +
-    `weapons ${c.attack.toFixed(3)}, armor ${c.armor.toFixed(3)} ` +
-    `(total ${(c.basal + c.movement + c.sensing + c.attack + c.armor).toFixed(3)})`;
+    `weapons ${c.attack.toFixed(3)}, armor ${c.armor.toFixed(3)}, brain ${c.brain.toFixed(3)} ` +
+    `(total ${(c.basal + c.movement + c.sensing + c.attack + c.armor + c.brain).toFixed(3)})`;
+  const brainBlock = el("insp-brain-block");
+  if (s.brain) {
+    brainBlock.hidden = false;
+    el("insp-brain-summary").textContent = `${s.brain.connections} connections, ${s.brain.hidden} thinking units, ${s.brain.cost.toFixed(4)} energy per tick`;
+    drawBrain(el<HTMLCanvasElement>("brain-canvas"), s.brain);
+  } else {
+    brainBlock.hidden = true;
+  }
   const eaten = s.plantTaken + s.meatTaken;
   el("insp-ate").textContent =
     eaten > 0
@@ -309,6 +318,7 @@ const FLOW_PARTS = [
   { key: "sensingPerTick", label: "Sensing", color: "#c792ea" },
   { key: "fightingPerTick", label: "Fighting", color: "#ff5d73" },
   { key: "armorPerTick", label: "Armor", color: "#8b98a5" },
+  { key: "brainPerTick", label: "Thinking", color: "#f0e68c" },
   { key: "digestionPerTick", label: "Digestion loss", color: "#7bd88f" },
   { key: "rotPerTick", label: "Rotting", color: "#a67c52" },
 ] as const;
@@ -385,6 +395,7 @@ worker.onmessage = (event: MessageEvent<FrameMessage>) => {
     currentResetId = frame.resetId;
     clearHistory();
     heatmap.setWorld(frame.world);
+    el("brain-chart-block").hidden = frame.world.brainMode === 0;
   }
   charts.add(frame.points);
   flows.add(frame.points);
@@ -423,6 +434,9 @@ function updateStats(frame: FrameMessage): void {
   setText("stat-classes", `${s.classes.herbivores} / ${s.classes.omnivores} / ${s.classes.carnivores}`);
   setText("stat-kills", format.int.format(s.totalKills));
   setText("stat-blocked", format.int.format(s.blockedBirths));
+  const b = frame.behavior;
+  setText("stat-chase", b.chaseSamples >= 10 ? `${Math.round(b.chase * 100)}% (random = 50%)` : "-");
+  setText("stat-flee", b.fleeSamples >= 10 ? `${Math.round(b.flee * 100)}% (random = 50%)` : "-");
   setText("stat-food", format.int.format(Math.round(s.totalFood)));
   setText("stat-energy", format.fixed(s.meanEnergy, 1));
   setText("stat-size", format.fixed(s.traits.size.mean, 2));

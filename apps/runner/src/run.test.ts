@@ -34,7 +34,8 @@ describe("runToCsv", () => {
     for (const column of [
       "mean_size", "sd_speed", "mean_senseRange", "mean_mutationRate", "mean_diet", "mean_attack", "mean_armor",
       "carnivores", "totalKills", "sunlightIn", "plantEaten", "meatEaten", "digestionLoss", "decayLoss", "basalBurned",
-      "sensingBurned", "attackBurned", "armorBurned",
+      "sensingBurned", "attackBurned", "armorBurned", "brainBurned", "totalAttacks", "brainConnectionsCarnivores",
+      "chaseTurn", "fleeTurn",
     ]) {
       expect(CSV_COLUMNS).toContain(column);
     }
@@ -141,6 +142,11 @@ describe("spreadAcrossSeeds", () => {
     omnivores: 0,
     carnivores: extinct ? 0 : 10,
     totalKills: 0,
+    totalAttacks: 0,
+    brainConnectionsHerbivores: 0,
+    brainConnectionsCarnivores: 0,
+    chaseTurn: 0.5,
+    fleeTurn: 0.5,
     firsts: { firstScavenger: null, firstKill: null, firstPredator: null, firstCarnivore: null },
     means: { size, speed: 1, senseRange: 0, metabolism: 1, hue: 0.5, mutationRate: 0.01, diet: 0, attack: 0, armor: 0 },
   });
@@ -171,6 +177,11 @@ describe("foodWebSummary", () => {
     omnivores: 0,
     carnivores,
     totalKills: 50,
+    totalAttacks: 100,
+    brainConnectionsHerbivores: 0,
+    brainConnectionsCarnivores: 0,
+    chaseTurn: 0.5,
+    fleeTurn: 0.5,
     firsts: { firstScavenger: 100, firstKill: 40, firstPredator: 90, firstCarnivore },
     means: { size: 1, speed: 1, senseRange: 0, metabolism: 1, hue: 0.5, mutationRate: 0.01, diet: 0.2, attack: 0.1, armor: 0.1 },
   });

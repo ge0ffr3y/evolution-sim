@@ -26,6 +26,9 @@ function rotl(x: number, k: number): number {
   return ((x << k) | (x >>> (32 - k))) >>> 0;
 }
 
+/** One over the standard deviation of the sum of four random bytes. */
+const GAUSSIAN_FAST_SCALE = 1 / Math.sqrt((4 * (256 * 256 - 1)) / 12);
+
 export class Rng {
   private s0: number;
   private s1: number;
@@ -94,14 +97,18 @@ export class Rng {
   }
 
   /**
-   * A cheaper, rougher bell curve (4 uniform numbers instead of 12, so it stays
-   * within about 3.5 standard deviations). Good for noise that is needed for
-   * every organism every tick, where the exact tail shape does not matter.
+   * A cheap, rough bell curve for noise that is needed for every organism every
+   * tick. It uses ONE random 32-bit number, split into four bytes that are added
+   * together (so it stays within about 3.5 standard deviations and has 8-bit
+   * resolution). Profiling showed the random-number generator was a third of the
+   * whole simulation's run time, and this is a quarter of the cost of drawing
+   * four separate uniform numbers. Only exact arithmetic is used.
    */
   gaussianFast(mean = 0, stdDev = 1): number {
-    const sum = this.next() + this.next() + this.next() + this.next();
-    // 1.7320508075688772 is the square root of 3, which rescales the spread to 1.
-    return mean + stdDev * (sum - 2) * 1.7320508075688772;
+    const word = this.nextUint32();
+    const sum = (word & 255) + ((word >>> 8) & 255) + ((word >>> 16) & 255) + (word >>> 24);
+    // Four bytes (0-255) sum to a mean of 510 with variance 4 * (256^2 - 1) / 12.
+    return mean + stdDev * (sum - 510) * GAUSSIAN_FAST_SCALE;
   }
 
   /** Copy of the internal state, so a run can be saved and resumed exactly. */
