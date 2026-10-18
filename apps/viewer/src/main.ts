@@ -261,6 +261,7 @@ const GENE_LABELS: Record<GeneName, string> = {
   thermal: "Preferred temperature",
   lifespan: "Lifespan (ticks)",
   litter: "Litter size (babies)",
+  bond: "Bonding (chance a baby stays attached)",
 };
 
 function traitText(gene: GeneName, value: number): string {
@@ -415,7 +416,7 @@ function dietWord(diet: number): string {
   return diet < 0.25 ? "plant eaters" : diet > 0.75 ? "meat eaters" : "mixed feeders";
 }
 
-const COMPARED_GENES: readonly GeneName[] = ["size", "speed", "senseRange", "metabolism", "diet", "attack", "armor", "stamina", "thermal", "lifespan", "litter"];
+const COMPARED_GENES: readonly GeneName[] = ["size", "speed", "senseRange", "metabolism", "diet", "attack", "armor", "stamina", "thermal", "lifespan", "litter", "bond"];
 
 function renderSpeciesDetail(id: number | null): void {
   const box = el<HTMLDivElement>("species-detail");
@@ -452,7 +453,7 @@ function renderSpeciesDetail(id: number | null): void {
     const ancestor = record.ancestorTraits?.[index];
     const founder = record.founderTraits[index]!;
     const now = record.traits[index]!;
-    if ((gene === "stamina" || gene === "thermal" || gene === "lifespan" || gene === "litter") && Math.abs(founder - now) < 1e-9 && (ancestor === undefined || Math.abs(ancestor - founder) < 1e-9)) continue;
+    if ((gene === "stamina" || gene === "thermal" || gene === "lifespan" || gene === "litter" || gene === "bond") && Math.abs(founder - now) < 1e-9 && (ancestor === undefined || Math.abs(ancestor - founder) < 1e-9)) continue;
     const row = body.insertRow();
     row.insertCell().textContent = GENE_LABELS[gene];
     row.insertCell().textContent = ancestor === undefined ? "" : traitText(gene, ancestor);
@@ -612,6 +613,8 @@ function updateStats(frame: FrameMessage): void {
   setText("stat-classes", `${s.classes.herbivores} / ${s.classes.omnivores} / ${s.classes.carnivores}`);
   setText("stat-species", `${s.species.alive} / ${s.species.ever}`);
   const w = frame.world;
+  el("stat-colonies-box").hidden = !w.multicellular;
+  if (w.multicellular) setText("stat-colonies", `${s.colonies.count} / ${format.int.format(s.colonies.cells)} / ${s.colonies.maxSize}`);
   el("stat-disease-box").hidden = !w.diseaseOn;
   if (w.diseaseOn) setText("stat-disease", `${format.int.format(s.disease.infected)} / ${s.disease.strains}`);
   el("stat-climate-box").hidden = w.climateMode === 0 || (w.yearLength === 0 && w.dayLength === 0);

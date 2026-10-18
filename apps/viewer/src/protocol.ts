@@ -95,6 +95,8 @@ export interface WorldInfo {
   histogramEvery: number;
   /** 0 = no brains, 1 = fixed layout, 2 = evolvable layout. */
   brainMode: number;
+  /** Whether cells can bond into colonies. */
+  multicellular: boolean;
   /** Whether the world has disease and camouflage. */
   diseaseOn: boolean;
   camouflageOn: boolean;
@@ -138,6 +140,9 @@ export interface FrameMessage {
   climate: { temperature: Float32Array; growth: Float32Array } | null;
   /** The background color of each cell (0 to 1 round the color wheel); null except in the first frame after a restart, and in worlds without camouflage. */
   background: Float32Array | null;
+  /** Bonds between cells as pairs of organism indices (a, b, a, b, ...), and the size of each organism's colony (null without multicellularity). */
+  bonds: Uint32Array | null;
+  colonySize: Uint16Array | null;
   /** For each organism: 0 healthy, 1 sick, 2 immune (null in worlds without disease). */
   health: Uint8Array | null;
   /** The biome of each cell (0 water, 1 plains, 2 forest, 3 desert, 4 mountains); null except in the first frame after a restart, and in worlds without terrain. */

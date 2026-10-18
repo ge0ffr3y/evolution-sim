@@ -19,6 +19,7 @@ export const HEATMAP_TRAITS: readonly { id: GeneName; label: string }[] = [
   { id: "thermal", label: "Preferred temperature" },
   { id: "lifespan", label: "Lifespan" },
   { id: "litter", label: "Litter size" },
+  { id: "bond", label: "Bonding" },
 ];
 
 /**

@@ -175,6 +175,8 @@ export interface SimStats {
   brain: BrainStats;
   /** Species alive now, and how many there have ever been (0 when tracking is off). */
   species: { alive: number; ever: number };
+  /** Colonies (groups of two or more bonded cells): how many, how many cells are in one, and the average and largest size. */
+  colonies: { count: number; cells: number; meanSize: number; maxSize: number };
   /** Disease: organisms sick now, strains alive in them, and infections so far (all 0 without disease). */
   disease: { infected: number; strains: number; totalInfections: number };
   traits: Record<GeneName, TraitSummary>;
@@ -233,6 +235,8 @@ const SENSE_VISION = 1;
 const SENSE_SMELL = 2;
 const SENSE_BODY = 4;
 const SENSE_SOCIAL = 8;
+/** Room for this many bonds per cell (the config can allow fewer). */
+const BOND_SLOTS = 6;
 /** Strength of the founders' plant-smell reflex. */
 const FOUNDER_REFLEX_WEIGHT = 1.5;
 /** The founders' chase reflex: turning strength per ray away from the middle, and the speed-up when prey is dead ahead. */
@@ -504,6 +508,20 @@ export class Simulation {
   readonly searchHue: Float32Array;
   readonly hasImage: Uint8Array;
   private readonly camoOn: boolean;
+  /**
+   * Multicellularity (only when multicellular is 1): the cells each cell is bonded to, as indices
+   * (-1 = empty slot, BOND_SLOTS slots per cell). Every bond is stored in both cells, and the
+   * indices are kept right when cells are shuffled around as others die.
+   */
+  readonly bondTo: Int32Array;
+  private readonly bondsOn: boolean;
+  private readonly alignX: Float64Array;
+  private readonly alignY: Float64Array;
+  private readonly shareDelta: Float64Array;
+  private readonly visitMark: Uint32Array;
+  private visitStamp = 0;
+  private colonyRoot = new Int32Array(0);
+  private readonly colonyStack: Int32Array;
   /** Lifespan (ticks) and litter size of each organism (only when those genes are in use). */
   readonly lifespan: Float32Array;
   readonly litter: Float32Array;
@@ -689,6 +707,13 @@ export class Simulation {
     this.background = this.camoOn ? generateBackground(seed, this.gridWidth, this.gridHeight, c.camoScale) : new Float32Array(0);
     this.searchHue = new Float32Array(this.camoOn ? n : 0);
     this.hasImage = new Uint8Array(this.camoOn ? n : 0);
+    this.bondsOn = c.multicellular === 1;
+    this.bondTo = new Int32Array(this.bondsOn ? n * BOND_SLOTS : 0).fill(-1);
+    this.alignX = new Float64Array(this.bondsOn ? n : 0);
+    this.alignY = new Float64Array(this.bondsOn ? n : 0);
+    this.shareDelta = new Float64Array(this.bondsOn ? n : 0);
+    this.visitMark = new Uint32Array(this.bondsOn ? n : 0);
+    this.colonyStack = new Int32Array(this.bondsOn ? n : 0);
     this.diseaseOn = c.diseaseTransmission > 0;
     this.infection = new Uint16Array(this.diseaseOn ? n : 0);
     this.sickFor = new Uint16Array(this.diseaseOn ? n : 0);
@@ -704,7 +729,8 @@ export class Simulation {
         (k === GENE.stamina && this.staminaOn) ||
         (k === GENE.thermal && this.thermalOn) ||
         (k === GENE.lifespan && this.agingOn) ||
-        (k === GENE.litter && this.litterOn),
+        (k === GENE.litter && this.litterOn) ||
+        (k === GENE.bond && this.bondsOn),
     );
     this.kinLimitSq = c.kinDistance * c.kinDistance;
     this.sexOn = c.sexualReproduction === 1;
@@ -773,6 +799,7 @@ export class Simulation {
     founder[GENE.thermal] = traitToGene(c.initialThermal, this.ranges.thermal);
     founder[GENE.lifespan] = traitToGene(c.initialLifespan, this.ranges.lifespan);
     founder[GENE.litter] = traitToGene(c.initialLitter, this.ranges.litter);
+    founder[GENE.bond] = c.initialBond;
     for (let i = 0; i < c.initialOrganisms; i++) {
       let fx = this.rng.range(0, c.worldWidth);
       let fy = this.rng.range(0, c.worldHeight);
@@ -970,6 +997,7 @@ export class Simulation {
     this.id[i] = this.nextId++;
     this.parentId[i] = parent;
     if (this.sexOn) this.parent2Id[i] = 0;
+    if (this.bondsOn) this.bondTo.fill(-1, i * BOND_SLOTS, (i + 1) * BOND_SLOTS);
     if (this.camoOn) this.hasImage[i] = 0;
     if (this.diseaseOn) {
       this.infection[i] = 0;
@@ -1522,6 +1550,235 @@ export class Simulation {
     return u < p;
   }
 
+  // ---- Multicellularity ----
+
+  /** Cut all of cell i's bonds (it is about to leave the world). */
+  private breakBonds(i: number): void {
+    for (let k = 0; k < BOND_SLOTS; k++) {
+      const partner = this.bondTo[i * BOND_SLOTS + k]!;
+      if (partner < 0) continue;
+      for (let m = 0; m < BOND_SLOTS; m++) if (this.bondTo[partner * BOND_SLOTS + m] === i) this.bondTo[partner * BOND_SLOTS + m] = -1;
+      this.bondTo[i * BOND_SLOTS + k] = -1;
+    }
+  }
+
+  /** How many cells are in the colony cell i belongs to (counting stops at `cap`). */
+  private colonySize(i: number, cap: number): number {
+    this.visitStamp++;
+    const stack = this.colonyStack;
+    let top = 0;
+    let size = 0;
+    stack[top++] = i;
+    this.visitMark[i] = this.visitStamp;
+    while (top > 0 && size < cap) {
+      const cell = stack[--top]!;
+      size++;
+      for (let k = 0; k < BOND_SLOTS; k++) {
+        const partner = this.bondTo[cell * BOND_SLOTS + k]!;
+        if (partner >= 0 && this.visitMark[partner] !== this.visitStamp) {
+          this.visitMark[partner] = this.visitStamp;
+          stack[top++] = partner;
+        }
+      }
+    }
+    return size;
+  }
+
+  /** A baby may stay attached to its parent: the parent's bonding gene is the chance, if there is room. */
+  private maybeAttach(parent: number, child: number): void {
+    const c = this.config;
+    if (this.rng.next() >= this.genes[parent * GENE_COUNT + GENE.bond]!) return;
+    let slot = -1;
+    for (let k = 0; k < c.bondLinksMax; k++) {
+      if (this.bondTo[parent * BOND_SLOTS + k] === -1) {
+        slot = k;
+        break;
+      }
+    }
+    if (slot < 0 || this.colonySize(parent, c.colonyMax) >= c.colonyMax) return;
+    this.bondTo[parent * BOND_SLOTS + slot] = child;
+    this.bondTo[child * BOND_SLOTS] = parent;
+    // The baby sits one bond-length from its parent, in the direction it faces (unless that is water).
+    const W = c.worldWidth;
+    const H = c.worldHeight;
+    let nx = this.x[parent]! + this.headingX[child]! * c.bondRestLength;
+    let ny = this.y[parent]! + this.headingY[child]! * c.bondRestLength;
+    nx -= Math.floor(nx / W) * W;
+    ny -= Math.floor(ny / H) * H;
+    nx = Math.fround(nx);
+    ny = Math.fround(ny);
+    if (nx >= W) nx = 0;
+    if (ny >= H) ny = 0;
+    const cell = Math.floor(ny / c.foodCellSize) * this.gridWidth + Math.floor(nx / c.foodCellSize);
+    if (this.terrainOn && this.passable[cell] === 0) return;
+    this.x[child] = nx;
+    this.y[child] = ny;
+    this.cellOf[child] = cell;
+  }
+
+  /** Bonded cells move part of the way toward equal energy (the total never changes). */
+  private shareEnergy(n: number): void {
+    const share = this.config.bondShare;
+    if (share <= 0) return;
+    const delta = this.shareDelta;
+    delta.fill(0, 0, n);
+    for (let i = 0; i < n; i++) {
+      for (let k = 0; k < BOND_SLOTS; k++) {
+        const p = this.bondTo[i * BOND_SLOTS + k]!;
+        if (p <= i) continue; // each bond once
+        const moved = (share * (this.energy[i]! - this.energy[p]!)) / 2;
+        delta[i] = delta[i]! - moved;
+        delta[p] = delta[p]! + moved;
+      }
+    }
+    for (let i = 0; i < n; i++) this.energy[i] = this.energy[i]! + delta[i]!;
+  }
+
+  /** Each bonded cell turns part of the way toward the mean heading of its neighbors, so the colony moves as one. */
+  private alignHeadings(n: number): void {
+    const a = this.config.bondAlign;
+    if (a <= 0) return;
+    for (let i = 0; i < n; i++) {
+      let sx = 0;
+      let sy = 0;
+      let count = 0;
+      for (let k = 0; k < BOND_SLOTS; k++) {
+        const p = this.bondTo[i * BOND_SLOTS + k]!;
+        if (p < 0) continue;
+        sx += this.headingX[p]!;
+        sy += this.headingY[p]!;
+        count++;
+      }
+      let hx = this.headingX[i]!;
+      let hy = this.headingY[i]!;
+      if (count > 0) {
+        hx = (1 - a) * hx + (a * sx) / count;
+        hy = (1 - a) * hy + (a * sy) / count;
+        const length = Math.sqrt(hx * hx + hy * hy);
+        if (length > 1e-9) {
+          hx /= length;
+          hy /= length;
+        } else {
+          hx = this.headingX[i]!;
+          hy = this.headingY[i]!;
+        }
+      }
+      this.alignX[i] = hx;
+      this.alignY[i] = hy;
+    }
+    for (let i = 0; i < n; i++) {
+      this.headingX[i] = this.alignX[i]!;
+      this.headingY[i] = this.alignY[i]!;
+    }
+  }
+
+  /** Pull every bonded pair toward its rest length (a few passes), then update where each cell stands. */
+  private holdBonds(n: number): void {
+    const c = this.config;
+    const W = c.worldWidth;
+    const H = c.worldHeight;
+    const rest = c.bondRestLength;
+    const stiffness = c.bondStiffness;
+    const cs = c.foodCellSize;
+    const gw = this.gridWidth;
+    for (let pass = 0; pass < c.bondIterations; pass++) {
+      for (let i = 0; i < n; i++) {
+        for (let k = 0; k < BOND_SLOTS; k++) {
+          const p = this.bondTo[i * BOND_SLOTS + k]!;
+          if (p <= i) continue;
+          let dx = this.x[p]! - this.x[i]!;
+          let dy = this.y[p]! - this.y[i]!;
+          if (dx > W / 2) dx -= W;
+          else if (dx < -W / 2) dx += W;
+          if (dy > H / 2) dy -= H;
+          else if (dy < -H / 2) dy += H;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 1e-9) continue;
+          const pull = (stiffness * (dist - rest)) / (2 * dist);
+          this.nudge(i, dx * pull, dy * pull);
+          this.nudge(p, -dx * pull, -dy * pull);
+        }
+      }
+    }
+    for (let i = 0; i < n; i++) {
+      if (this.bondTo[i * BOND_SLOTS] === -1 && this.bondTo[i * BOND_SLOTS + 1] === -1 && this.bondTo[i * BOND_SLOTS + 2] === -1 && this.bondTo[i * BOND_SLOTS + 3] === -1 && this.bondTo[i * BOND_SLOTS + 4] === -1 && this.bondTo[i * BOND_SLOTS + 5] === -1) continue;
+      this.cellOf[i] = Math.floor(this.y[i]! / cs) * gw + Math.floor(this.x[i]! / cs);
+    }
+  }
+
+  /** Shift one cell a little (wrapping round the world), unless that would put it in water. */
+  private nudge(i: number, dx: number, dy: number): void {
+    const c = this.config;
+    const W = c.worldWidth;
+    const H = c.worldHeight;
+    let nx = this.x[i]! + dx;
+    let ny = this.y[i]! + dy;
+    nx -= Math.floor(nx / W) * W;
+    ny -= Math.floor(ny / H) * H;
+    nx = Math.fround(nx);
+    ny = Math.fround(ny);
+    if (nx >= W) nx = 0;
+    if (ny >= H) ny = 0;
+    if (this.terrainOn && this.passable[Math.floor(ny / c.foodCellSize) * this.gridWidth + Math.floor(nx / c.foodCellSize)] === 0) return;
+    this.x[i] = nx;
+    this.y[i] = ny;
+  }
+
+  /** Every colony: how many there are (groups of two or more cells), their total cells, average and largest size. */
+  private colonyStats(): { count: number; cells: number; meanSize: number; maxSize: number } {
+    if (!this.bondsOn) return { count: 0, cells: 0, meanSize: 0, maxSize: 0 };
+    const sizes = this.colonySizes();
+    let count = 0;
+    let cells = 0;
+    let maxSize = 0;
+    const seen = new Set<number>();
+    for (let i = 0; i < this.count; i++) {
+      const size = sizes[i]!;
+      if (size < 2) continue;
+      cells++;
+      if (size > maxSize) maxSize = size;
+      // Count each colony once, by its lowest-numbered cell (cells of one colony share a size, so use a root marker).
+      seen.add(this.colonyRoot[i]!);
+    }
+    count = seen.size;
+    return { count, cells, meanSize: count > 0 ? cells / count : 0, maxSize };
+  }
+
+  /** For every cell, the size of its colony (1 for a cell on its own). Also fills colonyRoot with a number shared by the whole colony. */
+  colonySizes(): Uint16Array {
+    const n = this.count;
+    const sizes = new Uint16Array(n);
+    if (!this.bondsOn) return sizes.fill(1);
+    if (this.colonyRoot.length < n) this.colonyRoot = new Int32Array(this.config.maxOrganisms);
+    this.visitStamp++;
+    const stamp = this.visitStamp;
+    const stack = this.colonyStack;
+    const members: number[] = [];
+    for (let start = 0; start < n; start++) {
+      if (this.visitMark[start] === stamp) continue;
+      members.length = 0;
+      let top = 0;
+      stack[top++] = start;
+      this.visitMark[start] = stamp;
+      while (top > 0) {
+        const cell = stack[--top]!;
+        members.push(cell);
+        for (let k = 0; k < BOND_SLOTS; k++) {
+          const partner = this.bondTo[cell * BOND_SLOTS + k]!;
+          if (partner >= 0 && this.visitMark[partner] !== stamp) {
+            this.visitMark[partner] = stamp;
+            stack[top++] = partner;
+          }
+        }
+      }
+      for (const cell of members) {
+        sizes[cell] = members.length;
+        this.colonyRoot[cell] = start;
+      }
+    }
+    return sizes;
+  }
+
   /** How well a strain fits an organism's genes: 1 when they match exactly, falling toward 0 as they differ. */
   private susceptibility(host: number, antigen: Float64Array): number {
     const g = this.genes;
@@ -1716,6 +1973,11 @@ export class Simulation {
     let attackers = 0;
     if (c.catastropheKind !== 0) this.catastropheCheck();
     if (this.climateOn) this.updateClimate();
+    // Bonded cells even out their energy and turn toward their neighbors' heading.
+    if (this.bondsOn) {
+      this.shareEnergy(n);
+      this.alignHeadings(n);
+    }
 
     // Pass 0 (brains only): everyone who is due to think looks, smells and decides, before
     // anyone moves, so all brains see the same world whatever order they are processed in.
@@ -1834,6 +2096,9 @@ export class Simulation {
       this.cellOf[i] = cellNow;
       if (this.attack[i]! >= c.attackThreshold) attackers++;
     }
+
+    // Bonds pull linked cells back together after everyone has moved.
+    if (this.bondsOn) this.holdBonds(n);
 
     // Scent trails: old scent fades, then everyone leaves fresh scent where they now stand.
     if (this.scentOn) this.layScent(n);
@@ -2078,6 +2343,7 @@ export class Simulation {
           this.energy[b] = this.energy[b]! - eachB;
           this.energy[child] = store;
           this.totalBirths++;
+          if (this.bondsOn) this.maybeAttach(a, child);
         }
       }
     } else {
@@ -2108,6 +2374,7 @@ export class Simulation {
           this.energy[parent] = this.energy[parent]! - each;
           this.energy[child] = store;
           this.totalBirths++;
+          if (this.bondsOn) this.maybeAttach(parent, child);
         }
       }
     }
@@ -2120,6 +2387,7 @@ export class Simulation {
     let starved = 0;
     while (i < alive) {
       if (this.killed[i] === 1) {
+        if (this.bondsOn) this.breakBonds(i);
         alive--;
         if (i !== alive) this.moveOrganism(alive, i);
       } else if (this.energy[i]! <= 0) {
@@ -2127,6 +2395,7 @@ export class Simulation {
         corpseEnergy[cell] = corpseEnergy[cell]! + this.bodyEnergy[i]!;
         corpseMatter[cell] = corpseMatter[cell]! + this.bodyMatter[i]!;
         starved++;
+        if (this.bondsOn) this.breakBonds(i);
         alive--;
         if (i !== alive) this.moveOrganism(alive, i);
       } else {
@@ -2228,6 +2497,15 @@ export class Simulation {
     for (const field of this.uint8Fields) field[to] = field[from]!;
     for (const field of this.uint16Fields) field[to] = field[from]!;
     this.cellOf[to] = this.cellOf[from]!;
+    if (this.bondsOn) {
+      // Its bonds come with it, and its partners now point to its new place.
+      for (let k = 0; k < BOND_SLOTS; k++) {
+        const partner = this.bondTo[from * BOND_SLOTS + k]!;
+        this.bondTo[to * BOND_SLOTS + k] = partner;
+        if (partner < 0) continue;
+        for (let m = 0; m < BOND_SLOTS; m++) if (this.bondTo[partner * BOND_SLOTS + m] === from) this.bondTo[partner * BOND_SLOTS + m] = to;
+      }
+    }
     const a = from * GENE_COUNT;
     const b = to * GENE_COUNT;
     for (let k = 0; k < GENE_COUNT; k++) this.genes[b + k] = this.genes[a + k]!;
@@ -2264,6 +2542,7 @@ export class Simulation {
     this.uint8Fields.forEach((array, k) => organism(`u8.${k}`, array));
     organism("genes", this.genes, GENE_COUNT);
     organism("cellOf", this.cellOf);
+    organism("bondTo", this.bondTo, BOND_SLOTS);
     organism("brainFrom", this.brainFrom, CONN_MAX);
     organism("brainTo", this.brainTo, CONN_MAX);
     organism("brainWeight", this.brainWeight, CONN_MAX);
@@ -2359,6 +2638,11 @@ export class Simulation {
     this.uint8Fields.forEach((array, k) => take(`u8.${k}`, array));
     take("genes", this.genes);
     take("cellOf", this.cellOf);
+    if (this.bondsOn) {
+      take("bondTo", this.bondTo);
+      // take() clears with zeros; an empty bond slot is -1, so mark every slot past the saved cells empty.
+      this.bondTo.fill(-1, s.count * BOND_SLOTS);
+    }
     take("brainFrom", this.brainFrom);
     take("brainTo", this.brainTo);
     take("brainWeight", this.brainWeight);
@@ -2421,6 +2705,8 @@ export class Simulation {
         return this.attack[i]!;
       case "armor":
         return this.armor[i]!;
+      case "bond":
+        return this.genes[i * GENE_COUNT + GENE.bond]!;
       case "lifespan": {
         const range = this.ranges.lifespan;
         return range.min + this.genes[i * GENE_COUNT + GENE.lifespan]! * (range.max - range.min);
@@ -2491,6 +2777,7 @@ export class Simulation {
       totalEnergy: energySum,
       meanEnergy: n > 0 ? energySum / n : 0,
       species: { alive: this.tracker?.aliveCount ?? 0, ever: this.tracker?.records.length ?? 0 },
+      colonies: this.colonyStats(),
       disease: this.diseaseStats(),
       totalBirths: this.totalBirths,
       totalDeaths: this.totalDeaths,
@@ -2775,6 +3062,7 @@ export class Simulation {
       mixBits(this.outAttack, n);
     }
     if (this.staminaOn) mixBits(this.stamina, n);
+    if (this.bondsOn) for (let k = 0; k < n * BOND_SLOTS; k++) mix(this.bondTo[k]! >>> 0);
     if (this.camoOn) {
       mixBits(this.searchHue, n);
       for (let i = 0; i < n; i++) mix(this.hasImage[i]!);

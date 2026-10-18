@@ -396,6 +396,27 @@ export interface SimConfig {
   /** How far a hunter's remembered color moves toward the color of each new kill (0 to 1). */
   camoLearnRate: number;
 
+  // --- Multicellularity (off by default) ---
+  /**
+   * 0 = every organism lives alone. 1 = cells can stay together: a gene gives the chance that a baby
+   * stays attached to its parent, forming a colony. Bonded cells are held near each other like
+   * linked beads, turn toward their neighbors' heading so the colony moves as one, and share
+   * energy (a hungry cell is fed by a fed neighbor). Needs brainMode 0 for now.
+   */
+  multicellular: number;
+  /** The most bonds one cell can have (at most 6) and the most cells one colony can hold; a baby that would exceed either floats off alone. */
+  bondLinksMax: number;
+  colonyMax: number;
+  /** Distance, in world units, bonded cells keep from each other, how hard the bond pulls toward it (0 to 1 per pass) and how many passes per tick. */
+  bondRestLength: number;
+  bondStiffness: number;
+  bondIterations: number;
+  /** Each tick a bonded pair moves this fraction of the way to equal energy (0 to 1), and each cell turns this fraction of the way toward its neighbors' mean heading. */
+  bondShare: number;
+  bondAlign: number;
+  /** The bonding gene of the first generation (the chance a baby stays attached). 0 = nobody bonds until mutation makes it happen. */
+  initialBond: number;
+
   // --- Sexual reproduction (off by default) ---
   /**
    * 0 = organisms split in two when they have enough energy (the original way). 1 = two
@@ -656,6 +677,15 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   camoGlance: 20,
   camoLearning: 1,
   camoLearnRate: 0.3,
+  multicellular: 0,
+  bondLinksMax: 4,
+  colonyMax: 16,
+  bondRestLength: 1.5,
+  bondStiffness: 0.5,
+  bondIterations: 2,
+  bondShare: 0.1,
+  bondAlign: 0.3,
+  initialBond: 0,
   sexualReproduction: 0,
   mateRange: 6,
   mateDistance: 0.25,
@@ -831,6 +861,17 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     if (c.diseaseCost < 0) problems.push("diseaseCost cannot be negative");
     if (!Number.isInteger(c.diseaseIntroEvery) || c.diseaseIntroEvery < 1) problems.push("diseaseIntroEvery must be a whole number of ticks, 1 or more");
     if (c.diseaseMutationProb < 0 || c.diseaseMutationProb > 1 || c.diseaseDrift < 0 || c.diseaseDrift > 1) problems.push("diseaseMutationProb and diseaseDrift must be between 0 and 1");
+  }
+  if (![0, 1].includes(c.multicellular)) problems.push("multicellular must be 0 or 1");
+  if (c.multicellular === 1) {
+    if (c.brainMode !== 0) problems.push("multicellular worlds do not support brains yet (set brainMode to 0)");
+    if (!Number.isInteger(c.bondLinksMax) || c.bondLinksMax < 1 || c.bondLinksMax > 6) problems.push("bondLinksMax must be a whole number from 1 to 6");
+    if (!Number.isInteger(c.colonyMax) || c.colonyMax < 2) problems.push("colonyMax must be a whole number of 2 or more");
+    if (!(c.bondRestLength > 0)) problems.push("bondRestLength must be positive");
+    if (c.bondStiffness < 0 || c.bondStiffness > 1) problems.push("bondStiffness must be between 0 and 1");
+    if (!Number.isInteger(c.bondIterations) || c.bondIterations < 1) problems.push("bondIterations must be a whole number of 1 or more");
+    if (c.bondShare < 0 || c.bondShare > 1 || c.bondAlign < 0 || c.bondAlign > 1) problems.push("bondShare and bondAlign must be between 0 and 1");
+    if (c.initialBond < 0 || c.initialBond > 1) problems.push("initialBond must be between 0 and 1");
   }
   if (![0, 1].includes(c.sexualReproduction)) problems.push("sexualReproduction must be 0 or 1");
   if (!(c.mateRange > 0)) problems.push("mateRange must be positive");

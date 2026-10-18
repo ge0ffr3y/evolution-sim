@@ -1,7 +1,7 @@
 import type { FrameMessage } from "./protocol";
 
 /** What the dot colors mean. */
-export type ColorBy = "diet" | "speed" | "size" | "hue" | "energy" | "sense" | "health";
+export type ColorBy = "diet" | "speed" | "size" | "hue" | "energy" | "sense" | "health" | "colony";
 
 /** What the map background shows. */
 export type Overlay = "plants" | "nutrients" | "corpses" | "detritus" | "trails" | "terrain" | "temperature" | "light" | "background";
@@ -26,6 +26,7 @@ export const COLOR_MODES: readonly { id: ColorBy; label: string; legendLow: stri
   { id: "energy", label: "Energy", legendLow: "empty", legendHigh: "ready to reproduce" },
   { id: "sense", label: "Sense range", legendLow: "none", legendHigh: "far (8+)" },
   { id: "health", label: "Health (worlds with disease)", legendLow: "healthy", legendHigh: "red = sick, blue = immune" },
+  { id: "colony", label: "Colony size (worlds with bonding)", legendLow: "alone (gray)", legendHigh: "colony of 16" },
 ];
 
 const PALETTE_SIZE = 48;
@@ -71,6 +72,10 @@ export function organismColor(mode: ColorBy, frame: FrameMessage, i: number): st
       return pick(ENERGY, frame.energyFraction[i]!);
     case "sense":
       return pick(RAINBOW, frame.sense[i]! / 8);
+    case "colony": {
+      const size = frame.colonySize ? frame.colonySize[i]! : 1;
+      return size < 2 ? "#6b7480" : pick(RAINBOW, Math.min(size, 16) / 16);
+    }
     case "health": {
       const state = frame.health ? frame.health[i]! : 0;
       return state === 1 ? "#ff4d4d" : state === 2 ? "#5fa8ff" : "#6bd36b";
@@ -185,6 +190,24 @@ export class WorldRenderer {
 
     const scaleX = canvas.width / world.width;
     const scaleY = canvas.height / world.height;
+    // Bonds between cells, as thin lines (skipped where they wrap round the edge of the world).
+    if (frame.bonds && frame.bonds.length > 0) {
+      ctx.strokeStyle = "rgba(255,255,255,0.55)";
+      ctx.lineWidth = Math.max(1, scaleX * 0.35);
+      ctx.beginPath();
+      for (let k = 0; k + 1 < frame.bonds.length; k += 2) {
+        const a = frame.bonds[k]!;
+        const b = frame.bonds[k + 1]!;
+        const ax = frame.x[a]!;
+        const ay = frame.y[a]!;
+        const bx = frame.x[b]!;
+        const by = frame.y[b]!;
+        if (Math.abs(ax - bx) > world.width / 2 || Math.abs(ay - by) > world.height / 2) continue;
+        ctx.moveTo(ax * scaleX, ay * scaleY);
+        ctx.lineTo(bx * scaleX, by * scaleY);
+      }
+      ctx.stroke();
+    }
     for (let i = 0; i < frame.count; i++) {
       // Dot area grows with body size.
       // (never smaller than about a pixel and a half, so organisms stay visible in big worlds)
