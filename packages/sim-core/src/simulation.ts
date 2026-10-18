@@ -11,6 +11,7 @@ import {
   type TraitRange,
   type Traits,
 } from "./genome";
+import { SNAPSHOT_FORMAT, type SimSnapshot, type SnapshotArray } from "./snapshot";
 import { SpeciesTracker, type SpeciesEvent, type SpeciesRecord } from "./species";
 import {
   CONN_MAX,
@@ -1512,6 +1513,128 @@ export class Simulation {
   /** Run several ticks in a row. */
   run(ticks: number): void {
     for (let t = 0; t < ticks; t++) this.step();
+  }
+
+  /**
+   * Save the whole world. Loading it with Simulation.load() and running on gives exactly
+   * the history the original would have had.
+   */
+  save(): SimSnapshot {
+    const n = this.count;
+    const arrays: Record<string, SnapshotArray> = {};
+    // Per-organism arrays: only the living part is saved.
+    const organism = (name: string, array: SnapshotArray, stride = 1): void => {
+      arrays[name] = array.slice(0, n * stride);
+    };
+    this.float32Fields.forEach((array, k) => organism(`f32.${k}`, array));
+    this.float64Fields.forEach((array, k) => organism(`f64.${k}`, array));
+    this.uint32Fields.forEach((array, k) => organism(`u32.${k}`, array));
+    this.uint16Fields.forEach((array, k) => organism(`u16.${k}`, array));
+    this.uint8Fields.forEach((array, k) => organism(`u8.${k}`, array));
+    organism("genes", this.genes, GENE_COUNT);
+    organism("cellOf", this.cellOf);
+    organism("brainFrom", this.brainFrom, CONN_MAX);
+    organism("brainTo", this.brainTo, CONN_MAX);
+    organism("brainWeight", this.brainWeight, CONN_MAX);
+    // The land and the scent trails, in full.
+    for (const [name, array] of this.landArrays()) arrays[name] = array.slice();
+    const state: Record<string, unknown> = {
+      tick: this.tick,
+      count: n,
+      nextId: this.nextId,
+      totalBirths: this.totalBirths,
+      totalDeaths: this.totalDeaths,
+      totalKills: this.totalKills,
+      totalStarved: this.totalStarved,
+      blockedBirths: this.blockedBirths,
+      totalAttacks: this.totalAttacks,
+      seen: [this.seenScavenger, this.seenKill, this.seenPredator, this.seenCarnivore],
+      events: this.events,
+      ledger: this.ledger,
+      rng: Array.from(this.rng.getState()),
+      species: this.tracker ? this.tracker.exportState() : null,
+    };
+    return { format: SNAPSHOT_FORMAT, seed: this.seed, config: this.config, state: JSON.parse(JSON.stringify(state)) as Record<string, unknown>, arrays };
+  }
+
+  /**
+   * Bring a saved world back. With `seed` given, the world continues from the same moment
+   * but with a different random future (a branch of the original history).
+   */
+  static load(snapshot: SimSnapshot, options: { seed?: number } = {}): Simulation {
+    if (snapshot.format !== SNAPSHOT_FORMAT) throw new Error(`Cannot load a saved world of format ${snapshot.format}`);
+    const sim = new Simulation(options.seed ?? snapshot.seed, snapshot.config);
+    sim.restore(snapshot, options.seed !== undefined);
+    return sim;
+  }
+
+  /** The land-sized arrays that make up the world's surroundings, by saved name. */
+  private landArrays(): [string, SnapshotArray][] {
+    return [
+      ["food", this.food],
+      ["foodCapacity", this.foodCapacity],
+      ["foodRegrow", this.foodRegrow],
+      ["nutrient", this.nutrient],
+      ["corpseMatter", this.corpseMatter],
+      ["corpseEnergy", this.corpseEnergy],
+      ["detritus", this.detritus],
+      ["preyScent", this.preyScent],
+      ["hunterScent", this.hunterScent],
+      ["corpseOwner", this.corpseOwner],
+      ["corpseOwnerUntil", this.corpseOwnerUntil],
+    ];
+  }
+
+  private restore(snapshot: SimSnapshot, newFuture: boolean): void {
+    const take = (name: string, target: SnapshotArray): void => {
+      const source = snapshot.arrays[name];
+      if (!source) throw new Error(`The saved world is missing "${name}"`);
+      if (source.length > target.length) throw new Error(`The saved world's "${name}" does not fit this world`);
+      target.fill(0);
+      (target as Float64Array).set(source as Float64Array);
+    };
+    const s = snapshot.state as {
+      tick: number;
+      count: number;
+      nextId: number;
+      totalBirths: number;
+      totalDeaths: number;
+      totalKills: number;
+      totalStarved: number;
+      blockedBirths: number;
+      totalAttacks: number;
+      seen: boolean[];
+      events: SimEvent[];
+      ledger: EnergyLedger;
+      rng: [number, number, number, number];
+      species: Record<string, unknown> | null;
+    };
+    this.float32Fields.forEach((array, k) => take(`f32.${k}`, array));
+    this.float64Fields.forEach((array, k) => take(`f64.${k}`, array));
+    this.uint32Fields.forEach((array, k) => take(`u32.${k}`, array));
+    this.uint16Fields.forEach((array, k) => take(`u16.${k}`, array));
+    this.uint8Fields.forEach((array, k) => take(`u8.${k}`, array));
+    take("genes", this.genes);
+    take("cellOf", this.cellOf);
+    take("brainFrom", this.brainFrom);
+    take("brainTo", this.brainTo);
+    take("brainWeight", this.brainWeight);
+    for (const [name, array] of this.landArrays()) take(name, array);
+    this.tick = s.tick;
+    this.count = s.count;
+    this.nextId = s.nextId;
+    this.totalBirths = s.totalBirths;
+    this.totalDeaths = s.totalDeaths;
+    this.totalKills = s.totalKills;
+    this.totalStarved = s.totalStarved;
+    this.blockedBirths = s.blockedBirths;
+    this.totalAttacks = s.totalAttacks;
+    [this.seenScavenger, this.seenKill, this.seenPredator, this.seenCarnivore] = s.seen as [boolean, boolean, boolean, boolean];
+    this.events.length = 0;
+    this.events.push(...s.events);
+    Object.assign(this.ledger, s.ledger);
+    this.rng.setState(newFuture ? new Rng((this.seed + this.tick) >>> 0).getState() : s.rng);
+    if (this.tracker && s.species) this.tracker.importState(s.species);
   }
 
   /** Every real species so far (alive or extinct), and the births and extinctions among them. */

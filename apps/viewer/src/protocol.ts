@@ -9,7 +9,28 @@ export type ToWorker =
   | { type: "speed"; ticksPerSecond: number }
   /** Select the organism nearest this point (in world units), if there is one close enough. */
   | { type: "inspectAt"; x: number; y: number }
-  | { type: "clearInspect" };
+  | { type: "clearInspect" }
+  /** Ask for the whole world as bytes (answered with a "saved" message). */
+  | { type: "save" }
+  /** Replace the world with a saved one. With branchSeed, carry on from the same moment with a different random future. */
+  | { type: "load"; bytes: Uint8Array; branchSeed?: number };
+
+/** The worker's answer to "save". */
+export interface SavedMessage {
+  type: "saved";
+  bytes: Uint8Array;
+  tick: number;
+  seed: number;
+}
+
+/** The worker could not make sense of a file sent with "load". */
+export interface LoadFailedMessage {
+  type: "loadFailed";
+  message: string;
+}
+
+/** Everything the worker can send the page. */
+export type FromWorker = FrameMessage | SavedMessage | LoadFailedMessage;
 
 /** One sample of the numbers drawn on the charts and the energy-flow readout. */
 export interface HistoryPoint {

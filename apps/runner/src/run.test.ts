@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GENES } from "@evo/sim-core";
+import { GENES, Simulation } from "@evo/sim-core";
 import {
   CSV_COLUMNS,
   HIST_COLUMNS,
@@ -13,6 +13,18 @@ import {
 } from "./run";
 
 const SMALL = { worldWidth: 64, worldHeight: 64, initialOrganisms: 30 };
+
+describe("continuing a saved world", () => {
+  it("runToCsv carries on from an existing world and ends exactly where a straight run would", () => {
+    const straight = runToCsv({ seed: 4, ticks: 1200, every: 400, overrides: SMALL });
+    const first = new Simulation(4, SMALL);
+    first.run(500);
+    const resumed = Simulation.load(first.save());
+    const result = runToCsv({ sim: resumed, seed: 4, ticks: 700, every: 350, overrides: {} });
+    expect(result.final.tick).toBe(1200);
+    expect(result.sim.fingerprint()).toBe(straight.sim.fingerprint());
+  });
+});
 
 describe("runToCsv", () => {
   it("writes a header, a starting row, and one row per interval", () => {

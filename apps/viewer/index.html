@@ -38,6 +38,13 @@
           <button id="random-seed" type="button">Random</button>
         </form>
 
+        <div class="row save-row">
+          <button id="save-world" type="button">Save world</button>
+          <button id="load-world" type="button">Load world</button>
+          <label class="inline-label" title="Carry on from the same moment with a different random future"><input id="load-branch" type="checkbox" /> as a branch</label>
+          <input id="load-file" type="file" accept=".evosnap" hidden />
+        </div>
+
         <div class="preset-block">
           <label class="inline-label">World
             <select id="preset"></select>

@@ -4,7 +4,7 @@ import { drawBrain } from "./brainview";
 import { Charts } from "./charts";
 import { FlowTracker } from "./flows";
 import { HEATMAP_TRAITS, Heatmap } from "./heatmap";
-import type { FrameMessage, InspectedState, ToWorker } from "./protocol";
+import type { FrameMessage, FromWorker, InspectedState, ToWorker } from "./protocol";
 import { COLOR_MODES, OVERLAYS, WorldRenderer, legendGradient, type ColorBy, type Overlay } from "./render";
 import { TreeView } from "./treeview";
 
@@ -498,9 +498,46 @@ function renderTimeline(): void {
   );
 }
 
+// --- Saving and loading worlds ---
+function downloadSave(bytes: Uint8Array, seed: number, tick: number): void {
+  const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "application/octet-stream" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `evolution-sim-seed${seed}-tick${tick}.evosnap`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+const loadFile = el<HTMLInputElement>("load-file");
+el("save-world").addEventListener("click", () => send({ type: "save" }));
+el("load-world").addEventListener("click", () => loadFile.click());
+loadFile.addEventListener("change", async () => {
+  const file = loadFile.files?.[0];
+  loadFile.value = "";
+  if (!file) return;
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const branch = el<HTMLInputElement>("load-branch").checked;
+  showNotice(null);
+  clearHistory();
+  lastRateTick = 0;
+  lastRateTime = performance.now();
+  send({ type: "load", bytes, branchSeed: branch ? Math.floor(Math.random() * 1_000_000) : undefined });
+  send({ type: running ? "play" : "pause" });
+  presetDescription.textContent = `Loaded from the file ${file.name}${branch ? ", carried on with a different random future" : ""}. The charts start from the moment you loaded it; the family tree keeps the whole history.`;
+});
+
 // --- Worker frames ---
-worker.onmessage = (event: MessageEvent<FrameMessage>) => {
-  const frame = event.data;
+worker.onmessage = (event: MessageEvent<FromWorker>) => {
+  const message = event.data;
+  if (message.type === "saved") {
+    downloadSave(message.bytes, message.seed, message.tick);
+    return;
+  }
+  if (message.type === "loadFailed") {
+    showNotice(`Could not load that file: ${message.message}`);
+    return;
+  }
+  const frame = message;
   if (frame.resetId !== currentResetId) {
     // First frame after a restart: start the charts fresh.
     currentResetId = frame.resetId;

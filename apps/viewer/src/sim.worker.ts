@@ -1,5 +1,5 @@
-import { GENES, SAMPLE_STRIDE, Simulation, SpatialHash, type BehaviorStats, type GeneName, type SpeciesRecord } from "@evo/sim-core";
-import type { FrameMessage, HistogramSample, HistoryPoint, InspectedState, ToWorker, WorldInfo } from "./protocol";
+import { GENES, SAMPLE_STRIDE, Simulation, SpatialHash, snapshotFromBytes, snapshotToBytes, type BehaviorStats, type GeneName, type SpeciesRecord } from "@evo/sim-core";
+import type { FrameMessage, HistogramSample, HistoryPoint, InspectedState, LoadFailedMessage, SavedMessage, ToWorker, WorldInfo } from "./protocol";
 
 // The simulation runs here, off the main thread, so the page stays smooth.
 // Real-time clocks are fine in this file: they only decide how many ticks to
@@ -281,26 +281,45 @@ function pickNear(s: Simulation, x: number, y: number): number | null {
   return best >= 0 ? s.id[best]! : null;
 }
 
+/** Start showing a new world (fresh or loaded): forget everything about the old one. */
+function startWorld(newSim: Simulation): void {
+  lastSpeciesSent = -Infinity;
+  resetId++;
+  sim = newSim;
+  hash = null;
+  extinct = false;
+  owedTicks = 0;
+  points = [];
+  histograms = [];
+  selectedId = null;
+  lastInspected = null;
+  behaviorSamples = [];
+  measuringBehavior = false;
+  sendCapacity = true;
+  recordPoint(sim);
+  recordHistograms(sim);
+  needsFrame = true;
+}
+
 self.onmessage = (event: MessageEvent<ToWorker>) => {
   const message = event.data;
   switch (message.type) {
     case "reset":
-      lastSpeciesSent = -Infinity;
-      resetId++;
-      sim = new Simulation(message.seed, message.config);
-      hash = null;
-      extinct = false;
-      owedTicks = 0;
-      points = [];
-      histograms = [];
-      selectedId = null;
-      lastInspected = null;
-      behaviorSamples = [];
-      measuringBehavior = false;
-      sendCapacity = true;
-      recordPoint(sim);
-      recordHistograms(sim);
-      needsFrame = true;
+      startWorld(new Simulation(message.seed, message.config));
+      break;
+    case "save":
+      if (sim) {
+        const bytes = snapshotToBytes(sim.save());
+        self.postMessage({ type: "saved", bytes, tick: sim.tick, seed: sim.seed } satisfies SavedMessage, { transfer: [bytes.buffer] });
+      }
+      break;
+    case "load":
+      try {
+        const snapshot = snapshotFromBytes(message.bytes);
+        startWorld(Simulation.load(snapshot, message.branchSeed === undefined ? {} : { seed: message.branchSeed }));
+      } catch (error) {
+        self.postMessage({ type: "loadFailed", message: error instanceof Error ? error.message : String(error) } satisfies LoadFailedMessage);
+      }
       break;
     case "play":
       if (!extinct) running = true;

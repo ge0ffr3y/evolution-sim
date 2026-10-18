@@ -103,6 +103,59 @@ export class SpeciesTracker {
     this.distanceSq = config.speciesDistance * config.speciesDistance;
   }
 
+  /** Everything the tracker remembers, as plain data (for saving a world). */
+  exportState(): Record<string, unknown> {
+    return {
+      records: this.records,
+      events: this.events,
+      live: [...this.live.values()].map((l) => ({
+        id: l.id,
+        provisional: l.provisional,
+        bornTick: l.bornTick,
+        parent: l.parent,
+        center: Array.from(l.center),
+        count: l.count,
+        sums: Array.from(l.sums),
+      })),
+      nextId: this.nextId,
+      nextCandidate: this.nextCandidate,
+      recentPopulation: this.recentPopulation,
+      inCrash: this.inCrash,
+    };
+  }
+
+  /** Replace everything the tracker remembers with a state from exportState(). */
+  importState(state: Record<string, unknown>): void {
+    const saved = JSON.parse(JSON.stringify(state)) as {
+      records: SpeciesRecord[];
+      events: SpeciesEvent[];
+      live: { id: number; provisional: boolean; bornTick: number; parent: number; center: number[]; count: number; sums: number[] }[];
+      nextId: number;
+      nextCandidate: number;
+      recentPopulation: number[];
+      inCrash: boolean;
+    };
+    this.records.length = 0;
+    this.records.push(...saved.records);
+    this.events.length = 0;
+    this.events.push(...saved.events);
+    this.byId.clear();
+    for (const record of this.records) this.byId.set(record.id, record);
+    this.live.clear();
+    for (const l of saved.live) {
+      const live = this.newLive(l.id, l.provisional, l.bornTick, l.parent);
+      live.center.set(l.center);
+      live.count = l.count;
+      live.sums.set(l.sums);
+      this.live.set(live.id, live);
+    }
+    this.nextId = saved.nextId;
+    this.nextCandidate = saved.nextCandidate;
+    this.recentPopulation.length = 0;
+    this.recentPopulation.push(...saved.recentPopulation);
+    this.inCrash = saved.inCrash;
+  }
+
   /** Species alive now, and how many real species there have ever been. */
   get aliveCount(): number {
     let alive = 0;
