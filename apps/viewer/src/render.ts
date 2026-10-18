@@ -1,10 +1,10 @@
 import type { FrameMessage } from "./protocol";
 
 /** What the dot colors mean. */
-export type ColorBy = "diet" | "speed" | "size" | "hue" | "energy" | "sense";
+export type ColorBy = "diet" | "speed" | "size" | "hue" | "energy" | "sense" | "health";
 
 /** What the map background shows. */
-export type Overlay = "plants" | "nutrients" | "corpses" | "detritus" | "trails" | "terrain" | "temperature" | "light";
+export type Overlay = "plants" | "nutrients" | "corpses" | "detritus" | "trails" | "terrain" | "temperature" | "light" | "background";
 
 export const OVERLAYS: readonly { id: Overlay; label: string }[] = [
   { id: "plants", label: "Plants" },
@@ -15,6 +15,7 @@ export const OVERLAYS: readonly { id: Overlay; label: string }[] = [
   { id: "terrain", label: "Terrain (worlds with terrain)" },
   { id: "temperature", label: "Temperature (worlds with a climate)" },
   { id: "light", label: "Plant growth (worlds with a climate)" },
+  { id: "background", label: "Background color (worlds with camouflage)" },
 ];
 
 export const COLOR_MODES: readonly { id: ColorBy; label: string; legendLow: string; legendHigh: string }[] = [
@@ -24,6 +25,7 @@ export const COLOR_MODES: readonly { id: ColorBy; label: string; legendLow: stri
   { id: "hue", label: "Color gene", legendLow: "", legendHigh: "(no effect on survival)" },
   { id: "energy", label: "Energy", legendLow: "empty", legendHigh: "ready to reproduce" },
   { id: "sense", label: "Sense range", legendLow: "none", legendHigh: "far (8+)" },
+  { id: "health", label: "Health (worlds with disease)", legendLow: "healthy", legendHigh: "red = sick, blue = immune" },
 ];
 
 const PALETTE_SIZE = 48;
@@ -69,6 +71,10 @@ export function organismColor(mode: ColorBy, frame: FrameMessage, i: number): st
       return pick(ENERGY, frame.energyFraction[i]!);
     case "sense":
       return pick(RAINBOW, frame.sense[i]! / 8);
+    case "health": {
+      const state = frame.health ? frame.health[i]! : 0;
+      return state === 1 ? "#ff4d4d" : state === 2 ? "#5fa8ff" : "#6bd36b";
+    }
   }
 }
 
@@ -88,6 +94,26 @@ const BIOME_COLORS: readonly (readonly [number, number, number])[] = [
   [128, 128, 134],
 ];
 
+/** A color for a position (0 to 1) on the color wheel, matching the "Color gene" dot colors (hsl, 80% saturation, 62% lightness). */
+function hueToRgb(h: number): [number, number, number] {
+  const sat = 0.8;
+  const light = 0.62;
+  const chroma = (1 - Math.abs(2 * light - 1)) * sat;
+  const hp = (h - Math.floor(h)) * 6;
+  const x = chroma * (1 - Math.abs((hp % 2) - 1));
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  if (hp < 1) [r, g, b] = [chroma, x, 0];
+  else if (hp < 2) [r, g, b] = [x, chroma, 0];
+  else if (hp < 3) [r, g, b] = [0, chroma, x];
+  else if (hp < 4) [r, g, b] = [0, x, chroma];
+  else if (hp < 5) [r, g, b] = [x, 0, chroma];
+  else [r, g, b] = [chroma, 0, x];
+  const m = light - chroma / 2;
+  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
+}
+
 /** Draws the food grid and the organisms onto a canvas. */
 export class WorldRenderer {
   colorBy: ColorBy = "diet";
@@ -105,6 +131,8 @@ export class WorldRenderer {
   private maxCapacity = 1;
   /** The biome of every cell (kept from the first frame after a restart). */
   private terrain: Uint8Array | null = null;
+  /** The background color of every cell (kept from the first frame after a restart). */
+  private background: Float32Array | null = null;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext("2d");
@@ -134,6 +162,7 @@ export class WorldRenderer {
   setLand(frame: FrameMessage): void {
     if (!frame.capacity) return;
     this.terrain = frame.terrain;
+    this.background = frame.background;
     this.capacity = frame.capacity;
     this.maxCapacity = Math.max(...frame.capacity, 1);
   }
@@ -230,6 +259,16 @@ export class WorldRenderer {
       let g = 18 + fertility * 22;
       let b = 22 + fertility * 6;
       const biome = this.terrain ? this.terrain[cell]! : -1;
+      if (overlay === "background" && this.background) {
+        // Round the color wheel, in the same hues the dots use for the color gene.
+        const h = this.background[cell]!;
+        const [hr, hg, hb] = hueToRgb(h);
+        data[o] = hr;
+        data[o + 1] = hg;
+        data[o + 2] = hb;
+        data[o + 3] = 255;
+        continue;
+      }
       if (frame.climate && (overlay === "temperature" || overlay === "light")) {
         if (overlay === "temperature") {
           // Cold = blue, mild = green-yellow, hot = red (on a scale from 0 to 1).

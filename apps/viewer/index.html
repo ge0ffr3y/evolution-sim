@@ -8,7 +8,7 @@
   <body>
     <header class="page-header">
       <h1>Evolution Sim</h1>
-      <p>Phase 5: species. Pick a world with brains and click an organism to watch it think, or scroll down for the family tree.</p>
+      <p>An artificial-life world: pick a preset, click an organism to inspect it (and watch its brain think), and scroll down for the family tree.</p>
     </header>
 
     <main class="layout">
@@ -59,6 +59,7 @@
           <div><dt>Population</dt><dd id="stat-pop">0</dd></div>
           <div><dt>Plant / mixed / meat eaters</dt><dd id="stat-classes">0</dd></div>
           <div id="stat-climate-box" hidden><dt>Season and time of day</dt><dd id="stat-climate">-</dd></div>
+          <div id="stat-disease-box" hidden><dt>Sick now / strains</dt><dd id="stat-disease">0 / 0</dd></div>
           <div><dt>Species (alive / ever)</dt><dd id="stat-species">0 / 0</dd></div>
           <div><dt>Kills</dt><dd id="stat-kills">0</dd></div>
           <div><dt>Hunters turn toward prey</dt><dd id="stat-chase">-</dd></div>
@@ -105,6 +106,7 @@
             <div class="bar"><div id="insp-energy-bar" class="bar-fill"></div></div>
             <p class="bar-label"><span>Genes</span><span class="muted">(bar = gene, text = trait)</span></p>
             <ul id="insp-genes" class="gene-list"></ul>
+            <p id="insp-health" class="hint"></p>
             <p id="insp-ate" class="hint"></p>
             <div id="insp-brain-block" hidden>
               <p class="bar-label"><span>Brain</span><span id="insp-brain-summary" class="muted"></span></p>

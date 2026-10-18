@@ -320,6 +320,13 @@ function renderInspector(state: InspectedState | null): void {
     brainBlock.hidden = true;
   }
   const eaten = s.plantTaken + s.meatTaken;
+  const health = s.health;
+  const bits: string[] = [];
+  if (health.sickFor > 0) bits.push(`Sick for ${format.int.format(health.sickFor)} more ticks (strain ${health.strain})`);
+  else if (health.immuneFor > 0) bits.push(`Immune for ${format.int.format(health.immuneFor)} more ticks`);
+  if (s.lifespan > 0) bits.push(`Lifespan ${format.int.format(Math.round(s.lifespan))} ticks (age ${format.int.format(s.age)})`);
+  if (s.litter > 1.001) bits.push(`Litter size ${s.litter.toFixed(1)}`);
+  el("insp-health").textContent = bits.join(". ");
   el("insp-ate").textContent =
     eaten > 0
       ? `Lifetime food energy: ${Math.round((s.plantTaken / eaten) * 100)}% plants, ${Math.round((s.meatTaken / eaten) * 100)}% meat. Kills: ${s.kills}.`
@@ -605,6 +612,8 @@ function updateStats(frame: FrameMessage): void {
   setText("stat-classes", `${s.classes.herbivores} / ${s.classes.omnivores} / ${s.classes.carnivores}`);
   setText("stat-species", `${s.species.alive} / ${s.species.ever}`);
   const w = frame.world;
+  el("stat-disease-box").hidden = !w.diseaseOn;
+  if (w.diseaseOn) setText("stat-disease", `${format.int.format(s.disease.infected)} / ${s.disease.strains}`);
   el("stat-climate-box").hidden = w.climateMode === 0 || (w.yearLength === 0 && w.dayLength === 0);
   if (w.climateMode === 1) {
     const parts: string[] = [];

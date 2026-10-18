@@ -204,6 +204,11 @@ export interface OrganismSnapshot {
   costs: { basal: number; movement: number; sensing: number; attack: number; armor: number; brain: number };
   /** Its brain, if the world has brains. */
   brain: BrainSnapshot | null;
+  /** Disease (all 0 without it): ticks of sickness and of immunity left, and which strain it carries. */
+  health: { sickFor: number; immuneFor: number; strain: number };
+  /** Lifespan in ticks (0 without aging) and litter size (1 without the litter gene). */
+  lifespan: number;
+  litter: number;
   /** Lifetime energy gained from plants and from meat, and kills made. */
   plantTaken: number;
   meatTaken: number;
@@ -2565,6 +2570,9 @@ export class Simulation {
       id: this.id[i]!,
       parentId: this.parentId[i]!,
       otherParentId: this.sexOn ? this.parent2Id[i]! : 0,
+      health: this.diseaseOn ? { sickFor: this.sickFor[i]!, immuneFor: this.immuneFor[i]!, strain: this.infection[i]! } : { sickFor: 0, immuneFor: 0, strain: 0 },
+      lifespan: this.agingOn ? this.lifespan[i]! : 0,
+      litter: this.litterOn ? this.litter[i]! : 1,
       age: this.age[i]!,
       energy: this.energy[i]!,
       threshold: this.threshold[i]!,

@@ -95,6 +95,9 @@ export interface WorldInfo {
   histogramEvery: number;
   /** 0 = no brains, 1 = fixed layout, 2 = evolvable layout. */
   brainMode: number;
+  /** Whether the world has disease and camouflage. */
+  diseaseOn: boolean;
+  camouflageOn: boolean;
   /** Whether the world has a climate, and the length of its year and its day in ticks (0 = none). */
   climateMode: number;
   yearLength: number;
@@ -133,6 +136,10 @@ export interface FrameMessage {
   capacity: Float64Array | null;
   /** The current temperature and plant growth factor of every cell (null in worlds without a climate). */
   climate: { temperature: Float32Array; growth: Float32Array } | null;
+  /** The background color of each cell (0 to 1 round the color wheel); null except in the first frame after a restart, and in worlds without camouflage. */
+  background: Float32Array | null;
+  /** For each organism: 0 healthy, 1 sick, 2 immune (null in worlds without disease). */
+  health: Uint8Array | null;
   /** The biome of each cell (0 water, 1 plains, 2 forest, 3 desert, 4 mountains); null except in the first frame after a restart, and in worlds without terrain. */
   terrain: Uint8Array | null;
   /** Chart samples recorded since the previous frame. */
