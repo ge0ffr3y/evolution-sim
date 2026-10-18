@@ -1,4 +1,4 @@
-import { CONN_MAX, INPUT_COUNT, OUTPUT_COUNT } from "./brain";
+import { CONN_MAX, HIDDEN_MAX, INPUT_COUNT, OUTPUT_COUNT } from "./brain";
 
 /**
  * Every tuning number for the simulation lives here, and nowhere else.
@@ -220,6 +220,20 @@ export interface SimConfig {
   brainAddNodeProb: number;
   brainRemoveConnectionProb: number;
   brainRemoveNodeProb: number;
+  /**
+   * Memory (needs brains): four memory cells. What the brain writes to its four memory outputs
+   * is kept and comes back as inputs the next time it thinks, so a brain can wire a cell to
+   * itself to remember something, or count, or keep a mood. 0 = off (the inputs stay at zero).
+   */
+  brainMemory: number;
+  /**
+   * Home (needs brains): 0 = no sense of home. 1 = each organism can sense the direction and
+   * distance of the place it was born. 2 = the same, but a baby inherits its parent's home, so a
+   * whole lineage shares a home range. homeRange is how far away counts as "far" (the distance
+   * input reaches 1 there).
+   */
+  homeMode: number;
+  homeRange: number;
   /** Energy per tick for having a brain at all, per hidden unit, and per working connection. */
   brainBaseCost: number;
   brainCostPerNeuron: number;
@@ -300,6 +314,43 @@ export interface SimConfig {
    */
   thermalCostCoeff: number;
   thermalTolerance: number;
+
+  // --- Weather, harsh and mild years, reserves and dormancy (all off by default; weather and harsh years need a climate) ---
+  /**
+   * Weather fronts: smooth warm and cold patches that drift across the world and slowly change
+   * shape, so one region has a good spell while another has a bad one. weatherAmplitude is how
+   * much warmer or colder (on the 0 to 1 temperature scale) a patch is at its most extreme
+   * (0 = no weather). weatherScale is the patch size in food cells (it must divide the grid),
+   * weatherDriftTicks the ticks a front takes to move one cell east (0 = it stays put),
+   * weatherDriftYTicks the same going south, and weatherMorphPeriod how long the pattern takes to
+   * change from one shape to another (0 = it keeps its shape).
+   */
+  weatherAmplitude: number;
+  weatherScale: number;
+  weatherDriftTicks: number;
+  weatherDriftYTicks: number;
+  weatherMorphPeriod: number;
+  /** Harsh and mild years: each year's seasonal swing is multiplied by 1 plus or minus this much, by a fixed scramble of the year number (0 = every year alike; needs yearLength). */
+  yearVariability: number;
+  /**
+   * The fat gene (the 21st; fatMax above 0 turns it on): an organism with the most fat banks fatMax times
+   * as much energy before it reproduces, but pays fatMoveCost times more to move and fatUpkeep times
+   * more upkeep for carrying it.
+   */
+  fatMax: number;
+  fatMoveCost: number;
+  fatUpkeep: number;
+  initialFat: number;
+  /**
+   * The torpor gene (the 22nd; needs a climate, and torporSaving above 0 turns it on): where plants are
+   * growing at less than torporBelowGrowth of full speed an organism goes dormant. It does not move or
+   * attack, and its upkeep falls by torporSaving times its gene. Having the machinery for it costs
+   * torporUpkeep times the gene extra upkeep all the time.
+   */
+  torporSaving: number;
+  torporBelowGrowth: number;
+  torporUpkeep: number;
+  initialTorpor: number;
 
   // --- Catastrophes (off by default) ---
   /**
@@ -678,6 +729,9 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   brainAddNodeProb: 0.03,
   brainRemoveConnectionProb: 0.03,
   brainRemoveNodeProb: 0.01,
+  brainMemory: 0,
+  homeMode: 0,
+  homeRange: 64,
   brainBaseCost: 0.001,
   brainCostPerNeuron: 0.0005,
   brainCostPerConnection: 0.0001,
@@ -709,6 +763,20 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   seasonTempSwing: 0.15,
   climateDriftPeriod: 0,
   climateDriftAmplitude: 0.15,
+  weatherAmplitude: 0,
+  weatherScale: 8,
+  weatherDriftTicks: 400,
+  weatherDriftYTicks: 1500,
+  weatherMorphPeriod: 30000,
+  yearVariability: 0,
+  fatMax: 0,
+  fatMoveCost: 0.3,
+  fatUpkeep: 0.15,
+  initialFat: 0,
+  torporSaving: 0,
+  torporBelowGrowth: 0.35,
+  torporUpkeep: 0.1,
+  initialTorpor: 0,
   thermalCostCoeff: 0,
   thermalTolerance: 0.1,
   catastropheKind: 0,
@@ -865,7 +933,7 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (c.preyMaxSizeRatio <= 0) problems.push("preyMaxSizeRatio must be positive");
   if (c.herbivoreAttackPenalty < 0) problems.push("herbivoreAttackPenalty cannot be negative");
   if (![0, 1, 2].includes(c.brainMode)) problems.push("brainMode must be 0 (no brains), 1 (fixed layout) or 2 (evolvable layout)");
-  if (!Number.isInteger(c.brainHidden) || c.brainHidden < 1 || c.brainHidden > 12) problems.push("brainHidden must be a whole number from 1 to 12");
+  if (!Number.isInteger(c.brainHidden) || c.brainHidden < 1 || c.brainHidden > HIDDEN_MAX) problems.push(`brainHidden must be a whole number from 1 to ${HIDDEN_MAX}`);
   else if (c.brainMode === 1 && c.brainHidden * (INPUT_COUNT + OUTPUT_COUNT) > CONN_MAX) {
     problems.push(`brainHidden ${c.brainHidden} needs ${c.brainHidden * (INPUT_COUNT + OUTPUT_COUNT)} connections per brain, but only ${CONN_MAX} fit (use at most ${Math.floor(CONN_MAX / (INPUT_COUNT + OUTPUT_COUNT))})`);
   }
@@ -886,6 +954,11 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     problems.push("brainVisionRange plus senseRangeMax must be under half the world");
   }
   if (c.brainVisionRange < 0) problems.push("brainVisionRange cannot be negative");
+  if (![0, 1].includes(c.brainMemory)) problems.push("brainMemory must be 0 or 1");
+  if (c.brainMemory === 1 && c.brainMode === 0) problems.push("brainMemory needs brains (set brainMode to 1 or 2)");
+  if (![0, 1, 2].includes(c.homeMode)) problems.push("homeMode must be 0, 1 or 2");
+  if (c.homeMode > 0 && c.brainMode === 0) problems.push("homeMode needs brains (set brainMode to 1 or 2)");
+  if (!(c.homeRange > 0)) problems.push("homeRange must be positive");
   if (![0, 1].includes(c.terrainMode)) problems.push("terrainMode must be 0 (open plain) or 1 (biomes)");
   if (c.terrainMode === 1) {
     const gw = c.worldWidth / c.foodCellSize;
@@ -922,6 +995,23 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     if (!(c.meteorRadius > 0)) problems.push("meteorRadius must be positive");
   }
   if (![0, 1].includes(c.climateMode)) problems.push("climateMode must be 0 (no climate) or 1 (climate)");
+  if (c.weatherAmplitude < 0) problems.push("weatherAmplitude cannot be negative");
+  if (c.weatherAmplitude > 0) {
+    if (c.climateMode !== 1) problems.push("weather needs a climate (set climateMode to 1)");
+    const gw = c.worldWidth / c.foodCellSize;
+    const gh = c.worldHeight / c.foodCellSize;
+    if (!Number.isInteger(c.weatherScale) || c.weatherScale < 1 || gw % c.weatherScale !== 0 || gh % c.weatherScale !== 0) {
+      problems.push("weatherScale must be a whole number of food cells that divides the grid evenly");
+    }
+    if (c.weatherDriftTicks < 0 || c.weatherDriftYTicks < 0 || c.weatherMorphPeriod < 0) problems.push("weather drift and morph times cannot be negative");
+  }
+  if (c.yearVariability < 0 || c.yearVariability > 1) problems.push("yearVariability must be between 0 and 1");
+  if (c.yearVariability > 0 && (c.climateMode !== 1 || c.yearLength <= 0)) problems.push("yearVariability needs a climate with seasons (climateMode 1 and a yearLength)");
+  if (c.fatMax < 0 || c.fatMoveCost < 0 || c.fatUpkeep < 0) problems.push("the fat settings cannot be negative");
+  if (c.initialFat < 0 || c.initialFat > 1 || c.initialTorpor < 0 || c.initialTorpor > 1) problems.push("initialFat and initialTorpor must be between 0 and 1");
+  if (c.torporSaving < 0 || c.torporSaving > 1) problems.push("torporSaving must be between 0 and 1");
+  if (c.torporSaving > 0 && c.climateMode !== 1) problems.push("torpor needs a climate (set climateMode to 1)");
+  if (c.torporBelowGrowth < 0 || c.torporUpkeep < 0) problems.push("the torpor settings cannot be negative");
   if (c.climateMode === 1) {
     for (const [name, value] of [["dayLength", c.dayLength], ["yearLength", c.yearLength], ["climateDriftPeriod", c.climateDriftPeriod]] as const) {
       if (!Number.isInteger(value) || value < 0) problems.push(`${name} must be a whole number of ticks (0 turns it off)`);

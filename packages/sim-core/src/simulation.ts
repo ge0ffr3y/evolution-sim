@@ -12,7 +12,7 @@ import {
   type Traits,
 } from "./genome";
 import { polarness, smoothWave } from "./climate";
-import { BIOME, generateBackground, generateBiomes, growthMultipliers, moveMultipliers } from "./terrain";
+import { BIOME, generateBackground, generateBiomes, generateWeatherMap, growthMultipliers, moveMultipliers } from "./terrain";
 import { SNAPSHOT_FORMAT, type SimSnapshot, type SnapshotArray } from "./snapshot";
 import { SpeciesTracker, type SpeciesEvent, type SpeciesRecord } from "./species";
 import {
@@ -24,6 +24,7 @@ import {
   NODE_COUNT,
   OUTPUT,
   OUTPUT_COUNT,
+  MEMORY_COUNT,
   OUTPUT_START,
   RAY_CHANNELS,
   RAY_COUNT,
@@ -259,6 +260,15 @@ const SENSE_BODY = 4;
 const SENSE_SOCIAL = 8;
 /** Room for this many bonds per cell (the config can allow fewer). */
 const BOND_SLOTS = 6;
+
+/** A fixed scramble of two whole numbers into a number between 0 and 1 (so "random" things such as a year's harshness need no random stream). */
+function unitHash(a: number, b: number): number {
+  let h = Math.imul(a | 0, 0x9e3779b1) ^ Math.imul(b | 0, 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d);
+  h = Math.imul(h ^ (h >>> 12), 0x297a2d39);
+  h ^= h >>> 15;
+  return (h >>> 0) / 4294967296;
+}
 /** Strength of the founders' plant-smell reflex. */
 const FOUNDER_REFLEX_WEIGHT = 1.5;
 /** The founders' chase reflex: turning strength per ray away from the middle, and the speed-up when prey is dead ahead. */
@@ -499,6 +509,19 @@ export class Simulation {
   private readonly kinLimitSq: number;
   /** With kinTolerance: each organism's own squared closeness limit for not attacking a relative (cached from its gene). */
   private readonly kinToleranceOn: boolean;
+  /** Brain memory (what each brain wrote last time, MEMORY_COUNT numbers per organism) and the place each organism calls home. */
+  private readonly memoryOn: boolean;
+  private readonly memState: Float32Array;
+  private readonly homeX: Float32Array;
+  private readonly homeY: Float32Array;
+  /** Weather fronts: two fixed smooth maps (blended and drifted over time), and whether the fat and torpor genes are in use. */
+  private readonly weatherOn: boolean;
+  private readonly weatherA: Float32Array;
+  private readonly weatherB: Float32Array;
+  private readonly fatOn: boolean;
+  private readonly torporOn: boolean;
+  /** Who is dormant this tick (worked out fresh every tick; not saved). */
+  private readonly torpid: Uint8Array;
   private readonly toleranceSq: Float32Array;
   private kinCount = 0;
   private kinVx = 0;
@@ -658,6 +681,9 @@ export class Simulation {
     this.tempBase = new Float64Array(climateCells);
     this.tempSwing = new Float64Array(climateCells);
     this.lightBase = new Float64Array(climateCells);
+    this.weatherOn = this.climateOn && c.weatherAmplitude > 0;
+    this.weatherA = this.weatherOn ? generateWeatherMap(seed, this.gridWidth, this.gridHeight, c.weatherScale, 0x51f3a7c9) : new Float32Array(0);
+    this.weatherB = this.weatherOn ? generateWeatherMap(seed, this.gridWidth, this.gridHeight, c.weatherScale, 0x1d8e4b27) : new Float32Array(0);
     if (this.climateOn) this.setUpClimate();
     this.food = new Float64Array(cells);
     for (let cell = 0; cell < cells; cell++) this.food[cell] = this.foodCapacity[cell]! * c.initialFoodFraction;
@@ -777,9 +803,18 @@ export class Simulation {
         ((k === GENE.plan1 || k === GENE.plan2 || k === GENE.plan3) && this.typeOn) ||
         (k === GENE.stick && this.bondsOn && c.contactBonding === 1) ||
         (k === GENE.tolerance && c.kinTolerance === 1) ||
-        (k === GENE.sex && c.sexualReproduction === 2),
+        (k === GENE.sex && c.sexualReproduction === 2) ||
+        (k === GENE.fat && c.fatMax > 0) ||
+        (k === GENE.torpor && this.climateOn && c.torporSaving > 0),
     );
     this.kinLimitSq = c.kinDistance * c.kinDistance;
+    this.fatOn = c.fatMax > 0;
+    this.torporOn = this.climateOn && c.torporSaving > 0;
+    this.torpid = new Uint8Array(this.torporOn ? n : 0);
+    this.memoryOn = c.brainMode > 0 && c.brainMemory === 1;
+    this.memState = new Float32Array(this.memoryOn ? n * MEMORY_COUNT : 0);
+    this.homeX = new Float32Array(c.brainMode > 0 && c.homeMode > 0 ? n : 0);
+    this.homeY = new Float32Array(c.brainMode > 0 && c.homeMode > 0 ? n : 0);
     this.kinToleranceOn = c.kinTolerance === 1;
     this.toleranceSq = new Float32Array(this.kinToleranceOn ? n : 0);
     this.sexOn = c.sexualReproduction >= 1;
@@ -830,6 +865,7 @@ export class Simulation {
     if (this.agingOn) this.float32Fields.push(this.lifespan);
     if (this.litterOn) this.float32Fields.push(this.litter);
     if (this.kinToleranceOn) this.float32Fields.push(this.toleranceSq);
+    if (this.homeX.length > 0) this.float32Fields.push(this.homeX, this.homeY);
     this.float64Fields = [this.energy, this.plantTaken, this.meatTaken];
     this.uint32Fields = [this.id, this.parentId, this.age, this.kills];
     if (this.tracker) this.uint32Fields.push(this.species);
@@ -869,6 +905,8 @@ export class Simulation {
     founder[GENE.stick] = c.initialStick;
     founder[GENE.tolerance] = c.initialTolerance;
     founder[GENE.sex] = c.initialSex;
+    founder[GENE.fat] = c.initialFat;
+    founder[GENE.torpor] = c.initialTorpor;
     for (let i = 0; i < c.initialOrganisms; i++) {
       let fx = this.rng.range(0, c.worldWidth);
       let fy = this.rng.range(0, c.worldHeight);
@@ -910,7 +948,12 @@ export class Simulation {
   private updateClimate(): void {
     const c = this.config;
     const t = this.tick;
-    const season = c.yearLength > 0 ? smoothWave(t / c.yearLength + 0.25) : 0;
+    let season = c.yearLength > 0 ? smoothWave(t / c.yearLength + 0.25) : 0;
+    if (c.yearVariability > 0) {
+      // Harsh and mild years: a fixed scramble of the year number stretches or shrinks that year's swing.
+      const year = Math.floor(t / c.yearLength);
+      season *= 1 + c.yearVariability * (2 * unitHash(year, this.seed) - 1);
+    }
     const daylight = c.dayLength > 0 ? 1 - c.dayNightDepth * (1 - (smoothWave(t / c.dayLength + 0.25) + 1) / 2) : 1;
     const drift = c.climateDriftPeriod > 0 ? c.climateDriftAmplitude * smoothWave(t / c.climateDriftPeriod + 0.25) : 0;
     // A catastrophe in progress builds up and fades smoothly, worst in the middle.
@@ -925,8 +968,26 @@ export class Simulation {
     const seasonGrowth = (1 + c.seasonGrowthSwing * season) * dryness;
     const optimum = c.plantTempOptimum;
     const tolerance = c.plantTempTolerance;
+    // Weather: the two weather maps shift east and south as time passes and are blended, so fronts move and change shape.
+    let shiftX = 0;
+    let shiftY = 0;
+    let blend = 0;
+    const gw = this.gridWidth;
+    const gh = this.gridHeight;
+    if (this.weatherOn) {
+      if (c.weatherDriftTicks > 0) shiftX = Math.floor(t / c.weatherDriftTicks) % gw;
+      if (c.weatherDriftYTicks > 0) shiftY = Math.floor(t / c.weatherDriftYTicks) % gh;
+      if (c.weatherMorphPeriod > 0) blend = (smoothWave(t / c.weatherMorphPeriod + 0.25) + 1) / 2;
+    }
     for (let cell = 0; cell < this.temperature.length; cell++) {
-      const temp = this.tempBase[cell]! + this.tempSwing[cell]! * season + drift - cooling;
+      let weather = 0;
+      if (this.weatherOn) {
+        const cx = cell % gw;
+        const cy = (cell - cx) / gw;
+        const from = ((cy - shiftY + gh) % gh) * gw + ((cx - shiftX + gw) % gw);
+        weather = c.weatherAmplitude * (this.weatherA[from]! * (1 - blend) + this.weatherB[from]! * blend);
+      }
+      const temp = this.tempBase[cell]! + this.tempSwing[cell]! * season + drift - cooling + weather;
       this.temperature[cell] = temp;
       const off = (temp - optimum) / tolerance;
       const comfort = 1 - off * off;
@@ -1068,6 +1129,11 @@ export class Simulation {
     this.parentId[i] = parent;
     if (this.sexOn) this.parent2Id[i] = 0;
     if (this.sexGeneOn) this.sexMode[i] = 0;
+    if (this.memoryOn) this.memState.fill(0, i * MEMORY_COUNT, (i + 1) * MEMORY_COUNT);
+    if (this.homeX.length > 0) {
+      this.homeX[i] = x;
+      this.homeY[i] = y;
+    }
     if (this.bondsOn) this.bondTo.fill(-1, i * BOND_SLOTS, (i + 1) * BOND_SLOTS);
     if (this.typeOn) this.cellType[i] = 0;
     if (this.camoOn) this.hasImage[i] = 0;
@@ -1232,6 +1298,14 @@ export class Simulation {
     this.bodyEnergy[i] = c.bodyEnergyPerSize * size;
     this.bodyMatter[i] = c.bodyMatterPerSize * size;
     this.threshold[i] = c.reproThresholdPerSize * size;
+    if (this.fatOn) {
+      // A fat body banks more before reproducing, and costs more to haul around and keep.
+      const fat = genes[g + GENE.fat]!;
+      this.threshold[i] = this.threshold[i]! * (1 + c.fatMax * fat);
+      this.moveCost[i] = this.moveCost[i]! * (1 + c.fatMoveCost * fat);
+      this.basalCost[i] = this.basalCost[i]! * (1 + c.fatUpkeep * fat);
+    }
+    if (this.torporOn) this.basalCost[i] = this.basalCost[i]! * (1 + c.torporUpkeep * genes[g + GENE.torpor]!);
   }
 
   /** Give a new organism (at index `child`) a mutated copy of its parent's genes. */
@@ -1600,6 +1674,28 @@ export class Simulation {
       inputs[INPUT.barrier] = blockedAt(0.75 * cs) ? 1 : blockedAt(1.75 * cs) ? 0.5 : 0;
     }
 
+    // Home: which way, and how far, is the place this organism (or its lineage) calls home?
+    if (this.homeX.length > 0) {
+      const W = c.worldWidth;
+      const H = c.worldHeight;
+      let dx = this.homeX[i]! - x;
+      let dy = this.homeY[i]! - y;
+      if (dx > W / 2) dx -= W;
+      else if (dx < -W / 2) dx += W;
+      if (dy > H / 2) dy -= H;
+      else if (dy < -H / 2) dy += H;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      if (distance > 0) {
+        inputs[INPUT.homeAhead] = (dx * hx + dy * hy) / distance;
+        inputs[INPUT.homeSide] = (hx * dy - hy * dx) / distance;
+        inputs[INPUT.homeDistance] = Math.min(1, distance / c.homeRange);
+      }
+    }
+    // Memory: what the brain wrote to its memory cells last time it thought.
+    if (this.memoryOn) {
+      for (let k = 0; k < MEMORY_COUNT; k++) inputs[INPUT.memory0 + k] = this.memState[i * MEMORY_COUNT + k]!;
+    }
+
     // The body: hunger, age, its own diet, a constant, and a little noise (a deterministic scramble of the tick and the organism).
     inputs[INPUT.energy] = Math.min(this.energy[i]! / this.threshold[i]!, 1) * 2 - 1;
     inputs[INPUT.age] = Math.min(this.age[i]! / AGE_FULL, 1) * 2 - 1;
@@ -1615,6 +1711,9 @@ export class Simulation {
     this.outTurn[i] = outputs[OUTPUT.turn]!;
     this.outSpeed[i] = outputs[OUTPUT.speed]!;
     this.outAttack[i] = outputs[OUTPUT.attack]!;
+    if (this.memoryOn) {
+      for (let k = 0; k < MEMORY_COUNT; k++) this.memState[i * MEMORY_COUNT + k] = outputs[OUTPUT.memory0 + k]!;
+    }
 
     if (traced) {
       this.traceInputs.set(inputs);
@@ -2303,6 +2402,12 @@ export class Simulation {
       let hy = this.headingY[i]!;
       this.attempted[i] = 0;
       if (this.resting[i]! > 0) this.resting[i] = this.resting[i]! - 1;
+      if (this.torporOn) {
+        // Where plants have stopped growing a dormant organism sits still (and cannot attack) and saves upkeep.
+        const dormant = this.growthFactor[this.cellOf[i]!]! < c.torporBelowGrowth && this.genes[i * GENE_COUNT + GENE.torpor]! > 0;
+        this.torpid[i] = dormant ? 1 : 0;
+        if (dormant) this.resting[i] = 1;
+      }
 
       let stepSpeed = this.speed[i]!;
       if (brainMode === 0) {
@@ -2377,6 +2482,7 @@ export class Simulation {
       }
       this.headingX[i] = hx;
       this.headingY[i] = hy;
+      if (this.torporOn && this.torpid[i] === 1) stepSpeed = 0;
 
       let nx = x0 + hx * stepSpeed;
       let ny = y0 + hy * stepSpeed;
@@ -2528,6 +2634,7 @@ export class Simulation {
         }
       }
       if (this.diseaseOn && this.sickFor[i]! > 0) basal += c.diseaseCost * this.basalCost[i]!; // being sick costs upkeep
+      if (this.torporOn && this.torpid[i] === 1) basal *= 1 - c.torporSaving * this.genes[i * GENE_COUNT + GENE.torpor]!;
       if (this.thermalOn) {
         // Too hot or too cold for comfort costs extra upkeep.
         const off = this.temperature[cell]! - this.thermalPref[i]!;
@@ -2670,6 +2777,10 @@ export class Simulation {
           const child = this.spawn(this.id[a]!, this.x[a]!, this.y[a]!);
           if (child < 0) break birthsLoop;
           this.parent2Id[child] = this.id[b]!;
+          if (this.homeX.length > 0 && c.homeMode === 2) {
+            this.homeX[child] = this.homeX[a]!;
+            this.homeY[child] = this.homeY[a]!;
+          }
           this.inheritGenesFromTwo(child, a, b);
           this.macroMutate(child);
           if (this.tracker) this.species[child] = this.species[a]!;
@@ -2707,6 +2818,10 @@ export class Simulation {
           const savedNextId = this.nextId;
           const child = this.spawn(this.id[parent]!, this.x[parent]!, this.y[parent]!);
           if (child < 0) break birthsLoop;
+          if (this.homeX.length > 0 && c.homeMode === 2) {
+            this.homeX[child] = this.homeX[parent]!;
+            this.homeY[child] = this.homeY[parent]!;
+          }
           this.inheritGenes(child, parent);
           this.macroMutate(child);
           if (this.tracker) this.species[child] = this.species[parent]!;
@@ -2874,6 +2989,7 @@ export class Simulation {
       this.brainFrom.copyWithin(target, source, source + count);
       this.brainTo.copyWithin(target, source, source + count);
       this.brainWeight.copyWithin(target, source, source + count);
+      if (this.memoryOn) this.memState.copyWithin(to * MEMORY_COUNT, from * MEMORY_COUNT, (from + 1) * MEMORY_COUNT);
     }
   }
 
@@ -2904,6 +3020,7 @@ export class Simulation {
     organism("brainFrom", this.brainFrom, CONN_MAX);
     organism("brainTo", this.brainTo, CONN_MAX);
     organism("brainWeight", this.brainWeight, CONN_MAX);
+    if (this.memoryOn) organism("memState", this.memState, MEMORY_COUNT);
     // The land and the scent trails, in full.
     for (const [name, array] of this.landArrays()) arrays[name] = array.slice();
     const state: Record<string, unknown> = {
@@ -3006,6 +3123,7 @@ export class Simulation {
     take("brainFrom", this.brainFrom);
     take("brainTo", this.brainTo);
     take("brainWeight", this.brainWeight);
+    if (this.memoryOn) take("memState", this.memState);
     for (const [name, array] of this.landArrays()) take(name, array);
     this.tick = s.tick;
     this.count = s.count;
@@ -3073,6 +3191,8 @@ export class Simulation {
       case "stick":
       case "tolerance":
       case "sex":
+      case "fat":
+      case "torpor":
         return this.genes[i * GENE_COUNT + GENE[name]]!;
       case "lifespan": {
         const range = this.ranges.lifespan;

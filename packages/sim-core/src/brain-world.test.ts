@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CONN_MAX, INPUT, OUTPUT, OUTPUT_START, RAY_CHANNELS, HIDDEN_START, setConnectionForTests } from "./brain-test-helpers";
+import { CONN_MAX, INPUT, OUTPUT, OUTPUT_COUNT, OUTPUT_START, RAY_CHANNELS, HIDDEN_START, setConnectionForTests } from "./brain-test-helpers";
 import { GENE, GENE_COUNT, traitToGene } from "./genome";
 import { Simulation } from "./simulation";
 import type { SimConfig } from "./config";
@@ -605,7 +605,7 @@ describe("worlds with brains", () => {
     expect(new Simulation(1, { ...SMALL, brainMode: 2, brainFounderReflex: 0 }).brainCount[0]).toBe(0);
     const fixed = new Simulation(1, { ...SMALL, brainMode: 1, brainHidden: 4, brainFounderReflex: 1 });
     // Fully wired (every input->hidden and hidden->output connection), plus the one direct reflex.
-    expect(fixed.brainCount[0]).toBe(4 * (INPUT.noise + 1) + 4 * 3 + 1);
+    expect(fixed.brainCount[0]).toBe(4 * (INPUT.noise + 1) + 4 * OUTPUT_COUNT + 1);
     expect(fixed.brainConnections[0]).toBe(1);
   });
 
@@ -766,7 +766,7 @@ describe("worlds with brains", () => {
     const after = sim.describe(0).brain!;
     expect(after.activity).not.toBeNull();
     expect(after.activity!.inputs).toHaveLength(INPUT.noise + 1);
-    expect(after.activity!.outputs).toHaveLength(3);
+    expect(after.activity!.outputs).toHaveLength(OUTPUT_COUNT);
     expect(after.activity!.outputs[OUTPUT.turn]).not.toBe(0);
   });
 

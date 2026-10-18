@@ -59,23 +59,39 @@ export const INPUT = {
   kinSide: VISION_INPUTS + 16,
   comfort: VISION_INPUTS + 17,
   barrier: VISION_INPUTS + 18,
-  bias: VISION_INPUTS + 19,
-  noise: VISION_INPUTS + 20,
+  /** Where home is: ahead (+) or behind (-), to the left (+) or right (-), and how far (0 at home, 1 far). */
+  homeAhead: VISION_INPUTS + 19,
+  homeSide: VISION_INPUTS + 20,
+  homeDistance: VISION_INPUTS + 21,
+  /** What the brain wrote into its memory last time it thought (four values that persist between thoughts). */
+  memory0: VISION_INPUTS + 22,
+  memory1: VISION_INPUTS + 23,
+  memory2: VISION_INPUTS + 24,
+  memory3: VISION_INPUTS + 25,
+  /** Internal chemical signals (see the chemicals settings): reward, stress, bonding and calm. */
+  chemReward: VISION_INPUTS + 26,
+  chemStress: VISION_INPUTS + 27,
+  chemBond: VISION_INPUTS + 28,
+  chemCalm: VISION_INPUTS + 29,
+  bias: VISION_INPUTS + 30,
+  noise: VISION_INPUTS + 31,
 } as const;
-export const INPUT_COUNT = VISION_INPUTS + 21;
+export const INPUT_COUNT = VISION_INPUTS + 32;
+/** Memory cells: the brain's last four memory outputs come back as inputs next time it thinks. */
+export const MEMORY_COUNT = 4;
 
-export const HIDDEN_MAX = 12;
+export const HIDDEN_MAX = 16;
 export const HIDDEN_START = INPUT_COUNT;
 export const OUTPUT_START = INPUT_COUNT + HIDDEN_MAX;
-export const OUTPUT = { turn: 0, speed: 1, attack: 2 } as const;
-export const OUTPUT_COUNT = 3;
+export const OUTPUT = { turn: 0, speed: 1, attack: 2, memory0: 3, memory1: 4, memory2: 5, memory3: 6 } as const;
+export const OUTPUT_COUNT = 7;
 export const NODE_COUNT = OUTPUT_START + OUTPUT_COUNT;
 
 /**
  * Most connections one brain can hold. A fully wired fixed-layout brain needs
- * hidden x (INPUT_COUNT + OUTPUT_COUNT) of them (352 for 8 hidden units).
+ * hidden x (INPUT_COUNT + OUTPUT_COUNT) of them (472 for 8 hidden units).
  */
-export const CONN_MAX = 384;
+export const CONN_MAX = 512;
 /** Weights are kept within this range. */
 export const WEIGHT_LIMIT = 4;
 
@@ -108,13 +124,24 @@ export function inputLabel(index: number): string {
     [INPUT.kinSide]: "relatives: left",
     [INPUT.comfort]: "too hot (+) or cold (-)",
     [INPUT.barrier]: "water ahead",
+    [INPUT.homeAhead]: "home: ahead",
+    [INPUT.homeSide]: "home: left",
+    [INPUT.homeDistance]: "home: how far",
+    [INPUT.memory0]: "memory 1",
+    [INPUT.memory1]: "memory 2",
+    [INPUT.memory2]: "memory 3",
+    [INPUT.memory3]: "memory 4",
+    [INPUT.chemReward]: "reward signal",
+    [INPUT.chemStress]: "stress signal",
+    [INPUT.chemBond]: "bonding signal",
+    [INPUT.chemCalm]: "calm signal",
     [INPUT.bias]: "bias",
     [INPUT.noise]: "noise",
   };
   return names[index] ?? `input ${index}`;
 }
 
-export const OUTPUT_LABELS = ["turn left", "speed", "attack"] as const;
+export const OUTPUT_LABELS = ["turn left", "speed", "attack", "write memory 1", "write memory 2", "write memory 3", "write memory 4"] as const;
 
 /** A smooth squashing function between -1 and 1, built from exact arithmetic only. */
 export function soft(x: number): number {

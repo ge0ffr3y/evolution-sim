@@ -6,7 +6,7 @@ import type { SimConfig } from "./config";
  * worked out from the genes ("phenotype mapping") by stretching each gene
  * across that trait's allowed range from the config.
  */
-export const GENES = ["size", "speed", "senseRange", "metabolism", "hue", "mutationRate", "diet", "attack", "armor", "stamina", "thermal", "lifespan", "litter", "bond", "plan1", "plan2", "plan3", "stick", "tolerance", "sex"] as const;
+export const GENES = ["size", "speed", "senseRange", "metabolism", "hue", "mutationRate", "diet", "attack", "armor", "stamina", "thermal", "lifespan", "litter", "bond", "plan1", "plan2", "plan3", "stick", "tolerance", "sex", "fat", "torpor"] as const;
 export type GeneName = (typeof GENES)[number];
 export const GENE_COUNT = GENES.length;
 
@@ -41,6 +41,8 @@ export const GENE = {
   stick: 17,
   tolerance: 18,
   sex: 19,
+  fat: 20,
+  torpor: 21,
 } as const satisfies Record<GeneName, number>;
 
 /** Real-world values for every gene, e.g. { size: 1.2, speed: 0.8, ... }. */
@@ -79,6 +81,9 @@ export function traitRanges(c: SimConfig): Record<GeneName, TraitRange> {
     tolerance: { min: 0, max: 1 },
     // The chance that a ready organism looks for a mate instead of splitting in two: a plain 0 to 1.
     sex: { min: 0, max: 1 },
+    // How big an energy reserve to bank before reproducing, and how readily it goes dormant when plants stop growing: plain 0 to 1.
+    fat: { min: 0, max: 1 },
+    torpor: { min: 0, max: 1 },
   };
 }
 

@@ -271,6 +271,8 @@ const GENE_LABELS: Record<GeneName, string> = {
   stick: "Stickiness (bonds with strangers)",
   tolerance: "Tolerance of relatives",
   sex: "Mate-seeking (chance of looking for a mate)",
+  fat: "Fat (energy banked before reproducing)",
+  torpor: "Torpor (dormancy when plants stop growing)",
 };
 
 function traitText(gene: GeneName, value: number): string {
