@@ -247,6 +247,7 @@ const GENE_LABELS: Record<GeneName, string> = {
   metabolism: "Metabolism",
   hue: "Color",
   mutationRate: "Mutation rate",
+  stamina: "Stamina (sprint reserve)",
 };
 
 function traitText(gene: GeneName, value: number): string {

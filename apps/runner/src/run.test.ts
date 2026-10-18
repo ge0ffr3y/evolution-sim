@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { GENES } from "@evo/sim-core";
 import {
   CSV_COLUMNS,
   HIST_COLUMNS,
@@ -82,8 +83,8 @@ describe("histograms", () => {
     const lines = result.histCsv.trim().split("\n");
     expect(lines[0]).toBe(HIST_COLUMNS.join(","));
     const rows = lines.slice(1).map((l) => l.split(","));
-    // 3 snapshots (ticks 0, 500, 1000) x 9 traits x 8 bins
-    expect(rows).toHaveLength(3 * 9 * bins);
+    // 3 snapshots (ticks 0, 500, 1000) x every gene's trait x 8 bins
+    expect(rows).toHaveLength(3 * GENES.length * bins);
 
     const totals = new Map<string, number>();
     for (const [tick, trait, , , , count] of rows) {

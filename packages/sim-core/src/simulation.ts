@@ -1,5 +1,6 @@
 import { makeConfig, type SimConfig } from "./config";
 import {
+  CORE_GENE_COUNT,
   GENE,
   GENES,
   GENE_COUNT,
@@ -401,6 +402,16 @@ export class Simulation {
   /** Movement this tick relative to normal speed (0 = standing still, 1 = normal, 2 = flat out). */
   readonly moveScale: Float32Array;
 
+  /** Sprint reserve now, its size (from the stamina gene) and its upkeep per tick. Used only with sprintFatigue. */
+  readonly stamina: Float32Array;
+  readonly staminaMax: Float32Array;
+  readonly staminaCost: Float32Array;
+  private readonly staminaOn: boolean;
+  /** Who has first claim on the meat in each cell, and until which tick. Used only with killOwnershipTicks. */
+  readonly corpseOwner: Uint32Array;
+  readonly corpseOwnerUntil: Uint32Array;
+  private readonly guardOn: boolean;
+
   /** Set to an organism's id to record what its brain is thinking (for the brain viewer). */
   traceId = 0;
   private readonly traceInputs = new Float64Array(INPUT_COUNT);
@@ -549,6 +560,15 @@ export class Simulation {
     this.outSpeed = new Float32Array(brainOrganisms);
     this.outAttack = new Float32Array(brainOrganisms);
     this.moveScale = new Float32Array(brainOrganisms);
+    this.staminaOn = c.brainMode > 0 && c.sprintFatigue === 1;
+    const staminaOrganisms = this.staminaOn ? n : 0;
+    this.stamina = new Float32Array(staminaOrganisms);
+    this.staminaMax = new Float32Array(staminaOrganisms);
+    this.staminaCost = new Float32Array(staminaOrganisms);
+    this.guardOn = c.killOwnershipTicks > 0;
+    const guardCells = this.guardOn ? cells : 0;
+    this.corpseOwner = new Uint32Array(guardCells);
+    this.corpseOwnerUntil = new Uint32Array(guardCells);
 
     this.float32Fields = [
       this.x, this.y, this.headingX, this.headingY, this.size, this.speed, this.senseRange, this.metabolism,
@@ -560,6 +580,7 @@ export class Simulation {
     if (c.brainMode > 0) {
       this.float32Fields.push(this.brainCost, this.outTurn, this.outSpeed, this.outAttack, this.moveScale);
     }
+    if (this.staminaOn) this.float32Fields.push(this.stamina, this.staminaMax, this.staminaCost);
     this.float64Fields = [this.energy, this.plantTaken, this.meatTaken];
     this.uint32Fields = [this.id, this.parentId, this.age, this.kills];
     this.uint8Fields = [this.killed, this.attempted];
@@ -579,6 +600,7 @@ export class Simulation {
     founder[GENE.diet] = traitToGene(c.initialDiet, this.ranges.diet);
     founder[GENE.attack] = traitToGene(c.initialAttack, this.ranges.attack);
     founder[GENE.armor] = traitToGene(c.initialArmor, this.ranges.armor);
+    founder[GENE.stamina] = traitToGene(c.initialStamina, this.ranges.stamina);
     for (let i = 0; i < c.initialOrganisms; i++) {
       const index = this.spawn(0, this.rng.range(0, c.worldWidth), this.rng.range(0, c.worldHeight));
       for (let g = 0; g < GENE_COUNT; g++) this.genes[index * GENE_COUNT + g] = founder[g]!;
@@ -707,6 +729,13 @@ export class Simulation {
     this.attackCost[i] = c.attackCostCoeff * attack * size * fightingPenalty;
     this.attemptCost[i] = c.attackAttemptCost * size * fightingPenalty;
     this.armorCost[i] = c.armorCostCoeff * armor * size;
+    if (this.staminaOn) {
+      const reserve = at("stamina");
+      this.staminaMax[i] = reserve;
+      this.staminaCost[i] = c.staminaCostCoeff * reserve * size;
+      // A newborn starts with a full reserve; re-expressing a living organism keeps what it has (up to the new size).
+      this.stamina[i] = this.age[i] === 0 ? reserve : Math.min(this.stamina[i]!, reserve);
+    }
 
     // Eating. The diet gene splits appetite between plants (diet 0) and meat (diet 1),
     // and a specialist digests its own food better than a generalist does.
@@ -738,7 +767,11 @@ export class Simulation {
   private inheritGenes(child: number, parent: number): void {
     const meta = this.config.metaMutationStd;
     const rate = this.mutationRate[parent]!;
-    for (let k = 0; k < GENE_COUNT; k++) {
+    // Without sprint fatigue the stamina gene is inert, so it is copied without a random draw
+    // (which keeps those worlds identical to how they played out before the gene existed).
+    const genes = this.staminaOn ? GENE_COUNT : CORE_GENE_COUNT;
+    if (genes < GENE_COUNT) this.genes[child * GENE_COUNT + GENE.stamina] = this.genes[parent * GENE_COUNT + GENE.stamina]!;
+    for (let k = 0; k < genes; k++) {
       const std = k === GENE.mutationRate ? meta : rate;
       this.genes[child * GENE_COUNT + k] = clamp01(this.genes[parent * GENE_COUNT + k]! + this.rng.gaussian() * std);
     }
@@ -966,6 +999,8 @@ export class Simulation {
     inputs[INPUT.energy] = Math.min(this.energy[i]! / this.threshold[i]!, 1) * 2 - 1;
     inputs[INPUT.age] = Math.min(this.age[i]! / AGE_FULL, 1) * 2 - 1;
     inputs[INPUT.diet] = this.diet[i]! * 2 - 1;
+    // Stamina left: -1 empty, +1 full (0 in worlds without sprint fatigue).
+    if (this.staminaOn) inputs[INPUT.stamina] = this.staminaMax[i]! > 0 ? (this.stamina[i]! / this.staminaMax[i]!) * 2 - 1 : -1;
     inputs[INPUT.bias] = 1;
     inputs[INPUT.noise] = ((Math.imul(this.tick + 1, 0x9e3779b1) ^ Math.imul(this.id[i]!, 0x85ebca6b)) >>> 0) / 2147483648 - 1;
 
@@ -1098,6 +1133,23 @@ export class Simulation {
         // Speed: 0 is standing still, 1 normal, 2 flat out.
         let mult = 1 + this.outSpeed[i]!;
         mult = mult < 0 ? 0 : mult > 2 ? 2 : mult;
+        if (this.staminaOn) {
+          // Running above normal pace drains the reserve (flat out drains one unit per tick) and
+          // an empty reserve means normal pace at best. Slower than normal refills it, faster when still.
+          const have = this.stamina[i]!;
+          if (mult > 1) {
+            let drain = mult - 1;
+            if (drain > have) {
+              drain = have;
+              mult = 1 + have;
+            }
+            this.stamina[i] = have - drain;
+          } else {
+            const refilled = have + c.staminaRegen * (1 + c.staminaRestBonus * (1 - mult));
+            const reserve = this.staminaMax[i]!;
+            this.stamina[i] = refilled > reserve ? reserve : refilled;
+          }
+        }
         this.moveScale[i] = mult;
         stepSpeed *= mult;
       }
@@ -1153,7 +1205,7 @@ export class Simulation {
       if (this.killed[i] === 1) continue;
       const cell = this.cellOf[i]!;
       plantClaim[cell] = plantClaim[cell]! + this.plantWeight[i]!;
-      meatClaim[cell] = meatClaim[cell]! + this.meatWeight[i]!;
+      meatClaim[cell] = meatClaim[cell]! + this.meatWeight[i]! * this.meatAccess(i, cell);
     }
 
     // Each cell works out how much food and meat there is per unit of claim. If
@@ -1194,7 +1246,8 @@ export class Simulation {
       // Standing still lets an organism with a brain eat faster (it must decide: roam or graze).
       const eatBonus = brainMode > 0 ? 1 + c.brainStillEatBonus * (1 - Math.min(this.moveScale[i]!, 1)) : 1;
       const plantMass = Math.min(this.plantBite[i]! * eatBonus, this.plantWeight[i]! * plantShare[cell]!);
-      const meatMass = Math.min(this.meatBite[i]! * eatBonus, this.meatWeight[i]! * meatShare[cell]!);
+      const access = this.meatAccess(i, cell);
+      const meatMass = Math.min(this.meatBite[i]! * access * eatBonus, this.meatWeight[i]! * access * meatShare[cell]!);
       plantClaim[cell] = plantClaim[cell]! + plantMass;
       meatClaim[cell] = meatClaim[cell]! + meatMass;
       const plantRaw = plantMass * energyPerFood;
@@ -1215,7 +1268,8 @@ export class Simulation {
 
       const basal = this.basalCost[i]!;
       // Moving costs more the faster the brain drives the body (cost grows with speed squared).
-      const move = brainMode > 0 ? this.moveCost[i]! * this.moveScale[i]! * this.moveScale[i]! : this.moveCost[i]!;
+      let move = brainMode > 0 ? this.moveCost[i]! * this.moveScale[i]! * this.moveScale[i]! : this.moveCost[i]!;
+      if (this.staminaOn) move += this.staminaCost[i]!; // the upkeep of the sprint reserve counts as movement
       const sensing = this.senseCost[i]!;
       const fighting = this.attackCost[i]! + (this.attempted[i] === 1 ? this.attemptCost[i]! : 0);
       const armoring = this.armorCost[i]!;
@@ -1372,8 +1426,21 @@ export class Simulation {
   }
 
   /** `attacker` kills `prey`: the prey's body and whatever energy it carried become a corpse. */
+  /**
+   * How strongly organism i can claim meat in this cell: 1 normally, but while a killer holds
+   * first claim on a fresh kill, everyone else's claim is cut to killOwnershipLeak.
+   */
+  private meatAccess(i: number, cell: number): number {
+    if (!this.guardOn || this.tick >= this.corpseOwnerUntil[cell]! || this.corpseOwner[cell] === this.id[i]) return 1;
+    return this.config.killOwnershipLeak;
+  }
+
   private kill(attacker: number, prey: number): void {
     const cell = this.cellOf[prey]!;
+    if (this.guardOn) {
+      this.corpseOwner[cell] = this.id[attacker]!;
+      this.corpseOwnerUntil[cell] = this.tick + this.config.killOwnershipTicks;
+    }
     this.corpseEnergy[cell] = this.corpseEnergy[cell]! + this.bodyEnergy[prey]! + this.energy[prey]!;
     this.corpseMatter[cell] = this.corpseMatter[cell]! + this.bodyMatter[prey]!;
     this.energy[prey] = 0;
@@ -1455,6 +1522,10 @@ export class Simulation {
         return this.attack[i]!;
       case "armor":
         return this.armor[i]!;
+      case "stamina": {
+        const range = this.ranges.stamina;
+        return range.min + this.genes[i * GENE_COUNT + GENE.stamina]! * (range.max - range.min);
+      }
     }
   }
 
@@ -1590,7 +1661,7 @@ export class Simulation {
       traits,
       costs: {
         basal: this.basalCost[i]!,
-        movement: this.moveCost[i]!,
+        movement: this.moveCost[i]! + (this.staminaOn ? this.staminaCost[i]! : 0),
         sensing: this.senseCost[i]!,
         attack: this.attackCost[i]!,
         armor: this.armorCost[i]!,
@@ -1758,7 +1829,10 @@ export class Simulation {
     mixBits(this.energy, n);
     mixBits(this.plantTaken, n);
     mixBits(this.meatTaken, n);
-    mixBits(this.genes, n * GENE_COUNT);
+    // Genes first, leaving stamina out unless it is in use (see CORE_GENE_COUNT).
+    const geneBits = new Uint32Array(this.genes.buffer, this.genes.byteOffset, n * GENE_COUNT);
+    const mixedGenes = this.staminaOn ? GENE_COUNT : CORE_GENE_COUNT;
+    for (let i = 0; i < n; i++) for (let k = 0; k < mixedGenes; k++) mix(geneBits[i * GENE_COUNT + k]!);
     mixBits(this.food, this.food.length);
     mixBits(this.nutrient, this.nutrient.length);
     mixBits(this.corpseMatter, this.corpseMatter.length);
@@ -1778,6 +1852,11 @@ export class Simulation {
       mixBits(this.outTurn, n);
       mixBits(this.outSpeed, n);
       mixBits(this.outAttack, n);
+    }
+    if (this.staminaOn) mixBits(this.stamina, n);
+    if (this.guardOn) {
+      mixInts(this.corpseOwner, this.corpseOwner.length);
+      mixInts(this.corpseOwnerUntil, this.corpseOwnerUntil.length);
     }
     return hash;
   }

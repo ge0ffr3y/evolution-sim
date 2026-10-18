@@ -53,10 +53,11 @@ export const INPUT = {
   energy: VISION_INPUTS + 10,
   age: VISION_INPUTS + 11,
   diet: VISION_INPUTS + 12,
-  bias: VISION_INPUTS + 13,
-  noise: VISION_INPUTS + 14,
+  stamina: VISION_INPUTS + 13,
+  bias: VISION_INPUTS + 14,
+  noise: VISION_INPUTS + 15,
 } as const;
-export const INPUT_COUNT = VISION_INPUTS + 15;
+export const INPUT_COUNT = VISION_INPUTS + 16;
 
 export const HIDDEN_MAX = 12;
 export const HIDDEN_START = INPUT_COUNT;
@@ -67,7 +68,7 @@ export const NODE_COUNT = OUTPUT_START + OUTPUT_COUNT;
 
 /**
  * Most connections one brain can hold. A fully wired fixed-layout brain needs
- * hidden x (INPUT_COUNT + OUTPUT_COUNT) of them (304 for 8 hidden units).
+ * hidden x (INPUT_COUNT + OUTPUT_COUNT) of them (312 for 8 hidden units).
  */
 export const CONN_MAX = 320;
 /** Weights are kept within this range. */
@@ -96,6 +97,7 @@ export function inputLabel(index: number): string {
     [INPUT.energy]: "energy",
     [INPUT.age]: "age",
     [INPUT.diet]: "my diet (meaty)",
+    [INPUT.stamina]: "stamina left",
     [INPUT.bias]: "bias",
     [INPUT.noise]: "noise",
   };

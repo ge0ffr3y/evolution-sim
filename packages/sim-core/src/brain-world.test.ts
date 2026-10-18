@@ -4,6 +4,8 @@ import { GENE, GENE_COUNT, traitToGene } from "./genome";
 import { Simulation } from "./simulation";
 import type { SimConfig } from "./config";
 
+/** A weight big enough to saturate an output (so a push reads as flat out or flat stop). */
+const MAX_PUSH = 1e6;
 const TURN = OUTPUT_START + OUTPUT.turn;
 const SPEED = OUTPUT_START + OUTPUT.speed;
 const ATTACK = OUTPUT_START + OUTPUT.attack;
@@ -350,6 +352,136 @@ describe("appetite shapes perception (brainAppetiteSenses)", () => {
   });
 });
 
+describe("sprinting and stamina (sprintFatigue)", () => {
+  const fatigue = (extra: Partial<SimConfig> = {}): Partial<SimConfig> => stage({ initialOrganisms: 1, sprintFatigue: 1, staminaCostCoeff: 0, ...extra });
+
+  it("flat out drains one unit of reserve per tick, and an empty reserve means normal pace at best", () => {
+    const sim = new Simulation(1, fatigue({ initialStamina: 5, initialSpeed: 1 }));
+    wire(sim, 0, INPUT.bias, SPEED, MAX_PUSH); // always pushes speed to the maximum
+    expect(sim.stamina[0]).toBeCloseTo(5, 5);
+    sim.step();
+    expect(sim.moveScale[0]).toBeCloseTo(2, 5);
+    expect(sim.stamina[0]).toBeCloseTo(4, 5);
+    for (let t = 0; t < 4; t++) sim.step();
+    expect(sim.stamina[0]).toBeCloseTo(0, 5);
+    sim.step();
+    expect(sim.moveScale[0]).toBeCloseTo(1, 5); // no reserve left: no sprinting
+  });
+
+  it("a half-way push drains proportionally less, and a partial reserve limits the sprint", () => {
+    const sim = new Simulation(1, fatigue({ initialStamina: 0.25, initialSpeed: 1 }));
+    wire(sim, 0, INPUT.bias, SPEED, MAX_PUSH);
+    sim.step();
+    expect(sim.moveScale[0]).toBeCloseTo(1.25, 5); // only a quarter of a sprint-tick was available
+    expect(sim.stamina[0]).toBeCloseTo(0, 5);
+  });
+
+  it("refills at the regen rate at normal pace, and faster when standing still", () => {
+    const normal = new Simulation(1, fatigue({ initialStamina: 10, staminaRegen: 0.1, staminaRestBonus: 1 }));
+    normal.stamina[0] = 2;
+    normal.step(); // no brain wiring: outputs are zero, so mult is 1 (normal pace)
+    expect(normal.stamina[0]).toBeCloseTo(2.1, 5);
+    const still = new Simulation(1, fatigue({ initialStamina: 10, staminaRegen: 0.1, staminaRestBonus: 1 }));
+    wire(still, 0, INPUT.bias, SPEED, -MAX_PUSH); // stand still
+    still.stamina[0] = 2;
+    still.step();
+    expect(still.stamina[0]).toBeCloseTo(2.2, 5);
+  });
+
+  it("the reserve never goes over its size", () => {
+    const sim = new Simulation(1, fatigue({ initialStamina: 3, staminaRegen: 5 }));
+    sim.step();
+    expect(sim.stamina[0]).toBeCloseTo(3, 5);
+  });
+
+  it("a bigger reserve costs more energy every tick, and the brain can feel how much is left", () => {
+    const cost = (reserve: number): number => new Simulation(1, fatigue({ initialStamina: reserve, staminaCostCoeff: 0.001 })).describe(0).costs.movement;
+    const base = cost(0);
+    expect(cost(10) - base).toBeCloseTo(0.001 * 10 * 1, 5);
+    expect(cost(20) - base).toBeCloseTo(2 * (cost(10) - base), 5);
+    const sim = new Simulation(1, fatigue({ initialStamina: 10 }));
+    expect(seen(sim)[INPUT.stamina]).toBeCloseTo(1, 1); // full
+    sim.stamina[0] = 0;
+    expect(seen(sim)[INPUT.stamina]).toBeLessThan(-0.9);
+  });
+
+  it("does nothing when switched off: sprinting is free of limits and the gene is not mutated", () => {
+    const sim = new Simulation(1, stage({ initialOrganisms: 1, mutationRateMin: 0.05, mutationRateMax: 0.05, initialMutationRate: 0.05 }));
+    wire(sim, 0, INPUT.bias, SPEED, MAX_PUSH);
+    for (let t = 0; t < 30; t++) sim.step();
+    expect(sim.moveScale[0]).toBeCloseTo(2, 5);
+    expect(sim.stamina).toHaveLength(0);
+  });
+
+  it("a sprinter outruns a chaser who tires first", () => {
+    // Prey (organism 1) and hunter (organism 0) both run flat out; the one with more reserve keeps up its pace longer.
+    const sim = new Simulation(1, fatigue({ initialOrganisms: 2, initialStamina: 3, initialSpeed: 1 }));
+    for (const i of [0, 1]) wire(sim, i, INPUT.bias, SPEED, MAX_PUSH);
+    setGene(sim, 1, "stamina", 20);
+    for (let t = 0; t < 10; t++) sim.step();
+    expect(sim.moveScale[0]).toBeCloseTo(1, 5); // tired
+    expect(sim.moveScale[1]).toBeCloseTo(2, 5); // still going
+  });
+});
+
+describe("kill ownership (killOwnershipTicks)", () => {
+  /** Two meat eaters stand on a small corpse; organism 0 holds first claim on it. Returns what each one ate. */
+  function feast(ticks: number): [number, number] {
+    const sim = new Simulation(1, stage({ initialOrganisms: 2, killOwnershipTicks: ticks, killOwnershipLeak: 0.05, brainFounderReflex: 0 }));
+    for (const i of [0, 1]) {
+      setGene(sim, i, "diet", 1);
+      setGene(sim, i, "size", 1);
+      place(sim, i, 33, 33);
+      sim.energy[i] = 1;
+    }
+    const cell = 4 * 8 + 4;
+    sim.corpseMatter[cell] = 0.5; // scarce: not enough for both to eat their fill
+    sim.corpseEnergy[cell] = 20;
+    if (ticks > 0) {
+      sim.corpseOwner[cell] = sim.id[0]!;
+      sim.corpseOwnerUntil[cell] = sim.tick + ticks;
+    }
+    sim.step();
+    return [sim.meatTaken[0]!, sim.meatTaken[1]!];
+  }
+
+  it("without ownership a corpse is shared evenly; with it the owner gets nearly all of it", () => {
+    const [openA, openB] = feast(0);
+    expect(openA).toBeGreaterThan(0);
+    expect(openB / openA).toBeGreaterThan(0.9); // about even
+    const [guardA, guardB] = feast(50);
+    expect(guardA).toBeGreaterThan(openA); // the owner eats more than its even share
+    expect(guardB / guardA).toBeLessThan(0.1);
+  });
+
+  it("a kill gives the killer ownership of the spot for the set number of ticks", () => {
+    const sim = new Simulation(1, stage({ initialOrganisms: 2, killOwnershipTicks: 7 }));
+    place(sim, 0, 33, 33);
+    place(sim, 1, 33, 33);
+    (sim as unknown as { cellOf: Uint32Array }).cellOf[1] = 4 * 8 + 4;
+    (sim as unknown as { kill(a: number, p: number): void }).kill(0, 1);
+    expect(sim.corpseOwner[4 * 8 + 4]).toBe(sim.id[0]);
+    expect(sim.corpseOwnerUntil[4 * 8 + 4]).toBe(sim.tick + 7);
+  });
+
+  it("the guard ends after the set number of ticks", () => {
+    const sim = new Simulation(1, stage({ initialOrganisms: 2, killOwnershipTicks: 5, killOwnershipLeak: 0 }));
+    const cell = 4 * 8 + 4;
+    sim.corpseOwner[cell] = sim.id[0]!;
+    sim.corpseOwnerUntil[cell] = sim.tick + 5;
+    const access = (i: number): number => (sim as unknown as { meatAccess(i: number, c: number): number }).meatAccess(i, cell);
+    expect(access(0)).toBe(1);
+    expect(access(1)).toBe(0);
+    for (let t = 0; t < 5; t++) sim.step();
+    expect(access(1)).toBe(1);
+  });
+
+  it("is off by default: nobody holds any claim", () => {
+    const sim = new Simulation(1, stage({ initialOrganisms: 2 }));
+    expect(sim.corpseOwner).toHaveLength(0);
+  });
+});
+
 describe("what a brain can do", () => {
   it("turns left when the turn output is positive, and right when negative", () => {
     const turned = (weight: number): number => {
@@ -581,6 +713,30 @@ describe("worlds with brains", () => {
     b.run(1500);
     expect(a.fingerprint()).toBe(b.fingerprint());
     expect(Array.from(a.preyScent)).toEqual(Array.from(b.preyScent));
+    const L = a.ledger;
+    const burned = L.basalBurned + L.movementBurned + L.sensingBurned + L.attackBurned + L.armorBurned + L.brainBurned;
+    const expected = energy0 + L.sunlightIn - burned - L.digestionLoss - L.decayLoss;
+    expect(Math.abs(a.energyAudit().total - expected) / expected).toBeLessThan(1e-9);
+    expect(Math.abs(a.matterAudit().total - matter0) / matter0).toBeLessThan(1e-9);
+  }, 120_000);
+
+  it("with sprint fatigue and kill ownership on: deterministic, and energy and matter still balance", () => {
+    const config = { worldWidth: 128, worldHeight: 128, initialOrganisms: 120, initialSenseRange: 6, brainMode: 2, brainAddConnectionProb: 0.3, sprintFatigue: 1, killOwnershipTicks: 30 };
+    const a = new Simulation(41, config);
+    const b = new Simulation(41, config);
+    for (let i = 0; i < a.count; i += 15) {
+      for (const sim of [a, b]) {
+        sim.genes[i * GENE_COUNT + GENE.attack] = 0.3;
+        sim.genes[i * GENE_COUNT + GENE.diet] = 0.8;
+        sim.express(i);
+      }
+    }
+    const energy0 = a.energyAudit().total;
+    const matter0 = a.matterAudit().total;
+    a.run(2000);
+    b.run(2000);
+    expect(a.fingerprint()).toBe(b.fingerprint());
+    expect(a.totalKills).toBeGreaterThan(0);
     const L = a.ledger;
     const burned = L.basalBurned + L.movementBurned + L.sensingBurned + L.attackBurned + L.armorBurned + L.brainBurned;
     const expected = energy0 + L.sunlightIn - burned - L.digestionLoss - L.decayLoss;

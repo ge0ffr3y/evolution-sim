@@ -65,6 +65,8 @@ export interface SimConfig {
   /** Attack and armor start at zero: nobody starts out able to hunt or defend. */
   initialAttack: number;
   initialArmor: number;
+  /** Starting sprint reserve of the first generation (see sprintFatigue). */
+  initialStamina: number;
   /** Fraction of the reproduction threshold that new organisms start with. */
   initialEnergyFraction: number;
 
@@ -87,6 +89,9 @@ export interface SimConfig {
   attackMax: number;
   armorMin: number;
   armorMax: number;
+  /** Range of the stamina gene: the biggest sprint reserve, counted in ticks of flat-out running. */
+  staminaMin: number;
+  staminaMax: number;
   /** How much the mutation-rate gene itself changes between generations (in gene units). */
   metaMutationStd: number;
 
@@ -216,6 +221,30 @@ export interface SimConfig {
    */
   brainAppetiteSenses: number;
 
+  // --- Sprinting and stamina (only with brains) ---
+  /**
+   * 0 = off: brains can run flat out for as long as they like (paying the energy), and the
+   * stamina gene does nothing. 1 = on: running faster than normal drains a stamina reserve,
+   * running out means no more sprinting until it refills, and a bigger reserve costs
+   * energy every tick (the upkeep of muscle). Whoever has more stamina wins a long chase.
+   */
+  sprintFatigue: number;
+  /** Reserve (in ticks of flat-out running) regained each tick at normal pace. */
+  staminaRegen: number;
+  /** Extra recovery for slowing down: regen x (1 + this x how much slower than normal). */
+  staminaRestBonus: number;
+  /** Energy per tick for the reserve: this x the reserve size x body size. */
+  staminaCostCoeff: number;
+
+  // --- Kill ownership ---
+  /**
+   * After a kill, the killer has first claim on the meat for this many ticks (0 = off, as
+   * before: a corpse is a free-for-all). Others still get a share, but only `killOwnershipLeak`
+   * as strong a claim as usual, so free-riders cannot cheaply out-eat the one who did the work.
+   */
+  killOwnershipTicks: number;
+  killOwnershipLeak: number;
+
   // --- Scent trails (only laid when brains are on) ---
   /**
    * Every organism leaves scent where it walks: plant eaters lay a "plant-eater" trail and
@@ -265,6 +294,7 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   initialDiet: 0,
   initialAttack: 0,
   initialArmor: 0,
+  initialStamina: 10,
   initialEnergyFraction: 0.6,
 
   sizeMin: 0.3,
@@ -283,6 +313,8 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   attackMax: 2,
   armorMin: 0,
   armorMax: 2,
+  staminaMin: 0,
+  staminaMax: 30,
   metaMutationStd: 0.05,
 
   turnStd: 0.3,
@@ -330,6 +362,12 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   brainCostPerNeuron: 0.0005,
   brainCostPerConnection: 0.0001,
   brainAppetiteSenses: 0,
+  sprintFatigue: 0,
+  staminaRegen: 0.1,
+  staminaRestBonus: 1,
+  staminaCostCoeff: 0.001,
+  killOwnershipTicks: 0,
+  killOwnershipLeak: 0.1,
   scentDeposit: 1,
   scentDecay: 0.05,
   scentCellSize: 4,
@@ -382,6 +420,7 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     ["diet", c.dietMin, c.dietMax, c.initialDiet],
     ["attack", c.attackMin, c.attackMax, c.initialAttack],
     ["armor", c.armorMin, c.armorMax, c.initialArmor],
+    ["stamina", c.staminaMin, c.staminaMax, c.initialStamina],
   ];
   for (const [name, min, max, start] of ranges) {
     if (min > max) problems.push(`${name}Min exceeds ${name}Max`);
@@ -421,6 +460,13 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     problems.push("brainVisionRange plus senseRangeMax must be under half the world");
   }
   if (c.brainVisionRange < 0) problems.push("brainVisionRange cannot be negative");
+  if (![0, 1].includes(c.sprintFatigue)) problems.push("sprintFatigue must be 0 or 1");
+  if (c.staminaMin < 0) problems.push("staminaMin cannot be negative");
+  if (c.staminaRegen < 0 || c.staminaRestBonus < 0 || c.staminaCostCoeff < 0) problems.push("stamina regen, rest bonus and cost cannot be negative");
+  if (!Number.isInteger(c.killOwnershipTicks) || c.killOwnershipTicks < 0 || c.killOwnershipTicks > 65000) {
+    problems.push("killOwnershipTicks must be a whole number of ticks from 0 to 65000");
+  }
+  if (c.killOwnershipLeak < 0 || c.killOwnershipLeak > 1) problems.push("killOwnershipLeak must be between 0 and 1");
   if (![0, 1].includes(c.brainAppetiteSenses)) problems.push("brainAppetiteSenses must be 0 or 1");
   if (c.scentDeposit < 0) problems.push("scentDeposit cannot be negative");
   if (!(c.scentDecay > 0 && c.scentDecay <= 1)) problems.push("scentDecay must be above 0 and at most 1");
