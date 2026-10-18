@@ -1,0 +1,10 @@
+{
+  "name": "Climate and continents",
+  "description": "Terrain and climate together: continents and seas, cold mountains, a warm equator and cold edges, a year of 2,000 ticks and a day of 200. Switch the map between Terrain, Temperature and Plant growth.",
+  "config": {
+    "terrainMode": 1,
+    "climateMode": 1,
+    "yearLength": 2000,
+    "dayLength": 200
+  }
+}

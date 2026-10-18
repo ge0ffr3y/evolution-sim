@@ -51,3 +51,4 @@ export type { LifeRecords, Lifestyle, SpeciesEvent, SpeciesEventKind, SpeciesRec
 export { SNAPSHOT_FORMAT, snapshotFromBytes, snapshotToBytes } from "./snapshot";
 export type { SimSnapshot, SnapshotArray } from "./snapshot";
 export { BIOME, BIOME_NAMES } from "./terrain";
+export { polarness, smoothWave } from "./climate";

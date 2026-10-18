@@ -247,6 +247,38 @@ export interface SimConfig {
   terrainMoveDesert: number;
   terrainMoveMountain: number;
 
+  // --- Climate (off by default) ---
+  /**
+   * 0 = the same sunshine and temperature everywhere, always (the original world). 1 = a
+   * climate: it is warmest at the equator (the middle of the world) and colder toward the top
+   * and bottom edges, mountains are colder still, plants grow best at a moderate temperature,
+   * and the parts below can be switched on by giving them a length (0 = off).
+   */
+  climateMode: number;
+  /** Temperature at the equator on a 0 (freezing) to 1 (hot) scale, and how much colder the edges and mountains are. */
+  baseTemperature: number;
+  latitudeCooling: number;
+  mountainCooling: number;
+  /** Plants grow at full speed at this temperature and not at all this far above or below it. */
+  plantTempOptimum: number;
+  plantTempTolerance: number;
+  /** Less sunlight toward the edges (0 = the same everywhere). */
+  latitudeLight: number;
+  /** Day and night: one cycle every dayLength ticks (0 = always day). At night plants grow dayNightDepth less. */
+  dayLength: number;
+  dayNightDepth: number;
+  /**
+   * Seasons: a year every yearLength ticks (0 = no seasons). Plants grow seasonGrowthSwing
+   * faster in summer and slower in winter, and temperature swings by seasonTempSwing
+   * (more toward the edges).
+   */
+  yearLength: number;
+  seasonGrowthSwing: number;
+  seasonTempSwing: number;
+  /** Slow climate drift: temperature rises and falls by climateDriftAmplitude over a climateDriftPeriod ticks (0 = none). */
+  climateDriftPeriod: number;
+  climateDriftAmplitude: number;
+
   // --- Sexual reproduction (off by default) ---
   /**
    * 0 = organisms split in two when they have enough energy (the original way). 1 = two
@@ -453,6 +485,20 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   terrainMoveForest: 1.4,
   terrainMoveDesert: 1.2,
   terrainMoveMountain: 3,
+  climateMode: 0,
+  baseTemperature: 0.75,
+  latitudeCooling: 0.45,
+  mountainCooling: 0.2,
+  plantTempOptimum: 0.65,
+  plantTempTolerance: 0.6,
+  latitudeLight: 0.4,
+  dayLength: 0,
+  dayNightDepth: 0.5,
+  yearLength: 0,
+  seasonGrowthSwing: 0.4,
+  seasonTempSwing: 0.15,
+  climateDriftPeriod: 0,
+  climateDriftAmplitude: 0.15,
   sexualReproduction: 0,
   mateRange: 6,
   mateDistance: 0.25,
@@ -583,6 +629,18 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     for (const [name, value] of [["terrainGrowthForest", c.terrainGrowthForest], ["terrainGrowthDesert", c.terrainGrowthDesert], ["terrainGrowthMountain", c.terrainGrowthMountain], ["terrainMoveForest", c.terrainMoveForest], ["terrainMoveDesert", c.terrainMoveDesert], ["terrainMoveMountain", c.terrainMoveMountain]] as const) {
       if (value < 0) problems.push(`${name} cannot be negative`);
     }
+  }
+  if (![0, 1].includes(c.climateMode)) problems.push("climateMode must be 0 (no climate) or 1 (climate)");
+  if (c.climateMode === 1) {
+    for (const [name, value] of [["dayLength", c.dayLength], ["yearLength", c.yearLength], ["climateDriftPeriod", c.climateDriftPeriod]] as const) {
+      if (!Number.isInteger(value) || value < 0) problems.push(`${name} must be a whole number of ticks (0 turns it off)`);
+    }
+    if (!(c.plantTempTolerance > 0)) problems.push("plantTempTolerance must be positive");
+    for (const [name, value] of [["dayNightDepth", c.dayNightDepth], ["latitudeLight", c.latitudeLight]] as const) {
+      if (value < 0 || value > 1) problems.push(`${name} must be between 0 and 1`);
+    }
+    if (c.seasonGrowthSwing < 0 || c.seasonGrowthSwing > 1) problems.push("seasonGrowthSwing must be between 0 and 1");
+    if (c.seasonTempSwing < 0 || c.climateDriftAmplitude < 0 || c.latitudeCooling < 0 || c.mountainCooling < 0) problems.push("temperature swings and cooling cannot be negative");
   }
   if (![0, 1].includes(c.sexualReproduction)) problems.push("sexualReproduction must be 0 or 1");
   if (!(c.mateRange > 0)) problems.push("mateRange must be positive");

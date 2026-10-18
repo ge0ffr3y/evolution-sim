@@ -597,6 +597,18 @@ function updateStats(frame: FrameMessage): void {
   setText("stat-pop", format.int.format(s.population));
   setText("stat-classes", `${s.classes.herbivores} / ${s.classes.omnivores} / ${s.classes.carnivores}`);
   setText("stat-species", `${s.species.alive} / ${s.species.ever}`);
+  const w = frame.world;
+  el("stat-climate-box").hidden = w.climateMode === 0 || (w.yearLength === 0 && w.dayLength === 0);
+  if (w.climateMode === 1) {
+    const parts: string[] = [];
+    if (w.yearLength > 0) {
+      const f = (s.tick % w.yearLength) / w.yearLength;
+      const season = f < 0.125 || f >= 0.875 ? "spring" : f < 0.375 ? "summer" : f < 0.625 ? "autumn" : "winter";
+      parts.push(`year ${Math.floor(s.tick / w.yearLength) + 1}, ${season}`);
+    }
+    if (w.dayLength > 0) parts.push((s.tick % w.dayLength) / w.dayLength < 0.5 ? "day" : "night");
+    setText("stat-climate", parts.join(", "));
+  }
   setText("stat-kills", format.int.format(s.totalKills));
   setText("stat-blocked", format.int.format(s.blockedBirths));
   const b = frame.behavior;

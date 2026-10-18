@@ -11,6 +11,7 @@ import {
   type TraitRange,
   type Traits,
 } from "./genome";
+import { polarness, smoothWave } from "./climate";
 import { BIOME, generateBiomes, growthMultipliers, moveMultipliers } from "./terrain";
 import { SNAPSHOT_FORMAT, type SimSnapshot, type SnapshotArray } from "./snapshot";
 import { SpeciesTracker, type SpeciesEvent, type SpeciesRecord } from "./species";
@@ -324,6 +325,18 @@ export class Simulation {
   readonly terrainMove: Float64Array;
   private readonly terrainOn: boolean;
   /**
+   * Climate (only when climateMode is 1). The fixed parts are worked out once: how cold each cell is
+   * (latitude, mountains), how much it swings with the seasons, and how much sunlight it gets.
+   * The current temperature and plant growth factor of every cell are recomputed at the start of
+   * every tick (they depend on the time of day, the season and the climate drift).
+   */
+  readonly temperature: Float64Array;
+  readonly growthFactor: Float64Array;
+  private readonly climateOn: boolean;
+  private readonly tempBase: Float64Array;
+  private readonly tempSwing: Float64Array;
+  private readonly lightBase: Float64Array;
+  /**
    * Scent trails (laid only when brains are on): how much plant-eater and meat-eater scent
    * is in each square of a finer grid. It fades every tick, so it marks recent passage.
    */
@@ -518,6 +531,14 @@ export class Simulation {
     this.passable = new Uint8Array(this.terrainOn ? cells : 0);
     this.terrainMove = new Float64Array(this.terrainOn ? cells : 0);
     if (this.terrainOn) this.applyTerrain(generateBiomes(c, seed, this.gridWidth, this.gridHeight));
+    this.climateOn = c.climateMode === 1;
+    const climateCells = this.climateOn ? cells : 0;
+    this.temperature = new Float64Array(climateCells);
+    this.growthFactor = new Float64Array(climateCells).fill(1);
+    this.tempBase = new Float64Array(climateCells);
+    this.tempSwing = new Float64Array(climateCells);
+    this.lightBase = new Float64Array(climateCells);
+    if (this.climateOn) this.setUpClimate();
     this.food = new Float64Array(cells);
     for (let cell = 0; cell < cells; cell++) this.food[cell] = this.foodCapacity[cell]! * c.initialFoodFraction;
     this.nutrient = new Float64Array(cells).fill(c.initialNutrientPerCell);
@@ -670,6 +691,43 @@ export class Simulation {
       this.energy[index] = this.threshold[index]! * c.initialEnergyFraction;
     }
     this.tracker?.start(this.count, this.genes, this.species);
+  }
+
+  /** Work out the fixed parts of the climate: how cold, how seasonal and how sunny each cell is. */
+  private setUpClimate(): void {
+    const c = this.config;
+    const gw = this.gridWidth;
+    const gh = this.gridHeight;
+    for (let cy = 0; cy < gh; cy++) {
+      const polar = polarness(cy, gh);
+      for (let cx = 0; cx < gw; cx++) {
+        const cell = cy * gw + cx;
+        const mountain = this.terrainOn && this.biome[cell] === BIOME.mountain ? c.mountainCooling : 0;
+        this.tempBase[cell] = c.baseTemperature - c.latitudeCooling * polar - mountain;
+        this.tempSwing[cell] = c.seasonTempSwing * (0.5 + 0.5 * polar);
+        this.lightBase[cell] = 1 - c.latitudeLight * polar;
+      }
+    }
+    this.updateClimate();
+  }
+
+  /** Recompute every cell's temperature and plant growth factor for the current tick. */
+  private updateClimate(): void {
+    const c = this.config;
+    const t = this.tick;
+    const season = c.yearLength > 0 ? smoothWave(t / c.yearLength + 0.25) : 0;
+    const daylight = c.dayLength > 0 ? 1 - c.dayNightDepth * (1 - (smoothWave(t / c.dayLength + 0.25) + 1) / 2) : 1;
+    const drift = c.climateDriftPeriod > 0 ? c.climateDriftAmplitude * smoothWave(t / c.climateDriftPeriod + 0.25) : 0;
+    const seasonGrowth = 1 + c.seasonGrowthSwing * season;
+    const optimum = c.plantTempOptimum;
+    const tolerance = c.plantTempTolerance;
+    for (let cell = 0; cell < this.temperature.length; cell++) {
+      const temp = this.tempBase[cell]! + this.tempSwing[cell]! * season + drift;
+      this.temperature[cell] = temp;
+      const off = (temp - optimum) / tolerance;
+      const comfort = 1 - off * off;
+      this.growthFactor[cell] = comfort > 0 ? this.lightBase[cell]! * daylight * seasonGrowth * comfort : 0;
+    }
   }
 
   /** Fill in the terrain arrays from a biome map, and scale plant growth by biome. */
@@ -1230,6 +1288,7 @@ export class Simulation {
     const ledger = this.ledger;
     const brainMode = c.brainMode;
     let attackers = 0;
+    if (this.climateOn) this.updateClimate();
 
     // Pass 0 (brains only): everyone who is due to think looks, smells and decides, before
     // anyone moves, so all brains see the same world whatever order they are processed in.
@@ -1488,6 +1547,7 @@ export class Simulation {
     const meatDecay = c.meatDecayRate;
     const mineralize = c.detritusMineralizeRate;
     const halfSat = c.nutrientHalfSaturation;
+    const climateOn = this.climateOn;
     for (let cell = 0; cell < food.length; cell++) {
       // Eaten plants.
       const eatenPlants = plantClaim[cell]!;
@@ -1525,7 +1585,8 @@ export class Simulation {
 
       // Plants grow, limited by sunlight (the rate), nutrient, and room.
       const room = this.foodCapacity[cell]! - food[cell]!;
-      const potential = (this.foodRegrow[cell]! * soil) / (soil + halfSat);
+      let potential = (this.foodRegrow[cell]! * soil) / (soil + halfSat);
+      if (climateOn) potential *= this.growthFactor[cell]!;
       let growth = potential < soil ? potential : soil;
       if (growth > room) growth = room > 0 ? room : 0;
       food[cell] = food[cell]! + growth;
@@ -1837,6 +1898,7 @@ export class Simulation {
     Object.assign(this.ledger, s.ledger);
     this.rng.setState(newFuture ? new Rng((this.seed + this.tick) >>> 0).getState() : s.rng);
     if (this.tracker && s.species) this.tracker.importState(s.species);
+    if (this.climateOn) this.updateClimate();
   }
 
   /** Every real species so far (alive or extinct), and the births and extinctions among them. */

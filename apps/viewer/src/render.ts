@@ -4,7 +4,7 @@ import type { FrameMessage } from "./protocol";
 export type ColorBy = "diet" | "speed" | "size" | "hue" | "energy" | "sense";
 
 /** What the map background shows. */
-export type Overlay = "plants" | "nutrients" | "corpses" | "detritus" | "trails" | "terrain";
+export type Overlay = "plants" | "nutrients" | "corpses" | "detritus" | "trails" | "terrain" | "temperature" | "light";
 
 export const OVERLAYS: readonly { id: Overlay; label: string }[] = [
   { id: "plants", label: "Plants" },
@@ -13,6 +13,8 @@ export const OVERLAYS: readonly { id: Overlay; label: string }[] = [
   { id: "detritus", label: "Detritus" },
   { id: "trails", label: "Scent trails (brains only)" },
   { id: "terrain", label: "Terrain (worlds with terrain)" },
+  { id: "temperature", label: "Temperature (worlds with a climate)" },
+  { id: "light", label: "Plant growth (worlds with a climate)" },
 ];
 
 export const COLOR_MODES: readonly { id: ColorBy; label: string; legendLow: string; legendHigh: string }[] = [
@@ -228,6 +230,22 @@ export class WorldRenderer {
       let g = 18 + fertility * 22;
       let b = 22 + fertility * 6;
       const biome = this.terrain ? this.terrain[cell]! : -1;
+      if (frame.climate && (overlay === "temperature" || overlay === "light")) {
+        if (overlay === "temperature") {
+          // Cold = blue, mild = green-yellow, hot = red (on a scale from 0 to 1).
+          const t = Math.max(0, Math.min(1, frame.climate.temperature[cell]! / 1.0));
+          data[o] = Math.round(30 + 225 * Math.max(0, (t - 0.4) / 0.6));
+          data[o + 1] = Math.round(60 + 150 * (1 - Math.abs(t - 0.5) * 2));
+          data[o + 2] = Math.round(70 + 180 * Math.max(0, (0.6 - t) / 0.6));
+        } else {
+          const g = Math.max(0, Math.min(1, frame.climate.growth[cell]!));
+          data[o] = Math.round(20 + 200 * g);
+          data[o + 1] = Math.round(24 + 190 * g);
+          data[o + 2] = Math.round(30 + 40 * g);
+        }
+        data[o + 3] = 255;
+        continue;
+      }
       if (overlay === "terrain" && biome >= 0) {
         const [br, bg, bb] = BIOME_COLORS[biome]!;
         // A little of the plant cover shows through so you can still see where food is.

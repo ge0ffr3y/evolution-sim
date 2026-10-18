@@ -1,0 +1,8 @@
+{
+  "name": "Seasons",
+  "description": "A climate: warm at the equator (the middle of the map) and cold toward the top and bottom edges, with a year of 2,000 ticks. Plants grow faster in summer and slower in winter, more so toward the cold edges, and the population swells and shrinks with the seasons. Switch the map to Temperature or Plant growth.",
+  "config": {
+    "climateMode": 1,
+    "yearLength": 2000
+  }
+}

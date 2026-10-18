@@ -95,6 +95,10 @@ export interface WorldInfo {
   histogramEvery: number;
   /** 0 = no brains, 1 = fixed layout, 2 = evolvable layout. */
   brainMode: number;
+  /** Whether the world has a climate, and the length of its year and its day in ticks (0 = none). */
+  climateMode: number;
+  yearLength: number;
+  dayLength: number;
 }
 
 /** Everything the page needs to draw one picture of the world. */
@@ -127,6 +131,8 @@ export interface FrameMessage {
   hunterScent: Float32Array;
   /** Most food each cell can hold. Sent only in the first frame after a restart. */
   capacity: Float64Array | null;
+  /** The current temperature and plant growth factor of every cell (null in worlds without a climate). */
+  climate: { temperature: Float32Array; growth: Float32Array } | null;
   /** The biome of each cell (0 water, 1 plains, 2 forest, 3 desert, 4 mountains); null except in the first frame after a restart, and in worlds without terrain. */
   terrain: Uint8Array | null;
   /** Chart samples recorded since the previous frame. */

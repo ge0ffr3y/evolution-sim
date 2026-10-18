@@ -155,6 +155,9 @@ function worldInfo(s: Simulation): WorldInfo {
     histogramBins: HISTOGRAM_BINS,
     histogramEvery: HISTOGRAM_EVERY,
     brainMode: s.config.brainMode,
+    climateMode: s.config.climateMode,
+    yearLength: s.config.yearLength,
+    dayLength: s.config.dayLength,
   };
 }
 
@@ -200,6 +203,7 @@ function postFrame(s: Simulation): void {
   const hunterScent = Float32Array.from(s.hunterScent);
   const capacity = sendCapacity ? s.foodCapacity.slice() : null;
   const terrain = sendCapacity && s.biome.length > 0 ? s.biome.slice() : null;
+  const climate = s.temperature.length > 0 ? { temperature: Float32Array.from(s.temperature), growth: Float32Array.from(s.growthFactor) } : null;
 
   const message: FrameMessage = {
     type: "frame",
@@ -226,6 +230,7 @@ function postFrame(s: Simulation): void {
     hunterScent,
     capacity,
     terrain,
+    climate,
     points,
     histograms,
     inspected: inspect(s),
@@ -246,6 +251,7 @@ function postFrame(s: Simulation): void {
   ];
   if (capacity) transfer.push(capacity.buffer);
   if (terrain) transfer.push(terrain.buffer);
+  if (climate) transfer.push(climate.temperature.buffer, climate.growth.buffer);
   // The options form of postMessage works in both a worker and the DOM typings.
   self.postMessage(message, { transfer });
 }
