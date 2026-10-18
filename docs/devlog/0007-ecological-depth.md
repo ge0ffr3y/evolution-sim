@@ -35,7 +35,7 @@ Each feature on against off, 8 worlds each, 200,000 ticks, averaged over the sec
 - **Kin recognition suppresses predators.** With it, meat eaters rarely get started: at a kin distance of 0.2 the kill rate fell from about 3,500 to 0.3 per 1,000 ticks (no predators in 8 of 8 worlds), and at 0.05 or 0.1 most worlds (5 to 7 of 8) had almost no kills. The reason is that the first meat eaters are still close relatives of their prey. So it fixes the sexual-world collapse but stops the food web forming. The presets use small distances (0.05 and 0.1), and the herd benefit has not been tested against real predators.
 - **Aging barely shows in the standard world.** Predators kill animals at an average age of about 140 ticks, long before a lifespan of thousands of ticks matters, so the lifespan gene just drifts down (to about 5,260 from 8,000). Aging shows clearly only where animals can live a long time.
 - **Early disease is brutal.** In the crowded, uniform early phase nearly everyone is sick at once (about 1,000 of 1,100 in one world at tick 9,000), then it settles to about a fifth. The first disease calibration, with a wide pathogen target (0.15), did nothing for diversity: every plant eater looked alike to it. A narrow target (0.03 to 0.06) was needed.
-- **I did not check whether evolved brains use the new senses** (relatives, comfort, water). They are available and tested, but whether evolution wires them up is untested.
+- **Whether evolved brains use the new senses was not checked at the time.** Checked afterwards in [devlog 9](0009-open-questions.md): the relatives senses are used, water ahead weakly, comfort not at all.
 - **Symbiosis (the stretch item) was not built.**
 
 ## Next
