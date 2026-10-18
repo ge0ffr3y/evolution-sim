@@ -47,9 +47,24 @@
 - **Small populations make it worse.** With 30 to 90 meat eaters, drift swamps selection, and a chase needs several connections to appear together before it helps.
 - **Roadmap boxes not met:** "predators chasing", "brains outperform random-walk controls" (population is comparable or higher, but food found per tick was not measured), and two Sensors/Actions steps (there is no "health" sense, and eating and reproducing are not brain outputs).
 
+## Follow-up: a bigger world
+
+The idea: in a larger world, meat eaters that crash in one region can be rescued from another, so their lineage (and any chase wiring it evolved) survives. Plant growth at a quarter of normal, with brains, appetite-shaped senses, stamina and kill ownership, 1,000,000 ticks:
+
+| World | Worlds | Organisms | Meat eaters at end | Meat-eater crashes | Hunters turn toward prey |
+|---|---|---|---|---|---|
+| 256 by 256 (earlier test) | 18 | about 400 | 0 to 98 | 1 to 4 per world | 0.50 |
+| **512 by 512** (4 times the area) | 12 | about 750 | 150 to 315 | **none** | 0.49 |
+| **1024 by 1024** (16 times) | 3 | about 2,900 | about 1,000 | **none** | 0.49 |
+
+- **The lead was half right.** A bigger world fixed the boom and bust: in all 15 big worlds meat eaters made up about a third of the population and never went extinct.
+- **But chasing still did not evolve**, even with about 1,000 meat eaters in a world (7,000 to 11,000 turning samples per world, so 0.49 really is "random"). So extinction resets and small populations were not the main reason.
+- **Hand-wired chasing barely pays even here.** In the 512 world, giving every meat eater a chase raised each hunter's kills by about 10% (67 against 61 per 4,000 ticks) but cut the number of meat eaters by 14% and total kills by 5%. The extra running costs more energy than the extra kills earn. (Ambushers here make only about one kill per 65 ticks, so the 20-tick pause after a kill is no longer the limit as it is in a crowded world.)
+- **A guess I have not tested:** evolved prey flee well (0.64 turn away from threats), so a chaser spends energy running after prey that run back. A test with prey that cannot flee would show whether that is the blocker.
+
 ## Next
 
-The chase is still unsolved. The most promising lever is **space**: a larger world at the same sparse density, so meat-eater crashes in one region get rescued from another and the lineage (and any chase wiring it evolved) survives. Also queued, from the design discussion:
+The chase is still unsolved, and a bigger world was not the answer. The next idea to test is that evolved fleeing cancels out chasing (try prey that cannot flee), and the other is rewarding speed more directly. Also queued, from the design discussion:
 
 1. **Per-animal lifetime records** (kills, corpses eaten, plants eaten, time sprinting or still), so animals can be described by what they actually do.
 2. **Lifestyle clustering:** let the data define archetypes (grazer, scavenger, ambusher, pursuit hunter) instead of assigning them. Observation only: it never feeds back into the sim.
