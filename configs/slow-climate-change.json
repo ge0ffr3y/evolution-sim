@@ -1,0 +1,10 @@
+{
+  "name": "Slow climate change",
+  "description": "Seasons, plus a slow swing of the whole world's temperature: it warms and cools by 0.2 over a cycle of 200,000 ticks. Watch plant growth, and the species that come and go.",
+  "config": {
+    "climateMode": 1,
+    "yearLength": 2000,
+    "climateDriftPeriod": 200000,
+    "climateDriftAmplitude": 0.2
+  }
+}

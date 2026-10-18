@@ -1,0 +1,12 @@
+{
+  "name": "Random catastrophes",
+  "description": "Every so often (about once in 40,000 ticks) an ice age, a drought or a meteor strike hits, chosen at random. The world has a climate and a preferred-temperature gene. The timeline lists each one.",
+  "config": {
+    "climateMode": 1,
+    "yearLength": 2000,
+    "thermalCostCoeff": 1.5,
+    "catastropheKind": 4,
+    "catastropheEvery": 40000,
+    "catastropheLength": 8000
+  }
+}

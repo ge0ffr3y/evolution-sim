@@ -1,0 +1,7 @@
+{
+  "name": "Continents and seas",
+  "description": "The land gets terrain: a quarter of it is water (nothing can enter water and plants do not grow there), plus plains, forest, desert and mountains. Forests grow plants fastest, deserts barely, and mountains are slow and costly to cross. Switch the map to Terrain to see it.",
+  "config": {
+    "terrainMode": 1
+  }
+}

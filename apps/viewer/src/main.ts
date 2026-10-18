@@ -1,5 +1,5 @@
 import "./style.css";
-import { GENE, GENES, parsePreset, type GeneName, type Preset, type SimEvent, type SpeciesEvent, type SpeciesRecord } from "@evo/sim-core";
+import { GENE, GENES, parsePreset, type GeneName, type Preset, type SimEvent, type SpeciesEvent, type SpeciesRecord, type WorldEvent } from "@evo/sim-core";
 import { drawBrain } from "./brainview";
 import { Charts } from "./charts";
 import { FlowTracker } from "./flows";
@@ -64,6 +64,7 @@ const renderer = new WorldRenderer(canvas);
 const tree = new TreeView(el<HTMLCanvasElement>("tree-canvas"));
 let speciesRecords: SpeciesRecord[] = [];
 let speciesEventList: SpeciesEvent[] = [];
+let worldEventList: WorldEvent[] = [];
 let firstsList: readonly SimEvent[] = [];
 let timelineKey = "";
 const charts = new Charts(el("chart-pop"), el("chart-traits"), el("chart-web"), el("chart-brain"));
@@ -257,6 +258,7 @@ const GENE_LABELS: Record<GeneName, string> = {
   hue: "Color",
   mutationRate: "Mutation rate",
   stamina: "Stamina (sprint reserve)",
+  thermal: "Preferred temperature",
 };
 
 function traitText(gene: GeneName, value: number): string {
@@ -404,7 +406,7 @@ function dietWord(diet: number): string {
   return diet < 0.25 ? "plant eaters" : diet > 0.75 ? "meat eaters" : "mixed feeders";
 }
 
-const COMPARED_GENES: readonly GeneName[] = ["size", "speed", "senseRange", "metabolism", "diet", "attack", "armor", "stamina"];
+const COMPARED_GENES: readonly GeneName[] = ["size", "speed", "senseRange", "metabolism", "diet", "attack", "armor", "stamina", "thermal"];
 
 function renderSpeciesDetail(id: number | null): void {
   const box = el<HTMLDivElement>("species-detail");
@@ -441,7 +443,7 @@ function renderSpeciesDetail(id: number | null): void {
     const ancestor = record.ancestorTraits?.[index];
     const founder = record.founderTraits[index]!;
     const now = record.traits[index]!;
-    if (gene === "stamina" && Math.abs(founder - now) < 1e-9 && (ancestor === undefined || Math.abs(ancestor - founder) < 1e-9)) continue;
+    if ((gene === "stamina" || gene === "thermal") && Math.abs(founder - now) < 1e-9 && (ancestor === undefined || Math.abs(ancestor - founder) < 1e-9)) continue;
     const row = body.insertRow();
     row.insertCell().textContent = GENE_LABELS[gene];
     row.insertCell().textContent = ancestor === undefined ? "" : traitText(gene, ancestor);
@@ -462,6 +464,7 @@ tree.onSelect = (id) => renderSpeciesDetail(id);
 function resetTree(): void {
   speciesRecords = [];
   speciesEventList = [];
+  worldEventList = [];
   firstsList = [];
   timelineKey = "";
   tree.selected = null;
@@ -471,7 +474,7 @@ function resetTree(): void {
 }
 
 function renderTimeline(): void {
-  const key = `${firstsList.length}/${speciesEventList.length}`;
+  const key = `${firstsList.length}/${speciesEventList.length}/${worldEventList.length}`;
   if (key === timelineKey) return;
   timelineKey = key;
   interface Entry {
@@ -489,6 +492,7 @@ function renderTimeline(): void {
       entries.push({ tick: e.tick, text: `Population crash: from ${format.int.format(e.from ?? 0)} down to ${format.int.format(e.to ?? 0)}` });
     }
   }
+  for (const e of worldEventList) entries.push({ tick: e.tick, text: e.text });
   entries.sort((a, b) => b.tick - a.tick);
   el("timeline-list").replaceChildren(
     ...entries.slice(0, 300).map((entry) => {
@@ -551,6 +555,7 @@ worker.onmessage = (event: MessageEvent<FromWorker>) => {
     heatmap.setWorld(frame.world);
     el("brain-chart-block").hidden = frame.world.brainMode === 0;
   }
+  renderer.setLand(frame);
   charts.add(frame.points);
   flows.add(frame.points);
   heatmap.add(frame.histograms);
@@ -564,6 +569,7 @@ worker.onmessage = (event: MessageEvent<FromWorker>) => {
   if (frame.species) {
     speciesRecords = frame.species;
     speciesEventList = frame.speciesEvents ?? [];
+    worldEventList = frame.worldEvents ?? [];
     tree.setData(frame.species, frame.stats.tick);
     renderSpeciesDetail(tree.selected);
     timelineKey = "";
@@ -596,6 +602,18 @@ function updateStats(frame: FrameMessage): void {
   setText("stat-pop", format.int.format(s.population));
   setText("stat-classes", `${s.classes.herbivores} / ${s.classes.omnivores} / ${s.classes.carnivores}`);
   setText("stat-species", `${s.species.alive} / ${s.species.ever}`);
+  const w = frame.world;
+  el("stat-climate-box").hidden = w.climateMode === 0 || (w.yearLength === 0 && w.dayLength === 0);
+  if (w.climateMode === 1) {
+    const parts: string[] = [];
+    if (w.yearLength > 0) {
+      const f = (s.tick % w.yearLength) / w.yearLength;
+      const season = f < 0.125 || f >= 0.875 ? "spring" : f < 0.375 ? "summer" : f < 0.625 ? "autumn" : "winter";
+      parts.push(`year ${Math.floor(s.tick / w.yearLength) + 1}, ${season}`);
+    }
+    if (w.dayLength > 0) parts.push((s.tick % w.dayLength) / w.dayLength < 0.5 ? "day" : "night");
+    setText("stat-climate", parts.join(", "));
+  }
   setText("stat-kills", format.int.format(s.totalKills));
   setText("stat-blocked", format.int.format(s.blockedBirths));
   const b = frame.behavior;

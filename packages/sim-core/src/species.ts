@@ -101,8 +101,10 @@ export class SpeciesTracker {
   private readonly byId = new Map<number, SpeciesRecord>();
   private nextId = 1;
   private nextCandidate = CANDIDATE_BASE;
-  /** Recent population (one value per update), for spotting crashes. */
+  /** Recent population (one value per update, averaged over a year if there are seasons), for spotting crashes. */
   private readonly recentPopulation: number[] = [];
+  /** The raw populations being averaged. */
+  private readonly smoothing: number[] = [];
   private inCrash = false;
   private readonly mask: number[];
   private readonly distanceSq: number;
@@ -111,6 +113,7 @@ export class SpeciesTracker {
     private readonly config: SimConfig,
     private readonly ranges: Record<GeneName, TraitRange>,
     staminaInUse: boolean,
+    thermalInUse: boolean,
   ) {
     // Genes that count toward "how different": everything except color and mutation rate
     // (and stamina, unless it is doing something).
@@ -118,6 +121,7 @@ export class SpeciesTracker {
     for (const name of GENES) {
       if (name === "hue" || name === "mutationRate") continue;
       if (name === "stamina" && !staminaInUse) continue;
+      if (name === "thermal" && !thermalInUse) continue;
       this.mask.push(GENE[name]);
     }
     this.distanceSq = config.speciesDistance * config.speciesDistance;
@@ -140,6 +144,7 @@ export class SpeciesTracker {
       nextId: this.nextId,
       nextCandidate: this.nextCandidate,
       recentPopulation: this.recentPopulation,
+      smoothing: this.smoothing,
       inCrash: this.inCrash,
     };
   }
@@ -153,6 +158,7 @@ export class SpeciesTracker {
       nextId: number;
       nextCandidate: number;
       recentPopulation: number[];
+      smoothing?: number[];
       inCrash: boolean;
     };
     this.records.length = 0;
@@ -173,6 +179,8 @@ export class SpeciesTracker {
     this.nextCandidate = saved.nextCandidate;
     this.recentPopulation.length = 0;
     this.recentPopulation.push(...saved.recentPopulation);
+    this.smoothing.length = 0;
+    this.smoothing.push(...(saved.smoothing ?? []));
     this.inCrash = saved.inCrash;
   }
 
@@ -260,8 +268,18 @@ export class SpeciesTracker {
   }
 
   /** Log a population crash when numbers fall far below the recent high, and again only after they recover. */
-  private watchPopulation(tick: number, n: number): void {
+  private watchPopulation(tick: number, raw: number): void {
+    let n = raw;
     const keep = Math.max(1, Math.floor(this.config.speciesCrashWindow / this.config.speciesEvery));
+    // With seasons the population swells and shrinks every year, which is not a crash: judge the
+    // population averaged over a whole year instead.
+    const yearly = this.config.climateMode === 1 ? this.config.yearLength : 0;
+    const smooth = Math.max(1, Math.ceil(yearly / this.config.speciesEvery));
+    this.smoothing.push(n);
+    if (this.smoothing.length > smooth) this.smoothing.shift();
+    let total = 0;
+    for (const value of this.smoothing) total += value;
+    n = total / this.smoothing.length;
     this.recentPopulation.push(n);
     if (this.recentPopulation.length > keep) this.recentPopulation.shift();
     let high = 0;

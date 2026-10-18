@@ -11,6 +11,8 @@ import {
   type TraitRange,
   type Traits,
 } from "./genome";
+import { polarness, smoothWave } from "./climate";
+import { BIOME, generateBiomes, growthMultipliers, moveMultipliers } from "./terrain";
 import { SNAPSHOT_FORMAT, type SimSnapshot, type SnapshotArray } from "./snapshot";
 import { SpeciesTracker, type SpeciesEvent, type SpeciesRecord } from "./species";
 import {
@@ -111,6 +113,13 @@ export interface DietClasses {
   herbivores: number;
   omnivores: number;
   carnivores: number;
+}
+
+/** Things that happen to the whole world: catastrophes and their ends. */
+export interface WorldEvent {
+  tick: number;
+  kind: "iceAge" | "drought" | "meteor" | "recovery";
+  text: string;
 }
 
 /** Notable firsts in the history of a run. */
@@ -284,6 +293,12 @@ export class Simulation {
   blockedBirths = 0;
   totalAttacks = 0;
   readonly events: SimEvent[] = [];
+  /** Catastrophes and their ends (a separate list, so it never disturbs the notable firsts). */
+  readonly worldEvents: WorldEvent[] = [];
+  /** The catastrophe going on now (0 none, 1 ice age, 2 drought) and when it began and ends. */
+  private catKind = 0;
+  private catStart = 0;
+  private catEnd = 0;
   readonly ledger: EnergyLedger = {
     sunlightIn: 0,
     plantEaten: 0,
@@ -314,6 +329,26 @@ export class Simulation {
   readonly corpseEnergy: Float64Array;
   /** Waste and rotted corpses that will turn back into nutrient. */
   readonly detritus: Float64Array;
+  /**
+   * Terrain (only when terrainMode is 1): each cell's biome (see terrain.ts), whether it can be
+   * entered, and what it costs to move there relative to plains.
+   */
+  readonly biome: Uint8Array;
+  readonly passable: Uint8Array;
+  readonly terrainMove: Float64Array;
+  private readonly terrainOn: boolean;
+  /**
+   * Climate (only when climateMode is 1). The fixed parts are worked out once: how cold each cell is
+   * (latitude, mountains), how much it swings with the seasons, and how much sunlight it gets.
+   * The current temperature and plant growth factor of every cell are recomputed at the start of
+   * every tick (they depend on the time of day, the season and the climate drift).
+   */
+  readonly temperature: Float64Array;
+  readonly growthFactor: Float64Array;
+  private readonly climateOn: boolean;
+  private readonly tempBase: Float64Array;
+  private readonly tempSwing: Float64Array;
+  private readonly lightBase: Float64Array;
   /**
    * Scent trails (laid only when brains are on): how much plant-eater and meat-eater scent
    * is in each square of a finer grid. It fades every tick, so it marks recent passage.
@@ -430,6 +465,12 @@ export class Simulation {
   readonly staminaMax: Float32Array;
   readonly staminaCost: Float32Array;
   private readonly staminaOn: boolean;
+  /** Preferred temperature, and the cost scale, of each organism (only when the thermal gene is in use). */
+  readonly thermalPref: Float32Array;
+  private readonly thermalScale: Float32Array;
+  private readonly thermalOn: boolean;
+  /** Which genes are doing anything in this world (the rest are copied as they are, never mutated). */
+  private readonly activeGene: boolean[];
   /** Who has first claim on the meat in each cell, and until which tick. Used only with killOwnershipTicks. */
   readonly corpseOwner: Uint32Array;
   readonly corpseOwnerUntil: Uint32Array;
@@ -504,9 +545,23 @@ export class Simulation {
     this.foodCapacity = new Float64Array(cells).fill(c.foodCap);
     this.foodRegrow = new Float64Array(cells).fill(c.foodRegrowPerTick);
     if (c.fertilityVariation > 0) this.makeFertilityMap();
+    this.terrainOn = c.terrainMode === 1;
+    this.biome = new Uint8Array(this.terrainOn ? cells : 0);
+    this.passable = new Uint8Array(this.terrainOn ? cells : 0);
+    this.terrainMove = new Float64Array(this.terrainOn ? cells : 0);
+    if (this.terrainOn) this.applyTerrain(generateBiomes(c, seed, this.gridWidth, this.gridHeight));
+    this.climateOn = c.climateMode === 1;
+    const climateCells = this.climateOn ? cells : 0;
+    this.temperature = new Float64Array(climateCells);
+    this.growthFactor = new Float64Array(climateCells).fill(1);
+    this.tempBase = new Float64Array(climateCells);
+    this.tempSwing = new Float64Array(climateCells);
+    this.lightBase = new Float64Array(climateCells);
+    if (this.climateOn) this.setUpClimate();
     this.food = new Float64Array(cells);
     for (let cell = 0; cell < cells; cell++) this.food[cell] = this.foodCapacity[cell]! * c.initialFoodFraction;
     this.nutrient = new Float64Array(cells).fill(c.initialNutrientPerCell);
+    if (this.terrainOn) for (let cell = 0; cell < cells; cell++) if (this.biome[cell] === BIOME.water) this.nutrient[cell] = 0;
     this.corpseMatter = new Float64Array(cells);
     this.corpseEnergy = new Float64Array(cells);
     this.detritus = new Float64Array(cells);
@@ -584,6 +639,10 @@ export class Simulation {
     this.outAttack = new Float32Array(brainOrganisms);
     this.moveScale = new Float32Array(brainOrganisms);
     this.staminaOn = c.brainMode > 0 && c.sprintFatigue === 1;
+    this.thermalOn = c.climateMode === 1 && c.thermalCostCoeff > 0;
+    this.thermalPref = new Float32Array(this.thermalOn ? n : 0);
+    this.thermalScale = new Float32Array(this.thermalOn ? n : 0);
+    this.activeGene = GENES.map((_, k) => k < CORE_GENE_COUNT || (k === GENE.stamina && this.staminaOn) || (k === GENE.thermal && this.thermalOn));
     this.sexOn = c.sexualReproduction === 1;
     this.parent2Id = new Uint32Array(this.sexOn ? n : 0);
     this.ready = new Uint8Array(this.sexOn ? n : 0);
@@ -593,10 +652,11 @@ export class Simulation {
     for (const name of GENES) {
       if (name === "hue" || name === "mutationRate") continue;
       if (name === "stamina" && !this.staminaOn) continue;
+      if (name === "thermal" && !this.thermalOn) continue;
       this.mateMask.push(GENE[name]);
     }
     this.species = new Uint32Array(c.speciesEvery > 0 ? n : 0);
-    this.tracker = c.speciesEvery > 0 ? new SpeciesTracker(c, this.ranges, this.staminaOn) : null;
+    this.tracker = c.speciesEvery > 0 ? new SpeciesTracker(c, this.ranges, this.staminaOn, this.thermalOn) : null;
     const staminaOrganisms = this.staminaOn ? n : 0;
     this.stamina = new Float32Array(staminaOrganisms);
     this.staminaMax = new Float32Array(staminaOrganisms);
@@ -617,6 +677,7 @@ export class Simulation {
       this.float32Fields.push(this.brainCost, this.outTurn, this.outSpeed, this.outAttack, this.moveScale);
     }
     if (this.staminaOn) this.float32Fields.push(this.stamina, this.staminaMax, this.staminaCost);
+    if (this.thermalOn) this.float32Fields.push(this.thermalPref, this.thermalScale);
     this.float64Fields = [this.energy, this.plantTaken, this.meatTaken];
     this.uint32Fields = [this.id, this.parentId, this.age, this.kills];
     if (this.tracker) this.uint32Fields.push(this.species);
@@ -639,8 +700,16 @@ export class Simulation {
     founder[GENE.attack] = traitToGene(c.initialAttack, this.ranges.attack);
     founder[GENE.armor] = traitToGene(c.initialArmor, this.ranges.armor);
     founder[GENE.stamina] = traitToGene(c.initialStamina, this.ranges.stamina);
+    founder[GENE.thermal] = traitToGene(c.initialThermal, this.ranges.thermal);
     for (let i = 0; i < c.initialOrganisms; i++) {
-      const index = this.spawn(0, this.rng.range(0, c.worldWidth), this.rng.range(0, c.worldHeight));
+      let fx = this.rng.range(0, c.worldWidth);
+      let fy = this.rng.range(0, c.worldHeight);
+      // With terrain, founders start on dry land.
+      while (this.terrainOn && this.passable[Math.floor(fy / c.foodCellSize) * this.gridWidth + Math.floor(fx / c.foodCellSize)] === 0) {
+        fx = this.rng.range(0, c.worldWidth);
+        fy = this.rng.range(0, c.worldHeight);
+      }
+      const index = this.spawn(0, fx, fy);
       for (let g = 0; g < GENE_COUNT; g++) this.genes[index * GENE_COUNT + g] = founder[g]!;
       this.genes[index * GENE_COUNT + GENE.hue] = this.rng.next();
       this.express(index);
@@ -648,6 +717,138 @@ export class Simulation {
       this.energy[index] = this.threshold[index]! * c.initialEnergyFraction;
     }
     this.tracker?.start(this.count, this.genes, this.species);
+  }
+
+  /** Work out the fixed parts of the climate: how cold, how seasonal and how sunny each cell is. */
+  private setUpClimate(): void {
+    const c = this.config;
+    const gw = this.gridWidth;
+    const gh = this.gridHeight;
+    for (let cy = 0; cy < gh; cy++) {
+      const polar = polarness(cy, gh);
+      for (let cx = 0; cx < gw; cx++) {
+        const cell = cy * gw + cx;
+        const mountain = this.terrainOn && this.biome[cell] === BIOME.mountain ? c.mountainCooling : 0;
+        this.tempBase[cell] = c.baseTemperature - c.latitudeCooling * polar - mountain;
+        this.tempSwing[cell] = c.seasonTempSwing * (0.5 + 0.5 * polar);
+        this.lightBase[cell] = 1 - c.latitudeLight * polar;
+      }
+    }
+    this.updateClimate();
+  }
+
+  /** Recompute every cell's temperature and plant growth factor for the current tick. */
+  private updateClimate(): void {
+    const c = this.config;
+    const t = this.tick;
+    const season = c.yearLength > 0 ? smoothWave(t / c.yearLength + 0.25) : 0;
+    const daylight = c.dayLength > 0 ? 1 - c.dayNightDepth * (1 - (smoothWave(t / c.dayLength + 0.25) + 1) / 2) : 1;
+    const drift = c.climateDriftPeriod > 0 ? c.climateDriftAmplitude * smoothWave(t / c.climateDriftPeriod + 0.25) : 0;
+    // A catastrophe in progress builds up and fades smoothly, worst in the middle.
+    let cooling = 0;
+    let dryness = 1;
+    if (this.catKind !== 0 && t < this.catEnd) {
+      const p = (t - this.catStart) / (this.catEnd - this.catStart);
+      const hump = 4 * p * (1 - p);
+      if (this.catKind === 1) cooling = c.iceAgeCooling * hump;
+      else dryness = 1 - c.droughtSeverity * hump;
+    }
+    const seasonGrowth = (1 + c.seasonGrowthSwing * season) * dryness;
+    const optimum = c.plantTempOptimum;
+    const tolerance = c.plantTempTolerance;
+    for (let cell = 0; cell < this.temperature.length; cell++) {
+      const temp = this.tempBase[cell]! + this.tempSwing[cell]! * season + drift - cooling;
+      this.temperature[cell] = temp;
+      const off = (temp - optimum) / tolerance;
+      const comfort = 1 - off * off;
+      this.growthFactor[cell] = comfort > 0 ? this.lightBase[cell]! * daylight * seasonGrowth * comfort : 0;
+    }
+  }
+
+  /** Start, end or ignore a catastrophe this tick, according to the schedule and the dice. */
+  private catastropheCheck(): void {
+    const c = this.config;
+    const t = this.tick;
+    if (this.catKind !== 0 && t >= this.catEnd) {
+      this.worldEvents.push({ tick: t, kind: "recovery", text: this.catKind === 1 ? "The ice age ends" : "The drought ends" });
+      this.catKind = 0;
+    }
+    let start = c.catastropheAt > 0 && t === c.catastropheAt;
+    // Random ones: a fresh roll every tick (only when enabled, so other worlds draw no extra random numbers).
+    if (!start && c.catastropheEvery > 0 && this.catKind === 0 && this.rng.next() < 1 / c.catastropheEvery) start = true;
+    if (!start || this.catKind !== 0) return;
+    const kind = c.catastropheKind === 4 ? 1 + this.rng.int(3) : c.catastropheKind;
+    if (kind === 3) {
+      this.meteorStrike();
+      return;
+    }
+    this.catKind = kind;
+    this.catStart = t;
+    this.catEnd = t + c.catastropheLength;
+    this.worldEvents.push({
+      tick: t,
+      kind: kind === 1 ? "iceAge" : "drought",
+      text: kind === 1 ? `An ice age begins: up to ${c.iceAgeCooling} colder everywhere for ${c.catastropheLength} ticks` : `A drought begins: plant growth falls by up to ${Math.round(c.droughtSeverity * 100)}% for ${c.catastropheLength} ticks`,
+    });
+  }
+
+  /**
+   * A meteor lands somewhere at random: every organism within the radius dies (its body and
+   * whatever energy it carried become a corpse), and the plants in the crater are destroyed (their
+   * matter becomes detritus and their energy is lost as heat, so the books still balance).
+   */
+  private meteorStrike(): void {
+    const c = this.config;
+    const W = c.worldWidth;
+    const H = c.worldHeight;
+    const x0 = this.rng.range(0, W);
+    const y0 = this.rng.range(0, H);
+    const r2 = c.meteorRadius * c.meteorRadius;
+    const near = (x: number, y: number): boolean => {
+      let dx = x - x0;
+      let dy = y - y0;
+      if (dx > W / 2) dx -= W;
+      else if (dx < -W / 2) dx += W;
+      if (dy > H / 2) dy -= H;
+      else if (dy < -H / 2) dy += H;
+      return dx * dx + dy * dy <= r2;
+    };
+    const cs = c.foodCellSize;
+    let killed = 0;
+    for (let i = 0; i < this.count; i++) {
+      if (this.killed[i] === 1 || !near(this.x[i]!, this.y[i]!)) continue;
+      const cell = Math.floor(this.y[i]! / cs) * this.gridWidth + Math.floor(this.x[i]! / cs);
+      this.corpseEnergy[cell] = this.corpseEnergy[cell]! + this.bodyEnergy[i]! + this.energy[i]!;
+      this.corpseMatter[cell] = this.corpseMatter[cell]! + this.bodyMatter[i]!;
+      this.energy[i] = 0;
+      this.killed[i] = 1;
+      killed++;
+    }
+    for (let cy = 0; cy < this.gridHeight; cy++) {
+      for (let cx = 0; cx < this.gridWidth; cx++) {
+        if (!near((cx + 0.5) * cs, (cy + 0.5) * cs)) continue;
+        const cell = cy * this.gridWidth + cx;
+        this.detritus[cell] = this.detritus[cell]! + this.food[cell]!;
+        this.ledger.decayLoss += this.food[cell]! * c.energyPerFood;
+        this.food[cell] = 0;
+      }
+    }
+    this.worldEvents.push({ tick: this.tick, kind: "meteor", text: `A meteor strikes near (${Math.round(x0)}, ${Math.round(y0)}): ${killed} organisms killed` });
+  }
+
+  /** Fill in the terrain arrays from a biome map, and scale plant growth by biome. */
+  private applyTerrain(biome: Uint8Array): void {
+    const c = this.config;
+    const growth = growthMultipliers(c);
+    const move = moveMultipliers(c);
+    this.biome.set(biome);
+    for (let cell = 0; cell < biome.length; cell++) {
+      const kind = biome[cell]!;
+      this.passable[cell] = kind === BIOME.water ? 0 : 1;
+      this.terrainMove[cell] = move[kind]!;
+      this.foodCapacity[cell] = this.foodCapacity[cell]! * growth[kind]!;
+      this.foodRegrow[cell] = this.foodRegrow[cell]! * growth[kind]!;
+    }
   }
 
   /**
@@ -777,6 +978,11 @@ export class Simulation {
       this.stamina[i] = this.age[i] === 0 ? reserve : Math.min(this.stamina[i]!, reserve);
     }
 
+    if (this.thermalOn) {
+      this.thermalPref[i] = at("thermal");
+      this.thermalScale[i] = c.thermalCostCoeff * sizeToThreeQuarters;
+    }
+
     // Eating. The diet gene splits appetite between plants (diet 0) and meat (diet 1),
     // and a specialist digests its own food better than a generalist does.
     const eatingSize = (1 - c.biteSizeBlend) * sizeToThreeQuarters + c.biteSizeBlend * size;
@@ -807,11 +1013,13 @@ export class Simulation {
   private inheritGenes(child: number, parent: number): void {
     const meta = this.config.metaMutationStd;
     const rate = this.mutationRate[parent]!;
-    // Without sprint fatigue the stamina gene is inert, so it is copied without a random draw
-    // (which keeps those worlds identical to how they played out before the gene existed).
-    const genes = this.staminaOn ? GENE_COUNT : CORE_GENE_COUNT;
-    if (genes < GENE_COUNT) this.genes[child * GENE_COUNT + GENE.stamina] = this.genes[parent * GENE_COUNT + GENE.stamina]!;
-    for (let k = 0; k < genes; k++) {
+    for (let k = 0; k < GENE_COUNT; k++) {
+      // A gene that is not doing anything in this world (see activeGene) is copied without a random
+      // draw, which keeps worlds without it identical to how they played out before it existed.
+      if (!this.activeGene[k]) {
+        this.genes[child * GENE_COUNT + k] = this.genes[parent * GENE_COUNT + k]!;
+        continue;
+      }
       const std = k === GENE.mutationRate ? meta : rate;
       this.genes[child * GENE_COUNT + k] = clamp01(this.genes[parent * GENE_COUNT + k]! + this.rng.gaussian() * std);
     }
@@ -832,9 +1040,11 @@ export class Simulation {
   private inheritGenesFromTwo(child: number, a: number, b: number): void {
     const meta = this.config.metaMutationStd;
     const rate = (this.mutationRate[a]! + this.mutationRate[b]!) / 2;
-    const genes = this.staminaOn ? GENE_COUNT : CORE_GENE_COUNT;
-    if (genes < GENE_COUNT) this.genes[child * GENE_COUNT + GENE.stamina] = this.genes[a * GENE_COUNT + GENE.stamina]!;
-    for (let k = 0; k < genes; k++) {
+    for (let k = 0; k < GENE_COUNT; k++) {
+      if (!this.activeGene[k]) {
+        this.genes[child * GENE_COUNT + k] = this.genes[a * GENE_COUNT + k]!;
+        continue;
+      }
       const donor = this.rng.next() < 0.5 ? a : b;
       const std = k === GENE.mutationRate ? meta : rate;
       this.genes[child * GENE_COUNT + k] = clamp01(this.genes[donor * GENE_COUNT + k]! + this.rng.gaussian() * std);
@@ -1193,6 +1403,8 @@ export class Simulation {
     const ledger = this.ledger;
     const brainMode = c.brainMode;
     let attackers = 0;
+    if (c.catastropheKind !== 0) this.catastropheCheck();
+    if (this.climateOn) this.updateClimate();
 
     // Pass 0 (brains only): everyone who is due to think looks, smells and decides, before
     // anyone moves, so all brains see the same world whatever order they are processed in.
@@ -1296,10 +1508,19 @@ export class Simulation {
       // Rounding to 32 bits can land exactly on the far edge; fold it back to 0.
       if (nx >= W) nx = 0;
       if (ny >= H) ny = 0;
+      let cellNow = Math.floor(ny / cs) * gw + Math.floor(nx / cs);
+      if (this.terrainOn && this.passable[cellNow] === 0) {
+        // Water ahead: stay where we are and turn around.
+        nx = x0;
+        ny = y0;
+        cellNow = Math.floor(ny / cs) * gw + Math.floor(nx / cs);
+        this.headingX[i] = -hx;
+        this.headingY[i] = -hy;
+      }
       this.x[i] = nx;
       this.y[i] = ny;
 
-      this.cellOf[i] = Math.floor(ny / cs) * gw + Math.floor(nx / cs);
+      this.cellOf[i] = cellNow;
       if (this.attack[i]! >= c.attackThreshold) attackers++;
     }
 
@@ -1396,9 +1617,16 @@ export class Simulation {
         this.logEvent("firstScavenger", this.id[i]!, `Organism #${this.id[i]!} lived mostly off a corpse: the first scavenger`);
       }
 
-      const basal = this.basalCost[i]!;
+      let basal = this.basalCost[i]!;
+      if (this.thermalOn) {
+        // Too hot or too cold for comfort costs extra upkeep.
+        const off = this.temperature[cell]! - this.thermalPref[i]!;
+        const excess = (off < 0 ? -off : off) - c.thermalTolerance;
+        if (excess > 0) basal += this.thermalScale[i]! * excess * excess;
+      }
       // Moving costs more the faster the brain drives the body (cost grows with speed squared).
       let move = brainMode > 0 ? this.moveCost[i]! * this.moveScale[i]! * this.moveScale[i]! : this.moveCost[i]!;
+      if (this.terrainOn) move *= this.terrainMove[cell]!; // mountains and forest cost more to cross
       if (this.staminaOn) move += this.staminaCost[i]!; // the upkeep of the sprint reserve counts as movement
       const sensing = this.senseCost[i]!;
       const fighting = this.attackCost[i]! + (this.attempted[i] === 1 ? this.attemptCost[i]! : 0);
@@ -1441,6 +1669,7 @@ export class Simulation {
     const meatDecay = c.meatDecayRate;
     const mineralize = c.detritusMineralizeRate;
     const halfSat = c.nutrientHalfSaturation;
+    const climateOn = this.climateOn;
     for (let cell = 0; cell < food.length; cell++) {
       // Eaten plants.
       const eatenPlants = plantClaim[cell]!;
@@ -1478,7 +1707,8 @@ export class Simulation {
 
       // Plants grow, limited by sunlight (the rate), nutrient, and room.
       const room = this.foodCapacity[cell]! - food[cell]!;
-      const potential = (this.foodRegrow[cell]! * soil) / (soil + halfSat);
+      let potential = (this.foodRegrow[cell]! * soil) / (soil + halfSat);
+      if (climateOn) potential *= this.growthFactor[cell]!;
       let growth = potential < soil ? potential : soil;
       if (growth > room) growth = room > 0 ? room : 0;
       food[cell] = food[cell]! + growth;
@@ -1702,6 +1932,8 @@ export class Simulation {
       totalAttacks: this.totalAttacks,
       seen: [this.seenScavenger, this.seenKill, this.seenPredator, this.seenCarnivore],
       events: this.events,
+      worldEvents: this.worldEvents,
+      catastrophe: [this.catKind, this.catStart, this.catEnd],
       ledger: this.ledger,
       rng: Array.from(this.rng.getState()),
       species: this.tracker ? this.tracker.exportState() : null,
@@ -1730,6 +1962,9 @@ export class Simulation {
       ["corpseMatter", this.corpseMatter],
       ["corpseEnergy", this.corpseEnergy],
       ["detritus", this.detritus],
+      ["biome", this.biome],
+      ["passable", this.passable],
+      ["terrainMove", this.terrainMove],
       ["preyScent", this.preyScent],
       ["hunterScent", this.hunterScent],
       ["corpseOwner", this.corpseOwner],
@@ -1757,6 +1992,8 @@ export class Simulation {
       totalAttacks: number;
       seen: boolean[];
       events: SimEvent[];
+      worldEvents: WorldEvent[];
+      catastrophe: [number, number, number];
       ledger: EnergyLedger;
       rng: [number, number, number, number];
       species: Record<string, unknown> | null;
@@ -1784,9 +2021,13 @@ export class Simulation {
     [this.seenScavenger, this.seenKill, this.seenPredator, this.seenCarnivore] = s.seen as [boolean, boolean, boolean, boolean];
     this.events.length = 0;
     this.events.push(...s.events);
+    this.worldEvents.length = 0;
+    this.worldEvents.push(...s.worldEvents);
+    [this.catKind, this.catStart, this.catEnd] = s.catastrophe;
     Object.assign(this.ledger, s.ledger);
     this.rng.setState(newFuture ? new Rng((this.seed + this.tick) >>> 0).getState() : s.rng);
     if (this.tracker && s.species) this.tracker.importState(s.species);
+    if (this.climateOn) this.updateClimate();
   }
 
   /** Every real species so far (alive or extinct), and the births and extinctions among them. */
@@ -1824,6 +2065,10 @@ export class Simulation {
         return this.attack[i]!;
       case "armor":
         return this.armor[i]!;
+      case "thermal": {
+        const range = this.ranges.thermal;
+        return range.min + this.genes[i * GENE_COUNT + GENE.thermal]! * (range.max - range.min);
+      }
       case "stamina": {
         const range = this.ranges.stamina;
         return range.min + this.genes[i * GENE_COUNT + GENE.stamina]! * (range.max - range.min);
@@ -2136,8 +2381,7 @@ export class Simulation {
     mixBits(this.meatTaken, n);
     // Genes first, leaving stamina out unless it is in use (see CORE_GENE_COUNT).
     const geneBits = new Uint32Array(this.genes.buffer, this.genes.byteOffset, n * GENE_COUNT);
-    const mixedGenes = this.staminaOn ? GENE_COUNT : CORE_GENE_COUNT;
-    for (let i = 0; i < n; i++) for (let k = 0; k < mixedGenes; k++) mix(geneBits[i * GENE_COUNT + k]!);
+    for (let i = 0; i < n; i++) for (let k = 0; k < GENE_COUNT; k++) if (this.activeGene[k]) mix(geneBits[i * GENE_COUNT + k]!);
     mixBits(this.food, this.food.length);
     mixBits(this.nutrient, this.nutrient.length);
     mixBits(this.corpseMatter, this.corpseMatter.length);

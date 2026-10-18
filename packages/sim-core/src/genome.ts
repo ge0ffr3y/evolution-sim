@@ -6,14 +6,15 @@ import type { SimConfig } from "./config";
  * worked out from the genes ("phenotype mapping") by stretching each gene
  * across that trait's allowed range from the config.
  */
-export const GENES = ["size", "speed", "senseRange", "metabolism", "hue", "mutationRate", "diet", "attack", "armor", "stamina"] as const;
+export const GENES = ["size", "speed", "senseRange", "metabolism", "hue", "mutationRate", "diet", "attack", "armor", "stamina", "thermal"] as const;
 export type GeneName = (typeof GENES)[number];
 export const GENE_COUNT = GENES.length;
 
 /**
- * Genes before stamina. Stamina only does anything when sprint fatigue is switched on (see
- * the config), so worlds without it ignore the gene entirely: it is neither mutated nor
- * counted in the world fingerprint, and those worlds play out exactly as they did before it existed.
+ * Genes before stamina and thermal. Stamina only does anything when sprint fatigue is switched
+ * on, and the thermal gene only when thermalCostCoeff is above zero in a world with a climate (see
+ * the config). Worlds without them ignore the genes entirely: they are neither mutated nor counted
+ * in the world fingerprint, and those worlds play out exactly as they did before they existed.
  */
 export const CORE_GENE_COUNT = 9;
 
@@ -29,6 +30,7 @@ export const GENE = {
   attack: 7,
   armor: 8,
   stamina: 9,
+  thermal: 10,
 } as const satisfies Record<GeneName, number>;
 
 /** Real-world values for every gene, e.g. { size: 1.2, speed: 0.8, ... }. */
@@ -52,6 +54,7 @@ export function traitRanges(c: SimConfig): Record<GeneName, TraitRange> {
     attack: { min: c.attackMin, max: c.attackMax },
     armor: { min: c.armorMin, max: c.armorMax },
     stamina: { min: c.staminaMin, max: c.staminaMax },
+    thermal: { min: c.thermalMin, max: c.thermalMax },
   };
 }
 

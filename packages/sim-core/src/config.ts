@@ -67,6 +67,8 @@ export interface SimConfig {
   initialArmor: number;
   /** Starting sprint reserve of the first generation (see sprintFatigue). */
   initialStamina: number;
+  /** Starting preferred temperature of the first generation (0 to 1, see thermalCostCoeff). */
+  initialThermal: number;
   /** Fraction of the reproduction threshold that new organisms start with. */
   initialEnergyFraction: number;
 
@@ -92,6 +94,9 @@ export interface SimConfig {
   /** Range of the stamina gene: the biggest sprint reserve, counted in ticks of flat-out running. */
   staminaMin: number;
   staminaMax: number;
+  /** Range of the thermal gene: the temperature an organism is comfortable at. */
+  thermalMin: number;
+  thermalMax: number;
   /** How much the mutation-rate gene itself changes between generations (in gene units). */
   metaMutationStd: number;
 
@@ -221,6 +226,93 @@ export interface SimConfig {
    */
   brainAppetiteSenses: number;
 
+  // --- Terrain (off by default) ---
+  /**
+   * 0 = the land is a uniform, open plain (the original world). 1 = the land gets biomes
+   * from smooth noise: water (a hard barrier: nothing can enter it and plants do not grow
+   * there), plains, forest, desert and mountains, which change plant growth and what it
+   * costs to move.
+   */
+  terrainMode: number;
+  /** Size of the broad terrain features, in food cells (must divide the grid). Bigger = bigger continents. */
+  terrainScale: number;
+  /** Share of all cells that are water and mountains; and of the remaining land, the share that is desert and forest. */
+  terrainWaterFraction: number;
+  terrainMountainFraction: number;
+  terrainDesertFraction: number;
+  terrainForestFraction: number;
+  /** Width, in food cells, of two straight channels of water that cut the world in two (0 = none). */
+  terrainBarrierWidth: number;
+  /** How fast plants grow in each biome, relative to plains. */
+  terrainGrowthForest: number;
+  terrainGrowthDesert: number;
+  terrainGrowthMountain: number;
+  /** What it costs to move in each biome, relative to plains. */
+  terrainMoveForest: number;
+  terrainMoveDesert: number;
+  terrainMoveMountain: number;
+
+  // --- Climate (off by default) ---
+  /**
+   * 0 = the same sunshine and temperature everywhere, always (the original world). 1 = a
+   * climate: it is warmest at the equator (the middle of the world) and colder toward the top
+   * and bottom edges, mountains are colder still, plants grow best at a moderate temperature,
+   * and the parts below can be switched on by giving them a length (0 = off).
+   */
+  climateMode: number;
+  /** Temperature at the equator on a 0 (freezing) to 1 (hot) scale, and how much colder the edges and mountains are. */
+  baseTemperature: number;
+  latitudeCooling: number;
+  mountainCooling: number;
+  /** Plants grow at full speed at this temperature and not at all this far above or below it. */
+  plantTempOptimum: number;
+  plantTempTolerance: number;
+  /** Less sunlight toward the edges (0 = the same everywhere). */
+  latitudeLight: number;
+  /** Day and night: one cycle every dayLength ticks (0 = always day). At night plants grow dayNightDepth less. */
+  dayLength: number;
+  dayNightDepth: number;
+  /**
+   * Seasons: a year every yearLength ticks (0 = no seasons). Plants grow seasonGrowthSwing
+   * faster in summer and slower in winter, and temperature swings by seasonTempSwing
+   * (more toward the edges).
+   */
+  yearLength: number;
+  seasonGrowthSwing: number;
+  seasonTempSwing: number;
+  /** Slow climate drift: temperature rises and falls by climateDriftAmplitude over a climateDriftPeriod ticks (0 = none). */
+  climateDriftPeriod: number;
+  climateDriftAmplitude: number;
+
+  /**
+   * The thermal gene (preferred temperature). With thermalCostCoeff above 0 (and a climate), an
+   * organism that is more than thermalTolerance away from its preferred temperature pays extra
+   * upkeep: thermalCostCoeff x body size^0.75 x (how far past the tolerance)^2. 0 = the gene
+   * does nothing.
+   */
+  thermalCostCoeff: number;
+  thermalTolerance: number;
+
+  // --- Catastrophes (off by default) ---
+  /**
+   * 0 = none. 1 = an ice age (the whole world gets colder, then recovers). 2 = a drought
+   * (plants grow much more slowly, then recover). 3 = a meteor strike (everything in a circle
+   * dies and the plants there are destroyed). 4 = a random one of those each time. Ice ages
+   * and droughts need a climate (climateMode 1).
+   */
+  catastropheKind: number;
+  /** A catastrophe starts at exactly this tick (0 = not scheduled)... */
+  catastropheAt: number;
+  /** ...and/or one starts at a random moment, on average once every this many ticks (0 = never). */
+  catastropheEvery: number;
+  /** How long an ice age or drought lasts, in ticks (it builds up and fades smoothly, worst in the middle). */
+  catastropheLength: number;
+  /** How much colder it gets at the worst of an ice age, and how much plant growth falls at the worst of a drought (0 to 1). */
+  iceAgeCooling: number;
+  droughtSeverity: number;
+  /** The radius of a meteor strike, in world units. */
+  meteorRadius: number;
+
   // --- Sexual reproduction (off by default) ---
   /**
    * 0 = organisms split in two when they have enough energy (the original way). 1 = two
@@ -347,6 +439,7 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   initialAttack: 0,
   initialArmor: 0,
   initialStamina: 10,
+  initialThermal: 0.5,
   initialEnergyFraction: 0.6,
 
   sizeMin: 0.3,
@@ -367,6 +460,8 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   armorMax: 2,
   staminaMin: 0,
   staminaMax: 30,
+  thermalMin: 0,
+  thermalMax: 1,
   metaMutationStd: 0.05,
 
   turnStd: 0.3,
@@ -414,6 +509,42 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   brainCostPerNeuron: 0.0005,
   brainCostPerConnection: 0.0001,
   brainAppetiteSenses: 0,
+  terrainMode: 0,
+  terrainScale: 8,
+  terrainWaterFraction: 0.25,
+  terrainMountainFraction: 0.1,
+  terrainDesertFraction: 0.25,
+  terrainForestFraction: 0.3,
+  terrainBarrierWidth: 0,
+  terrainGrowthForest: 1.3,
+  terrainGrowthDesert: 0.3,
+  terrainGrowthMountain: 0.4,
+  terrainMoveForest: 1.4,
+  terrainMoveDesert: 1.2,
+  terrainMoveMountain: 3,
+  climateMode: 0,
+  baseTemperature: 0.75,
+  latitudeCooling: 0.45,
+  mountainCooling: 0.2,
+  plantTempOptimum: 0.65,
+  plantTempTolerance: 0.6,
+  latitudeLight: 0.4,
+  dayLength: 0,
+  dayNightDepth: 0.5,
+  yearLength: 0,
+  seasonGrowthSwing: 0.4,
+  seasonTempSwing: 0.15,
+  climateDriftPeriod: 0,
+  climateDriftAmplitude: 0.15,
+  thermalCostCoeff: 0,
+  thermalTolerance: 0.1,
+  catastropheKind: 0,
+  catastropheAt: 0,
+  catastropheEvery: 0,
+  catastropheLength: 3000,
+  iceAgeCooling: 0.3,
+  droughtSeverity: 0.8,
+  meteorRadius: 40,
   sexualReproduction: 0,
   mateRange: 6,
   mateDistance: 0.25,
@@ -487,6 +618,7 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     ["attack", c.attackMin, c.attackMax, c.initialAttack],
     ["armor", c.armorMin, c.armorMax, c.initialArmor],
     ["stamina", c.staminaMin, c.staminaMax, c.initialStamina],
+    ["thermal", c.thermalMin, c.thermalMax, c.initialThermal],
   ];
   for (const [name, min, max, start] of ranges) {
     if (min > max) problems.push(`${name}Min exceeds ${name}Max`);
@@ -526,6 +658,49 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     problems.push("brainVisionRange plus senseRangeMax must be under half the world");
   }
   if (c.brainVisionRange < 0) problems.push("brainVisionRange cannot be negative");
+  if (![0, 1].includes(c.terrainMode)) problems.push("terrainMode must be 0 (open plain) or 1 (biomes)");
+  if (c.terrainMode === 1) {
+    const gw = c.worldWidth / c.foodCellSize;
+    const gh = c.worldHeight / c.foodCellSize;
+    if (!Number.isInteger(c.terrainScale) || c.terrainScale < 1 || gw % c.terrainScale !== 0 || gh % c.terrainScale !== 0) {
+      problems.push("terrainScale must be a whole number of food cells that divides the grid evenly");
+    }
+    for (const [name, value] of [["terrainWaterFraction", c.terrainWaterFraction], ["terrainMountainFraction", c.terrainMountainFraction], ["terrainDesertFraction", c.terrainDesertFraction], ["terrainForestFraction", c.terrainForestFraction]] as const) {
+      if (value < 0 || value >= 1) problems.push(`${name} must be from 0 up to (but not including) 1`);
+    }
+    if (c.terrainWaterFraction + c.terrainMountainFraction >= 1) problems.push("water and mountains cannot cover the whole world");
+    if (c.terrainDesertFraction + c.terrainForestFraction > 1) problems.push("desert and forest fractions cannot add up to more than 1");
+    if (!Number.isInteger(c.terrainBarrierWidth) || c.terrainBarrierWidth < 0 || c.terrainBarrierWidth * 2 > gw / 2) {
+      problems.push("terrainBarrierWidth must be a whole number of cells, at most a quarter of the world's width");
+    }
+    for (const [name, value] of [["terrainGrowthForest", c.terrainGrowthForest], ["terrainGrowthDesert", c.terrainGrowthDesert], ["terrainGrowthMountain", c.terrainGrowthMountain], ["terrainMoveForest", c.terrainMoveForest], ["terrainMoveDesert", c.terrainMoveDesert], ["terrainMoveMountain", c.terrainMoveMountain]] as const) {
+      if (value < 0) problems.push(`${name} cannot be negative`);
+    }
+  }
+  if (c.thermalCostCoeff < 0 || c.thermalTolerance < 0) problems.push("thermalCostCoeff and thermalTolerance cannot be negative");
+  if (c.thermalCostCoeff > 0 && c.climateMode !== 1) problems.push("thermalCostCoeff needs a climate (set climateMode to 1)");
+  if (![0, 1, 2, 3, 4].includes(c.catastropheKind)) problems.push("catastropheKind must be 0 (none), 1 (ice age), 2 (drought), 3 (meteor) or 4 (random)");
+  if (c.catastropheKind !== 0) {
+    if ((c.catastropheKind === 1 || c.catastropheKind === 2 || c.catastropheKind === 4) && c.climateMode !== 1) problems.push("ice ages and droughts need a climate (set climateMode to 1)");
+    if (!Number.isInteger(c.catastropheAt) || c.catastropheAt < 0) problems.push("catastropheAt must be a whole number of ticks (0 = not scheduled)");
+    if (!Number.isInteger(c.catastropheEvery) || c.catastropheEvery < 0) problems.push("catastropheEvery must be a whole number of ticks (0 = never)");
+    if (!Number.isInteger(c.catastropheLength) || c.catastropheLength < 2) problems.push("catastropheLength must be a whole number of ticks, at least 2");
+    if (c.iceAgeCooling < 0) problems.push("iceAgeCooling cannot be negative");
+    if (c.droughtSeverity < 0 || c.droughtSeverity > 1) problems.push("droughtSeverity must be between 0 and 1");
+    if (!(c.meteorRadius > 0)) problems.push("meteorRadius must be positive");
+  }
+  if (![0, 1].includes(c.climateMode)) problems.push("climateMode must be 0 (no climate) or 1 (climate)");
+  if (c.climateMode === 1) {
+    for (const [name, value] of [["dayLength", c.dayLength], ["yearLength", c.yearLength], ["climateDriftPeriod", c.climateDriftPeriod]] as const) {
+      if (!Number.isInteger(value) || value < 0) problems.push(`${name} must be a whole number of ticks (0 turns it off)`);
+    }
+    if (!(c.plantTempTolerance > 0)) problems.push("plantTempTolerance must be positive");
+    for (const [name, value] of [["dayNightDepth", c.dayNightDepth], ["latitudeLight", c.latitudeLight]] as const) {
+      if (value < 0 || value > 1) problems.push(`${name} must be between 0 and 1`);
+    }
+    if (c.seasonGrowthSwing < 0 || c.seasonGrowthSwing > 1) problems.push("seasonGrowthSwing must be between 0 and 1");
+    if (c.seasonTempSwing < 0 || c.climateDriftAmplitude < 0 || c.latitudeCooling < 0 || c.mountainCooling < 0) problems.push("temperature swings and cooling cannot be negative");
+  }
   if (![0, 1].includes(c.sexualReproduction)) problems.push("sexualReproduction must be 0 or 1");
   if (!(c.mateRange > 0)) problems.push("mateRange must be positive");
   if (![0, 1].includes(c.matePreference)) problems.push("matePreference must be 0 (nearest) or 1 (most similar)");
