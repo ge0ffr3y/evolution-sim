@@ -4,7 +4,7 @@
 
 ## Step 1: big-world benchmark
 
-`npm run bench -w apps/runner -- --sizes 512,1024 --config configs/brains-evolvable.json --set foodRegrowPerTick=0.02` now works. Speed is not the blocker for a big world: about 4 million organism-ticks per second with brains. A 1024 x 1024 world with brains and standard food (about 20,000 animals) runs at roughly 190 ticks per second; with sparse food (0.02, about 5,500 animals) about 660 ticks per second.
+`npm run bench -w apps/runner -- --sizes 512,1024 --config configs/brains-evolvable.json --set foodRegrowPerTick=0.02` now works. Speed is not the blocker for a big world: about 4 million organism-ticks per second with brains. A 1024 x 1024 world with brains and standard food (about 20,000 animals) runs at roughly 190 ticks per second; with thinner food (0.02, about 5,500 animals) about 660 ticks per second.
 
 ## Step 2: kin tolerance as a gene (the 19th gene)
 
@@ -115,7 +115,7 @@ Optional (`plantTypes` 1 to 6; 1 = one kind of plant, the old way). Each cell gr
 
 ## Step 9: the grand world preset
 
-`configs/grand-world.json` turns on everything at once in a 512 x 512 world with sparse food (0.03): terrain, seasons, weather fronts, harsh and mild years, random ice ages, droughts and meteors, three kinds of plant, brains with memory, home and chemical signals, disease, camouflage, aging, litter size, fat, torpor, tolerance and sex as genes, and colonies with specialized cells, with a little founder variety. A world this big with everything on has been **smoke-tested only** (3 seeds, 20,000 ticks, as you asked no pilot runs): all 3 survived with 100 to 300 animals and 5 to 38 colonies, the first predator appeared in all 3, and 12% of births already had two parents at tick 1,200 in one world. Nothing has been tuned. The population is small for the area, which makes drift and extinction likely on long runs; the first thing to tune is probably food (0.03) or the starting population.
+`configs/grand-world.json` turns on everything at once in a 512 x 512 world with food at 0.05 (the standard is 0.08): terrain, seasons, weather fronts, harsh and mild years, random ice ages, droughts and meteors, three kinds of plant, brains with memory, home and chemical signals, disease, camouflage, aging, litter size, fat, torpor, tolerance and sex as genes, and colonies with specialized cells, with a little founder variety. A world this big with everything on has been **smoke-tested only** (3 seeds, 20,000 ticks, as you asked no pilot runs): all 3 survived with 100 to 300 animals and 5 to 38 colonies, the first predator appeared in all 3, and 12% of births already had two parents at tick 1,200 in one world. Nothing has been tuned. The population is small for the area, which makes drift and extinction likely on long runs; the first thing to tune is probably food (0.03) or the starting population.
 
 ## Viewer
 
