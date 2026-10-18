@@ -357,23 +357,36 @@ export interface SimConfig {
   /** Harsh and mild years: each year's seasonal swing is multiplied by 1 plus or minus this much, by a fixed scramble of the year number (0 = every year alike; needs yearLength). */
   yearVariability: number;
   /**
-   * The fat gene (the 21st; fatMax above 0 turns it on): an organism with the most fat banks fatMax times
-   * as much energy before it reproduces, but pays fatMoveCost times more to move and fatUpkeep times
-   * more upkeep for carrying it.
+   * The fat gene (the 21st; fatDepositRate above 0 turns it on) is a separate energy reserve. When an
+   * organism's energy is above fatDepositAbove of what it needs to reproduce, it moves a share
+   * (fat gene x fatDepositRate) of the excess into fat each tick, losing 1 - fatEfficiency of it as
+   * heat. When its energy falls below fatDrawBelow it draws the fat back (up to fatDrawRate of its
+   * reproduction energy per tick) at full value. The reserve is capped at fatCap times the energy
+   * needed to reproduce, and carrying it costs: movement costs rise by fatMoveCost and upkeep by
+   * fatUpkeep for every whole reproduction-energy of fat carried. A little fat does a little good,
+   * so evolution can find it.
    */
-  fatMax: number;
+  fatDepositRate: number;
+  fatDepositAbove: number;
+  fatEfficiency: number;
+  fatDrawBelow: number;
+  fatDrawRate: number;
+  fatCap: number;
   fatMoveCost: number;
   fatUpkeep: number;
   initialFat: number;
   /**
    * The torpor gene (the 22nd; needs a climate, and torporSaving above 0 turns it on): where plants are
-   * growing at less than torporBelowGrowth of full speed an organism goes dormant. It does not move or
-   * attack, and its upkeep falls by torporSaving times its gene. Having the machinery for it costs
-   * torporUpkeep times the gene extra upkeep all the time.
+   * growing at less than torporBelowGrowth of full speed an organism slows down in proportion to its
+   * gene (a gene of 0.3 means 30% slower, and 30% less movement cost), and its upkeep falls by
+   * torporSaving times its gene. At torporSleepAt or more it cannot attack either. Having the machinery
+   * for it costs torporUpkeep times the gene extra upkeep all the time. (It is graded on purpose: a
+   * little torpor does a little good, so evolution can find it.)
    */
   torporSaving: number;
   torporBelowGrowth: number;
   torporUpkeep: number;
+  torporSleepAt: number;
   initialTorpor: number;
 
   // --- Kinds of plant (off by default: 1 = every plant is alike) ---
@@ -839,13 +852,19 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   weatherDriftYTicks: 1500,
   weatherMorphPeriod: 30000,
   yearVariability: 0,
-  fatMax: 0,
-  fatMoveCost: 0.3,
-  fatUpkeep: 0.15,
+  fatDepositRate: 0,
+  fatDepositAbove: 0.6,
+  fatEfficiency: 0.8,
+  fatDrawBelow: 0.35,
+  fatDrawRate: 0.05,
+  fatCap: 1,
+  fatMoveCost: 0.5,
+  fatUpkeep: 0.2,
   initialFat: 0,
   torporSaving: 0,
   torporBelowGrowth: 0.35,
   torporUpkeep: 0.1,
+  torporSleepAt: 0.5,
   initialTorpor: 0,
   thermalCostCoeff: 0,
   thermalTolerance: 0.1,
@@ -1095,10 +1114,13 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (c.founderSpread < 0 || c.founderSpread > 1) problems.push("founderSpread must be between 0 and 1");
   if (c.yearVariability < 0 || c.yearVariability > 1) problems.push("yearVariability must be between 0 and 1");
   if (c.yearVariability > 0 && (c.climateMode !== 1 || c.yearLength <= 0)) problems.push("yearVariability needs a climate with seasons (climateMode 1 and a yearLength)");
-  if (c.fatMax < 0 || c.fatMoveCost < 0 || c.fatUpkeep < 0) problems.push("the fat settings cannot be negative");
+  if (c.fatDepositRate < 0 || c.fatDepositRate > 1 || c.fatDrawRate < 0 || c.fatCap < 0 || c.fatMoveCost < 0 || c.fatUpkeep < 0) problems.push("the fat settings cannot be negative (and fatDepositRate is at most 1)");
+  if (c.fatDepositRate > 0 && (c.fatEfficiency <= 0 || c.fatEfficiency > 1)) problems.push("fatEfficiency must be above 0 and at most 1");
+  if (c.fatDepositAbove < 0 || c.fatDepositAbove > 1 || c.fatDrawBelow < 0 || c.fatDrawBelow > 1) problems.push("fatDepositAbove and fatDrawBelow must be between 0 and 1");
   if (c.initialFat < 0 || c.initialFat > 1 || c.initialTorpor < 0 || c.initialTorpor > 1) problems.push("initialFat and initialTorpor must be between 0 and 1");
   if (c.torporSaving < 0 || c.torporSaving > 1) problems.push("torporSaving must be between 0 and 1");
   if (c.torporSaving > 0 && c.climateMode !== 1) problems.push("torpor needs a climate (set climateMode to 1)");
+  if (c.torporSleepAt <= 0 || c.torporSleepAt > 1) problems.push("torporSleepAt must be above 0 and at most 1");
   if (c.torporBelowGrowth < 0 || c.torporUpkeep < 0) problems.push("the torpor settings cannot be negative");
   if (c.climateMode === 1) {
     for (const [name, value] of [["dayLength", c.dayLength], ["yearLength", c.yearLength], ["climateDriftPeriod", c.climateDriftPeriod]] as const) {

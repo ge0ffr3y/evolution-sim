@@ -529,9 +529,11 @@ export class Simulation {
   private readonly weatherA: Float32Array;
   private readonly weatherB: Float32Array;
   private readonly fatOn: boolean;
+  /** Energy held in the fat reserve (counted in the energy audit; it goes into the corpse when the body dies). */
+  private readonly fatStore: Float64Array;
   private readonly torporOn: boolean;
   /** Who is dormant this tick (worked out fresh every tick; not saved). */
-  private readonly torpid: Uint8Array;
+  private readonly torpid: Float32Array;
   private readonly toleranceSq: Float32Array;
   private kinCount = 0;
   private kinVx = 0;
@@ -818,14 +820,15 @@ export class Simulation {
         (k === GENE.stick && this.bondsOn && c.contactBonding === 1) ||
         (k === GENE.tolerance && c.kinTolerance === 1) ||
         (k === GENE.sex && c.sexualReproduction === 2) ||
-        (k === GENE.fat && c.fatMax > 0) ||
+        (k === GENE.fat && c.fatDepositRate > 0) ||
         (k === GENE.torpor && this.climateOn && c.torporSaving > 0) ||
         (k === GENE.palate && c.plantTypes > 1),
     );
     this.kinLimitSq = c.kinDistance * c.kinDistance;
-    this.fatOn = c.fatMax > 0;
+    this.fatOn = c.fatDepositRate > 0;
+    this.fatStore = new Float64Array(this.fatOn ? n : 0);
     this.torporOn = this.climateOn && c.torporSaving > 0;
-    this.torpid = new Uint8Array(this.torporOn ? n : 0);
+    this.torpid = new Float32Array(this.torporOn ? n : 0);
     this.memoryOn = c.brainMode > 0 && c.brainMemory === 1;
     this.memState = new Float32Array(this.memoryOn ? n * MEMORY_COUNT : 0);
     this.chemOn = c.brainMode > 0 && c.chemicals === 1;
@@ -885,8 +888,10 @@ export class Simulation {
     if (this.litterOn) this.float32Fields.push(this.litter);
     if (this.kinToleranceOn) this.float32Fields.push(this.toleranceSq);
     if (this.homeX.length > 0) this.float32Fields.push(this.homeX, this.homeY);
+
     if (this.chemOn) this.float32Fields.push(this.chemIntake);
     this.float64Fields = [this.energy, this.plantTaken, this.meatTaken];
+    if (this.fatOn) this.float64Fields.push(this.fatStore);
     this.uint32Fields = [this.id, this.parentId, this.age, this.kills];
     if (this.tracker) this.uint32Fields.push(this.species);
     if (this.sexOn) this.uint32Fields.push(this.parent2Id);
@@ -1090,7 +1095,7 @@ export class Simulation {
     for (let i = 0; i < this.count; i++) {
       if (this.killed[i] === 1 || !near(this.x[i]!, this.y[i]!)) continue;
       const cell = Math.floor(this.y[i]! / cs) * this.gridWidth + Math.floor(this.x[i]! / cs);
-      this.corpseEnergy[cell] = this.corpseEnergy[cell]! + this.bodyEnergy[i]! + this.energy[i]!;
+      this.corpseEnergy[cell] = this.corpseEnergy[cell]! + this.bodyEnergy[i]! + this.energy[i]! + (this.fatOn ? this.fatStore[i]! : 0);
       this.corpseMatter[cell] = this.corpseMatter[cell]! + this.bodyMatter[i]!;
       this.energy[i] = 0;
       this.killed[i] = 1;
@@ -1171,6 +1176,7 @@ export class Simulation {
     this.parentId[i] = parent;
     if (this.sexOn) this.parent2Id[i] = 0;
     if (this.sexGeneOn) this.sexMode[i] = 0;
+    if (this.fatOn) this.fatStore[i] = 0;
     if (this.memoryOn) this.memState.fill(0, i * MEMORY_COUNT, (i + 1) * MEMORY_COUNT);
     if (this.chemOn) {
       this.chem.fill(0, i * 4, i * 4 + 4);
@@ -1346,13 +1352,6 @@ export class Simulation {
     this.bodyEnergy[i] = c.bodyEnergyPerSize * size;
     this.bodyMatter[i] = c.bodyMatterPerSize * size;
     this.threshold[i] = c.reproThresholdPerSize * size;
-    if (this.fatOn) {
-      // A fat body banks more before reproducing, and costs more to haul around and keep.
-      const fat = genes[g + GENE.fat]!;
-      this.threshold[i] = this.threshold[i]! * (1 + c.fatMax * fat);
-      this.moveCost[i] = this.moveCost[i]! * (1 + c.fatMoveCost * fat);
-      this.basalCost[i] = this.basalCost[i]! * (1 + c.fatUpkeep * fat);
-    }
     if (this.torporOn) this.basalCost[i] = this.basalCost[i]! * (1 + c.torporUpkeep * genes[g + GENE.torpor]!);
   }
 
@@ -2513,9 +2512,10 @@ export class Simulation {
       if (this.resting[i]! > 0) this.resting[i] = this.resting[i]! - 1;
       if (this.torporOn) {
         // Where plants have stopped growing a dormant organism sits still (and cannot attack) and saves upkeep.
-        const dormant = this.growthFactor[this.cellOf[i]!]! < c.torporBelowGrowth && this.genes[i * GENE_COUNT + GENE.torpor]! > 0;
-        this.torpid[i] = dormant ? 1 : 0;
-        if (dormant) this.resting[i] = 1;
+        // How dormant it is goes with its gene, so a little torpor costs a little mobility and saves a little upkeep.
+        const dormancy = this.growthFactor[this.cellOf[i]!]! < c.torporBelowGrowth ? this.genes[i * GENE_COUNT + GENE.torpor]! : 0;
+        this.torpid[i] = dormancy;
+        if (dormancy >= c.torporSleepAt) this.resting[i] = 1; // deeply dormant: it cannot attack either
       }
 
       let stepSpeed = this.speed[i]!;
@@ -2594,7 +2594,7 @@ export class Simulation {
       }
       this.headingX[i] = hx;
       this.headingY[i] = hy;
-      if (this.torporOn && this.torpid[i] === 1) stepSpeed = 0;
+      if (this.torporOn) stepSpeed *= 1 - this.torpid[i]!;
 
       let nx = x0 + hx * stepSpeed;
       let ny = y0 + hy * stepSpeed;
@@ -2731,6 +2731,27 @@ export class Simulation {
         }
       }
 
+      if (this.fatOn) {
+        // Fat: bank surplus when well fed, draw it back when hungry. (The heat lost in storing is a sink, so it goes in the ledger.)
+        const need = this.threshold[i]!;
+        let store = this.fatStore[i]!;
+        const fraction = energy / need;
+        if (fraction < c.fatDrawBelow && store > 0) {
+          let draw = c.fatDrawRate * need;
+          if (draw > store) draw = store;
+          store -= draw;
+          energy += draw;
+        } else if (fraction > c.fatDepositAbove) {
+          let amount = this.genes[i * GENE_COUNT + GENE.fat]! * c.fatDepositRate * (energy - c.fatDepositAbove * need);
+          const room = (c.fatCap * need - store) / c.fatEfficiency;
+          if (amount > room) amount = room > 0 ? room : 0;
+          energy -= amount;
+          store += amount * c.fatEfficiency;
+          digestionLoss += amount * (1 - c.fatEfficiency);
+        }
+        this.fatStore[i] = store;
+      }
+
       if (!this.seenScavenger && this.meatTaken[i]! >= SCAVENGER_MIN_MEAT) {
         this.seenScavenger = true;
         this.logEvent("firstScavenger", this.id[i]!, `Organism #${this.id[i]!} lived mostly off a corpse: the first scavenger`);
@@ -2748,7 +2769,8 @@ export class Simulation {
         }
       }
       if (this.diseaseOn && this.sickFor[i]! > 0) basal += c.diseaseCost * this.basalCost[i]!; // being sick costs upkeep
-      if (this.torporOn && this.torpid[i] === 1) basal *= 1 - c.torporSaving * this.genes[i * GENE_COUNT + GENE.torpor]!;
+      if (this.fatOn) basal += c.fatUpkeep * (this.fatStore[i]! / this.threshold[i]!) * this.basalCost[i]!; // carrying fat costs upkeep
+      if (this.torporOn) basal *= 1 - c.torporSaving * this.torpid[i]!;
       if (this.thermalOn) {
         // Too hot or too cold for comfort costs extra upkeep.
         const off = this.temperature[cell]! - this.thermalPref[i]!;
@@ -2758,6 +2780,8 @@ export class Simulation {
       // Moving costs more the faster the brain drives the body (cost grows with speed squared).
       let move = brainMode > 0 ? this.moveCost[i]! * this.moveScale[i]! * this.moveScale[i]! : this.moveCost[i]!;
       if (this.terrainOn) move *= this.terrainMove[cell]!; // mountains and forest cost more to cross
+      if (this.fatOn) move *= 1 + c.fatMoveCost * (this.fatStore[i]! / this.threshold[i]!);
+      if (this.torporOn) move *= (1 - this.torpid[i]!) * (1 - this.torpid[i]!); // slower costs less (cost goes with speed squared)
       if (this.staminaOn) move += this.staminaCost[i]!; // the upkeep of the sprint reserve counts as movement
       const sensing = this.senseCost[i]!;
       const fighting = this.attackCost[i]! + (this.attempted[i] === 1 ? this.attemptCost[i]! : 0);
@@ -2979,7 +3003,7 @@ export class Simulation {
         if (i !== alive) this.moveOrganism(alive, i);
       } else if (this.energy[i]! <= 0) {
         const cell = this.cellOf[i]!;
-        corpseEnergy[cell] = corpseEnergy[cell]! + this.bodyEnergy[i]!;
+        corpseEnergy[cell] = corpseEnergy[cell]! + this.bodyEnergy[i]! + (this.fatOn ? this.fatStore[i]! : 0);
         corpseMatter[cell] = corpseMatter[cell]! + this.bodyMatter[i]!;
         starved++;
         if (this.bondsOn) this.breakBonds(i);
@@ -3042,7 +3066,7 @@ export class Simulation {
       this.corpseOwner[cell] = this.id[attacker]!;
       this.corpseOwnerUntil[cell] = this.tick + this.config.killOwnershipTicks;
     }
-    this.corpseEnergy[cell] = this.corpseEnergy[cell]! + this.bodyEnergy[prey]! + this.energy[prey]!;
+    this.corpseEnergy[cell] = this.corpseEnergy[cell]! + this.bodyEnergy[prey]! + this.energy[prey]! + (this.fatOn ? this.fatStore[prey]! : 0);
     this.corpseMatter[cell] = this.corpseMatter[cell]! + this.bodyMatter[prey]!;
     this.energy[prey] = 0;
     this.killed[prey] = 1;
@@ -3421,7 +3445,7 @@ export class Simulation {
     let stores = 0;
     let bodies = 0;
     for (let i = 0; i < this.count; i++) {
-      stores += this.energy[i]!;
+      stores += this.energy[i]! + (this.fatOn ? this.fatStore[i]! : 0);
       bodies += this.bodyEnergy[i]!;
     }
     const plants = sumOf(this.food) * this.config.energyPerFood;

@@ -43,7 +43,7 @@
     "camouflageMode": 1,
     "agingCoeff": 3,
     "litterMax": 4,
-    "fatMax": 2,
+    "fatDepositRate": 0.5,
     "torporSaving": 0.7,
 
     "multicellular": 1,
