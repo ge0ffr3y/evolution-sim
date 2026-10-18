@@ -347,6 +347,18 @@ export interface SimConfig {
    */
   kinDistance: number;
   /**
+   * Make tolerance of relatives a gene (the 19th) instead of a fixed rule. 1 = each organism's own
+   * gene (0 to 1) times kinDistance is the closeness at which it will not attack a relative, so
+   * a founder with tolerance 0 attacks anyone and tolerance has to evolve (kinDistance is then the
+   * most it can reach, and still decides who counts as a relative for sensing and herding). Needs
+   * kinDistance above 0. 0 = everybody follows kinDistance.
+   */
+  kinTolerance: number;
+  /** Tolerance of the first generation (0 to 1). */
+  initialTolerance: number;
+  /** Energy per tick per unit of tolerance: recognizing relatives is a kind of sensing, so it is counted on the sensing line. */
+  toleranceCostCoeff: number;
+  /**
    * The selfish herd: prey with relatives close by are harder to kill. An attack's odds use the
    * prey's defense times (1 + herdBonus x relatives within herdRange / herdCap), counting at most
    * herdCap relatives. herdBonus 0 = off; it needs kinDistance above 0.
@@ -463,8 +475,19 @@ export interface SimConfig {
    * organisms that are both ready to reproduce, close together and genetically compatible
    * pair up and have one baby, built from a mix of their genes (and brains), with each
    * paying half the usual energy. A ready organism with no partner nearby waits.
+   * 2 = sex is a gene (the 20th): each time an organism becomes ready it either splits in
+   * two or goes looking for a mate, with the gene as the chance of looking. Nobody is told
+   * to be sexual, and the only price of looking is the wait for a partner.
    */
   sexualReproduction: number;
+  /** The chance of looking for a mate in the first generation, with sexualReproduction 2 (0 = everyone starts out splitting). */
+  initialSex: number;
+  /**
+   * With sexualReproduction 2: 1 = a ready organism that did not choose to look for a mate will still
+   * accept a compatible neighbor who asks (it pays half the energy, as a mate does), so a rare
+   * mate-seeker is not stuck waiting for another mate-seeker. 0 = only mate-seekers pair with each other.
+   */
+  sexAcceptAny: number;
   /** How close (in world units) two organisms must be to mate. */
   mateRange: number;
   /**
@@ -699,6 +722,9 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   agingPrimeFraction: 0.5,
   agingRepairCoeff: 0.3,
   kinDistance: 0,
+  kinTolerance: 0,
+  initialTolerance: 0,
+  toleranceCostCoeff: 0.003,
   herdBonus: 0,
   herdRange: 8,
   herdCap: 5,
@@ -744,6 +770,8 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   typeSensorSpeed: 0.7,
   colonyDefenseShare: 0.5,
   sexualReproduction: 0,
+  initialSex: 0,
+  sexAcceptAny: 0,
   mateRange: 6,
   mateDistance: 0.25,
   matePreference: 0,
@@ -906,6 +934,10 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     if (c.seasonTempSwing < 0 || c.climateDriftAmplitude < 0 || c.latitudeCooling < 0 || c.mountainCooling < 0) problems.push("temperature swings and cooling cannot be negative");
   }
   if (c.kinDistance < 0 || c.kinDistance > 1) problems.push("kinDistance must be between 0 and 1");
+  if (![0, 1].includes(c.kinTolerance)) problems.push("kinTolerance must be 0 or 1");
+  if (c.kinTolerance === 1 && c.kinDistance <= 0) problems.push("kinTolerance needs kinDistance above 0 (the most closeness a tolerant organism can reach)");
+  if (c.initialTolerance < 0 || c.initialTolerance > 1) problems.push("initialTolerance must be between 0 and 1");
+  if (c.toleranceCostCoeff < 0) problems.push("toleranceCostCoeff cannot be negative");
   if (c.herdBonus < 0) problems.push("herdBonus cannot be negative");
   if (c.herdBonus > 0 && c.kinDistance <= 0) problems.push("herdBonus needs kinDistance above 0 (who counts as a relative)");
   if (!(c.herdRange > 0)) problems.push("herdRange must be positive");
@@ -940,7 +972,9 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
       if (value < 0) problems.push(`${name} cannot be negative`);
     }
   }
-  if (![0, 1].includes(c.sexualReproduction)) problems.push("sexualReproduction must be 0 or 1");
+  if (![0, 1, 2].includes(c.sexualReproduction)) problems.push("sexualReproduction must be 0, 1 or 2");
+  if (c.initialSex < 0 || c.initialSex > 1) problems.push("initialSex must be between 0 and 1");
+  if (![0, 1].includes(c.sexAcceptAny)) problems.push("sexAcceptAny must be 0 or 1");
   if (!(c.mateRange > 0)) problems.push("mateRange must be positive");
   if (![0, 1, 2].includes(c.matePreference)) problems.push("matePreference must be 0 (nearest), 1 (most similar genes) or 2 (most similar color)");
   if (![0, 1].includes(c.camouflageMode)) problems.push("camouflageMode must be 0 or 1");

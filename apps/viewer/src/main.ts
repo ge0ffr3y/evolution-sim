@@ -269,6 +269,8 @@ const GENE_LABELS: Record<GeneName, string> = {
   plan2: "Body plan: second bond",
   plan3: "Body plan: later bonds",
   stick: "Stickiness (bonds with strangers)",
+  tolerance: "Tolerance of relatives",
+  sex: "Mate-seeking (chance of looking for a mate)",
 };
 
 function traitText(gene: GeneName, value: number): string {

@@ -181,6 +181,8 @@ export interface SimStats {
   meanEnergy: number;
   /** Births and deaths since the simulation started. */
   totalBirths: number;
+  /** Births with two parents. */
+  sexualBirths: number;
   totalDeaths: number;
   /** Deaths caused by another organism, and total deaths from starvation. */
   totalKills: number;
@@ -319,6 +321,8 @@ export class Simulation {
   /** Number of organisms currently alive. They occupy indices 0 to count-1. */
   count = 0;
   totalBirths = 0;
+  /** Births that came from two parents (with sexualReproduction 2 only part of all births do). */
+  sexualBirths = 0;
   totalDeaths = 0;
   totalKills = 0;
   totalStarved = 0;
@@ -479,12 +483,23 @@ export class Simulation {
   /** The second parent of each organism (sexual reproduction only; 0 for none). */
   readonly parent2Id: Uint32Array;
   private readonly sexOn: boolean;
+  /** Sex as a gene (sexualReproduction 2): each organism's choice for its next birth: 0 not decided, 1 split in two, 2 look for a mate. */
+  private readonly sexGeneOn: boolean;
+  private readonly sexMode: Uint8Array;
+  /** The ready organisms that chose to look for a mate this tick (a scratch list). */
+  private readonly sexParents: Uint32Array;
+  /** And the ones that chose to split in two, plus who was taken as a mate this tick (so they do not also split). */
+  private readonly soloParents: Uint32Array;
+  private readonly matedNow: Uint8Array;
   /** Scratch for pairing up mates: who is ready, the pairs found, and the genes that count toward compatibility. */
   private readonly ready: Uint8Array;
   private readonly pairs: Uint32Array;
   private readonly mateMask: number[];
   /** Kin recognition: how close genetically counts as a relative (squared; 0 = off), and scratch for counting relatives. */
   private readonly kinLimitSq: number;
+  /** With kinTolerance: each organism's own squared closeness limit for not attacking a relative (cached from its gene). */
+  private readonly kinToleranceOn: boolean;
+  private readonly toleranceSq: Float32Array;
   private kinCount = 0;
   private kinVx = 0;
   private kinVy = 0;
@@ -597,8 +612,9 @@ export class Simulation {
   private readonly considerPrey = (index: number, distSq: number): void => {
     if (index === this.pickAttacker || this.killed[index] === 1 || this.size[index]! > this.pickSizeLimit) return;
     if (this.camoOn && !this.detects(this.pickAttacker, index)) return; // never noticed it
-    // Nobody attacks a relative.
-    if (this.kinLimitSq > 0 && this.geneDistanceSq(this.pickAttacker, index) <= this.kinLimitSq) return;
+    // Nobody attacks a relative (or, with kinTolerance, nobody tolerant enough to count the target as one).
+    const limitSq = this.kinToleranceOn ? this.toleranceSq[this.pickAttacker]! : this.kinLimitSq;
+    if (limitSq > 0 && this.geneDistanceSq(this.pickAttacker, index) <= limitSq) return;
     if (distSq < this.pickBestDistSq || (distSq === this.pickBestDistSq && index < this.pickBest)) {
       this.pickBest = index;
       this.pickBestDistSq = distSq;
@@ -759,10 +775,19 @@ export class Simulation {
         (k === GENE.litter && this.litterOn) ||
         (k === GENE.bond && this.bondsOn) ||
         ((k === GENE.plan1 || k === GENE.plan2 || k === GENE.plan3) && this.typeOn) ||
-        (k === GENE.stick && this.bondsOn && c.contactBonding === 1),
+        (k === GENE.stick && this.bondsOn && c.contactBonding === 1) ||
+        (k === GENE.tolerance && c.kinTolerance === 1) ||
+        (k === GENE.sex && c.sexualReproduction === 2),
     );
     this.kinLimitSq = c.kinDistance * c.kinDistance;
-    this.sexOn = c.sexualReproduction === 1;
+    this.kinToleranceOn = c.kinTolerance === 1;
+    this.toleranceSq = new Float32Array(this.kinToleranceOn ? n : 0);
+    this.sexOn = c.sexualReproduction >= 1;
+    this.sexGeneOn = c.sexualReproduction === 2;
+    this.sexMode = new Uint8Array(this.sexGeneOn ? n : 0);
+    this.sexParents = new Uint32Array(this.sexGeneOn ? n : 0);
+    this.soloParents = new Uint32Array(this.sexGeneOn ? n : 0);
+    this.matedNow = new Uint8Array(this.sexGeneOn ? n : 0);
     this.parent2Id = new Uint32Array(this.sexOn ? n : 0);
     this.ready = new Uint8Array(this.sexOn ? n : 0);
     this.pairs = new Uint32Array(this.sexOn ? n : 0);
@@ -773,10 +798,14 @@ export class Simulation {
       if (!this.activeGene[GENE[name]]) continue;
       // The bonding and body-plan genes describe how a body is built, not what kind of organism it is.
       if (name === "bond" || name === "plan1" || name === "plan2" || name === "plan3" || name === "stick") continue;
+      // How tolerant an organism is of relatives is a behavior setting, not part of what kind of organism it is.
+      if (name === "tolerance" || name === "sex") continue;
       this.mateMask.push(GENE[name]);
     }
     this.species = new Uint32Array(c.speciesEvery > 0 ? n : 0);
-    this.tracker = c.speciesEvery > 0 ? new SpeciesTracker(c, this.ranges, this.activeGene) : null;
+    // Species, like compatibility, ignore tolerance of relatives: it is a behavior setting, not a kind of body.
+    const speciesGenes = this.activeGene.map((on, k) => on && k !== GENE.tolerance && k !== GENE.sex);
+    this.tracker = c.speciesEvery > 0 ? new SpeciesTracker(c, this.ranges, speciesGenes) : null;
     const staminaOrganisms = this.staminaOn ? n : 0;
     this.stamina = new Float32Array(staminaOrganisms);
     this.staminaMax = new Float32Array(staminaOrganisms);
@@ -800,6 +829,7 @@ export class Simulation {
     if (this.thermalOn) this.float32Fields.push(this.thermalPref, this.thermalScale);
     if (this.agingOn) this.float32Fields.push(this.lifespan);
     if (this.litterOn) this.float32Fields.push(this.litter);
+    if (this.kinToleranceOn) this.float32Fields.push(this.toleranceSq);
     this.float64Fields = [this.energy, this.plantTaken, this.meatTaken];
     this.uint32Fields = [this.id, this.parentId, this.age, this.kills];
     if (this.tracker) this.uint32Fields.push(this.species);
@@ -813,6 +843,7 @@ export class Simulation {
       this.uint8Fields.push(this.hasImage);
       this.float32Fields.push(this.searchHue);
     }
+    if (this.sexGeneOn) this.uint8Fields.push(this.sexMode);
     this.uint16Fields = [this.resting];
     if (this.diseaseOn) this.uint16Fields.push(this.infection, this.sickFor, this.immuneFor);
     if (c.brainMode > 0) {
@@ -836,6 +867,8 @@ export class Simulation {
     founder[GENE.litter] = traitToGene(c.initialLitter, this.ranges.litter);
     founder[GENE.bond] = c.initialBond;
     founder[GENE.stick] = c.initialStick;
+    founder[GENE.tolerance] = c.initialTolerance;
+    founder[GENE.sex] = c.initialSex;
     for (let i = 0; i < c.initialOrganisms; i++) {
       let fx = this.rng.range(0, c.worldWidth);
       let fy = this.rng.range(0, c.worldHeight);
@@ -1034,6 +1067,7 @@ export class Simulation {
     this.id[i] = this.nextId++;
     this.parentId[i] = parent;
     if (this.sexOn) this.parent2Id[i] = 0;
+    if (this.sexGeneOn) this.sexMode[i] = 0;
     if (this.bondsOn) this.bondTo.fill(-1, i * BOND_SLOTS, (i + 1) * BOND_SLOTS);
     if (this.typeOn) this.cellType[i] = 0;
     if (this.camoOn) this.hasImage[i] = 0;
@@ -1145,6 +1179,12 @@ export class Simulation {
     if (this.typeOn) this.photoGain[i] = photo * sizeToThreeQuarters;
     this.moveCost[i] = c.moveCostCoeff * size * speed * speed * (1 + c.armorMoveFactor * armor);
     this.senseCost[i] = c.senseCostCoeff * sense;
+    if (this.kinToleranceOn) {
+      const tolerance = genes[g + GENE.tolerance]!;
+      // The circle of relatives this organism spares is its tolerance times the most kinDistance allows.
+      this.toleranceSq[i] = tolerance * tolerance * this.kinLimitSq;
+      this.senseCost[i] = this.senseCost[i]! + c.toleranceCostCoeff * tolerance;
+    }
     const fightingPenalty = 1 + c.herbivoreAttackPenalty * (1 - diet);
     this.attackCost[i] = c.attackCostCoeff * attack * size * fightingPenalty;
     this.attemptCost[i] = c.attackAttemptCost * size * fightingPenalty;
@@ -2192,14 +2232,14 @@ export class Simulation {
    * nearest ready, compatible, unpaired organism within mating range. Those who find nobody
    * wait (and keep eating). Returns how many pairs were made, stored in this.pairs.
    */
-  private pairUp(parentCount: number): number {
-    if (parentCount < 2) return 0;
+  private pairUp(list: Uint32Array, parentCount: number, candidates: Uint32Array = list, candidateCount: number = parentCount): number {
+    if (parentCount < 1 || candidateCount < 2) return 0;
     const ready = this.ready;
-    for (let p = 0; p < parentCount; p++) ready[this.parents[p]!] = 1;
+    for (let p = 0; p < candidateCount; p++) ready[candidates[p]!] = 1;
     this.hash.rebuild(this.x, this.y, this.count);
     let pairs = 0;
     for (let p = 0; p < parentCount; p++) {
-      const a = this.parents[p]!;
+      const a = list[p]!;
       if (ready[a] !== 1) continue;
       this.mateSelf = a;
       this.mateBest = -1;
@@ -2214,7 +2254,7 @@ export class Simulation {
       this.pairs[2 * pairs + 1] = b;
       pairs++;
     }
-    for (let p = 0; p < parentCount; p++) ready[this.parents[p]!] = 0;
+    for (let p = 0; p < candidateCount; p++) ready[candidates[p]!] = 0;
     return pairs;
   }
 
@@ -2591,12 +2631,37 @@ export class Simulation {
     // A newborn's body is built from the soil it is born on, so a barren patch
     // cannot support babies, and the baby's body also locks away some energy.
     // (With sexual reproduction, two ready organisms pair up and each hands over half as much.)
+    // With sex as a gene, each ready organism first settles (once per birth) whether it splits in two or looks for a mate.
+    let soloCount = parentCount;
+    let mateCount = parentCount;
+    let mateList = this.parents;
+    let soloList = this.parents;
+    if (this.sexGeneOn) {
+      soloCount = 0;
+      mateCount = 0;
+      mateList = this.sexParents;
+      soloList = this.soloParents;
+      for (let p = 0; p < parentCount; p++) {
+        const i = this.parents[p]!;
+        if (this.sexMode[i] === 0) this.sexMode[i] = this.rng.next() < this.genes[i * GENE_COUNT + GENE.sex]! ? 2 : 1;
+        if (this.sexMode[i] === 2) this.sexParents[mateCount++] = i;
+        else this.soloParents[soloCount++] = i;
+      }
+    }
+    let pairCount = 0;
     if (this.sexOn) {
-      const pairCount = this.pairUp(parentCount);
+      // With sexAcceptAny every ready organism is a possible mate, not only the ones that went looking.
+      pairCount = this.sexGeneOn && this.config.sexAcceptAny === 1 ? this.pairUp(mateList, mateCount, this.parents, parentCount) : this.pairUp(mateList, mateCount);
       birthsLoop: for (let p = 0; p < pairCount; p++) {
         const a = this.pairs[2 * p]!;
         const b = this.pairs[2 * p + 1]!;
         const litter = this.litterSize(a, b);
+        if (this.sexGeneOn) {
+          this.sexMode[a] = 0;
+          this.sexMode[b] = 0;
+          this.matedNow[a] = 1;
+          this.matedNow[b] = 1;
+        }
         // Each parent hands over half of the usual total, split between the babies.
         const eachA = (this.energy[a]! * c.offspringEnergyFraction * 0.5) / litter;
         const eachB = (this.energy[b]! * c.offspringEnergyFraction * 0.5) / litter;
@@ -2623,12 +2688,18 @@ export class Simulation {
           this.energy[b] = this.energy[b]! - eachB;
           this.energy[child] = store;
           this.totalBirths++;
+          this.sexualBirths++;
           if (this.bondsOn) this.maybeAttach(a, child);
         }
       }
-    } else {
-      birthsLoop: for (let p = 0; p < parentCount; p++) {
-        const parent = this.parents[p]!;
+    }
+    if (!this.sexOn || this.sexGeneOn) {
+      birthsLoop: for (let p = 0; p < soloCount; p++) {
+        const parent = soloList[p]!;
+        if (this.sexGeneOn) {
+          this.sexMode[parent] = 0;
+          if (this.matedNow[parent] === 1) continue; // it was taken as a mate this tick
+        }
         const litter = this.litterSize(parent, -1);
         // The same total as always, split between the babies (a litter of one hands over exactly what it always did).
         const each = (this.energy[parent]! * c.offspringEnergyFraction) / litter;
@@ -2656,6 +2727,13 @@ export class Simulation {
           this.totalBirths++;
           if (this.bondsOn) this.maybeAttach(parent, child);
         }
+      }
+    }
+
+    if (this.sexGeneOn) {
+      for (let p = 0; p < pairCount; p++) {
+        this.matedNow[this.pairs[2 * p]!] = 0;
+        this.matedNow[this.pairs[2 * p + 1]!] = 0;
       }
     }
 
@@ -2833,6 +2911,7 @@ export class Simulation {
       count: n,
       nextId: this.nextId,
       totalBirths: this.totalBirths,
+      sexualBirths: this.sexualBirths,
       totalDeaths: this.totalDeaths,
       totalKills: this.totalKills,
       totalStarved: this.totalStarved,
@@ -2896,6 +2975,7 @@ export class Simulation {
       count: number;
       nextId: number;
       totalBirths: number;
+      sexualBirths?: number;
       totalDeaths: number;
       totalKills: number;
       totalStarved: number;
@@ -2931,6 +3011,7 @@ export class Simulation {
     this.count = s.count;
     this.nextId = s.nextId;
     this.totalBirths = s.totalBirths;
+    this.sexualBirths = s.sexualBirths ?? 0;
     this.totalDeaths = s.totalDeaths;
     this.totalKills = s.totalKills;
     this.totalStarved = s.totalStarved;
@@ -2990,6 +3071,8 @@ export class Simulation {
       case "plan2":
       case "plan3":
       case "stick":
+      case "tolerance":
+      case "sex":
         return this.genes[i * GENE_COUNT + GENE[name]]!;
       case "lifespan": {
         const range = this.ranges.lifespan;
@@ -3064,6 +3147,7 @@ export class Simulation {
       colonies: this.colonyStats(),
       disease: this.diseaseStats(),
       totalBirths: this.totalBirths,
+      sexualBirths: this.sexualBirths,
       totalDeaths: this.totalDeaths,
       totalKills: this.totalKills,
       totalStarved: this.totalStarved,
