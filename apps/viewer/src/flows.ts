@@ -4,12 +4,19 @@ import type { HistoryPoint } from "./protocol";
 const WINDOW_TICKS = 1000;
 
 export interface EnergyFlows {
-  /** Energy gained from eating, per tick, over the recent window. */
-  intakePerTick: number;
-  /** Energy burned per tick on upkeep, movement and sensing. */
+  /** Sunlight captured by plants, per tick, over the recent window. This is the only energy that enters the world. */
+  sunPerTick: number;
+  /** Energy taken out of plants and out of corpses by eaters, per tick. */
+  plantEatenPerTick: number;
+  meatEatenPerTick: number;
+  /** Where energy goes as heat, per tick. */
   basalPerTick: number;
   movementPerTick: number;
   sensingPerTick: number;
+  fightingPerTick: number;
+  armorPerTick: number;
+  digestionPerTick: number;
+  rotPerTick: number;
   /** Ticks the numbers are averaged over. */
   span: number;
 }
@@ -46,11 +53,18 @@ export class FlowTracker {
     }
     const span = latest.tick - start.tick;
     if (span < 50) return null;
+    const per = (key: keyof HistoryPoint): number => ((latest[key] as number) - (start[key] as number)) / span;
     return {
-      intakePerTick: (latest.foodEaten - start.foodEaten) / span,
-      basalPerTick: (latest.basalBurned - start.basalBurned) / span,
-      movementPerTick: (latest.movementBurned - start.movementBurned) / span,
-      sensingPerTick: (latest.sensingBurned - start.sensingBurned) / span,
+      sunPerTick: per("sunlightIn"),
+      plantEatenPerTick: per("plantEaten"),
+      meatEatenPerTick: per("meatEaten"),
+      basalPerTick: per("basalBurned"),
+      movementPerTick: per("movementBurned"),
+      sensingPerTick: per("sensingBurned"),
+      fightingPerTick: per("attackBurned"),
+      armorPerTick: per("armorBurned"),
+      digestionPerTick: per("digestionLoss"),
+      rotPerTick: per("decayLoss"),
       span,
     };
   }

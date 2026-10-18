@@ -35,13 +35,17 @@ export class Charts {
   private readonly size: number[] = [];
   private readonly metabolism: number[] = [];
   private readonly sense: number[] = [];
+  private readonly herbivores: number[] = [];
+  private readonly omnivores: number[] = [];
+  private readonly carnivores: number[] = [];
   private stride = 1;
   private seen = 0;
 
   private readonly popChart: uPlot;
   private readonly traitChart: uPlot;
+  private readonly webChart: uPlot;
 
-  constructor(popContainer: HTMLElement, traitContainer: HTMLElement) {
+  constructor(popContainer: HTMLElement, traitContainer: HTMLElement, webContainer: HTMLElement) {
     const width = (el: HTMLElement): number => Math.max(el.clientWidth, 280);
 
     this.popChart = new uPlot(
@@ -95,13 +99,33 @@ export class Charts {
       traitContainer,
     );
 
-    const observer = new ResizeObserver(() => this.resize(popContainer, traitContainer));
+    this.webChart = new uPlot(
+      {
+        width: width(webContainer),
+        height: CHART_HEIGHT,
+        legend: { live: true },
+        cursor: { drag: { x: false, y: false } },
+        scales: { x: { time: false } },
+        axes: [baseAxis({ label: "tick" }), baseAxis({ label: "organisms" })],
+        series: [
+          { label: "tick" },
+          { label: "plant eaters", stroke: "#7bd88f", width: 2 },
+          { label: "mixed diet", stroke: "#ffd166", width: 2 },
+          { label: "meat eaters", stroke: "#ff5d73", width: 2 },
+        ],
+      },
+      [[], [], [], []],
+      webContainer,
+    );
+
+    const observer = new ResizeObserver(() => this.resize(popContainer, traitContainer, webContainer));
     observer.observe(popContainer);
   }
 
-  private resize(popContainer: HTMLElement, traitContainer: HTMLElement): void {
+  private resize(popContainer: HTMLElement, traitContainer: HTMLElement, webContainer: HTMLElement): void {
     const w = Math.max(popContainer.clientWidth, 280);
     this.popChart.setSize({ width: w, height: CHART_HEIGHT });
+    this.webChart.setSize({ width: Math.max(webContainer.clientWidth, 280), height: CHART_HEIGHT });
     this.traitChart.setSize({ width: Math.max(traitContainer.clientWidth, 280), height: CHART_HEIGHT });
   }
 
@@ -114,6 +138,9 @@ export class Charts {
     this.size.length = 0;
     this.metabolism.length = 0;
     this.sense.length = 0;
+    this.herbivores.length = 0;
+    this.omnivores.length = 0;
+    this.carnivores.length = 0;
     this.stride = 1;
     this.seen = 0;
     this.redraw();
@@ -130,12 +157,15 @@ export class Charts {
       this.size.push(p.meanSize);
       this.metabolism.push(p.meanMetabolism);
       this.sense.push(p.meanSense);
+      this.herbivores.push(p.herbivores);
+      this.omnivores.push(p.omnivores);
+      this.carnivores.push(p.carnivores);
       if (this.ticks.length > MAX_POINTS) this.thin();
     }
   }
 
   private thin(): void {
-    for (const series of [this.ticks, this.population, this.food, this.speed, this.size, this.metabolism, this.sense]) {
+    for (const series of [this.ticks, this.population, this.food, this.speed, this.size, this.metabolism, this.sense, this.herbivores, this.omnivores, this.carnivores]) {
       let write = 0;
       for (let read = 0; read < series.length; read += 2) series[write++] = series[read]!;
       series.length = write;
@@ -146,5 +176,6 @@ export class Charts {
   redraw(): void {
     this.popChart.setData([this.ticks, this.population, this.food]);
     this.traitChart.setData([this.ticks, this.speed, this.size, this.metabolism, this.sense]);
+    this.webChart.setData([this.ticks, this.herbivores, this.omnivores, this.carnivores]);
   }
 }

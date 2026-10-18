@@ -1,20 +1,34 @@
-import { GENES, Simulation, parseConfigOverrides, type SimConfig, type SimStats } from "@evo/sim-core";
+import { GENES, Simulation, parseConfigOverrides, type SimConfig, type SimEvent, type SimEventKind, type SimStats } from "@evo/sim-core";
 
 /** Columns of the per-run stats CSV, in order. */
 export const CSV_COLUMNS: readonly string[] = [
   "tick",
   "population",
+  "herbivores",
+  "omnivores",
+  "carnivores",
   "totalFood",
+  "totalNutrient",
+  "totalCorpseMatter",
+  "totalDetritus",
   "totalEnergy",
   "meanEnergy",
   "totalBirths",
   "totalDeaths",
+  "totalKills",
+  "totalStarved",
+  "blockedBirths",
   ...GENES.flatMap((gene) => [`mean_${gene}`, `sd_${gene}`]),
-  "foodEaten",
-  "foodRegrown",
+  "sunlightIn",
+  "plantEaten",
+  "meatEaten",
+  "digestionLoss",
+  "decayLoss",
   "basalBurned",
   "movementBurned",
   "sensingBurned",
+  "attackBurned",
+  "armorBurned",
 ];
 
 export const HIST_COLUMNS = ["tick", "trait", "bin", "binMin", "binMax", "count"] as const;
@@ -39,6 +53,8 @@ export interface RunResult {
   histCsv: string;
   rows: number;
   final: SimStats;
+  /** Notable firsts: the first kill, the first carnivore, and so on. */
+  events: SimEvent[];
   /** True if everyone died before the requested number of ticks. */
   extinct: boolean;
 }
@@ -48,10 +64,28 @@ function fmt(value: number): string {
 }
 
 function statsRow(s: SimStats): string {
-  const values: number[] = [s.tick, s.population, s.totalFood, s.totalEnergy, s.meanEnergy, s.totalBirths, s.totalDeaths];
+  const values: number[] = [
+    s.tick,
+    s.population,
+    s.classes.herbivores,
+    s.classes.omnivores,
+    s.classes.carnivores,
+    s.totalFood,
+    s.totalNutrient,
+    s.totalCorpseMatter,
+    s.totalDetritus,
+    s.totalEnergy,
+    s.meanEnergy,
+    s.totalBirths,
+    s.totalDeaths,
+    s.totalKills,
+    s.totalStarved,
+    s.blockedBirths,
+  ];
   for (const gene of GENES) values.push(s.traits[gene].mean, s.traits[gene].sd);
   const L = s.ledger;
-  values.push(L.foodEaten, L.foodRegrown, L.basalBurned, L.movementBurned, L.sensingBurned);
+  values.push(L.sunlightIn, L.plantEaten, L.meatEaten, L.digestionLoss, L.decayLoss);
+  values.push(L.basalBurned, L.movementBurned, L.sensingBurned, L.attackBurned, L.armorBurned);
   return values.map(fmt).join(",");
 }
 
@@ -103,6 +137,7 @@ export function runToCsv(options: RunOptions): RunResult {
     histCsv: histLines.length > 0 ? histLines.join("\n") + "\n" : "",
     rows: lines.length - 1,
     final: sim.stats(),
+    events: [...sim.events],
     extinct,
   };
 }
@@ -146,14 +181,60 @@ export interface SeedSummary {
   extinct: boolean;
   tick: number;
   population: number;
+  herbivores: number;
+  omnivores: number;
+  carnivores: number;
+  totalKills: number;
+  /** Tick of each notable first, or null if it never happened. */
+  firsts: Record<SimEventKind, number | null>;
   /** Mean of each trait at the end. */
   means: Record<string, number>;
 }
 
+const EVENT_KINDS: SimEventKind[] = ["firstScavenger", "firstKill", "firstPredator", "firstCarnivore"];
+
 export function summarize(seed: number, result: RunResult): SeedSummary {
   const means: Record<string, number> = {};
   for (const gene of GENES) means[gene] = result.final.traits[gene].mean;
-  return { seed, extinct: result.extinct, tick: result.final.tick, population: result.final.population, means };
+  const firsts = {} as Record<SimEventKind, number | null>;
+  for (const kind of EVENT_KINDS) firsts[kind] = result.events.find((e) => e.kind === kind)?.tick ?? null;
+  return {
+    seed,
+    extinct: result.extinct,
+    tick: result.final.tick,
+    population: result.final.population,
+    herbivores: result.final.classes.herbivores,
+    omnivores: result.final.classes.omnivores,
+    carnivores: result.final.classes.carnivores,
+    totalKills: result.final.totalKills,
+    firsts,
+    means,
+  };
+}
+
+export interface FoodWebSummary {
+  /** Seeds that survived to the end. */
+  survivors: number;
+  /** How many seeds ever produced each kind of first, and the median tick at which it happened. */
+  emerged: Record<SimEventKind, { seeds: number; medianTick: number | null }>;
+  /** Seeds that end with a real carnivore population (at least this many). */
+  withCarnivoresAtEnd: number;
+  carnivoreThreshold: number;
+}
+
+/** How many seeds grew a food web, and how fast. */
+export function foodWebSummary(summaries: readonly SeedSummary[], carnivoreThreshold = 20): FoodWebSummary {
+  const emerged = {} as FoodWebSummary["emerged"];
+  for (const kind of EVENT_KINDS) {
+    const ticks = summaries.map((s) => s.firsts[kind]).filter((t): t is number => t !== null).sort((a, b) => a - b);
+    emerged[kind] = { seeds: ticks.length, medianTick: ticks.length > 0 ? ticks[Math.floor(ticks.length / 2)]! : null };
+  }
+  return {
+    survivors: summaries.filter((s) => !s.extinct).length,
+    emerged,
+    withCarnivoresAtEnd: summaries.filter((s) => !s.extinct && s.carnivores >= carnivoreThreshold).length,
+    carnivoreThreshold,
+  };
 }
 
 export interface SweepSpread {

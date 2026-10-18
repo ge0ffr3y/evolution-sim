@@ -37,18 +37,29 @@ let lastInspected: InspectedState | null = null;
 
 function recordPoint(s: Simulation): void {
   const stats = s.stats();
+  const L = stats.ledger;
   points.push({
     tick: stats.tick,
     population: stats.population,
+    herbivores: stats.classes.herbivores,
+    omnivores: stats.classes.omnivores,
+    carnivores: stats.classes.carnivores,
     totalFood: stats.totalFood,
+    totalKills: stats.totalKills,
     meanSize: stats.traits.size.mean,
     meanSpeed: stats.traits.speed.mean,
     meanSense: stats.traits.senseRange.mean,
     meanMetabolism: stats.traits.metabolism.mean,
-    foodEaten: stats.ledger.foodEaten,
-    basalBurned: stats.ledger.basalBurned,
-    movementBurned: stats.ledger.movementBurned,
-    sensingBurned: stats.ledger.sensingBurned,
+    sunlightIn: L.sunlightIn,
+    plantEaten: L.plantEaten,
+    meatEaten: L.meatEaten,
+    digestionLoss: L.digestionLoss,
+    decayLoss: L.decayLoss,
+    basalBurned: L.basalBurned,
+    movementBurned: L.movementBurned,
+    sensingBurned: L.sensingBurned,
+    attackBurned: L.attackBurned,
+    armorBurned: L.armorBurned,
   });
 }
 
@@ -92,6 +103,7 @@ function worldInfo(s: Simulation): WorldInfo {
     gridWidth: s.gridWidth,
     gridHeight: s.gridHeight,
     foodCap: s.config.foodCap,
+    overlayScale: { nutrient: s.config.initialNutrientPerCell, corpse: 30, detritus: 12 },
     ranges: s.ranges,
     histogramBins: HISTOGRAM_BINS,
     histogramEvery: HISTOGRAM_EVERY,
@@ -107,12 +119,16 @@ function postFrame(s: Simulation): void {
   const size = s.size.slice(0, n);
   const sense = s.senseRange.slice(0, n);
   const hue = new Float32Array(n);
+  const diet = s.diet.slice(0, n);
   const energyFraction = new Float32Array(n);
   for (let i = 0; i < n; i++) {
     hue[i] = s.traitOf("hue", i);
     energyFraction[i] = s.energy[i]! / s.threshold[i]!;
   }
   const food = s.food.slice();
+  const nutrient = s.nutrient.slice();
+  const corpse = s.corpseEnergy.slice();
+  const detritus = s.detritus.slice();
   const capacity = sendCapacity ? s.foodCapacity.slice() : null;
 
   const message: FrameMessage = {
@@ -130,12 +146,17 @@ function postFrame(s: Simulation): void {
     size,
     sense,
     hue,
+    diet,
     energyFraction,
     food,
+    nutrient,
+    corpse,
+    detritus,
     capacity,
     points,
     histograms,
     inspected: inspect(s),
+    events: s.events,
   };
   points = [];
   histograms = [];
@@ -143,7 +164,10 @@ function postFrame(s: Simulation): void {
   needsFrame = false;
   lastFrame = performance.now();
 
-  const transfer: Transferable[] = [x.buffer, y.buffer, speed.buffer, size.buffer, sense.buffer, hue.buffer, energyFraction.buffer, food.buffer];
+  const transfer: Transferable[] = [
+    x.buffer, y.buffer, speed.buffer, size.buffer, sense.buffer, hue.buffer, diet.buffer, energyFraction.buffer,
+    food.buffer, nutrient.buffer, corpse.buffer, detritus.buffer,
+  ];
   if (capacity) transfer.push(capacity.buffer);
   // The options form of postMessage works in both a worker and the DOM typings.
   self.postMessage(message, { transfer });

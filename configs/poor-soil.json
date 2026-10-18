@@ -1,0 +1,7 @@
+{
+  "name": "Poor soil",
+  "description": "Only a fifth of the starting soil nutrients. Plants grow slowly, and every body built locks away nutrients, so nutrients (not sunlight) limit how many organisms can live.",
+  "config": {
+    "initialNutrientPerCell": 6
+  }
+}

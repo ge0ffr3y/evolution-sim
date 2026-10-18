@@ -1,10 +1,10 @@
 import "./style.css";
-import { GENES, parsePreset, type GeneName, type Preset } from "@evo/sim-core";
+import { GENES, parsePreset, type GeneName, type Preset, type SimEvent } from "@evo/sim-core";
 import { Charts } from "./charts";
 import { FlowTracker } from "./flows";
 import { HEATMAP_TRAITS, Heatmap } from "./heatmap";
 import type { FrameMessage, InspectedState, ToWorker } from "./protocol";
-import { COLOR_MODES, WorldRenderer, legendGradient, type ColorBy } from "./render";
+import { COLOR_MODES, OVERLAYS, WorldRenderer, legendGradient, type ColorBy, type Overlay } from "./render";
 
 const DEFAULT_SEED = 42;
 /** Speed buttons: label and simulation ticks per real second. */
@@ -53,10 +53,11 @@ const randomButton = el<HTMLButtonElement>("random-seed");
 const presetSelect = el<HTMLSelectElement>("preset");
 const presetDescription = el<HTMLParagraphElement>("preset-description");
 const colorSelect = el<HTMLSelectElement>("color-by");
+const overlaySelect = el<HTMLSelectElement>("overlay");
 const notice = el<HTMLParagraphElement>("notice");
 
 const renderer = new WorldRenderer(canvas);
-const charts = new Charts(el("chart-pop"), el("chart-traits"));
+const charts = new Charts(el("chart-pop"), el("chart-traits"), el("chart-web"));
 const heatmap = new Heatmap(el("heatmap"));
 const flows = new FlowTracker();
 const worker = new Worker(new URL("./sim.worker.ts", import.meta.url), { type: "module" });
@@ -106,6 +107,8 @@ function restart(seed: number, preset: PresetEntry): void {
 }
 
 function clearHistory(): void {
+  shownEvents = -1;
+  renderEvents([]);
   charts.clear();
   heatmap.clear();
   flows.clear();
@@ -171,6 +174,17 @@ for (const mode of COLOR_MODES) {
   colorSelect.append(option);
 }
 
+for (const overlay of OVERLAYS) {
+  const option = document.createElement("option");
+  option.value = overlay.id;
+  option.textContent = overlay.label;
+  overlaySelect.append(option);
+}
+overlaySelect.addEventListener("change", () => {
+  renderer.overlay = overlaySelect.value as Overlay;
+  frameDirty = true;
+});
+
 function renderLegend(): void {
   const mode = COLOR_MODES.find((m) => m.id === renderer.colorBy)!;
   el("legend-low").textContent = mode.legendLow;
@@ -223,6 +237,9 @@ el("insp-clear").addEventListener("click", () => {
 });
 
 const GENE_LABELS: Record<GeneName, string> = {
+  diet: "Diet (0=plants, 1=meat)",
+  attack: "Attack",
+  armor: "Armor",
   size: "Size",
   speed: "Speed",
   senseRange: "Sense range",
@@ -275,12 +292,26 @@ function renderInspector(state: InspectedState | null): void {
 
   const c = s.costs;
   el("insp-costs").textContent =
-    `upkeep ${c.basal.toFixed(4)}, movement ${c.movement.toFixed(4)}, sensing ${c.sensing.toFixed(4)} ` +
-    `(total ${(c.basal + c.movement + c.sensing).toFixed(4)})`;
+    `upkeep ${c.basal.toFixed(3)}, movement ${c.movement.toFixed(3)}, sensing ${c.sensing.toFixed(3)}, ` +
+    `weapons ${c.attack.toFixed(3)}, armor ${c.armor.toFixed(3)} ` +
+    `(total ${(c.basal + c.movement + c.sensing + c.attack + c.armor).toFixed(3)})`;
+  const eaten = s.plantTaken + s.meatTaken;
+  el("insp-ate").textContent =
+    eaten > 0
+      ? `Lifetime food energy: ${Math.round((s.plantTaken / eaten) * 100)}% plants, ${Math.round((s.meatTaken / eaten) * 100)}% meat. Kills: ${s.kills}.`
+      : `Has not eaten yet. Kills: ${s.kills}.`;
 }
 
 // --- Energy flows ---
-const FLOW_COLORS = { upkeep: "#4cc2ff", movement: "#ffb454", sensing: "#c792ea" } as const;
+const FLOW_PARTS = [
+  { key: "basalPerTick", label: "Upkeep", color: "#4cc2ff" },
+  { key: "movementPerTick", label: "Movement", color: "#ffb454" },
+  { key: "sensingPerTick", label: "Sensing", color: "#c792ea" },
+  { key: "fightingPerTick", label: "Fighting", color: "#ff5d73" },
+  { key: "armorPerTick", label: "Armor", color: "#8b98a5" },
+  { key: "digestionPerTick", label: "Digestion loss", color: "#7bd88f" },
+  { key: "rotPerTick", label: "Rotting", color: "#a67c52" },
+] as const;
 
 function renderFlows(): void {
   const recent = flows.recent();
@@ -288,41 +319,59 @@ function renderFlows(): void {
   const bar = el("flows-bar");
   const legend = el("flows-legend");
   if (!recent) {
-    intro.hidden = false;
     intro.textContent = "Collecting data...";
     bar.hidden = true;
     legend.hidden = true;
     return;
   }
-  const burned = recent.basalPerTick + recent.movementPerTick + recent.sensingPerTick;
-  intro.hidden = false;
-  intro.textContent = `Food energy eaten: ${recent.intakePerTick.toFixed(1)} per tick. Energy burned: ${burned.toFixed(1)} per tick (the gap goes into new organisms).`;
+  const heat = FLOW_PARTS.reduce((sum, part) => sum + recent[part.key], 0);
+  const eaten = recent.plantEatenPerTick + recent.meatEatenPerTick;
+  intro.textContent =
+    `Sunlight is the only energy source: ${recent.sunPerTick.toFixed(1)} per tick captured by plants. ` +
+    `Eaten: ${recent.plantEatenPerTick.toFixed(1)} from plants, ${recent.meatEatenPerTick.toFixed(1)} from corpses (${eaten > 0 ? Math.round((recent.meatEatenPerTick / eaten) * 100) : 0}% meat). ` +
+    `Lost as heat: ${heat.toFixed(1)} per tick.`;
 
-  const parts: [string, string, number][] = [
-    ["Upkeep", FLOW_COLORS.upkeep, recent.basalPerTick],
-    ["Movement", FLOW_COLORS.movement, recent.movementPerTick],
-    ["Sensing", FLOW_COLORS.sensing, recent.sensingPerTick],
-  ];
   bar.hidden = false;
   legend.hidden = false;
   bar.replaceChildren(
-    ...parts.map(([label, color, value]) => {
+    ...FLOW_PARTS.map((part) => {
       const segment = document.createElement("div");
-      segment.title = label;
-      segment.style.background = color;
-      segment.style.width = `${burned > 0 ? (value / burned) * 100 : 0}%`;
+      segment.title = part.label;
+      segment.style.background = part.color;
+      segment.style.width = `${heat > 0 ? (recent[part.key] / heat) * 100 : 0}%`;
       return segment;
     }),
   );
   legend.replaceChildren(
-    ...parts.map(([label, color, value]) => {
+    ...FLOW_PARTS.map((part) => {
       const item = document.createElement("li");
       const dot = document.createElement("span");
       dot.className = "dot";
-      dot.style.background = color;
+      dot.style.background = part.color;
       const text = document.createElement("span");
-      text.textContent = `${label}: ${burned > 0 ? Math.round((value / burned) * 100) : 0}% of spending (${value.toFixed(2)} per tick)`;
+      const value = recent[part.key];
+      text.textContent = `${part.label}: ${heat > 0 ? Math.round((value / heat) * 100) : 0}% of heat lost (${value.toFixed(2)} per tick)`;
       item.append(dot, text);
+      return item;
+    }),
+  );
+}
+
+// --- Notable firsts ---
+let shownEvents = 0;
+function renderEvents(events: readonly SimEvent[]): void {
+  if (events.length === shownEvents) return;
+  shownEvents = events.length;
+  el("events-empty").hidden = events.length > 0;
+  el("events-list").replaceChildren(
+    ...events.map((event) => {
+      const item = document.createElement("li");
+      const tick = document.createElement("span");
+      tick.className = "event-tick";
+      tick.textContent = `tick ${event.tick.toLocaleString("en-US")}`;
+      const text = document.createElement("span");
+      text.textContent = event.text;
+      item.append(tick, text);
       return item;
     }),
   );
@@ -345,6 +394,7 @@ worker.onmessage = (event: MessageEvent<FrameMessage>) => {
   frameDirty = true;
 
   renderInspector(frame.inspected);
+  renderEvents(frame.events);
 
   if (frame.extinct) {
     running = false;
@@ -370,6 +420,8 @@ function updateStats(frame: FrameMessage): void {
   const s = frame.stats;
   setText("stat-tick", format.int.format(s.tick));
   setText("stat-pop", format.int.format(s.population));
+  setText("stat-classes", `${s.classes.herbivores} / ${s.classes.omnivores} / ${s.classes.carnivores}`);
+  setText("stat-kills", format.int.format(s.totalKills));
   setText("stat-food", format.int.format(Math.round(s.totalFood)));
   setText("stat-energy", format.fixed(s.meanEnergy, 1));
   setText("stat-size", format.fixed(s.traits.size.mean, 2));

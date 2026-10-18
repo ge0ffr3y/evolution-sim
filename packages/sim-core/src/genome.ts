@@ -6,7 +6,7 @@ import type { SimConfig } from "./config";
  * worked out from the genes ("phenotype mapping") by stretching each gene
  * across that trait's allowed range from the config.
  */
-export const GENES = ["size", "speed", "senseRange", "metabolism", "hue", "mutationRate"] as const;
+export const GENES = ["size", "speed", "senseRange", "metabolism", "hue", "mutationRate", "diet", "attack", "armor"] as const;
 export type GeneName = (typeof GENES)[number];
 export const GENE_COUNT = GENES.length;
 
@@ -18,6 +18,9 @@ export const GENE = {
   metabolism: 3,
   hue: 4,
   mutationRate: 5,
+  diet: 6,
+  attack: 7,
+  armor: 8,
 } as const satisfies Record<GeneName, number>;
 
 /** Real-world values for every gene, e.g. { size: 1.2, speed: 0.8, ... }. */
@@ -37,6 +40,9 @@ export function traitRanges(c: SimConfig): Record<GeneName, TraitRange> {
     metabolism: { min: c.metabolismMin, max: c.metabolismMax },
     hue: { min: 0, max: 1 },
     mutationRate: { min: c.mutationRateMin, max: c.mutationRateMax },
+    diet: { min: c.dietMin, max: c.dietMax },
+    attack: { min: c.attackMin, max: c.attackMax },
+    armor: { min: c.armorMin, max: c.armorMax },
   };
 }
 

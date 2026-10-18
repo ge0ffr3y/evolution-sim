@@ -4,7 +4,7 @@ import { availableParallelism } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { GENES, parsePreset, type SimConfig } from "@evo/sim-core";
-import { parseOverrides, parseSeedList, runToCsv, spreadAcrossSeeds, summarize, type SeedSummary } from "./run";
+import { foodWebSummary, parseOverrides, parseSeedList, runToCsv, spreadAcrossSeeds, summarize, type SeedSummary } from "./run";
 
 const USAGE = `Evolution Sim headless runner
 
@@ -136,8 +136,25 @@ async function runSweep(seeds: number[]): Promise<void> {
   await Promise.all(workers);
 
   summaries.sort((a, b) => a.seed - b.seed);
-  const header = ["seed", "extinct", "tick", "population", ...GENES.map((g) => `mean_${g}`)];
-  const rows = summaries.map((s) => [s.seed, s.extinct ? 1 : 0, s.tick, s.population, ...GENES.map((g) => s.means[g]!.toFixed(5))].join(","));
+  const header = ["seed", "extinct", "tick", "population", "herbivores", "omnivores", "carnivores", "totalKills", "firstScavenger", "firstKill", "firstPredator", "firstCarnivore", ...GENES.map((g) => `mean_${g}`)];
+  const tickOrBlank = (t: number | null): string => (t === null ? "" : String(t));
+  const rows = summaries.map((s) =>
+    [
+      s.seed,
+      s.extinct ? 1 : 0,
+      s.tick,
+      s.population,
+      s.herbivores,
+      s.omnivores,
+      s.carnivores,
+      s.totalKills,
+      tickOrBlank(s.firsts.firstScavenger),
+      tickOrBlank(s.firsts.firstKill),
+      tickOrBlank(s.firsts.firstPredator),
+      tickOrBlank(s.firsts.firstCarnivore),
+      ...GENES.map((g) => s.means[g]!.toFixed(5)),
+    ].join(","),
+  );
   writeFileSync(join(folder, "summary.csv"), [header.join(","), ...rows].join("\n") + "\n");
 
   const spread = spreadAcrossSeeds(summaries);
@@ -148,6 +165,15 @@ async function runSweep(seeds: number[]): Promise<void> {
     const rel = t.mean > 0 ? (t.sd / t.mean) * 100 : 0;
     console.log(`  ${gene.padEnd(13)} ${t.mean.toFixed(3).padStart(6)} ${t.sd.toFixed(3).padStart(6)} ${t.min.toFixed(3).padStart(6)} ${t.max.toFixed(3).padStart(7)}   ${rel.toFixed(0)}%`);
   }
+
+  const web = foodWebSummary(summaries);
+  const median = (t: number | null): string => (t === null ? "never" : `tick ${t.toLocaleString("en-US")}`);
+  console.log("\nDid a food web emerge? (everyone starts as an unarmed plant eater)");
+  console.log(`  first scavenger:  ${web.emerged.firstScavenger.seeds} of ${summaries.length} seeds (median ${median(web.emerged.firstScavenger.medianTick)})`);
+  console.log(`  first kill:       ${web.emerged.firstKill.seeds} of ${summaries.length} seeds (median ${median(web.emerged.firstKill.medianTick)})`);
+  console.log(`  first predator:   ${web.emerged.firstPredator.seeds} of ${summaries.length} seeds (median ${median(web.emerged.firstPredator.medianTick)})`);
+  console.log(`  first carnivore (survives mostly on meat): ${web.emerged.firstCarnivore.seeds} of ${summaries.length} seeds (median ${median(web.emerged.firstCarnivore.medianTick)})`);
+  console.log(`  seeds ending with at least ${web.carnivoreThreshold} carnivores: ${web.withCarnivoresAtEnd} of ${summaries.length}`);
   console.log(`\nWrote ${summaries.length} run files and summary.csv to ${folder}`);
 }
 
@@ -187,6 +213,7 @@ function runSingle(): void {
       ? `Everyone died out at tick ${f.tick}.`
       : `Finished tick ${f.tick}: population ${f.population}, mean size ${f.traits.size.mean.toFixed(3)}, mean speed ${f.traits.speed.mean.toFixed(3)}.`,
   );
+  for (const event of result.events) console.log(`  tick ${event.tick.toLocaleString("en-US")}: ${event.text}`);
   console.log(`Wrote ${result.rows} rows to ${outPath} in ${seconds.toFixed(1)}s.`);
   if (result.histCsv) console.log(`Wrote trait histograms to ${histPath}.`);
 }

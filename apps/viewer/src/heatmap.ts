@@ -7,6 +7,9 @@ const HEIGHT = 190;
 const MARGIN = { left: 46, right: 8, top: 8, bottom: 24 };
 
 export const HEATMAP_TRAITS: readonly { id: GeneName; label: string }[] = [
+  { id: "diet", label: "Diet" },
+  { id: "attack", label: "Attack" },
+  { id: "armor", label: "Armor" },
   { id: "size", label: "Size" },
   { id: "speed", label: "Speed" },
   { id: "senseRange", label: "Sense range" },
@@ -21,7 +24,7 @@ export const HEATMAP_TRAITS: readonly { id: GeneName; label: string }[] = [
  * organisms there. One column per histogram snapshot.
  */
 export class Heatmap {
-  trait: GeneName = "size";
+  trait: GeneName = "diet";
 
   private readonly canvas = document.createElement("canvas");
   private readonly ctx: CanvasRenderingContext2D;

@@ -7,6 +7,7 @@ import {
   runToCsv,
   spreadAcrossSeeds,
   summarize,
+  foodWebSummary,
   type SeedSummary,
 } from "./run";
 
@@ -30,7 +31,11 @@ describe("runToCsv", () => {
   });
 
   it("includes trait means and spreads and the energy ledger", () => {
-    for (const column of ["mean_size", "sd_speed", "mean_senseRange", "mean_mutationRate", "foodEaten", "basalBurned", "sensingBurned"]) {
+    for (const column of [
+      "mean_size", "sd_speed", "mean_senseRange", "mean_mutationRate", "mean_diet", "mean_attack", "mean_armor",
+      "carnivores", "totalKills", "sunlightIn", "plantEaten", "meatEaten", "digestionLoss", "decayLoss", "basalBurned",
+      "sensingBurned", "attackBurned", "armorBurned",
+    ]) {
       expect(CSV_COLUMNS).toContain(column);
     }
   });
@@ -76,8 +81,8 @@ describe("histograms", () => {
     const lines = result.histCsv.trim().split("\n");
     expect(lines[0]).toBe(HIST_COLUMNS.join(","));
     const rows = lines.slice(1).map((l) => l.split(","));
-    // 3 snapshots (ticks 0, 500, 1000) x 6 traits x 8 bins
-    expect(rows).toHaveLength(3 * 6 * bins);
+    // 3 snapshots (ticks 0, 500, 1000) x 9 traits x 8 bins
+    expect(rows).toHaveLength(3 * 9 * bins);
 
     const totals = new Map<string, number>();
     for (const [tick, trait, , , , count] of rows) {
@@ -132,7 +137,12 @@ describe("spreadAcrossSeeds", () => {
     extinct,
     tick: 1000,
     population: extinct ? 0 : 100,
-    means: { size, speed: 1, senseRange: 0, metabolism: 1, hue: 0.5, mutationRate: 0.01 },
+    herbivores: extinct ? 0 : 90,
+    omnivores: 0,
+    carnivores: extinct ? 0 : 10,
+    totalKills: 0,
+    firsts: { firstScavenger: null, firstKill: null, firstPredator: null, firstCarnivore: null },
+    means: { size, speed: 1, senseRange: 0, metabolism: 1, hue: 0.5, mutationRate: 0.01, diet: 0, attack: 0, armor: 0 },
   });
 
   it("measures how far apart the surviving seeds ended up, ignoring extinct ones", () => {
@@ -148,5 +158,33 @@ describe("spreadAcrossSeeds", () => {
     expect(summary.seed).toBe(3);
     expect(summary.tick).toBe(200);
     expect(summary.means["size"]).toBeCloseTo(result.final.traits.size.mean, 9);
+  });
+});
+
+describe("foodWebSummary", () => {
+  const seed = (n: number, firstCarnivore: number | null, carnivores: number, extinct = false): SeedSummary => ({
+    seed: n,
+    extinct,
+    tick: 1000,
+    population: extinct ? 0 : 100,
+    herbivores: 80,
+    omnivores: 0,
+    carnivores,
+    totalKills: 50,
+    firsts: { firstScavenger: 100, firstKill: 40, firstPredator: 90, firstCarnivore },
+    means: { size: 1, speed: 1, senseRange: 0, metabolism: 1, hue: 0.5, mutationRate: 0.01, diet: 0.2, attack: 0.1, armor: 0.1 },
+  });
+
+  it("counts how many seeds grew each part of the food web, with median timing", () => {
+    const web = foodWebSummary([seed(1, 500, 40), seed(2, 900, 5), seed(3, null, 0), seed(4, 700, 30)]);
+    expect(web.survivors).toBe(4);
+    expect(web.emerged.firstCarnivore).toEqual({ seeds: 3, medianTick: 700 });
+    expect(web.emerged.firstKill).toEqual({ seeds: 4, medianTick: 40 });
+    expect(web.withCarnivoresAtEnd).toBe(2);
+  });
+
+  it("says null when something never happened", () => {
+    const web = foodWebSummary([seed(1, null, 0), seed(2, null, 0)]);
+    expect(web.emerged.firstCarnivore).toEqual({ seeds: 0, medianTick: null });
   });
 });

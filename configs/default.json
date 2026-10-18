@@ -1,5 +1,5 @@
 {
   "name": "Default",
-  "description": "The standard world: uneven land, bigger eaters win crowded cells, movement and sensing cost a little.",
+  "description": "The standard world. Everyone starts as an unarmed plant eater; watch for the first kill, the first scavenger, and the first organism that lives mostly on meat.",
   "config": {}
 }

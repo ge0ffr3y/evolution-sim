@@ -1,0 +1,9 @@
+{
+  "name": "Arms race",
+  "description": "Fighting is cheap and anyone can do it. Expect an early orgy of killing, heavy armor and fast prey, and a much smaller surviving population.",
+  "config": {
+    "attackAttemptCost": 0.05,
+    "attackCostCoeff": 0.005,
+    "herbivoreAttackPenalty": 0
+  }
+}

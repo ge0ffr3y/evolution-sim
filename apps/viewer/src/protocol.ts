@@ -1,4 +1,4 @@
-import type { GeneName, OrganismSnapshot, SimConfig, SimStats, TraitRange } from "@evo/sim-core";
+import type { GeneName, OrganismSnapshot, SimConfig, SimEvent, SimStats, TraitRange } from "@evo/sim-core";
 
 /** Messages from the page to the simulation worker. */
 export type ToWorker =
@@ -15,16 +15,26 @@ export type ToWorker =
 export interface HistoryPoint {
   tick: number;
   population: number;
+  herbivores: number;
+  omnivores: number;
+  carnivores: number;
   totalFood: number;
+  totalKills: number;
   meanSize: number;
   meanSpeed: number;
   meanSense: number;
   meanMetabolism: number;
   /** Running energy totals, so the page can work out recent flows. */
-  foodEaten: number;
+  sunlightIn: number;
+  plantEaten: number;
+  meatEaten: number;
+  digestionLoss: number;
+  decayLoss: number;
   basalBurned: number;
   movementBurned: number;
   sensingBurned: number;
+  attackBurned: number;
+  armorBurned: number;
 }
 
 /** How many organisms fall in each slice of every trait's range, at one moment. */
@@ -48,6 +58,8 @@ export interface WorldInfo {
   gridWidth: number;
   gridHeight: number;
   foodCap: number;
+  /** What a "full" cell looks like for each overlay, so the map can be shaded sensibly. */
+  overlayScale: { nutrient: number; corpse: number; detritus: number };
   ranges: Record<GeneName, TraitRange>;
   histogramBins: number;
   histogramEvery: number;
@@ -70,9 +82,14 @@ export interface FrameMessage {
   size: Float32Array;
   sense: Float32Array;
   hue: Float32Array;
+  diet: Float32Array;
   /** Energy as a fraction of the amount needed to reproduce. */
   energyFraction: Float32Array;
   food: Float64Array;
+  /** Soil nutrient, corpse energy and detritus in each cell (for the map overlays). */
+  nutrient: Float64Array;
+  corpse: Float64Array;
+  detritus: Float64Array;
   /** Most food each cell can hold. Sent only in the first frame after a restart. */
   capacity: Float64Array | null;
   /** Chart samples recorded since the previous frame. */
@@ -80,4 +97,6 @@ export interface FrameMessage {
   /** Histogram snapshots taken since the previous frame. */
   histograms: HistogramSample[];
   inspected: InspectedState | null;
+  /** Notable firsts so far (the first kill, the first carnivore...). */
+  events: SimEvent[];
 }

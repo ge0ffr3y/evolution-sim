@@ -16,4 +16,14 @@ export { parsePreset } from "./presets";
 export type { Preset } from "./presets";
 export { SpatialHash } from "./spatial-hash";
 export { Simulation } from "./simulation";
-export type { EnergyLedger, OrganismSnapshot, SimStats, TraitSummary } from "./simulation";
+export type {
+  DietClasses,
+  EnergyAudit,
+  EnergyLedger,
+  MatterAudit,
+  OrganismSnapshot,
+  SimEvent,
+  SimEventKind,
+  SimStats,
+  TraitSummary,
+} from "./simulation";

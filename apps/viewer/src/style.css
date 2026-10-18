@@ -364,3 +364,24 @@ label {
 #world {
   cursor: crosshair;
 }
+
+.events-list {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 0;
+  display: grid;
+  gap: 6px;
+  font-size: 0.8rem;
+}
+
+.events-list li {
+  display: grid;
+  grid-template-columns: 62px 1fr;
+  gap: 8px;
+  color: var(--text);
+}
+
+.events-list .event-tick {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}

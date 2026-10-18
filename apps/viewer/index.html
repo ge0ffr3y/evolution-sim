@@ -8,7 +8,7 @@
   <body>
     <header class="page-header">
       <h1>Evolution Sim</h1>
-      <p>Phase 2: genes and trade-offs. Every trait costs energy; click an organism to inspect it.</p>
+      <p>Phase 3: food webs. Everyone starts as an unarmed plant eater; watch for the first kill. Click an organism to inspect it.</p>
     </header>
 
     <main class="layout">
@@ -18,9 +18,12 @@
           <label class="inline-label">Color dots by
             <select id="color-by"></select>
           </label>
+          <label class="inline-label">Map shows
+            <select id="overlay"></select>
+          </label>
           <p class="legend"><span id="legend-low"></span> <span id="legend-swatch" class="swatch"></span> <span id="legend-high"></span></p>
         </div>
-        <p class="hint">Bigger dot = bigger body. Brighter green = more food; the faint base tint is how fertile the land is.</p>
+        <p class="hint">Bigger dot = bigger body. The map shows what the overlay says; the faint base tint is how fertile the land is.</p>
       </section>
 
       <aside class="side-panel">
@@ -47,6 +50,8 @@
         <dl class="stats">
           <div><dt>Tick</dt><dd id="stat-tick">0</dd></div>
           <div><dt>Population</dt><dd id="stat-pop">0</dd></div>
+          <div><dt>Plant / mixed / meat eaters</dt><dd id="stat-classes">0</dd></div>
+          <div><dt>Kills</dt><dd id="stat-kills">0</dd></div>
           <div><dt>Total food</dt><dd id="stat-food">0</dd></div>
           <div><dt>Mean energy</dt><dd id="stat-energy">0</dd></div>
           <div><dt>Mean size</dt><dd id="stat-size">0</dd></div>
@@ -57,6 +62,12 @@
           <div><dt>Deaths</dt><dd id="stat-deaths">0</dd></div>
           <div><dt>Ticks / second</dt><dd id="stat-tps">0</dd></div>
         </dl>
+
+        <section class="block" aria-labelledby="events-title">
+          <h2 id="events-title">Notable firsts</h2>
+          <p id="events-empty" class="hint">Nothing yet. Everyone starts as an unarmed plant eater.</p>
+          <ul id="events-list" class="events-list"></ul>
+        </section>
 
         <section class="block" aria-labelledby="flows-title">
           <h2 id="flows-title">Energy flows <span class="muted">(last ~1,000 ticks)</span></h2>
@@ -82,6 +93,7 @@
             <div class="bar"><div id="insp-energy-bar" class="bar-fill"></div></div>
             <p class="bar-label"><span>Genes</span><span class="muted">(bar = gene, text = trait)</span></p>
             <ul id="insp-genes" class="gene-list"></ul>
+            <p id="insp-ate" class="hint"></p>
             <p class="bar-label"><span>Energy burned per tick</span></p>
             <p id="insp-costs" class="hint"></p>
           </div>
@@ -92,6 +104,9 @@
     <section class="charts">
       <h2>Population and food</h2>
       <div id="chart-pop" class="chart"></div>
+      <h2>Who eats what</h2>
+      <p class="hint">Plant eaters (diet under 0.25), mixed diets, and meat eaters (over 0.75). Predator and prey counts rise and fall together.</p>
+      <div id="chart-web" class="chart"></div>
       <h2>Average traits</h2>
       <div id="chart-traits" class="chart"></div>
       <h2>Trait distribution over time</h2>

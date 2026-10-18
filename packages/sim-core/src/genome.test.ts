@@ -37,12 +37,15 @@ describe("genome mapping", () => {
   });
 
   it("expresses a full genome into named traits", () => {
-    const genes = [0, 1, 0.5, 0, 0.25, 1];
+    const genes = [0, 1, 0.5, 0, 0.25, 1, 0.5, 1, 0];
     const traits = expressGenes(genes, 0, ranges);
     expect(traits.size).toBe(ranges.size.min);
     expect(traits.speed).toBe(ranges.speed.max);
     expect(traits.hue).toBe(0.25);
     expect(traits.mutationRate).toBe(ranges.mutationRate.max);
+    expect(traits.diet).toBe(0.5);
+    expect(traits.attack).toBe(ranges.attack.max);
+    expect(traits.armor).toBe(ranges.armor.min);
   });
 });
 

@@ -1,0 +1,8 @@
+{
+  "name": "Peaceful meadow (control)",
+  "description": "Nobody can evolve weapons, so there are no kills and no predators. A control world for comparing against the food web: same plants, same soil, same costs.",
+  "config": {
+    "attackMin": 0,
+    "attackMax": 0
+  }
+}

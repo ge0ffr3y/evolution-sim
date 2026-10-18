@@ -15,7 +15,11 @@ export interface SimConfig {
   // --- Food (plants) ---
   /** Most food one cell can hold. */
   foodCap: number;
-  /** Food added to every cell each tick, up to foodCap. */
+  /**
+   * The most plant food a cell can grow per tick when soil nutrients are plentiful
+   * (the sunlight-limited rate). Plants never grow past foodCap, and need soil
+   * nutrients to grow at all.
+   */
   foodRegrowPerTick: number;
   /** Starting food as a fraction of foodCap (0 to 1). */
   initialFoodFraction: number;
@@ -27,6 +31,20 @@ export interface SimConfig {
   fertilityVariation: number;
   /** Size of one fertile or barren patch, in food cells. Must divide the grid evenly. */
   fertilityScale: number;
+
+  // --- Soil, bodies and decay (the matter loop) ---
+  /** Soil nutrients in every cell at the start. Plants turn nutrients into food. */
+  initialNutrientPerCell: number;
+  /** Plants grow at half their top speed when a cell holds this much nutrient. */
+  nutrientHalfSaturation: number;
+  /** Nutrient locked into a newborn's body, per unit of size. Taken from the soil it is born on. */
+  bodyMatterPerSize: number;
+  /** Energy locked into a body, per unit of size. Released as meat when it dies. */
+  bodyEnergyPerSize: number;
+  /** Fraction of the meat (and its energy) in a cell that rots away each tick. */
+  meatDecayRate: number;
+  /** Fraction of the detritus in a cell that turns back into soil nutrient each tick. */
+  detritusMineralizeRate: number;
 
   // --- Population ---
   initialOrganisms: number;
@@ -40,6 +58,11 @@ export interface SimConfig {
   initialMetabolism: number;
   /** Starting mutation rate: the typical size of a gene change between parent and child. */
   initialMutationRate: number;
+  /** Diet: 0 eats only plants, 1 eats only meat. Everyone starts as a plant eater. */
+  initialDiet: number;
+  /** Attack and armor start at zero: nobody starts out able to hunt or defend. */
+  initialAttack: number;
+  initialArmor: number;
   /** Fraction of the reproduction threshold that new organisms start with. */
   initialEnergyFraction: number;
 
@@ -56,6 +79,12 @@ export interface SimConfig {
   metabolismMax: number;
   mutationRateMin: number;
   mutationRateMax: number;
+  dietMin: number;
+  dietMax: number;
+  attackMin: number;
+  attackMax: number;
+  armorMin: number;
+  armorMax: number;
   /** How much the mutation-rate gene itself changes between generations (in gene units). */
   metaMutationStd: number;
 
@@ -90,6 +119,39 @@ export interface SimConfig {
   moveCostCoeff: number;
   /** Sensing per tick: this x sense range. */
   senseCostCoeff: number;
+  /**
+   * How much a diet specialist outperforms a generalist. A pure plant eater digests
+   * plants at full efficiency; each step toward meat costs this fraction of plant
+   * efficiency per unit of diet (and the reverse for a meat eater). 0 = no penalty.
+   */
+  dietSpecialization: number;
+
+  // --- Attack and defense ---
+  /** Keeping weapons ready costs this x attack x size per tick. */
+  attackCostCoeff: number;
+  /** Each attack attempt costs this x size. */
+  attackAttemptCost: number;
+  /** Carrying armor costs this x armor x size per tick, and slows movement (see armorMoveFactor). */
+  armorCostCoeff: number;
+  /** Armor makes movement this much more expensive per unit of armor. */
+  armorMoveFactor: number;
+  /** Every body has at least this much natural defense, even with zero armor. */
+  armorBase: number;
+  /** An organism only tries to attack if its attack trait is at least this. */
+  attackThreshold: number;
+  /** How far an attacker can reach: this + reachPerSize x its size, in world units. */
+  reachBase: number;
+  reachPerSize: number;
+  /** An attacker only goes after prey no bigger than this multiple of its own size. */
+  preyMaxSizeRatio: number;
+  /**
+   * Fighting is harder for an organism that cannot digest meat: attack costs are
+   * multiplied by 1 + this x (1 - diet). A plant specialist pays the full penalty;
+   * a meat specialist pays none. 0 means everyone fights at the same price.
+   */
+  herbivoreAttackPenalty: number;
+  /** After a kill, an attacker needs this many ticks to deal with its prey before it can attack again. */
+  killCooldown: number;
 
   // --- Reproduction ---
   /** An organism splits when its energy reaches this x its size. */
@@ -109,6 +171,13 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   fertilityVariation: 0.9,
   fertilityScale: 8,
 
+  initialNutrientPerCell: 30,
+  nutrientHalfSaturation: 2,
+  bodyMatterPerSize: 1,
+  bodyEnergyPerSize: 4,
+  meatDecayRate: 0.01,
+  detritusMineralizeRate: 0.01,
+
   initialOrganisms: 200,
   maxOrganisms: 20000,
 
@@ -117,6 +186,9 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   initialSenseRange: 0,
   initialMetabolism: 1,
   initialMutationRate: 0.01,
+  initialDiet: 0,
+  initialAttack: 0,
+  initialArmor: 0,
   initialEnergyFraction: 0.6,
 
   sizeMin: 0.3,
@@ -129,6 +201,12 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   metabolismMax: 2,
   mutationRateMin: 0.001,
   mutationRateMax: 0.05,
+  dietMin: 0,
+  dietMax: 1,
+  attackMin: 0,
+  attackMax: 2,
+  armorMin: 0,
+  armorMax: 2,
   metaMutationStd: 0.05,
 
   turnStd: 0.3,
@@ -141,6 +219,19 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   basalCostCoeff: 0.05,
   moveCostCoeff: 0.01,
   senseCostCoeff: 0.0005,
+  dietSpecialization: 0.5,
+
+  attackCostCoeff: 0.01,
+  attackAttemptCost: 0.25,
+  armorCostCoeff: 0.01,
+  armorMoveFactor: 0.5,
+  armorBase: 0.25,
+  attackThreshold: 0.05,
+  reachBase: 1.5,
+  reachPerSize: 1,
+  preyMaxSizeRatio: 1.25,
+  herbivoreAttackPenalty: 4,
+  killCooldown: 20,
 
   reproThresholdPerSize: 30,
   offspringEnergyFraction: 0.5,
@@ -187,10 +278,31 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     ["senseRange", c.senseRangeMin, c.senseRangeMax, c.initialSenseRange],
     ["metabolism", c.metabolismMin, c.metabolismMax, c.initialMetabolism],
     ["mutationRate", c.mutationRateMin, c.mutationRateMax, c.initialMutationRate],
+    ["diet", c.dietMin, c.dietMax, c.initialDiet],
+    ["attack", c.attackMin, c.attackMax, c.initialAttack],
+    ["armor", c.armorMin, c.armorMax, c.initialArmor],
   ];
   for (const [name, min, max, start] of ranges) {
     if (min > max) problems.push(`${name}Min exceeds ${name}Max`);
     if (start < min || start > max) problems.push(`initial ${name} is outside its allowed range`);
+  }
+  if (c.dietMin < 0 || c.dietMax > 1) problems.push("diet must stay between 0 and 1");
+  if (c.attackMin < 0 || c.armorMin < 0) problems.push("attack and armor cannot be negative");
+  if (c.dietSpecialization < 0 || c.dietSpecialization > 1) problems.push("dietSpecialization must be between 0 and 1");
+  if (c.meatDecayRate < 0 || c.meatDecayRate > 1) problems.push("meatDecayRate must be between 0 and 1");
+  if (c.detritusMineralizeRate < 0 || c.detritusMineralizeRate > 1) problems.push("detritusMineralizeRate must be between 0 and 1");
+  if (c.nutrientHalfSaturation <= 0) problems.push("nutrientHalfSaturation must be positive");
+  if (c.bodyEnergyPerSize >= c.reproThresholdPerSize * c.offspringEnergyFraction) {
+    problems.push("a newborn's body energy must be less than the energy a parent hands over");
+  }
+  if (c.armorBase <= 0) problems.push("armorBase must be positive");
+  if (c.preyMaxSizeRatio <= 0) problems.push("preyMaxSizeRatio must be positive");
+  if (c.herbivoreAttackPenalty < 0) problems.push("herbivoreAttackPenalty cannot be negative");
+  if (!Number.isInteger(c.killCooldown) || c.killCooldown < 0 || c.killCooldown > 65000) {
+    problems.push("killCooldown must be a whole number of ticks from 0 to 65000");
+  }
+  if (c.reachBase + c.reachPerSize * c.sizeMax >= c.foodCellSize / 2 + c.foodCellSize) {
+    problems.push("attack reach is too long for the grid (keep it under one and a half food cells)");
   }
   if (c.sizeMin <= 0) problems.push("sizeMin must be positive");
   if (c.metabolismMin <= 0) problems.push("metabolismMin must be positive");

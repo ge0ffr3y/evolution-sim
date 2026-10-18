@@ -39,8 +39,19 @@ describe("determinism", () => {
     expect(a.fingerprint()).toBe(b.fingerprint());
   });
 
-  it("is deterministic with every feature switched on (sensing, uneven land, contest)", () => {
-    const features = { ...SMALL, initialSenseRange: 6, steerGain: 2, fertilityVariation: 0.7, fertilityScale: 4, contestStrength: 2 };
+  it("is deterministic with every feature switched on (sensing, uneven land, contest, fighting, scavenging)", () => {
+    const features = {
+      ...SMALL,
+      initialSenseRange: 6,
+      steerGain: 2,
+      fertilityVariation: 0.7,
+      fertilityScale: 4,
+      contestStrength: 2,
+      initialDiet: 0.5,
+      initialAttack: 1,
+      herbivoreAttackPenalty: 0,
+      attackAttemptCost: 0.05,
+    };
     const a = new Simulation(17, features);
     const b = new Simulation(17, features);
     a.run(3000);
@@ -51,7 +62,7 @@ describe("determinism", () => {
 
 describe("world rules (checked every tick of a long run)", () => {
   it("keeps every organism inside the world, with sane, finite numbers", () => {
-    const sim = new Simulation(7, { ...SMALL, initialSenseRange: 4, fertilityVariation: 0.6, fertilityScale: 4 });
+    const sim = new Simulation(7, { ...SMALL, initialSenseRange: 4, fertilityVariation: 0.6, fertilityScale: 4, initialDiet: 0.4, initialAttack: 0.8, herbivoreAttackPenalty: 0, attackAttemptCost: 0.05 });
     const c = sim.config;
     // Count problems in a plain loop (calling expect millions of times is slow),
     // keeping the first few descriptions so a failure says what went wrong.
@@ -69,6 +80,7 @@ describe("world rules (checked every tick of a long run)", () => {
         if (!(x >= 0 && x < c.worldWidth && y >= 0 && y < c.worldHeight)) report(t, i, "outside the world");
         if (!(sim.energy[i]! > 0 && Number.isFinite(sim.energy[i]!))) report(t, i, "bad energy");
         if (!(Math.abs(length - 1) < 1e-3)) report(t, i, "heading is not a unit vector");
+        if (sim.killed[i] !== 0) report(t, i, "a killed organism is still in the list");
         for (const name of GENES) {
           const v = sim.traitOf(name, i);
           const { min, max } = sim.ranges[name];
@@ -78,6 +90,9 @@ describe("world rules (checked every tick of a long run)", () => {
       for (let cell = 0; cell < sim.food.length; cell++) {
         const f = sim.food[cell]!;
         if (!(f >= 0 && f <= sim.foodCapacity[cell]! + 1e-9)) report(t, cell, `food ${f} outside 0..capacity`);
+        for (const [name, array] of [["nutrient", sim.nutrient], ["corpse matter", sim.corpseMatter], ["corpse energy", sim.corpseEnergy], ["detritus", sim.detritus]] as const) {
+          if (!(array[cell]! >= -1e-12)) report(t, cell, `${name} went negative`);
+        }
       }
     }
     expect(problems).toEqual([]);
@@ -111,10 +126,13 @@ describe("world rules (checked every tick of a long run)", () => {
 });
 
 describe("energy conservation", () => {
-  // Every feature on, and a non-trivial food-to-energy exchange rate so that a
-  // mistake in any conversion would show up.
+  // Every feature on, with fighting and scavenging forced to happen, and a
+  // non-trivial food-to-energy exchange rate so that a mistake in any
+  // conversion would show up.
   const everything = {
-    ...SMALL,
+    worldWidth: 128,
+    worldHeight: 128,
+    initialOrganisms: 200,
     initialSenseRange: 6,
     steerGain: 2,
     fertilityVariation: 0.5,
@@ -123,93 +141,149 @@ describe("energy conservation", () => {
     energyPerFood: 1.3,
   };
 
-  it("energy in organisms + food on the ground = start + sunshine - burned, at every checkpoint", () => {
-    const sim = new Simulation(21, everything);
-    const epf = sim.config.energyPerFood;
-    const start = sim.stats();
-    const startTotal = start.totalEnergy + start.totalFood * epf;
+  /** Make a few founders armed meat-eaters and a few armored, so every kind of flow happens. */
+  function armSome(sim: Simulation): Simulation {
+    for (let i = 0; i < sim.count; i++) {
+      if (i % 25 === 0) {
+        sim.genes[i * GENE_COUNT + GENE.attack] = 0.3;
+        sim.genes[i * GENE_COUNT + GENE.diet] = 0.8;
+      } else if (i % 25 === 1) {
+        sim.genes[i * GENE_COUNT + GENE.armor] = 0.4;
+      }
+      sim.express(i);
+    }
+    return sim;
+  }
+
+  function burned(l: Simulation["ledger"]): number {
+    return l.basalBurned + l.movementBurned + l.sensingBurned + l.attackBurned + l.armorBurned;
+  }
+
+  it("energy in organisms, bodies, plants and corpses = start + sunshine - heat lost, at every checkpoint", () => {
+    const sim = armSome(new Simulation(21, everything));
+    const startTotal = sim.energyAudit().total;
 
     for (let block = 1; block <= 8; block++) {
       sim.run(500);
-      const s = sim.stats();
-      const L = s.ledger;
-      const burned = L.basalBurned + L.movementBurned + L.sensingBurned;
-      const expected = startTotal + L.foodRegrown * epf - burned;
-      const actual = s.totalEnergy + s.totalFood * epf;
+      const L = sim.ledger;
+      const expected = startTotal + L.sunlightIn - burned(L) - L.digestionLoss - L.decayLoss;
+      const actual = sim.energyAudit().total;
       expect(Math.abs(actual - expected) / expected).toBeLessThan(1e-9);
-
-      // Food on the ground separately: start + regrown - eaten (eaten is in energy units).
-      const expectedFood = start.totalFood + L.foodRegrown - L.foodEaten / epf;
-      expect(Math.abs(s.totalFood - expectedFood) / Math.max(expectedFood, 1)).toBeLessThan(1e-9);
     }
-    // Make sure the test really exercised births, deaths and every kind of spending.
+    // Make sure the test really exercised every kind of flow.
     const end = sim.stats();
     expect(end.totalBirths).toBeGreaterThan(50);
-    expect(end.totalDeaths).toBeGreaterThan(50);
-    expect(end.ledger.basalBurned).toBeGreaterThan(0);
-    expect(end.ledger.movementBurned).toBeGreaterThan(0);
-    expect(end.ledger.sensingBurned).toBeGreaterThan(0);
-    expect(end.ledger.foodEaten).toBeGreaterThan(0);
+    expect(end.totalKills).toBeGreaterThan(20);
+    expect(end.totalStarved).toBeGreaterThan(0);
+    const L = end.ledger;
+    for (const [name, value] of Object.entries(L)) expect(value, name).toBeGreaterThan(0);
   }, 60_000);
 
-  it("never lets food go negative or above the cell's capacity, and burn totals only grow", () => {
-    const sim = new Simulation(22, everything);
+  it("sunlight is the only source: with no sun and no plants, energy can only go down", () => {
+    const sim = new Simulation(25, { ...SMALL, foodRegrowPerTick: 0, initialFoodFraction: 0 });
+    let previous = sim.energyAudit().total;
+    for (let t = 0; t < 1500; t++) {
+      sim.step();
+      const now = sim.energyAudit().total;
+      expect(now).toBeLessThanOrEqual(previous + 1e-9);
+      previous = now;
+    }
+    expect(sim.ledger.sunlightIn).toBe(0);
+  });
+
+  it("burn totals only ever grow", () => {
+    const sim = armSome(new Simulation(22, everything));
     let previous = 0;
     for (let t = 0; t < 1500; t++) {
       sim.step();
-      const L = sim.ledger;
-      const burned = L.basalBurned + L.movementBurned + L.sensingBurned;
-      expect(burned).toBeGreaterThanOrEqual(previous);
-      previous = burned;
-    }
-    for (let cell = 0; cell < sim.food.length; cell++) {
-      expect(sim.food[cell]).toBeGreaterThanOrEqual(0);
-      expect(sim.food[cell]).toBeLessThanOrEqual(sim.foodCapacity[cell]! + 1e-9);
+      const total = burned(sim.ledger);
+      expect(total).toBeGreaterThanOrEqual(previous);
+      previous = total;
     }
   });
 
-  it("with no food at all, the energy the organisms start with is exactly what they burn before dying", () => {
+  it("with no food at all, the energy organisms start with is exactly what they burn before dying", () => {
     const sim = new Simulation(23, { ...SMALL, initialFoodFraction: 0, foodRegrowPerTick: 0, initialSenseRange: 4 });
     const startEnergy = sim.stats().totalEnergy;
     sim.run(3000);
     const s = sim.stats();
     expect(s.population).toBe(0);
-    const burned = s.ledger.basalBurned + s.ledger.movementBurned + s.ledger.sensingBurned;
-    expect(Math.abs(burned - startEnergy) / startEnergy).toBeLessThan(1e-9);
-    expect(s.ledger.foodEaten).toBe(0);
+    expect(Math.abs(burned(s.ledger) - startEnergy) / startEnergy).toBeLessThan(1e-9);
+    expect(s.ledger.plantEaten).toBe(0);
   });
 
-  it("a birth moves energy from parent to child without creating any", () => {
+  it("a birth moves energy and matter from parent and soil into a child without creating any", () => {
     const sim = new Simulation(24, {
       ...SMALL,
       initialOrganisms: 1,
-      initialEnergyFraction: 0.999,
       foodRegrowPerTick: 0,
       initialFoodFraction: 0,
       basalCostCoeff: 0,
       moveCostCoeff: 0,
       senseCostCoeff: 0,
+      meatDecayRate: 0,
+      detritusMineralizeRate: 0,
     });
-    // With no food and no costs, the only thing that can happen is the split.
-    const before = sim.energy[0]!;
+    // With no food, no costs and no decay, the only thing that can happen is the split.
     sim.step();
-    expect(sim.count).toBe(0 + 1); // threshold not reached without food: no birth yet
-    expect(sim.energy[0]).toBe(before);
+    expect(sim.count).toBe(1); // below the threshold: no birth yet
 
-    // Now give it enough to reach the threshold and watch the split.
-    sim.energy[0] = sim.threshold[0]! * 1.5;
-    const total = sim.energy[0]!;
+    const parentEnergy = sim.threshold[0]! * 1.5;
+    sim.energy[0] = parentEnergy;
+    const energyBefore = sim.energyAudit().total;
+    const matterBefore = sim.matterAudit().total;
     sim.step();
     expect(sim.count).toBe(2);
-    expect(sim.energy[0]! + sim.energy[1]!).toBeCloseTo(total, 9);
-    expect(sim.energy[1]).toBeCloseTo(total * sim.config.offspringEnergyFraction, 9);
+    expect(sim.energyAudit().total).toBeCloseTo(energyBefore, 9);
+    expect(sim.matterAudit().total).toBeCloseTo(matterBefore, 9);
+    // The child got half of what the parent had, minus the energy locked into its body.
+    expect(sim.energy[1]).toBeCloseTo(parentEnergy * sim.config.offspringEnergyFraction - sim.bodyEnergy[1]!, 5);
   });
+});
+
+describe("matter conservation", () => {
+  const everything = {
+    worldWidth: 128,
+    worldHeight: 128,
+    initialOrganisms: 200,
+    initialSenseRange: 6,
+    fertilityVariation: 0.5,
+    fertilityScale: 4,
+  };
+
+  it("soil + plants + corpses + detritus + bodies stays constant through births, kills, rot and growth", () => {
+    const sim = new Simulation(31, everything);
+    // A few founders are armed meat-eaters, so kills, corpses and scavenging all happen.
+    for (let i = 0; i < sim.count; i += 25) {
+      sim.genes[i * GENE_COUNT + GENE.attack] = 0.3;
+      sim.genes[i * GENE_COUNT + GENE.diet] = 0.8;
+      sim.express(i);
+    }
+    const start = sim.matterAudit().total;
+    for (let block = 1; block <= 8; block++) {
+      sim.run(500);
+      const audit = sim.matterAudit();
+      expect(Math.abs(audit.total - start) / start).toBeLessThan(1e-9);
+    }
+    const end = sim.stats();
+    expect(end.totalKills).toBeGreaterThan(20);
+    expect(end.totalStarved).toBeGreaterThan(0);
+    expect(end.totalCorpseMatter).toBeGreaterThan(0);
+    expect(end.totalDetritus).toBeGreaterThan(0);
+  }, 60_000);
+
+  it("holds for the default world too, where nutrients matter more", () => {
+    const sim = new Simulation(32, { ...SMALL, initialNutrientPerCell: 12 });
+    const start = sim.matterAudit().total;
+    sim.run(4000);
+    expect(Math.abs(sim.matterAudit().total - start) / start).toBeLessThan(1e-9);
+  }, 60_000);
 });
 
 describe("food", () => {
   it("regrows to the cap and never beyond", () => {
     const sim = new Simulation(1, { ...SMALL, initialOrganisms: 0, initialFoodFraction: 0 });
-    sim.run(5000);
+    sim.run(6000);
     for (let cell = 0; cell < sim.food.length; cell++) expect(sim.food[cell]).toBeCloseTo(sim.foodCapacity[cell]!, 3);
   });
 
@@ -218,7 +292,7 @@ describe("food", () => {
     const before = sim.stats().totalFood;
     sim.run(200);
     expect(sim.stats().totalFood).toBeLessThan(before);
-    expect(sim.ledger.foodEaten).toBeGreaterThan(0);
+    expect(sim.ledger.plantEaten).toBeGreaterThan(0);
   });
 
   it("uneven land: every cell stays within its own capacity, and cells really differ", () => {
@@ -272,7 +346,7 @@ describe("sharing scarce food", () => {
     sim.genes[GENE_COUNT + GENE.size] = traitToGene(2, sim.ranges.size);
     sim.express(1);
     const before = [sim.energy[0]!, sim.energy[1]!];
-    const costs = [0, 1].map((i) => sim.basalCost[i]! + sim.moveCost[i]! + sim.senseCost[i]!);
+    const costs = [0, 1].map((i) => sim.basalCost[i]! + sim.moveCost[i]! + sim.senseCost[i]! + sim.attackCost[i]! + sim.armorCost[i]!);
     sim.step();
     return [sim.energy[0]! - before[0]! + costs[0]!, sim.energy[1]! - before[1]! + costs[1]!];
   }
@@ -321,7 +395,13 @@ describe("sharing scarce food", () => {
         }
       }
     };
-    for (const arr of [b.id, b.parentId, b.age, b.x, b.y, b.headingX, b.headingY, b.energy, b.size, b.speed, b.senseRange, b.metabolism, b.mutationRate, b.basalCost, b.moveCost, b.senseCost, b.biteMax, b.eatWeight, b.threshold]) {
+    for (const arr of [
+      b.id, b.parentId, b.age, b.kills, b.x, b.y, b.headingX, b.headingY, b.energy, b.plantTaken, b.meatTaken,
+      b.killed, b.attempted, b.resting, b.size, b.speed, b.senseRange, b.metabolism, b.mutationRate, b.diet,
+      b.attack, b.armor, b.basalCost, b.moveCost, b.senseCost, b.attackCost, b.attemptCost, b.armorCost,
+      b.plantBite, b.meatBite, b.plantWeight, b.meatWeight, b.plantEff, b.meatEff, b.attackPower, b.defense,
+      b.reach, b.bodyEnergy, b.bodyMatter, b.threshold,
+    ]) {
       reverse(arr as unknown as { length: number; [i: number]: number });
     }
     reverse(b.genes as unknown as { length: number; [i: number]: number }, GENE_COUNT);
@@ -395,8 +475,8 @@ describe("energy and life", () => {
     sim.step();
     expect(sim.count).toBe(2);
     expect(sim.parentId[1]).toBe(sim.id[0]);
-    // Parent kept the other half, so the two energies are about equal.
-    expect(Math.abs(sim.energy[0]! - sim.energy[1]!)).toBeLessThan(0.5);
+    // The child got half of the parent's energy, minus what is locked into its body.
+    expect(Math.abs(sim.energy[0]! - sim.energy[1]! - sim.bodyEnergy[1]!)).toBeLessThan(0.5);
   });
 
   it("a bigger body needs more energy to reproduce", () => {

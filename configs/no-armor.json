@@ -1,0 +1,8 @@
+{
+  "name": "No armor",
+  "description": "Prey cannot evolve armor, so predators have it easy. Do hunters overshoot and crash their own food supply?",
+  "config": {
+    "armorMin": 0,
+    "armorMax": 0
+  }
+}
