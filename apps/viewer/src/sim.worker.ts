@@ -75,6 +75,10 @@ function recordPoint(s: Simulation): void {
     connectionsHerbivores: stats.brain.herbivores.connections,
     hiddenCarnivores: stats.brain.carnivores.hidden,
     connectionsCarnivores: stats.brain.carnivores.connections,
+    colonyShare: stats.population > 0 ? stats.colonies.cells / stats.population : 0,
+    colonyMeanSize: stats.colonies.meanSize,
+    colonyMeanTypes: stats.colonies.meanTypes,
+    colonySymmetry: stats.colonies.symmetry,
   });
 }
 
@@ -155,6 +159,7 @@ function worldInfo(s: Simulation): WorldInfo {
     histogramBins: HISTOGRAM_BINS,
     histogramEvery: HISTOGRAM_EVERY,
     brainMode: s.config.brainMode,
+    multicellular: s.config.multicellular === 1,
     diseaseOn: s.config.diseaseTransmission > 0,
     camouflageOn: s.config.camouflageMode === 1,
     climateMode: s.config.climateMode,
@@ -206,6 +211,17 @@ function postFrame(s: Simulation): void {
   const capacity = sendCapacity ? s.foodCapacity.slice() : null;
   const terrain = sendCapacity && s.biome.length > 0 ? s.biome.slice() : null;
   const background = sendCapacity && s.background.length > 0 ? s.background.slice() : null;
+  let bonds: Uint32Array | null = null;
+  let colonySize: Uint16Array | null = null;
+  if (s.config.multicellular === 1) {
+    colonySize = s.colonySizes();
+    const pairs: number[] = [];
+    for (let i = 0; i < n; i++) for (let k = 0; k < 6; k++) {
+      const p = s.bondTo[i * 6 + k]!;
+      if (p > i) pairs.push(i, p);
+    }
+    bonds = Uint32Array.from(pairs);
+  }
   let health: Uint8Array | null = null;
   if (s.infection.length > 0) {
     health = new Uint8Array(n);
@@ -238,6 +254,9 @@ function postFrame(s: Simulation): void {
     hunterScent,
     capacity,
     terrain,
+    bonds,
+    colonySize,
+    cellType: s.cellType.length > 0 ? s.cellType.slice(0, n) : null,
     background,
     health,
     climate,
@@ -263,6 +282,9 @@ function postFrame(s: Simulation): void {
   if (capacity) transfer.push(capacity.buffer);
   if (terrain) transfer.push(terrain.buffer);
   if (background) transfer.push(background.buffer);
+  if (bonds) transfer.push(bonds.buffer);
+  if (colonySize) transfer.push(colonySize.buffer);
+  if (message.cellType) transfer.push(message.cellType.buffer);
   if (health) transfer.push(health.buffer);
   if (climate) transfer.push(climate.temperature.buffer, climate.growth.buffer);
   // The options form of postMessage works in both a worker and the DOM typings.

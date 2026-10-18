@@ -396,6 +396,67 @@ export interface SimConfig {
   /** How far a hunter's remembered color moves toward the color of each new kill (0 to 1). */
   camoLearnRate: number;
 
+  // --- Multicellularity (off by default) ---
+  /**
+   * 0 = every organism lives alone. 1 = cells can stay together: a gene gives the chance that a baby
+   * stays attached to its parent, forming a colony. Bonded cells are held near each other like
+   * linked beads, turn toward their neighbors' heading so the colony moves as one, and share
+   * energy (a hungry cell is fed by a fed neighbor). Needs brainMode 0 for now.
+   */
+  multicellular: number;
+  /** The most bonds one cell can have (at most 6) and the most cells one colony can hold; a baby that would exceed either floats off alone. */
+  bondLinksMax: number;
+  colonyMax: number;
+  /** Distance, in world units, bonded cells keep from each other, how hard the bond pulls toward it (0 to 1 per pass) and how many passes per tick. */
+  bondRestLength: number;
+  bondStiffness: number;
+  bondIterations: number;
+  /** Each tick a bonded pair moves this fraction of the way to equal energy (0 to 1), and each cell turns this fraction of the way toward its neighbors' mean heading. */
+  bondShare: number;
+  bondAlign: number;
+  /** The bonding gene of the first generation (the chance a baby stays attached). 0 = nobody bonds until mutation makes it happen. */
+  initialBond: number;
+
+  // --- Cross-lineage bonding (off by default; needs multicellular) ---
+  /**
+   * 0 = cells only bond to their own babies. 1 = a gene ("stickiness") lets cells bond to ANY cell that
+   * touches them, relative or not: each tick, two touching cells with free bonds join with probability
+   * equal to the product of their stickiness genes. Nothing rewards it: a colony of unrelated cells
+   * shares energy like any other, so it can help both (mutualism) or let one cell drain the other
+   * (parasitism), and selection decides. Mixed colonies are counted in the colony stats.
+   */
+  contactBonding: number;
+  /** Stickiness of the first generation (0 = nobody is sticky until mutation makes it so). */
+  initialStick: number;
+
+  // --- Cell types (off by default; needs multicellular) ---
+  /**
+   * 0 = every cell is the same. 1 = a baby that stays attached to its parent becomes one of six types,
+   * chosen by three body-plan genes according to how many bonds its parent already has (none, one,
+   * two or more). A baby that floats off alone is always a generalist. Each specialist is better than
+   * a generalist at one job and worse at the others, and is sterile (only generalist "germ" cells
+   * reproduce); neighbors in a colony make up for each other by sharing energy, and a specialist
+   * left with no bonds goes back to being a generalist (specialists only work as part of a body). Types: 0 generalist, 1 feeder (eats far better, slow), 2 mover (fast, eats
+   * badly), 3 photosynthesizer (collects a little sunlight itself, eats badly, slow), 4 armor (very
+   * hard to kill, slow, a little costlier), 5 sensor (sees far, otherwise weak).
+   */
+  cellTypes: number;
+  typeFeederBite: number;
+  typeFeederSpeed: number;
+  typeMoverSpeed: number;
+  typeMoverBite: number;
+  typePhotoGain: number;
+  typePhotoBite: number;
+  typePhotoSpeed: number;
+  typeArmorDefense: number;
+  typeArmorSpeed: number;
+  typeArmorUpkeep: number;
+  typeSensorRange: number;
+  typeSensorBite: number;
+  typeSensorSpeed: number;
+  /** A cell is also protected by its bonded neighbors: this share of their defense is added to its own. */
+  colonyDefenseShare: number;
+
   // --- Sexual reproduction (off by default) ---
   /**
    * 0 = organisms split in two when they have enough energy (the original way). 1 = two
@@ -656,6 +717,32 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   camoGlance: 20,
   camoLearning: 1,
   camoLearnRate: 0.3,
+  multicellular: 0,
+  bondLinksMax: 4,
+  colonyMax: 16,
+  bondRestLength: 1.5,
+  bondStiffness: 0.5,
+  bondIterations: 2,
+  bondShare: 0.1,
+  bondAlign: 0.3,
+  initialBond: 0,
+  contactBonding: 0,
+  initialStick: 0,
+  cellTypes: 0,
+  typeFeederBite: 2,
+  typeFeederSpeed: 0.4,
+  typeMoverSpeed: 2,
+  typeMoverBite: 0.4,
+  typePhotoGain: 0.035,
+  typePhotoBite: 0.3,
+  typePhotoSpeed: 0.5,
+  typeArmorDefense: 3,
+  typeArmorSpeed: 0.5,
+  typeArmorUpkeep: 1.2,
+  typeSensorRange: 4,
+  typeSensorBite: 0.5,
+  typeSensorSpeed: 0.7,
+  colonyDefenseShare: 0.5,
   sexualReproduction: 0,
   mateRange: 6,
   mateDistance: 0.25,
@@ -831,6 +918,27 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     if (c.diseaseCost < 0) problems.push("diseaseCost cannot be negative");
     if (!Number.isInteger(c.diseaseIntroEvery) || c.diseaseIntroEvery < 1) problems.push("diseaseIntroEvery must be a whole number of ticks, 1 or more");
     if (c.diseaseMutationProb < 0 || c.diseaseMutationProb > 1 || c.diseaseDrift < 0 || c.diseaseDrift > 1) problems.push("diseaseMutationProb and diseaseDrift must be between 0 and 1");
+  }
+  if (![0, 1].includes(c.multicellular)) problems.push("multicellular must be 0 or 1");
+  if (c.multicellular === 1) {
+    if (c.brainMode !== 0) problems.push("multicellular worlds do not support brains yet (set brainMode to 0)");
+    if (!Number.isInteger(c.bondLinksMax) || c.bondLinksMax < 1 || c.bondLinksMax > 6) problems.push("bondLinksMax must be a whole number from 1 to 6");
+    if (!Number.isInteger(c.colonyMax) || c.colonyMax < 2) problems.push("colonyMax must be a whole number of 2 or more");
+    if (!(c.bondRestLength > 0)) problems.push("bondRestLength must be positive");
+    if (c.bondStiffness < 0 || c.bondStiffness > 1) problems.push("bondStiffness must be between 0 and 1");
+    if (!Number.isInteger(c.bondIterations) || c.bondIterations < 1) problems.push("bondIterations must be a whole number of 1 or more");
+    if (c.bondShare < 0 || c.bondShare > 1 || c.bondAlign < 0 || c.bondAlign > 1) problems.push("bondShare and bondAlign must be between 0 and 1");
+    if (c.initialBond < 0 || c.initialBond > 1) problems.push("initialBond must be between 0 and 1");
+  }
+  if (![0, 1].includes(c.contactBonding)) problems.push("contactBonding must be 0 or 1");
+  if (c.contactBonding === 1 && c.multicellular !== 1) problems.push("contactBonding needs multicellular to be 1");
+  if (c.initialStick < 0 || c.initialStick > 1) problems.push("initialStick must be between 0 and 1");
+  if (![0, 1].includes(c.cellTypes)) problems.push("cellTypes must be 0 or 1");
+  if (c.cellTypes === 1) {
+    if (c.multicellular !== 1) problems.push("cellTypes needs multicellular to be 1");
+    for (const [name, value] of [["typeFeederBite", c.typeFeederBite], ["typeFeederSpeed", c.typeFeederSpeed], ["typeMoverSpeed", c.typeMoverSpeed], ["typeMoverBite", c.typeMoverBite], ["typePhotoGain", c.typePhotoGain], ["typePhotoBite", c.typePhotoBite], ["typePhotoSpeed", c.typePhotoSpeed], ["typeArmorDefense", c.typeArmorDefense], ["typeArmorSpeed", c.typeArmorSpeed], ["typeArmorUpkeep", c.typeArmorUpkeep], ["typeSensorRange", c.typeSensorRange], ["typeSensorBite", c.typeSensorBite], ["typeSensorSpeed", c.typeSensorSpeed], ["colonyDefenseShare", c.colonyDefenseShare]] as const) {
+      if (value < 0) problems.push(`${name} cannot be negative`);
+    }
   }
   if (![0, 1].includes(c.sexualReproduction)) problems.push("sexualReproduction must be 0 or 1");
   if (!(c.mateRange > 0)) problems.push("mateRange must be positive");

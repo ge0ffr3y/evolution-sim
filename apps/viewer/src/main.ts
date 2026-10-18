@@ -2,6 +2,7 @@ import "./style.css";
 import { GENE, GENES, parsePreset, type GeneName, type Preset, type SimEvent, type SpeciesEvent, type SpeciesRecord, type WorldEvent } from "@evo/sim-core";
 import { drawBrain } from "./brainview";
 import { Charts } from "./charts";
+import { ComplexityChart } from "./complexitychart";
 import { FlowTracker } from "./flows";
 import { HEATMAP_TRAITS, Heatmap } from "./heatmap";
 import type { FrameMessage, FromWorker, InspectedState, ToWorker } from "./protocol";
@@ -70,6 +71,7 @@ let timelineKey = "";
 const charts = new Charts(el("chart-pop"), el("chart-traits"), el("chart-web"), el("chart-brain"));
 const heatmap = new Heatmap(el("heatmap"));
 const flows = new FlowTracker();
+const complexity = new ComplexityChart(el("chart-complexity"));
 const worker = new Worker(new URL("./sim.worker.ts", import.meta.url), { type: "module" });
 
 function send(message: ToWorker): void {
@@ -120,6 +122,7 @@ function clearHistory(): void {
   shownEvents = -1;
   renderEvents([]);
   charts.clear();
+  complexity.clear();
   heatmap.clear();
   flows.clear();
   renderInspector(null);
@@ -261,6 +264,11 @@ const GENE_LABELS: Record<GeneName, string> = {
   thermal: "Preferred temperature",
   lifespan: "Lifespan (ticks)",
   litter: "Litter size (babies)",
+  bond: "Bonding (chance a baby stays attached)",
+  plan1: "Body plan: first bond",
+  plan2: "Body plan: second bond",
+  plan3: "Body plan: later bonds",
+  stick: "Stickiness (bonds with strangers)",
 };
 
 function traitText(gene: GeneName, value: number): string {
@@ -415,7 +423,7 @@ function dietWord(diet: number): string {
   return diet < 0.25 ? "plant eaters" : diet > 0.75 ? "meat eaters" : "mixed feeders";
 }
 
-const COMPARED_GENES: readonly GeneName[] = ["size", "speed", "senseRange", "metabolism", "diet", "attack", "armor", "stamina", "thermal", "lifespan", "litter"];
+const COMPARED_GENES: readonly GeneName[] = ["size", "speed", "senseRange", "metabolism", "diet", "attack", "armor", "stamina", "thermal", "lifespan", "litter", "bond"];
 
 function renderSpeciesDetail(id: number | null): void {
   const box = el<HTMLDivElement>("species-detail");
@@ -452,7 +460,7 @@ function renderSpeciesDetail(id: number | null): void {
     const ancestor = record.ancestorTraits?.[index];
     const founder = record.founderTraits[index]!;
     const now = record.traits[index]!;
-    if ((gene === "stamina" || gene === "thermal" || gene === "lifespan" || gene === "litter") && Math.abs(founder - now) < 1e-9 && (ancestor === undefined || Math.abs(ancestor - founder) < 1e-9)) continue;
+    if ((gene === "stamina" || gene === "thermal" || gene === "lifespan" || gene === "litter" || gene === "bond") && Math.abs(founder - now) < 1e-9 && (ancestor === undefined || Math.abs(ancestor - founder) < 1e-9)) continue;
     const row = body.insertRow();
     row.insertCell().textContent = GENE_LABELS[gene];
     row.insertCell().textContent = ancestor === undefined ? "" : traitText(gene, ancestor);
@@ -563,9 +571,11 @@ worker.onmessage = (event: MessageEvent<FromWorker>) => {
     clearHistory();
     heatmap.setWorld(frame.world);
     el("brain-chart-block").hidden = frame.world.brainMode === 0;
+    el("complexity-chart-block").hidden = !frame.world.multicellular;
   }
   renderer.setLand(frame);
   charts.add(frame.points);
+  complexity.add(frame.points);
   flows.add(frame.points);
   heatmap.add(frame.histograms);
   chartsDirty = true;
@@ -612,6 +622,8 @@ function updateStats(frame: FrameMessage): void {
   setText("stat-classes", `${s.classes.herbivores} / ${s.classes.omnivores} / ${s.classes.carnivores}`);
   setText("stat-species", `${s.species.alive} / ${s.species.ever}`);
   const w = frame.world;
+  el("stat-colonies-box").hidden = !w.multicellular;
+  if (w.multicellular) setText("stat-colonies", `${s.colonies.count} / ${format.int.format(s.colonies.cells)} / ${s.colonies.maxSize}`);
   el("stat-disease-box").hidden = !w.diseaseOn;
   if (w.diseaseOn) setText("stat-disease", `${format.int.format(s.disease.infected)} / ${s.disease.strains}`);
   el("stat-climate-box").hidden = w.climateMode === 0 || (w.yearLength === 0 && w.dayLength === 0);
@@ -664,6 +676,7 @@ setInterval(() => {
   if (chartsDirty) {
     chartsDirty = false;
     charts.redraw();
+    complexity.redraw();
     heatmap.redraw();
     renderFlows();
   }

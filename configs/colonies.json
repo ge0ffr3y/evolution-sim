@@ -1,0 +1,8 @@
+{
+  "name": "Colonies (bonding switched on)",
+  "description": "Cells can stay together: a gene gives the chance that a baby stays attached to its parent. Bonded cells are held close like linked beads, move together and share energy. Here a third of the first generation's babies bond from the start so you can watch colonies form; set the starting bond chance to 0 to see whether bonding evolves on its own. Color the dots by Colony size.",
+  "config": {
+    "multicellular": 1,
+    "initialBond": 0.35
+  }
+}

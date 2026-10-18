@@ -1,0 +1,11 @@
+{
+  "name": "Sunlit colonies (multicellular niche)",
+  "description": "Cells can bond into colonies with specialized cells: feeders, movers, photosynthesizers (collect sunlight directly), armor and sensors. Specialists are sterile and share energy with the generalist cells that reproduce, and a specialist left with no bonds goes back to being a generalist. Plants barely grow here, so food is scarce and sunlight is the opportunity: in our tests colonies persist in most worlds and the population is about 40% higher than without bonding. Color the dots by Cell type or Colony size; set the starting bond chance to 0 to see whether colonies evolve on their own (they rarely take off).",
+  "config": {
+    "multicellular": 1,
+    "cellTypes": 1,
+    "initialBond": 0.35,
+    "foodRegrowPerTick": 0.012,
+    "typePhotoGain": 0.07
+  }
+}

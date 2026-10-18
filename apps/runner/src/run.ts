@@ -40,6 +40,12 @@ export const CSV_COLUMNS: readonly string[] = [
   "fleeSamples",
   "speciesAlive",
   "speciesEver",
+  "colonies",
+  "colonyCells",
+  "colonyMeanSize",
+  "colonyMaxSize",
+  "colonyMeanTypes",
+  "colonySymmetry",
   ...GENES.flatMap((gene) => [`mean_${gene}`, `sd_${gene}`]),
   "sunlightIn",
   "plantEaten",
@@ -125,6 +131,12 @@ function statsRow(s: SimStats, b: BehaviorStats): string {
     b.fleeSamples,
     s.species.alive,
     s.species.ever,
+    s.colonies.count,
+    s.colonies.cells,
+    s.colonies.meanSize,
+    s.colonies.maxSize,
+    s.colonies.meanTypes,
+    s.colonies.symmetry,
   ];
   for (const gene of GENES) values.push(s.traits[gene].mean, s.traits[gene].sd);
   const L = s.ledger;
