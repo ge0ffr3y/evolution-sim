@@ -422,6 +422,7 @@ function updateStats(frame: FrameMessage): void {
   setText("stat-pop", format.int.format(s.population));
   setText("stat-classes", `${s.classes.herbivores} / ${s.classes.omnivores} / ${s.classes.carnivores}`);
   setText("stat-kills", format.int.format(s.totalKills));
+  setText("stat-blocked", format.int.format(s.blockedBirths));
   setText("stat-food", format.int.format(Math.round(s.totalFood)));
   setText("stat-energy", format.fixed(s.meanEnergy, 1));
   setText("stat-size", format.fixed(s.traits.size.mean, 2));

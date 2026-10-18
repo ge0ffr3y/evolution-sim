@@ -1,0 +1,40 @@
+# Devlog 3: Food webs
+
+*Phase 3, and the v0.1 release. Nobody is told to hunt, and in every seed something learns to.*
+
+## What was built
+
+- **Three new genes (nine in total): diet, attack and armor.** Diet runs from 0 (eats only plants) to 1 (eats only meat) and splits an organism's appetite between the two. Specialists digest their own food better than generalists do. Attack and armor each cost energy every tick, and armor also makes movement more expensive.
+- **Bodies, corpses and a closed matter loop.** A body locks away some energy and some matter. When something dies it leaves a corpse holding both. Corpses rot (the energy is lost as heat, the matter becomes detritus), detritus turns back into soil nutrient, and plants need soil nutrient to grow. A newborn's body is built from the soil it is born on, so a barren patch cannot support babies.
+- **Sun as the only energy source.** Plants capture sunlight as they grow; that is the only energy that ever enters the world. It leaves as heat (upkeep, movement, sensing, fighting, armor, imperfect digestion, rotting). The ledger records every one of those flows.
+- **Predation as physics, not a role.** Any organism whose attack trait is above a small threshold picks the nearest prey in reach (that is not much bigger than itself) and tries to kill it, with odds of attack power over attack power plus the prey's defense. A kill leaves a corpse on the spot, which anyone with a meat appetite can share. There is no Predator class and nothing says who may eat whom. After a kill, the attacker rests for 20 ticks.
+- **Two conservation tests.** Energy in organisms, bodies, plants and corpses equals the start plus sunshine minus everything lost as heat. Matter in soil, plants, corpses, detritus and bodies never changes. Both pass to better than one part in a billion across thousands of ticks of births, kills, starvation, rot and regrowth (the real error is closer to one part in 10^13).
+- **A log of notable firsts:** the first kill, the first predator (three kills), the first scavenger, and the first carnivore (an organism that has lived 300 ticks on mostly meat).
+- **Viewer:** dots colored by diet (green to red), a map that can show plants, soil nutrients, corpses or detritus, a "who eats what" chart, the log of firsts, an energy-flow bar that now starts at the sun, and an inspector that shows what an organism has actually eaten and how many kills it has made.
+- **Runner:** seed sweeps now report how many seeds grew a food web and when. `npm run gif` renders a time-lapse GIF of any run without a browser (the one in the README).
+- **New preset worlds:** Peaceful meadow (a control with no predators), Boom and bust, Arms race, No armor, and Poor soil.
+
+## What emerged
+
+Run for 1,000,000 ticks over 12 seeds:
+
+- **All 12 seeds survived, and all 12 grew a carnivore lineage** that ended with at least 40 meat eaters (average 86, about a quarter of the population).
+- **Killing started almost at once** (median first kill: tick 36; first predator: tick 120), because attacks cost little energy when the target is nearby. **Scavenging** followed within a few hundred ticks (median 334). **A lineage that lives mostly on meat** took longer: median tick 29,090, anywhere from 8,690 to 106,050 depending on the seed.
+- **The ecosystem has a recognizable shape.** For the first 10,000 to 50,000 ticks plant eaters boom (about 1,800 of them). Then predators take off, the plant eaters crash to a few hundred, and a long-lived predator and prey system settles in: at tick 1,000,000 the average world holds 328 organisms (227 plant eaters, 14 mixed diets, 86 meat eaters). Each seed sees about 2.6 million kills over the run.
+- **Prey fight back, and the arms race never ends.** Armor evolves to about 1.5 (out of 2), prey become faster (speed about 1.7, up from 1.0), and sense range grows to about 5.6, all of which cost energy. Attack settles near 0.4.
+- **The same worlds, run as controls, behave differently in the ways you would hope.** With weapons switched off (Peaceful meadow) there are no kills and no predators and the population is about three times larger (about 2,150 against about 640 after 100,000 ticks). With cheap fighting (Arms race) the first carnivore appears about ten times sooner (around tick 2,300 instead of 29,000), and the survivors are fewer (about 350) and more heavily armored (armor 1.8). In Poor soil, the number of births blocked by missing nutrients rises as the soil gets poorer (about 35,000, 78,000 and 91,000 blocked births at 6, 3 and 1.5 nutrients per cell).
+
+## What broke, or only partly worked
+
+- **Fighting was too cheap, and plant eaters turned killers.** In my first version, killing started at tick 41 and reached more than 100,000 kills, almost all of it plant eaters killing other plant eaters. Removing a rival frees up shared food, and the victim's body just rotted. The population collapsed to a few hundred, with speed pushed above 3 and armor above 1.5 in an endless arms race. Making fighting 5 times more expensive for organisms that cannot digest meat (a continuous trade-off tied to the diet gene, not a rule about roles) fixed it.
+- **Too expensive, and nothing happens.** The opposite setting gave a calm herbivore world where carnivory never starts: eating meat only pays if you can also kill, and killing only pays if you can eat, so neither gene moves alone. Slower mutation does the same thing: with the maximum mutation rate cut to a fifth, no carnivores appeared in any of 8 seeds in 200,000 ticks. The ecosystem sits in a fairly narrow window.
+- **Predators overshoot.** Without a pause after each kill, hunters wipe out the prey. A 20-tick handling time after a kill steadied it.
+- **Lotka-Volterra cycles are only partly there.** The roadmap asked for predator and prey cycles on the chart. What the sim produces is one big boom and bust when predators first arrive, then a noisy equilibrium with irregular waves in the carnivore count. By a simple count (a swing is carnivores going from above 140% to below 60% of their average, after tick 50,000), 6 of 12 seeds show two or more full swings in 300,000-tick runs of the default world, and 7 of 8 in 150,000-tick runs of a no-armor, quick-digestion world (the Boom and bust preset). The waves are slow, so shorter runs show fewer of them. But a formal test for predators following prey with a delay found it in at most 1 of 12 seeds, and there is no regular rhythm. Evolution damps the cycles: prey adapt before predators can crash them. Left unticked in the roadmap for an owner decision.
+- **Seeds mostly agree.** Every seed ends up with similar average traits (size, speed and diet within about 10-13% of each other). They differ in timing (first carnivore anywhere from tick 8,690 to 106,050) and in how strongly they arm (attack varies by about a third). So this partly revisits the "different seeds" item from Phase 2: seeds take different paths to the same kind of food web.
+- **A weaker speed effect.** The movement-cost trade-off from Phase 2 is harder to see once predators are in the mix, because expensive movement also changes how much killing happens. That regression test now switches predation off so it keeps measuring the cost on its own.
+- **Population is smaller.** A world with predators and bodies that lock up nutrients holds a few hundred organisms where Phase 2 held a couple of thousand. The viewer is therefore lighter, and the dynamics are easier to see.
+- Debugging slips, caught quickly: test worlds that were so dense the hunters wiped everyone out before anyone could starve, and a GIF library that loads differently under Node and under the test runner.
+
+## Next
+
+Phase 4: senses and brains. Today organisms wander, and the sense gene steers them toward food with a hard-coded rule. Next they get small neural networks fed by vision and smell and wired to turn, move, eat and attack, so hunting and fleeing can evolve as behavior. That is also the first phase where the per-tick cost per organism will jump, so profiling comes first.

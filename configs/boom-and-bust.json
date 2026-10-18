@@ -1,0 +1,9 @@
+{
+  "name": "Boom and bust",
+  "description": "Prey cannot evolve armor and predators digest quickly after a kill. Over long runs (100,000+ ticks) carnivore numbers swing up and down in slow waves, sometimes crashing almost to zero before recovering.",
+  "config": {
+    "armorMin": 0,
+    "armorMax": 0,
+    "killCooldown": 5
+  }
+}

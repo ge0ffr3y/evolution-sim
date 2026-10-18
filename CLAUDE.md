@@ -14,7 +14,7 @@ Planning notes live in the owner's Obsidian vault: `Projects/Evolution Sim Proje
 3. The simulation advances in fixed **ticks**, never real time. Rendering speed must never change simulation results.
 4. All tuning numbers (costs, rates, thresholds, caps) live in a single config object. No magic numbers in logic.
 5. Same seed + same config must give exactly the same history. Do not iterate over unordered structures in a way that changes results, and do not depend on timing.
-6. Energy is the universal currency. Every trait costs energy, and every energy gain or loss goes through the energy ledger (`Simulation.ledger`). Never create or destroy energy outside defined sources (plants regrowing) and sinks (upkeep, movement, sensing). The conservation test in `simulation.test.ts` must keep passing; if you add a new energy flow, add it to the ledger and to that test.
+6. Energy is the universal currency. Every trait costs energy, and every energy gain or loss goes through the energy ledger (`Simulation.ledger`). Never create or destroy energy outside defined sources (plants regrowing) and sinks (upkeep, movement, sensing). The energy conservation test and the matter conservation test in `simulation.test.ts` must keep passing; if you add a new energy flow, add it to the ledger and to that test, and if you add a new place matter can sit, add it to `matterAudit()`.
 7. There are no hard-coded roles. No `Predator` or `Herbivore` classes. Behavior must come from genes and environment.
 8. Run `npm test` and `npm run typecheck` before every commit. Never commit with failing tests.
 9. Prefer simple, readable code over clever code. Add a short comment explaining *why* for anything non-obvious.
@@ -56,13 +56,16 @@ npm run sim -- --seed 42 --ticks 100000     one headless run (CSV of stats + tra
 npm run sim -- --seeds 1-12 --ticks 50000   many seeds in parallel, then compare how they differ
 npm run sim -- --config configs/costly-movement.json --seed 3   run a preset world (--set name=value tweaks any setting)
 npm run bench      how fast is the simulation?
+npm run gif -- --seed 12 --ticks 60000   render a time-lapse GIF of a run
 ```
 
 ## Tech notes
 
 - TypeScript everywhere, npm workspaces. `sim-core` is consumed as TypeScript source (no build step).
 - Simulation data uses typed arrays (struct-of-arrays) for speed; spatial queries use a spatial hash grid.
-- Each organism has a genome (six genes, each 0 to 1). Traits and per-tick costs are worked out from the genes once, at birth, and cached; the per-tick loop only does arithmetic on cached numbers. Gene order and the gene-to-trait mapping live in `genome.ts`.
+- Each organism has a genome (nine genes, each 0 to 1: size, speed, sense range, metabolism, color, mutation rate, diet, attack, armor). Traits and per-tick costs are worked out from the genes once, at birth, and cached; the per-tick loop only does arithmetic on cached numbers. Gene order and the gene-to-trait mapping live in `genome.ts`.
+- Energy goes one way (sun to plants to eaters to heat) and matter goes in a circle (soil, plants, detritus, soil; soil, bodies, corpses, detritus, soil). Plants need nutrient to grow, and a newborn's body is built from the soil it is born on.
+- Predation is physics, not a role: any organism whose attack trait is above `attackThreshold` tries to kill the nearest prey in reach, with odds from attack power against defense. There is no Predator class and nothing is hard-coded about who eats whom.
 - Scarce food is shared by claim (see `contestStrength` in the config), which makes the result independent of the order organisms are processed in.
 - In the browser the sim runs in a Web Worker and the UI stays on the main thread.
 - Keep a fast-forward mode that skips rendering. Profile before optimizing.
