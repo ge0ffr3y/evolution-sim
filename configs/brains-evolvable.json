@@ -1,7 +1,9 @@
 {
   "name": "Brains: evolvable layout",
-  "description": "Every organism gets a small neural network that sees, smells and feels, and decides how to turn, how fast to move and whether to attack. Brains start empty and mutations can add or remove connections and thinking units. Click an organism to watch it think.",
+  "description": "Every organism gets a small neural network that sees, smells and feels, and decides how to turn, how fast to move and whether to attack. Brains start empty and mutations can add or remove connections and thinking units. Plant eaters notice threats and plants, meat eaters notice prey and corpses, and a killer gets first claim on its kill. Click an organism to watch it think.",
   "config": {
-    "brainMode": 2
+    "brainMode": 2,
+    "brainAppetiteSenses": 1,
+    "killOwnershipTicks": 30
   }
 }

@@ -10,13 +10,14 @@ Nobody is told to be a predator, a herbivore or a scavenger. Those roles, along 
 
 *Seed 12 over 60,000 ticks. Everyone starts as a green, unarmed plant eater. The first kill happens at tick 60, the first scavenger at 566, and by tick 8,690 a lineage lives mostly on meat (red). Larger dots are larger bodies.*
 
-> **Status: v0.1 (Phase 3, food webs).** Predators, plant eaters and scavengers emerge on their own, from nothing but mutation and the rule that everything costs energy. In 12 of 12 seeds a lineage that lives mostly on meat evolves, and all 12 ecosystems were still going after 1,000,000 ticks.
+> **Status: v0.1 release (Phase 3, food webs), with Phase 4 (senses and brains) added on top.** Predators, plant eaters and scavengers emerge on their own, from nothing but mutation and the rule that everything costs energy. In 12 of 12 seeds a lineage that lives mostly on meat evolves, and all 12 ecosystems were still going after 1,000,000 ticks. Phase 4 adds evolvable neural-network brains: prey evolve to run from threats, and meat eaters evolve to ambush. Chasing has not evolved yet (see the [Phase 4 devlog](docs/devlog/0004-senses-and-brains.md) for why).
 
 ## What happens in a run
 
 Every organism starts as the same unarmed plant eater. Nobody is told to hunt. The simulation has:
 
-- **Genes** for size, speed, sense range, metabolism, mutation rate, a color marker, **diet**, **attack** and **armor**. Every trait costs energy every tick, so no trait is free.
+- **Genes** for size, speed, sense range, metabolism, mutation rate, a color marker, **diet**, **attack**, **armor** and **stamina** (a sprint reserve, used when brains and sprint fatigue are on). Every trait costs energy every tick, so no trait is free.
+- **Brains (optional).** Switch on evolvable neural networks that see, smell and feel (including their own diet and stamina), and decide how to turn, how fast to move and whether to attack. Brains cost energy per thinking unit and connection. Brains off is the control world.
 - **A closed loop.** Sunlight and soil nutrients grow plants. Organisms eat plants (or each other), and eating, dying and rotting return matter to the soil as detritus, which turns back into nutrients. Newborns are built from nutrients in the soil they are born on, so soil limits the population.
 - **Two ledgers, both checked by tests.** Energy flows one way (sun, plants, eaters, heat) and the books balance to better than one part in a billion. Matter goes round in a circle and none is ever created or destroyed.
 - **Predation as physics.** An armed organism picks the nearest prey in reach that is not too big for it. The odds depend on its attack and size against the prey's armor and size. A kill leaves a corpse that anyone with a meat appetite can eat, so scavengers and hunters share a food supply.
@@ -27,6 +28,7 @@ What emerged (details in the [devlog](docs/devlog)):
 2. A lineage that survives mostly on meat appeared in **12 of 12 seeds** (median tick 29,000).
 3. After the first predators arrive, plant eaters crash, then a stable predator and prey system settles in: about 230 plant eaters and 90 meat eaters, with carnivore numbers swinging in irregular waves.
 4. Prey answer with armor and speed, and the arms race never ends.
+5. With brains on, prey evolve to turn away from threats (about 0.68 of the time, against 0.52 for the no-brain control), and meat eaters evolve to ambush: they slow down and let prey walk into reach. They do not chase. In sparse worlds the meat eaters repeatedly crash and re-evolve, which wipes out any chasing wiring.
 
 ## Goals
 
@@ -90,6 +92,9 @@ Each preset is a short JSON file in [`configs/`](configs) naming the settings it
 | Poor soil | Nutrients, not sunlight, limit the population: many births are blocked |
 | Costly movement / Cheap movement | One cost changed 5 times over: watch the speed histograms |
 | Scarce food | Plants regrow at half the rate |
+| Brains: evolvable layout | Neural-network brains whose layout evolves: click an organism to watch it think |
+| Brains: fixed layout | Every brain has the same wiring plan and only the strengths evolve |
+| Brains: sparse world (chase test) | Brains plus stamina and kill ownership in a world with scarce prey: meat eaters boom and crash |
 | Flat and fair | A control with no niches for plant eaters to split |
 
 ## Roadmap
@@ -100,7 +105,7 @@ Each preset is a short JSON file in [`configs/`](configs) naming the settings it
 | 1 | Minimal living world | Organisms eat, reproduce, mutate, die (done) |
 | 2 | Genome and trade-offs | Real energy economics, diverging traits (done) |
 | 3 | Food webs | Emergent predators, nutrient loop (**v0.1, done**) |
-| 4 | Senses and brains | Hunting and fleeing evolve |
+| 4 | Senses and brains | Prey flee and hunters ambush (done; chasing did not evolve) |
 | 5 | Species and phylogeny | Speciation tracking, family tree (v0.2) |
 | 6 | Dynamic world | Biomes, seasons, climate, catastrophes |
 | 7 | Ecological depth | Disease, aging, social behavior (v0.3) |
