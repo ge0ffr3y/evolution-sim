@@ -237,6 +237,12 @@ export interface SimConfig {
    * population into groups that never mix.
    */
   mateDistance: number;
+  /**
+   * Who an organism picks out of the compatible, ready ones in range: 0 = the nearest, 1 = the
+   * most genetically similar (so specialists tend to find each other, which lets a lineage keep
+   * a combination of genes that would be diluted by mixing with everyone).
+   */
+  matePreference: number;
 
   /**
    * Rare large mutations: with this chance per birth, a few genes at once change by a lot
@@ -411,6 +417,7 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   sexualReproduction: 0,
   mateRange: 6,
   mateDistance: 0.25,
+  matePreference: 0,
   macroMutationProb: 0,
   macroMutationStd: 0.3,
   macroMutationGenes: 3,
@@ -521,6 +528,7 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (c.brainVisionRange < 0) problems.push("brainVisionRange cannot be negative");
   if (![0, 1].includes(c.sexualReproduction)) problems.push("sexualReproduction must be 0 or 1");
   if (!(c.mateRange > 0)) problems.push("mateRange must be positive");
+  if (![0, 1].includes(c.matePreference)) problems.push("matePreference must be 0 (nearest) or 1 (most similar)");
   if (!(c.mateDistance > 0 && c.mateDistance <= 1)) problems.push("mateDistance must be above 0 and at most 1");
   if (c.macroMutationProb < 0 || c.macroMutationProb > 1) problems.push("macroMutationProb must be between 0 and 1");
   if (c.macroMutationStd < 0) problems.push("macroMutationStd cannot be negative");

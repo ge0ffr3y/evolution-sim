@@ -419,6 +419,7 @@ export class Simulation {
   private mateSelf = 0;
   private mateBest = -1;
   private mateBestDistSq = Infinity;
+  private mateBestScore = Infinity;
 
   /** Which species each organism belongs to (0 when species tracking is off). See species.ts. */
   readonly species: Uint32Array;
@@ -1129,10 +1130,15 @@ export class Simulation {
 
   /** Used while looking for a mate: remember the nearest other ready, compatible organism. */
   private readonly considerMate = (index: number, distSq: number): void => {
-    if (index === this.mateSelf || this.ready[index] !== 1 || distSq >= this.mateBestDistSq) return;
+    if (index === this.mateSelf || this.ready[index] !== 1) return;
     const limit = this.config.mateDistance;
-    if (this.geneDistanceSq(this.mateSelf, index) > limit * limit) return;
+    const geneSq = this.geneDistanceSq(this.mateSelf, index);
+    if (geneSq > limit * limit) return;
+    // The score to beat: how near (default) or how genetically similar (matePreference 1, nearer wins a tie).
+    const score = this.config.matePreference === 1 ? geneSq : distSq;
+    if (score > this.mateBestScore || (score === this.mateBestScore && distSq >= this.mateBestDistSq)) return;
     this.mateBest = index;
+    this.mateBestScore = score;
     this.mateBestDistSq = distSq;
   };
 
@@ -1153,6 +1159,7 @@ export class Simulation {
       this.mateSelf = a;
       this.mateBest = -1;
       this.mateBestDistSq = Infinity;
+      this.mateBestScore = Infinity;
       this.hash.forEachNear(this.x[a]!, this.y[a]!, this.config.mateRange, this.considerMate);
       const b = this.mateBest;
       if (b < 0) continue;

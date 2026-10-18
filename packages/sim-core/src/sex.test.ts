@@ -101,6 +101,30 @@ describe("sexual reproduction", () => {
     expect(sim.count).toBe(pop);
   });
 
+  it("by default an organism picks the nearest compatible mate; with matePreference 1 it picks the most similar one", () => {
+    const build = (preference: number): Simulation => {
+      const sim = new Simulation(1, scene({ initialOrganisms: 3, matePreference: preference, mateDistance: 0.4 }));
+      // Organism 0 looks for a mate. Organism 1 is NEARER but less similar; organism 2 is further but identical.
+      for (let g = 0; g < GENE_COUNT; g++) {
+        sim.genes[0 * GENE_COUNT + g] = 0.3;
+        sim.genes[2 * GENE_COUNT + g] = 0.3;
+        sim.genes[1 * GENE_COUNT + g] = 0.45;
+      }
+      sim.genes[1 * GENE_COUNT + GENE.hue] = 0.3;
+      sim.genes[1 * GENE_COUNT + GENE.mutationRate] = 0.3;
+      ready(sim, 0, 30, 30);
+      ready(sim, 1, 31, 30);
+      ready(sim, 2, 35, 30);
+      return sim;
+    };
+    const nearest = build(0);
+    nearest.step();
+    expect([nearest.parentId[nearest.count - 1], nearest.parent2Id[nearest.count - 1]]).toEqual([nearest.id[0], nearest.id[1]]);
+    const similar = build(1);
+    similar.step();
+    expect([similar.parentId[similar.count - 1], similar.parent2Id[similar.count - 1]]).toEqual([similar.id[0], similar.id[2]]);
+  });
+
   it("with three ready neighbors, one pair mates and the odd one waits", () => {
     const sim = new Simulation(1, scene());
     ready(sim, 0, 30, 30);

@@ -56,6 +56,8 @@ npm run sim -- --seed 42 --ticks 100000     one headless run (CSV of stats + tra
 npm run sim -- --seeds 1-12 --ticks 50000   many seeds in parallel, then compare how they differ
 npm run sim -- --config configs/costly-movement.json --seed 3   run a preset world (--set name=value tweaks any setting)
 npm run bench      how fast is the simulation?
+npm run sim -- --seed 5 --ticks 3000 --save w.evosnap     save the finished world
+npm run sim -- --load w.evosnap --ticks 2000               carry on from a saved world (add --branch-seed N for a different random future)
 npm run gif -- --seed 12 --ticks 60000   render a time-lapse GIF of a run
 ```
 
@@ -67,6 +69,9 @@ npm run gif -- --seed 12 --ticks 60000   render a time-lapse GIF of a run
 - Energy goes one way (sun to plants to eaters to heat) and matter goes in a circle (soil, plants, detritus, soil; soil, bodies, corpses, detritus, soil). Plants need nutrient to grow, and a newborn's body is built from the soil it is born on.
 - Predation is physics, not a role: any organism whose attack trait is above `attackThreshold` tries to kill the nearest prey in reach, with odds from attack power against defense. There is no Predator class and nothing is hard-coded about who eats whom.
 - Brains are optional (`brainMode` 0 = none, the control; 1 = fixed layout; 2 = evolvable layout). They live in `brain.ts` (network and mutation) and `Simulation.think()`. All brain-world extras are off by default so earlier worlds do not change: `brainAppetiteSenses`, `sprintFatigue` (stamina), `killOwnershipTicks` (first claim on a kill), and `scentDeposit` (scent trails, laid whenever brains are on; set 0 to disable). Adding a brain input shifts node numbers and so changes brain-world golden fingerprints; brains-off goldens must never change.
+- Species and the family tree live in `species.ts` and only WATCH the world: no random numbers, nothing in the world fingerprint, so they can never change what happens. A species is a group centered on its members' average genes (color and mutation rate ignored); a candidate needs `speciesMinMembers` members for `speciesProbation` ticks to count. Keep it observation-only: if species ever fed back into behavior it would be a hard-coded role.
+- Sexual reproduction is a toggle (`sexualReproduction`, off by default so older worlds are unchanged): ready, nearby, genetically compatible organisms pair up and have one baby (genes and brains mixed, see `crossoverBrains` for why hidden units come from one parent), each paying half the energy.
+- Saving: `Simulation.save()` and `Simulation.load()` (snapshot.ts) round-trip the whole world exactly. A guard test in `snapshot.test.ts` fails if you add a field to `Simulation` without either saving it or listing it as scratch space; do one or the other.
 - Scarce food is shared by claim (see `contestStrength` in the config), which makes the result independent of the order organisms are processed in.
 - In the browser the sim runs in a Web Worker and the UI stays on the main thread.
 - Keep a fast-forward mode that skips rendering. Profile before optimizing.

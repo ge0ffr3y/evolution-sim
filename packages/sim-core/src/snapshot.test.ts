@@ -129,7 +129,7 @@ describe("saving and loading a world", () => {
       "visHx", "visHy", "visSelf", "visSizeLimit", "visX", "visY",
       "thinkHidden", "thinkInputs", "thinkOutputs", "traceHidden", "traceInputs", "traceOutputs", "traceValid", "traceId",
       "meatClaim", "plantClaim", "plantShare", "meatShare", "meatDensity", "parents",
-      "ready", "pairs", "mateMask", "mateSelf", "mateBest", "mateBestDistSq", "considerMate", "sexOn",
+      "ready", "pairs", "mateMask", "mateSelf", "mateBest", "mateBestDistSq", "mateBestScore", "considerMate", "sexOn",
     ]);
     const sim = new Simulation(1, WORLDS[1]!.config);
     sim.run(600);

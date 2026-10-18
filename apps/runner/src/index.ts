@@ -142,7 +142,7 @@ async function runSweep(seeds: number[]): Promise<void> {
   await Promise.all(workers);
 
   summaries.sort((a, b) => a.seed - b.seed);
-  const header = ["seed", "extinct", "tick", "population", "herbivores", "omnivores", "carnivores", "totalKills", "totalAttacks", "brainConnHerbivores", "brainConnCarnivores", "chaseTurn", "fleeTurn", "firstScavenger", "firstKill", "firstPredator", "firstCarnivore", ...GENES.map((g) => `mean_${g}`)];
+  const header = ["seed", "extinct", "tick", "population", "herbivores", "omnivores", "carnivores", "totalKills", "totalAttacks", "brainConnHerbivores", "brainConnCarnivores", "chaseTurn", "fleeTurn", "speciesAlive", "speciesEver", "firstScavenger", "firstKill", "firstPredator", "firstCarnivore", ...GENES.map((g) => `mean_${g}`)];
   const tickOrBlank = (t: number | null): string => (t === null ? "" : String(t));
   const rows = summaries.map((s) =>
     [
@@ -159,6 +159,8 @@ async function runSweep(seeds: number[]): Promise<void> {
       s.brainConnectionsCarnivores.toFixed(2),
       s.chaseTurn.toFixed(3),
       s.fleeTurn.toFixed(3),
+      s.speciesAlive,
+      s.speciesEver,
       tickOrBlank(s.firsts.firstScavenger),
       tickOrBlank(s.firsts.firstKill),
       tickOrBlank(s.firsts.firstPredator),
