@@ -1,0 +1,11 @@
+{
+  "name": "Sexual reproduction with color choice",
+  "description": "Sexual reproduction where each organism picks the mate whose color gene is closest to its own, with camouflage and kin recognition on. Color becomes both a disguise and a signal. Color the dots by the Color gene to see whether neighbors share colors.",
+  "config": {
+    "sexualReproduction": 1,
+    "matePreference": 2,
+    "mateRange": 10,
+    "camouflageMode": 1,
+    "kinDistance": 0.2
+  }
+}

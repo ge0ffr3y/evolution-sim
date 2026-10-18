@@ -1,0 +1,10 @@
+{
+  "name": "Sexual reproduction with kin recognition",
+  "description": "Sexual reproduction (compatible neighbors have babies with mixed genes) plus kin recognition (nobody attacks a relative, within 0.1). Without kin recognition, sexual worlds with rare big mutations collapse into plant eaters killing each other (the population falls to one organism); with it they stay at a few hundred organisms.",
+  "config": {
+    "sexualReproduction": 1,
+    "mateDistance": 0.4,
+    "macroMutationProb": 0.005,
+    "kinDistance": 0.1
+  }
+}

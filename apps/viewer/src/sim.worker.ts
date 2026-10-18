@@ -155,6 +155,8 @@ function worldInfo(s: Simulation): WorldInfo {
     histogramBins: HISTOGRAM_BINS,
     histogramEvery: HISTOGRAM_EVERY,
     brainMode: s.config.brainMode,
+    diseaseOn: s.config.diseaseTransmission > 0,
+    camouflageOn: s.config.camouflageMode === 1,
     climateMode: s.config.climateMode,
     yearLength: s.config.yearLength,
     dayLength: s.config.dayLength,
@@ -203,6 +205,12 @@ function postFrame(s: Simulation): void {
   const hunterScent = Float32Array.from(s.hunterScent);
   const capacity = sendCapacity ? s.foodCapacity.slice() : null;
   const terrain = sendCapacity && s.biome.length > 0 ? s.biome.slice() : null;
+  const background = sendCapacity && s.background.length > 0 ? s.background.slice() : null;
+  let health: Uint8Array | null = null;
+  if (s.infection.length > 0) {
+    health = new Uint8Array(n);
+    for (let i = 0; i < n; i++) health[i] = s.sickFor[i]! > 0 ? 1 : s.immuneFor[i]! > 0 ? 2 : 0;
+  }
   const climate = s.temperature.length > 0 ? { temperature: Float32Array.from(s.temperature), growth: Float32Array.from(s.growthFactor) } : null;
 
   const message: FrameMessage = {
@@ -230,6 +238,8 @@ function postFrame(s: Simulation): void {
     hunterScent,
     capacity,
     terrain,
+    background,
+    health,
     climate,
     points,
     histograms,
@@ -252,6 +262,8 @@ function postFrame(s: Simulation): void {
   ];
   if (capacity) transfer.push(capacity.buffer);
   if (terrain) transfer.push(terrain.buffer);
+  if (background) transfer.push(background.buffer);
+  if (health) transfer.push(health.buffer);
   if (climate) transfer.push(climate.temperature.buffer, climate.growth.buffer);
   // The options form of postMessage works in both a worker and the DOM typings.
   self.postMessage(message, { transfer });

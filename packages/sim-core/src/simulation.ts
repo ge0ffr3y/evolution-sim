@@ -12,7 +12,7 @@ import {
   type Traits,
 } from "./genome";
 import { polarness, smoothWave } from "./climate";
-import { BIOME, generateBiomes, growthMultipliers, moveMultipliers } from "./terrain";
+import { BIOME, generateBackground, generateBiomes, growthMultipliers, moveMultipliers } from "./terrain";
 import { SNAPSHOT_FORMAT, type SimSnapshot, type SnapshotArray } from "./snapshot";
 import { SpeciesTracker, type SpeciesEvent, type SpeciesRecord } from "./species";
 import {
@@ -175,6 +175,8 @@ export interface SimStats {
   brain: BrainStats;
   /** Species alive now, and how many there have ever been (0 when tracking is off). */
   species: { alive: number; ever: number };
+  /** Disease: organisms sick now, strains alive in them, and infections so far (all 0 without disease). */
+  disease: { infected: number; strains: number; totalInfections: number };
   traits: Record<GeneName, TraitSummary>;
   classes: DietClasses;
   /** Matter in the soil, as rotting meat, and as detritus. */
@@ -202,6 +204,11 @@ export interface OrganismSnapshot {
   costs: { basal: number; movement: number; sensing: number; attack: number; armor: number; brain: number };
   /** Its brain, if the world has brains. */
   brain: BrainSnapshot | null;
+  /** Disease (all 0 without it): ticks of sickness and of immunity left, and which strain it carries. */
+  health: { sickFor: number; immuneFor: number; strain: number };
+  /** Lifespan in ticks (0 without aging) and litter size (1 without the litter gene). */
+  lifespan: number;
+  litter: number;
   /** Lifetime energy gained from plants and from meat, and kills made. */
   plantTaken: number;
   meatTaken: number;
@@ -225,6 +232,7 @@ const SCENT_FULL = 4;
 const SENSE_VISION = 1;
 const SENSE_SMELL = 2;
 const SENSE_BODY = 4;
+const SENSE_SOCIAL = 8;
 /** Strength of the founders' plant-smell reflex. */
 const FOUNDER_REFLEX_WEIGHT = 1.5;
 /** The founders' chase reflex: turning strength per ray away from the middle, and the speed-up when prey is dead ahead. */
@@ -451,6 +459,12 @@ export class Simulation {
   private readonly ready: Uint8Array;
   private readonly pairs: Uint32Array;
   private readonly mateMask: number[];
+  /** Kin recognition: how close genetically counts as a relative (squared; 0 = off), and scratch for counting relatives. */
+  private readonly kinLimitSq: number;
+  private kinCount = 0;
+  private kinVx = 0;
+  private kinVy = 0;
+  private herdSelf = 0;
   private mateSelf = 0;
   private mateBest = -1;
   private mateBestDistSq = Infinity;
@@ -469,6 +483,32 @@ export class Simulation {
   readonly thermalPref: Float32Array;
   private readonly thermalScale: Float32Array;
   private readonly thermalOn: boolean;
+  /**
+   * Disease (only when diseaseTransmission is above 0): for each organism, which strain it carries (0 =
+   * healthy), how many ticks of sickness are left and how many ticks of immunity. A strain is just the
+   * genes it "targets" (one number per gene that counts toward kinship).
+   */
+  readonly infection: Uint16Array;
+  readonly sickFor: Uint16Array;
+  readonly immuneFor: Uint16Array;
+  private readonly pending: Uint16Array;
+  private strains: Float64Array[] = [];
+  totalInfections = 0;
+  private readonly diseaseOn: boolean;
+  private diseaseHost = 0;
+  /**
+   * Camouflage (only when camouflageMode is 1): the background color of every cell, and, for each
+   * hunter, the color of what it last ate (its "search image"), if it has eaten anything.
+   */
+  readonly background: Float32Array;
+  readonly searchHue: Float32Array;
+  readonly hasImage: Uint8Array;
+  private readonly camoOn: boolean;
+  /** Lifespan (ticks) and litter size of each organism (only when those genes are in use). */
+  readonly lifespan: Float32Array;
+  readonly litter: Float32Array;
+  private readonly agingOn: boolean;
+  private readonly litterOn: boolean;
   /** Which genes are doing anything in this world (the rest are copied as they are, never mutated). */
   private readonly activeGene: boolean[];
   /** Who has first claim on the meat in each cell, and until which tick. Used only with killOwnershipTicks. */
@@ -514,6 +554,9 @@ export class Simulation {
   private pickSizeLimit = 0;
   private readonly considerPrey = (index: number, distSq: number): void => {
     if (index === this.pickAttacker || this.killed[index] === 1 || this.size[index]! > this.pickSizeLimit) return;
+    if (this.camoOn && !this.detects(this.pickAttacker, index)) return; // never noticed it
+    // Nobody attacks a relative.
+    if (this.kinLimitSq > 0 && this.geneDistanceSq(this.pickAttacker, index) <= this.kinLimitSq) return;
     if (distSq < this.pickBestDistSq || (distSq === this.pickBestDistSq && index < this.pickBest)) {
       this.pickBest = index;
       this.pickBestDistSq = distSq;
@@ -642,7 +685,28 @@ export class Simulation {
     this.thermalOn = c.climateMode === 1 && c.thermalCostCoeff > 0;
     this.thermalPref = new Float32Array(this.thermalOn ? n : 0);
     this.thermalScale = new Float32Array(this.thermalOn ? n : 0);
-    this.activeGene = GENES.map((_, k) => k < CORE_GENE_COUNT || (k === GENE.stamina && this.staminaOn) || (k === GENE.thermal && this.thermalOn));
+    this.camoOn = c.camouflageMode === 1;
+    this.background = this.camoOn ? generateBackground(seed, this.gridWidth, this.gridHeight, c.camoScale) : new Float32Array(0);
+    this.searchHue = new Float32Array(this.camoOn ? n : 0);
+    this.hasImage = new Uint8Array(this.camoOn ? n : 0);
+    this.diseaseOn = c.diseaseTransmission > 0;
+    this.infection = new Uint16Array(this.diseaseOn ? n : 0);
+    this.sickFor = new Uint16Array(this.diseaseOn ? n : 0);
+    this.immuneFor = new Uint16Array(this.diseaseOn ? n : 0);
+    this.pending = new Uint16Array(this.diseaseOn ? n : 0);
+    this.agingOn = c.agingCoeff > 0;
+    this.litterOn = c.litterMax > 1;
+    this.lifespan = new Float32Array(this.agingOn ? n : 0);
+    this.litter = new Float32Array(this.litterOn ? n : 0);
+    this.activeGene = GENES.map(
+      (_, k) =>
+        k < CORE_GENE_COUNT ||
+        (k === GENE.stamina && this.staminaOn) ||
+        (k === GENE.thermal && this.thermalOn) ||
+        (k === GENE.lifespan && this.agingOn) ||
+        (k === GENE.litter && this.litterOn),
+    );
+    this.kinLimitSq = c.kinDistance * c.kinDistance;
     this.sexOn = c.sexualReproduction === 1;
     this.parent2Id = new Uint32Array(this.sexOn ? n : 0);
     this.ready = new Uint8Array(this.sexOn ? n : 0);
@@ -651,12 +715,11 @@ export class Simulation {
     this.mateMask = [];
     for (const name of GENES) {
       if (name === "hue" || name === "mutationRate") continue;
-      if (name === "stamina" && !this.staminaOn) continue;
-      if (name === "thermal" && !this.thermalOn) continue;
+      if (!this.activeGene[GENE[name]]) continue;
       this.mateMask.push(GENE[name]);
     }
     this.species = new Uint32Array(c.speciesEvery > 0 ? n : 0);
-    this.tracker = c.speciesEvery > 0 ? new SpeciesTracker(c, this.ranges, this.staminaOn, this.thermalOn) : null;
+    this.tracker = c.speciesEvery > 0 ? new SpeciesTracker(c, this.ranges, this.activeGene) : null;
     const staminaOrganisms = this.staminaOn ? n : 0;
     this.stamina = new Float32Array(staminaOrganisms);
     this.staminaMax = new Float32Array(staminaOrganisms);
@@ -678,12 +741,19 @@ export class Simulation {
     }
     if (this.staminaOn) this.float32Fields.push(this.stamina, this.staminaMax, this.staminaCost);
     if (this.thermalOn) this.float32Fields.push(this.thermalPref, this.thermalScale);
+    if (this.agingOn) this.float32Fields.push(this.lifespan);
+    if (this.litterOn) this.float32Fields.push(this.litter);
     this.float64Fields = [this.energy, this.plantTaken, this.meatTaken];
     this.uint32Fields = [this.id, this.parentId, this.age, this.kills];
     if (this.tracker) this.uint32Fields.push(this.species);
     if (this.sexOn) this.uint32Fields.push(this.parent2Id);
     this.uint8Fields = [this.killed, this.attempted];
+    if (this.camoOn) {
+      this.uint8Fields.push(this.hasImage);
+      this.float32Fields.push(this.searchHue);
+    }
     this.uint16Fields = [this.resting];
+    if (this.diseaseOn) this.uint16Fields.push(this.infection, this.sickFor, this.immuneFor);
     if (c.brainMode > 0) {
       this.uint16Fields.push(this.brainCount, this.brainConnections);
       this.uint8Fields.push(this.brainHidden, this.brainSenses);
@@ -701,6 +771,8 @@ export class Simulation {
     founder[GENE.armor] = traitToGene(c.initialArmor, this.ranges.armor);
     founder[GENE.stamina] = traitToGene(c.initialStamina, this.ranges.stamina);
     founder[GENE.thermal] = traitToGene(c.initialThermal, this.ranges.thermal);
+    founder[GENE.lifespan] = traitToGene(c.initialLifespan, this.ranges.lifespan);
+    founder[GENE.litter] = traitToGene(c.initialLitter, this.ranges.litter);
     for (let i = 0; i < c.initialOrganisms; i++) {
       let fx = this.rng.range(0, c.worldWidth);
       let fy = this.rng.range(0, c.worldHeight);
@@ -898,6 +970,12 @@ export class Simulation {
     this.id[i] = this.nextId++;
     this.parentId[i] = parent;
     if (this.sexOn) this.parent2Id[i] = 0;
+    if (this.camoOn) this.hasImage[i] = 0;
+    if (this.diseaseOn) {
+      this.infection[i] = 0;
+      this.sickFor[i] = 0;
+      this.immuneFor[i] = 0;
+    }
     this.x[i] = x;
     this.y[i] = y;
 
@@ -978,6 +1056,12 @@ export class Simulation {
       this.stamina[i] = this.age[i] === 0 ? reserve : Math.min(this.stamina[i]!, reserve);
     }
 
+    if (this.agingOn) {
+      this.lifespan[i] = at("lifespan");
+      // Keeping a long-lived body in repair costs upkeep all the time.
+      this.basalCost[i] = this.basalCost[i]! * (1 + c.agingRepairCoeff * genes[g + GENE.lifespan]!);
+    }
+    if (this.litterOn) this.litter[i] = at("litter");
     if (this.thermalOn) {
       this.thermalPref[i] = at("thermal");
       this.thermalScale[i] = c.thermalCostCoeff * sizeToThreeQuarters;
@@ -1125,15 +1209,52 @@ export class Simulation {
       if (source >= INPUT_COUNT) continue; // hidden units read other inputs, which are counted on their own
       if (source < INPUT.smellPlantAhead) senses |= SENSE_VISION;
       else if (source < INPUT.energy) senses |= SENSE_SMELL;
+      else if (source >= INPUT.kinDensity && source <= INPUT.kinSide) senses |= SENSE_SOCIAL;
       else senses |= SENSE_BODY;
     }
     this.brainSenses[i] = senses;
     this.brainCost[i] = c.brainBaseCost + c.brainCostPerNeuron * size.hidden + c.brainCostPerConnection * size.connections;
   }
 
+  /** Used while sensing relatives: count the genetically close ones in range and add up the directions to them. */
+  private readonly seeKin = (index: number, distSq: number): void => {
+    if (index === this.visSelf || this.killed[index] === 1 || distSq <= 0) return;
+    if (this.geneDistanceSq(this.visSelf, index) > this.kinLimitSq) return;
+    const W = this.config.worldWidth;
+    const H = this.config.worldHeight;
+    let dx = this.x[index]! - this.visX;
+    let dy = this.y[index]! - this.visY;
+    if (dx > W / 2) dx -= W;
+    else if (dx < -W / 2) dx += W;
+    if (dy > H / 2) dy -= H;
+    else if (dy < -H / 2) dy += H;
+    const inv = 1 / Math.sqrt(dx * dx + dy * dy);
+    this.kinCount++;
+    this.kinVx += dx * inv;
+    this.kinVy += dy * inv;
+  };
+
+  /** Used while counting a prey animal's herd (see herdFactor). */
+  private readonly countHerd = (index: number, distSq: number): void => {
+    if (index === this.herdSelf || this.killed[index] === 1 || distSq <= 0) return;
+    if (this.geneDistanceSq(this.herdSelf, index) <= this.kinLimitSq) this.kinCount++;
+  };
+
+  /** How much harder this animal is to kill because of the relatives around it (1 = alone, or herding is off). */
+  private herdFactor(prey: number): number {
+    const c = this.config;
+    if (c.herdBonus <= 0) return 1;
+    this.herdSelf = prey;
+    this.kinCount = 0;
+    this.hash.forEachNear(this.x[prey]!, this.y[prey]!, c.herdRange, this.countHerd);
+    const crowd = this.kinCount < c.herdCap ? this.kinCount : c.herdCap;
+    return 1 + (c.herdBonus * crowd) / c.herdCap;
+  }
+
   /** What an organism notices when something is within sight: sorts it into the vision ray it falls in. */
   private readonly seeOther = (index: number, distSq: number): void => {
     if (index === this.visSelf || this.killed[index] === 1) return;
+    if (this.camoOn && !this.detects(this.visSelf, index)) return; // well hidden
     const W = this.config.worldWidth;
     const H = this.config.worldHeight;
     let dx = this.x[index]! - this.visX;
@@ -1290,6 +1411,41 @@ export class Simulation {
       inputs[INPUT.plantHere] = inputs[INPUT.plantHere]! * plant;
     }
 
+    // Relatives nearby: how many, and which way the herd lies.
+    if (this.kinLimitSq > 0 && ((senses & SENSE_SOCIAL) !== 0 || traced)) {
+      this.visSelf = i;
+      this.visX = x;
+      this.visY = y;
+      this.kinCount = 0;
+      this.kinVx = 0;
+      this.kinVy = 0;
+      this.hash.forEachNear(x, y, c.herdRange, this.seeKin);
+      const count = this.kinCount;
+      inputs[INPUT.kinDensity] = Math.min(1, count / c.herdCap);
+      if (count > 0) {
+        inputs[INPUT.kinAhead] = clampUnit((this.kinVx * hx + this.kinVy * hy) / count);
+        inputs[INPUT.kinSide] = clampUnit((hx * this.kinVy - hy * this.kinVx) / count);
+      }
+    }
+    // Comfort: is it hotter (+) or colder (-) here than this organism likes?
+    if (this.thermalOn) {
+      const here = Math.floor(y / cs) * gw + Math.floor(x / cs);
+      inputs[INPUT.comfort] = clampUnit((this.temperature[here]! - this.thermalPref[i]!) / 0.5);
+    }
+    // Water ahead: 1 if it is within three quarters of a cell, 0.5 if within a cell and three quarters more.
+    if (this.terrainOn) {
+      const W = c.worldWidth;
+      const H = c.worldHeight;
+      const blockedAt = (d: number): boolean => {
+        let px = x + hx * d;
+        let py = y + hy * d;
+        px -= Math.floor(px / W) * W;
+        py -= Math.floor(py / H) * H;
+        return this.passable[Math.floor(py / cs) * gw + Math.floor(px / cs)] === 0;
+      };
+      inputs[INPUT.barrier] = blockedAt(0.75 * cs) ? 1 : blockedAt(1.75 * cs) ? 0.5 : 0;
+    }
+
     // The body: hunger, age, its own diet, a constant, and a little noise (a deterministic scramble of the tick and the organism).
     inputs[INPUT.energy] = Math.min(this.energy[i]! / this.threshold[i]!, 1) * 2 - 1;
     inputs[INPUT.age] = Math.min(this.age[i]! / AGE_FULL, 1) * 2 - 1;
@@ -1338,6 +1494,155 @@ export class Simulation {
     }
   }
 
+  /**
+   * Does `viewer` notice `target` right now? Always, without camouflage. With it, the odds depend on how
+   * well the target's color matches the background where it stands (and on what the viewer has been
+   * eating). The answer is a fixed function of the pair and of which glance period it is (no random
+   * numbers are drawn), so a hidden animal stays hidden for camoGlance ticks at a time.
+   */
+  private detects(viewer: number, target: number): boolean {
+    if (!this.camoOn) return true;
+    const c = this.config;
+    const cs = c.foodCellSize;
+    const cell = Math.floor(this.y[target]! / cs) * this.gridWidth + Math.floor(this.x[target]! / cs);
+    const hue = this.genes[target * GENE_COUNT + GENE.hue]!;
+    let d = hue - this.background[cell]!;
+    if (d < 0) d = -d;
+    if (d > 0.5) d = 1 - d;
+    let p = c.camoDetectMin + (1 - c.camoDetectMin) * (d * 2);
+    if (c.camoLearning > 0 && this.hasImage[viewer] === 1) {
+      let sd = hue - this.searchHue[viewer]!;
+      if (sd < 0) sd = -sd;
+      if (sd > 0.5) sd = 1 - sd;
+      p *= 1 + c.camoLearning * (1 - 2 * sd);
+      if (p > 1) p = 1;
+    }
+    const glance = Math.floor(this.tick / c.camoGlance);
+    const u = ((Math.imul(glance + 1, 0x9e3779b1) ^ Math.imul(this.id[viewer]! + 1, 0x85ebca6b) ^ Math.imul(this.id[target]! + 1, 0xc2b2ae35)) >>> 0) / 4294967296;
+    return u < p;
+  }
+
+  /** How well a strain fits an organism's genes: 1 when they match exactly, falling toward 0 as they differ. */
+  private susceptibility(host: number, antigen: Float64Array): number {
+    const g = this.genes;
+    let sum = 0;
+    for (let m = 0; m < this.mateMask.length; m++) {
+      const d = g[host * GENE_COUNT + this.mateMask[m]!]! - antigen[m]!;
+      sum += d * d;
+    }
+    const w = this.config.diseaseWidth;
+    return 1 / (1 + sum / this.mateMask.length / (w * w));
+  }
+
+  /** A new pathogen strain aimed at organism j's genes, and j catches it. */
+  private newStrainIn(j: number): void {
+    const antigen = new Float64Array(this.mateMask.length);
+    for (let m = 0; m < antigen.length; m++) antigen[m] = this.genes[j * GENE_COUNT + this.mateMask[m]!]!;
+    this.strains.push(antigen);
+    this.infection[j] = this.strains.length;
+    this.sickFor[j] = this.config.diseaseDuration;
+    this.totalInfections++;
+  }
+
+  /** Used while a sick organism looks for neighbors to infect. */
+  private readonly tryInfect = (index: number, distSq: number): void => {
+    if (index === this.diseaseHost || distSq <= 0) return;
+    if (this.sickFor[index]! > 0 || this.immuneFor[index]! > 0 || this.pending[index]! > 0 || this.killed[index] === 1) return;
+    const c = this.config;
+    const strainId = this.infection[this.diseaseHost]!;
+    const antigen = this.strains[strainId - 1]!;
+    if (this.rng.next() >= c.diseaseTransmission * this.susceptibility(index, antigen)) return;
+    let carried = strainId;
+    // Now and then the strain changes: its target moves toward the genes of its new host (it adapts to whoever is common).
+    if (c.diseaseMutationProb > 0 && this.rng.next() < c.diseaseMutationProb && this.strains.length < 65000) {
+      const moved = new Float64Array(antigen.length);
+      for (let m = 0; m < moved.length; m++) {
+        const host = this.genes[index * GENE_COUNT + this.mateMask[m]!]!;
+        moved[m] = antigen[m]! + c.diseaseDrift * (host - antigen[m]!);
+      }
+      this.strains.push(moved);
+      carried = this.strains.length;
+    }
+    this.pending[index] = carried;
+  };
+
+  /** One tick of disease: new strains arrive, sick organisms infect their neighbors, sickness and immunity run down. */
+  private diseaseStep(n: number): void {
+    const c = this.config;
+    if (n > 0 && this.rng.next() < 1 / c.diseaseIntroEvery) {
+      const j = this.rng.int(n);
+      if (this.sickFor[j] === 0 && this.immuneFor[j] === 0) this.newStrainIn(j);
+    }
+    let sick = 0;
+    for (let i = 0; i < n; i++) if (this.sickFor[i]! > 0) sick++;
+    if (sick > 0) {
+      this.hash.rebuild(this.x, this.y, n);
+      for (let i = 0; i < n; i++) {
+        if (this.sickFor[i]! === 0) continue;
+        this.diseaseHost = i;
+        this.hash.forEachNear(this.x[i]!, this.y[i]!, c.diseaseContactRange, this.tryInfect);
+      }
+    }
+    // Sickness and immunity run down...
+    for (let i = 0; i < n; i++) {
+      if (this.sickFor[i]! > 0) {
+        this.sickFor[i] = this.sickFor[i]! - 1;
+        if (this.sickFor[i] === 0) {
+          this.infection[i] = 0;
+          this.immuneFor[i] = c.diseaseImmunity;
+        }
+      } else if (this.immuneFor[i]! > 0) {
+        this.immuneFor[i] = this.immuneFor[i]! - 1;
+      }
+    }
+    // ...and then this tick's new infections begin (after, so each gets its full duration).
+    for (let i = 0; i < n; i++) {
+      const carried = this.pending[i]!;
+      if (carried === 0) continue;
+      this.pending[i] = 0;
+      this.infection[i] = carried;
+      this.sickFor[i] = c.diseaseDuration;
+      this.totalInfections++;
+    }
+    if (this.strains.length > 300 && this.tick % 1000 === 0) this.compactStrains(n);
+  }
+
+  /** Forget strains nobody carries any more and renumber the rest, so the list does not grow forever. */
+  private compactStrains(n: number): void {
+    const newId = new Uint16Array(this.strains.length + 1);
+    const kept: Float64Array[] = [];
+    for (let i = 0; i < n; i++) {
+      const id = this.infection[i]!;
+      if (id === 0 || newId[id] !== 0) continue;
+      kept.push(this.strains[id - 1]!);
+      newId[id] = kept.length;
+    }
+    for (let i = 0; i < n; i++) if (this.infection[i]! !== 0) this.infection[i] = newId[this.infection[i]!]!;
+    this.strains = kept;
+  }
+
+  private diseaseStats(): { infected: number; strains: number; totalInfections: number } {
+    if (!this.diseaseOn) return { infected: 0, strains: 0, totalInfections: 0 };
+    const seen = new Set<number>();
+    let infected = 0;
+    for (let i = 0; i < this.count; i++) {
+      if (this.sickFor[i]! > 0) {
+        infected++;
+        seen.add(this.infection[i]!);
+      }
+    }
+    return { infected, strains: seen.size, totalInfections: this.totalInfections };
+  }
+
+  /** How many babies this birth makes (1 unless the litter gene is in use; a fraction is rounded at random). */
+  private litterSize(a: number, b: number): number {
+    if (!this.litterOn) return 1;
+    const trait = b < 0 ? this.litter[a]! : (this.litter[a]! + this.litter[b]!) / 2;
+    let k = Math.floor(trait);
+    if (this.rng.next() < trait - k) k++;
+    return k < 1 ? 1 : k;
+  }
+
   /** Used while looking for a mate: remember the nearest other ready, compatible organism. */
   private readonly considerMate = (index: number, distSq: number): void => {
     if (index === this.mateSelf || this.ready[index] !== 1) return;
@@ -1345,7 +1650,13 @@ export class Simulation {
     const geneSq = this.geneDistanceSq(this.mateSelf, index);
     if (geneSq > limit * limit) return;
     // The score to beat: how near (default) or how genetically similar (matePreference 1, nearer wins a tie).
-    const score = this.config.matePreference === 1 ? geneSq : distSq;
+    let score = distSq;
+    if (this.config.matePreference === 1) score = geneSq;
+    else if (this.config.matePreference === 2) {
+      let hd = this.genes[this.mateSelf * GENE_COUNT + GENE.hue]! - this.genes[index * GENE_COUNT + GENE.hue]!;
+      if (hd < 0) hd = -hd;
+      score = hd > 0.5 ? 1 - hd : hd; // how far apart the colors are, round the color wheel
+    }
     if (score > this.mateBestScore || (score === this.mateBestScore && distSq >= this.mateBestDistSq)) return;
     this.mateBest = index;
     this.mateBestScore = score;
@@ -1527,6 +1838,9 @@ export class Simulation {
     // Scent trails: old scent fades, then everyone leaves fresh scent where they now stand.
     if (this.scentOn) this.layScent(n);
 
+    // Disease: spreads by contact among the organisms that are now standing close together.
+    if (this.diseaseOn) this.diseaseStep(n);
+
     // Predation: each armed organism picks the nearest prey in reach (that is not
     // too big for it) and tries to kill it. A kill leaves a corpse right there.
     if (attackers > 0) {
@@ -1544,7 +1858,7 @@ export class Simulation {
         this.attempted[i] = 1;
         this.totalAttacks++;
         const power = this.attackPower[i]!;
-        const odds = power / (power + this.defense[prey]!);
+        const odds = power / (power + this.defense[prey]! * this.herdFactor(prey));
         if (this.rng.next() < odds) this.kill(i, prey);
       }
     }
@@ -1618,6 +1932,17 @@ export class Simulation {
       }
 
       let basal = this.basalCost[i]!;
+      if (this.agingOn) {
+        // Past its prime, a body wears out faster and faster.
+        const lifespan = this.lifespan[i]!;
+        const prime = lifespan * c.agingPrimeFraction;
+        const age = this.age[i]!;
+        if (age > prime) {
+          const worn = (age - prime) / (lifespan - prime);
+          basal += c.agingCoeff * this.basalCost[i]! * worn * worn;
+        }
+      }
+      if (this.diseaseOn && this.sickFor[i]! > 0) basal += c.diseaseCost * this.basalCost[i]!; // being sick costs upkeep
       if (this.thermalOn) {
         // Too hot or too cold for comfort costs extra upkeep.
         const off = this.temperature[cell]! - this.thermalPref[i]!;
@@ -1723,59 +2048,67 @@ export class Simulation {
     // (With sexual reproduction, two ready organisms pair up and each hands over half as much.)
     if (this.sexOn) {
       const pairCount = this.pairUp(parentCount);
-      for (let p = 0; p < pairCount; p++) {
+      birthsLoop: for (let p = 0; p < pairCount; p++) {
         const a = this.pairs[2 * p]!;
         const b = this.pairs[2 * p + 1]!;
-        const savedNextId = this.nextId;
-        const child = this.spawn(this.id[a]!, this.x[a]!, this.y[a]!);
-        if (child < 0) break;
-        this.parent2Id[child] = this.id[b]!;
-        this.inheritGenesFromTwo(child, a, b);
-        this.macroMutate(child);
-        if (this.tracker) this.species[child] = this.species[a]!;
-        this.express(child);
-        this.inheritBrainFromTwo(child, a, b);
-        const cell = this.cellOf[a]!;
-        const givenA = this.energy[a]! * c.offspringEnergyFraction * 0.5;
-        const givenB = this.energy[b]! * c.offspringEnergyFraction * 0.5;
-        const store = givenA + givenB - this.bodyEnergy[child]!;
-        if (nutrient[cell]! < this.bodyMatter[child]! || store < 0) {
-          this.count--;
-          this.nextId = savedNextId;
-          this.blockedBirths++;
-          continue;
+        const litter = this.litterSize(a, b);
+        // Each parent hands over half of the usual total, split between the babies.
+        const eachA = (this.energy[a]! * c.offspringEnergyFraction * 0.5) / litter;
+        const eachB = (this.energy[b]! * c.offspringEnergyFraction * 0.5) / litter;
+        for (let baby = 0; baby < litter; baby++) {
+          const savedNextId = this.nextId;
+          const child = this.spawn(this.id[a]!, this.x[a]!, this.y[a]!);
+          if (child < 0) break birthsLoop;
+          this.parent2Id[child] = this.id[b]!;
+          this.inheritGenesFromTwo(child, a, b);
+          this.macroMutate(child);
+          if (this.tracker) this.species[child] = this.species[a]!;
+          this.express(child);
+          this.inheritBrainFromTwo(child, a, b);
+          const cell = this.cellOf[a]!;
+          const store = eachA + eachB - this.bodyEnergy[child]!;
+          if (nutrient[cell]! < this.bodyMatter[child]! || store < 0) {
+            this.count--;
+            this.nextId = savedNextId;
+            this.blockedBirths++;
+            continue;
+          }
+          nutrient[cell] = nutrient[cell]! - this.bodyMatter[child]!;
+          this.energy[a] = this.energy[a]! - eachA;
+          this.energy[b] = this.energy[b]! - eachB;
+          this.energy[child] = store;
+          this.totalBirths++;
         }
-        nutrient[cell] = nutrient[cell]! - this.bodyMatter[child]!;
-        this.energy[a] = this.energy[a]! - givenA;
-        this.energy[b] = this.energy[b]! - givenB;
-        this.energy[child] = store;
-        this.totalBirths++;
       }
     } else {
-      for (let p = 0; p < parentCount; p++) {
+      birthsLoop: for (let p = 0; p < parentCount; p++) {
         const parent = this.parents[p]!;
-        const savedNextId = this.nextId;
-        const child = this.spawn(this.id[parent]!, this.x[parent]!, this.y[parent]!);
-        if (child < 0) break;
-        this.inheritGenes(child, parent);
-        this.macroMutate(child);
-        if (this.tracker) this.species[child] = this.species[parent]!;
-        this.express(child);
-        this.inheritBrain(child, parent);
-        const cell = this.cellOf[parent]!;
-        const given = this.energy[parent]! * c.offspringEnergyFraction;
-        const store = given - this.bodyEnergy[child]!;
-        if (nutrient[cell]! < this.bodyMatter[child]! || store < 0) {
-          // Cannot afford this baby right now: undo it. The parent keeps its energy and tries again later.
-          this.count--;
-          this.nextId = savedNextId;
-          this.blockedBirths++;
-          continue;
+        const litter = this.litterSize(parent, -1);
+        // The same total as always, split between the babies (a litter of one hands over exactly what it always did).
+        const each = (this.energy[parent]! * c.offspringEnergyFraction) / litter;
+        for (let baby = 0; baby < litter; baby++) {
+          const savedNextId = this.nextId;
+          const child = this.spawn(this.id[parent]!, this.x[parent]!, this.y[parent]!);
+          if (child < 0) break birthsLoop;
+          this.inheritGenes(child, parent);
+          this.macroMutate(child);
+          if (this.tracker) this.species[child] = this.species[parent]!;
+          this.express(child);
+          this.inheritBrain(child, parent);
+          const cell = this.cellOf[parent]!;
+          const store = each - this.bodyEnergy[child]!;
+          if (nutrient[cell]! < this.bodyMatter[child]! || store < 0) {
+            // Cannot afford this baby right now: undo it. The parent keeps its energy and tries again later.
+            this.count--;
+            this.nextId = savedNextId;
+            this.blockedBirths++;
+            continue;
+          }
+          nutrient[cell] = nutrient[cell]! - this.bodyMatter[child]!;
+          this.energy[parent] = this.energy[parent]! - each;
+          this.energy[child] = store;
+          this.totalBirths++;
         }
-        nutrient[cell] = nutrient[cell]! - this.bodyMatter[child]!;
-        this.energy[parent] = this.energy[parent]! - given;
-        this.energy[child] = store;
-        this.totalBirths++;
       }
     }
 
@@ -1833,6 +2166,22 @@ export class Simulation {
 
   private kill(attacker: number, prey: number): void {
     const cell = this.cellOf[prey]!;
+    if (this.camoOn) {
+      // The hunter remembers the color of its meal: its search image moves toward it (the short way round the color wheel).
+      const preyHue = this.genes[prey * GENE_COUNT + GENE.hue]!;
+      if (this.hasImage[attacker] === 0) {
+        this.searchHue[attacker] = preyHue;
+        this.hasImage[attacker] = 1;
+      } else {
+        let diff = preyHue - this.searchHue[attacker]!;
+        if (diff > 0.5) diff -= 1;
+        else if (diff < -0.5) diff += 1;
+        let next = this.searchHue[attacker]! + this.config.camoLearnRate * diff;
+        if (next < 0) next += 1;
+        else if (next >= 1) next -= 1;
+        this.searchHue[attacker] = next;
+      }
+    }
     if (this.guardOn) {
       this.corpseOwner[cell] = this.id[attacker]!;
       this.corpseOwnerUntil[cell] = this.tick + this.config.killOwnershipTicks;
@@ -1934,6 +2283,8 @@ export class Simulation {
       events: this.events,
       worldEvents: this.worldEvents,
       catastrophe: [this.catKind, this.catStart, this.catEnd],
+      strains: this.strains.map((a) => Array.from(a)),
+      totalInfections: this.totalInfections,
       ledger: this.ledger,
       rng: Array.from(this.rng.getState()),
       species: this.tracker ? this.tracker.exportState() : null,
@@ -1962,6 +2313,7 @@ export class Simulation {
       ["corpseMatter", this.corpseMatter],
       ["corpseEnergy", this.corpseEnergy],
       ["detritus", this.detritus],
+      ["background", this.background],
       ["biome", this.biome],
       ["passable", this.passable],
       ["terrainMove", this.terrainMove],
@@ -1994,6 +2346,8 @@ export class Simulation {
       events: SimEvent[];
       worldEvents: WorldEvent[];
       catastrophe: [number, number, number];
+      strains?: number[][];
+      totalInfections?: number;
       ledger: EnergyLedger;
       rng: [number, number, number, number];
       species: Record<string, unknown> | null;
@@ -2024,6 +2378,8 @@ export class Simulation {
     this.worldEvents.length = 0;
     this.worldEvents.push(...s.worldEvents);
     [this.catKind, this.catStart, this.catEnd] = s.catastrophe;
+    this.strains = (s.strains ?? []).map((a) => Float64Array.from(a));
+    this.totalInfections = s.totalInfections ?? 0;
     Object.assign(this.ledger, s.ledger);
     this.rng.setState(newFuture ? new Rng((this.seed + this.tick) >>> 0).getState() : s.rng);
     if (this.tracker && s.species) this.tracker.importState(s.species);
@@ -2065,6 +2421,14 @@ export class Simulation {
         return this.attack[i]!;
       case "armor":
         return this.armor[i]!;
+      case "lifespan": {
+        const range = this.ranges.lifespan;
+        return range.min + this.genes[i * GENE_COUNT + GENE.lifespan]! * (range.max - range.min);
+      }
+      case "litter": {
+        const range = this.ranges.litter;
+        return range.min + this.genes[i * GENE_COUNT + GENE.litter]! * (range.max - range.min);
+      }
       case "thermal": {
         const range = this.ranges.thermal;
         return range.min + this.genes[i * GENE_COUNT + GENE.thermal]! * (range.max - range.min);
@@ -2127,6 +2491,7 @@ export class Simulation {
       totalEnergy: energySum,
       meanEnergy: n > 0 ? energySum / n : 0,
       species: { alive: this.tracker?.aliveCount ?? 0, ever: this.tracker?.records.length ?? 0 },
+      disease: this.diseaseStats(),
       totalBirths: this.totalBirths,
       totalDeaths: this.totalDeaths,
       totalKills: this.totalKills,
@@ -2176,7 +2541,11 @@ export class Simulation {
     const counts = new Uint32Array(bins);
     const { min, max } = this.ranges[name];
     const span = max - min;
-    if (span <= 0) return counts;
+    if (span <= 0) {
+      // A trait that cannot vary (its range is a single value): everyone is at that value.
+      counts[0] = this.count;
+      return counts;
+    }
     for (let i = 0; i < this.count; i++) {
       const bin = Math.floor(((this.traitOf(name, i) - min) / span) * bins);
       const clamped = bin < 0 ? 0 : bin >= bins ? bins - 1 : bin;
@@ -2201,6 +2570,9 @@ export class Simulation {
       id: this.id[i]!,
       parentId: this.parentId[i]!,
       otherParentId: this.sexOn ? this.parent2Id[i]! : 0,
+      health: this.diseaseOn ? { sickFor: this.sickFor[i]!, immuneFor: this.immuneFor[i]!, strain: this.infection[i]! } : { sickFor: 0, immuneFor: 0, strain: 0 },
+      lifespan: this.agingOn ? this.lifespan[i]! : 0,
+      litter: this.litterOn ? this.litter[i]! : 1,
       age: this.age[i]!,
       energy: this.energy[i]!,
       threshold: this.threshold[i]!,
@@ -2403,6 +2775,14 @@ export class Simulation {
       mixBits(this.outAttack, n);
     }
     if (this.staminaOn) mixBits(this.stamina, n);
+    if (this.camoOn) {
+      mixBits(this.searchHue, n);
+      for (let i = 0; i < n; i++) mix(this.hasImage[i]!);
+    }
+    if (this.diseaseOn) {
+      for (let i = 0; i < n; i++) mix(this.infection[i]! | (this.sickFor[i]! << 16));
+      mix(this.totalInfections);
+    }
     if (this.guardOn) {
       mixInts(this.corpseOwner, this.corpseOwner.length);
       mixInts(this.corpseOwnerUntil, this.corpseOwnerUntil.length);

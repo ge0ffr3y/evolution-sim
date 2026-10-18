@@ -1,0 +1,9 @@
+{
+  "name": "Life history (aging and litter size)",
+  "description": "Both at once: bodies wear out (a lifespan gene with a price) and a gene sets the litter size. Fast, short, many-babied lives against slow, long, few-babied ones.",
+  "config": {
+    "agingCoeff": 3,
+    "litterMax": 4,
+    "initialLitter": 1.5
+  }
+}

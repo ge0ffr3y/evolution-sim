@@ -259,6 +259,8 @@ const GENE_LABELS: Record<GeneName, string> = {
   mutationRate: "Mutation rate",
   stamina: "Stamina (sprint reserve)",
   thermal: "Preferred temperature",
+  lifespan: "Lifespan (ticks)",
+  litter: "Litter size (babies)",
 };
 
 function traitText(gene: GeneName, value: number): string {
@@ -318,6 +320,13 @@ function renderInspector(state: InspectedState | null): void {
     brainBlock.hidden = true;
   }
   const eaten = s.plantTaken + s.meatTaken;
+  const health = s.health;
+  const bits: string[] = [];
+  if (health.sickFor > 0) bits.push(`Sick for ${format.int.format(health.sickFor)} more ticks (strain ${health.strain})`);
+  else if (health.immuneFor > 0) bits.push(`Immune for ${format.int.format(health.immuneFor)} more ticks`);
+  if (s.lifespan > 0) bits.push(`Lifespan ${format.int.format(Math.round(s.lifespan))} ticks (age ${format.int.format(s.age)})`);
+  if (s.litter > 1.001) bits.push(`Litter size ${s.litter.toFixed(1)}`);
+  el("insp-health").textContent = bits.join(". ");
   el("insp-ate").textContent =
     eaten > 0
       ? `Lifetime food energy: ${Math.round((s.plantTaken / eaten) * 100)}% plants, ${Math.round((s.meatTaken / eaten) * 100)}% meat. Kills: ${s.kills}.`
@@ -406,7 +415,7 @@ function dietWord(diet: number): string {
   return diet < 0.25 ? "plant eaters" : diet > 0.75 ? "meat eaters" : "mixed feeders";
 }
 
-const COMPARED_GENES: readonly GeneName[] = ["size", "speed", "senseRange", "metabolism", "diet", "attack", "armor", "stamina", "thermal"];
+const COMPARED_GENES: readonly GeneName[] = ["size", "speed", "senseRange", "metabolism", "diet", "attack", "armor", "stamina", "thermal", "lifespan", "litter"];
 
 function renderSpeciesDetail(id: number | null): void {
   const box = el<HTMLDivElement>("species-detail");
@@ -443,7 +452,7 @@ function renderSpeciesDetail(id: number | null): void {
     const ancestor = record.ancestorTraits?.[index];
     const founder = record.founderTraits[index]!;
     const now = record.traits[index]!;
-    if ((gene === "stamina" || gene === "thermal") && Math.abs(founder - now) < 1e-9 && (ancestor === undefined || Math.abs(ancestor - founder) < 1e-9)) continue;
+    if ((gene === "stamina" || gene === "thermal" || gene === "lifespan" || gene === "litter") && Math.abs(founder - now) < 1e-9 && (ancestor === undefined || Math.abs(ancestor - founder) < 1e-9)) continue;
     const row = body.insertRow();
     row.insertCell().textContent = GENE_LABELS[gene];
     row.insertCell().textContent = ancestor === undefined ? "" : traitText(gene, ancestor);
@@ -603,6 +612,8 @@ function updateStats(frame: FrameMessage): void {
   setText("stat-classes", `${s.classes.herbivores} / ${s.classes.omnivores} / ${s.classes.carnivores}`);
   setText("stat-species", `${s.species.alive} / ${s.species.ever}`);
   const w = frame.world;
+  el("stat-disease-box").hidden = !w.diseaseOn;
+  if (w.diseaseOn) setText("stat-disease", `${format.int.format(s.disease.infected)} / ${s.disease.strains}`);
   el("stat-climate-box").hidden = w.climateMode === 0 || (w.yearLength === 0 && w.dayLength === 0);
   if (w.climateMode === 1) {
     const parts: string[] = [];

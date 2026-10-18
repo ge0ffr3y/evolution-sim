@@ -122,7 +122,7 @@ describe("saving and loading a world", () => {
     // to save() and restore()) or is scratch space rebuilt every tick, then list it below.
     const rebuilt = new Set([
       // Settings and layout worked out from the config when a world is built.
-      "config", "ranges", "seed", "gridHeight", "gridWidth", "terrainOn", "catKind", "catStart", "catEnd", "worldEvents", "thermalOn", "thermalScale", "activeGene", "climateOn", "temperature", "growthFactor", "tempBase", "tempSwing", "lightBase", "scentWidth", "scentHeight", "scentOn", "guardOn", "staminaOn", "hash", "tracker",
+      "config", "ranges", "seed", "gridHeight", "gridWidth", "terrainOn", "agingOn", "litterOn", "camoOn", "diseaseOn", "diseaseHost", "pending", "strains", "totalInfections", "tryInfect", "catKind", "catStart", "catEnd", "worldEvents", "thermalOn", "thermalScale", "activeGene", "climateOn", "temperature", "growthFactor", "tempBase", "tempSwing", "lightBase", "scentWidth", "scentHeight", "scentOn", "guardOn", "staminaOn", "hash", "tracker",
       "float32Fields", "float64Fields", "uint32Fields", "uint16Fields", "uint8Fields", "seeOther", "considerPrey",
       // Scratch space: filled in and used up within one tick, or only used while measuring.
       "behaviorHeading", "behaviorIds", "behaviorIsHunter", "behaviorSideLeft",
@@ -131,7 +131,7 @@ describe("saving and loading a world", () => {
       "visHx", "visHy", "visSelf", "visSizeLimit", "visX", "visY",
       "thinkHidden", "thinkInputs", "thinkOutputs", "traceHidden", "traceInputs", "traceOutputs", "traceValid", "traceId",
       "meatClaim", "plantClaim", "plantShare", "meatShare", "meatDensity", "parents",
-      "ready", "pairs", "mateMask", "mateSelf", "mateBest", "mateBestDistSq", "mateBestScore", "considerMate", "sexOn",
+      "kinLimitSq", "kinCount", "kinVx", "kinVy", "herdSelf", "seeKin", "countHerd", "ready", "pairs", "mateMask", "mateSelf", "mateBest", "mateBestDistSq", "mateBestScore", "considerMate", "sexOn",
     ]);
     const sim = new Simulation(1, WORLDS[1]!.config);
     sim.run(600);

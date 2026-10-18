@@ -1,0 +1,10 @@
+{
+  "name": "Kin recognition and herds",
+  "description": "Brains on. Relatives (genetically close organisms, within 0.05) never attack each other, brains can sense how many relatives are near and which way they lie, and prey with relatives close by are harder to kill (the selfish herd). Plant eaters end up with about three times as many relatives close by. The catch: in our tests this stops most meat eaters from ever getting started (most worlds had almost no kills), because early meat eaters are still close relatives of their prey.",
+  "config": {
+    "brainMode": 2,
+    "brainAppetiteSenses": 1,
+    "kinDistance": 0.05,
+    "herdBonus": 1.5
+  }
+}

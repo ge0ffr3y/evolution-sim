@@ -69,6 +69,9 @@ export interface SimConfig {
   initialStamina: number;
   /** Starting preferred temperature of the first generation (0 to 1, see thermalCostCoeff). */
   initialThermal: number;
+  /** Starting lifespan (ticks) and litter size of the first generation. */
+  initialLifespan: number;
+  initialLitter: number;
   /** Fraction of the reproduction threshold that new organisms start with. */
   initialEnergyFraction: number;
 
@@ -97,6 +100,11 @@ export interface SimConfig {
   /** Range of the thermal gene: the temperature an organism is comfortable at. */
   thermalMin: number;
   thermalMax: number;
+  /** Range of the lifespan gene, in ticks (see agingCoeff), and of the litter gene (babies per birth). */
+  lifespanMin: number;
+  lifespanMax: number;
+  litterMin: number;
+  litterMax: number;
   /** How much the mutation-rate gene itself changes between generations (in gene units). */
   metaMutationStd: number;
 
@@ -313,6 +321,81 @@ export interface SimConfig {
   /** The radius of a meteor strike, in world units. */
   meteorRadius: number;
 
+  // --- Aging and litter size (off by default) ---
+  /**
+   * Aging (0 = off: organisms never grow old). With aging, an organism past its prime pays extra
+   * upkeep that rises with the square of how far past it is: at an age equal to its lifespan
+   * gene it pays agingCoeff times its normal upkeep extra. The prime is agingPrimeFraction of the
+   * lifespan. A longer lifespan costs upkeep all the time (up to agingRepairCoeff times normal at
+   * the longest), the price of keeping a body in repair.
+   */
+  agingCoeff: number;
+  agingPrimeFraction: number;
+  agingRepairCoeff: number;
+  /**
+   * Litter size: with litterMax above 1, a gene sets how many babies one birth makes (a fraction
+   * is rounded up or down at random). The parent hands over the same total energy as before, split
+   * between the babies, so a big litter means many babies each starting with little, and a baby
+   * that cannot afford its own body is not born.
+   */
+
+  // --- Kin recognition and herding (off by default) ---
+  /**
+   * Organisms recognize relatives: genetically this close (root-mean-square gene difference, 0 to 1,
+   * the same measure as speciesDistance) counts as kin. With kinDistance above 0, nobody attacks
+   * kin, and brains can sense how many relatives are near and in which direction. 0 = off.
+   */
+  kinDistance: number;
+  /**
+   * The selfish herd: prey with relatives close by are harder to kill. An attack's odds use the
+   * prey's defense times (1 + herdBonus x relatives within herdRange / herdCap), counting at most
+   * herdCap relatives. herdBonus 0 = off; it needs kinDistance above 0.
+   */
+  herdBonus: number;
+  herdRange: number;
+  herdCap: number;
+
+  // --- Disease (off by default) ---
+  /**
+   * 0 = no disease. Above 0, a pathogen spreads by contact: each tick, for every sick organism and
+   * every healthy neighbor within diseaseContactRange, the neighbor catches it with probability
+   * diseaseTransmission x how much the neighbor resembles the pathogen's strain. Resembling it
+   * means being genetically close to the strain's "target" (1 / (1 + (distance / diseaseWidth)^2)),
+   * so a population where everyone looks alike is wide open to an epidemic and a varied one is not.
+   */
+  diseaseTransmission: number;
+  diseaseContactRange: number;
+  diseaseWidth: number;
+  /** How long an infection lasts (ticks), how long the survivor is then immune, and the extra upkeep while sick (times normal upkeep). */
+  diseaseDuration: number;
+  diseaseImmunity: number;
+  diseaseCost: number;
+  /** A brand-new strain arrives from outside, on average once every this many ticks, aimed at a random organism's genes. */
+  diseaseIntroEvery: number;
+  /** Chance per infection that the strain changes, and how far toward its new host's genes its target moves when it does. */
+  diseaseMutationProb: number;
+  diseaseDrift: number;
+
+  // --- Signals and camouflage (off by default) ---
+  /**
+   * 0 = the color gene does nothing. 1 = the world has a smooth background color, and an
+   * organism whose color differs from the background where it stands is easier to spot: a
+   * viewer (a hunter, or a brain looking around) notices a perfectly matching organism with
+   * probability camoDetectMin and a completely mismatched one always. Each pair rolls
+   * afresh every camoGlance ticks, so a hidden animal stays hidden for a while. Hunters learn:
+   * after a kill they remember the color of what they ate, and are camoLearning times more
+   * likely to notice that color (which favors rare colors). The same color gene is also what
+   * matePreference 2 chooses mates by.
+   */
+  camouflageMode: number;
+  /** Size of the broad patches of background color, in food cells (must divide the grid). */
+  camoScale: number;
+  camoDetectMin: number;
+  camoGlance: number;
+  camoLearning: number;
+  /** How far a hunter's remembered color moves toward the color of each new kill (0 to 1). */
+  camoLearnRate: number;
+
   // --- Sexual reproduction (off by default) ---
   /**
    * 0 = organisms split in two when they have enough energy (the original way). 1 = two
@@ -440,6 +523,8 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   initialArmor: 0,
   initialStamina: 10,
   initialThermal: 0.5,
+  initialLifespan: 8000,
+  initialLitter: 1,
   initialEnergyFraction: 0.6,
 
   sizeMin: 0.3,
@@ -462,6 +547,10 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   staminaMax: 30,
   thermalMin: 0,
   thermalMax: 1,
+  lifespanMin: 1000,
+  lifespanMax: 30000,
+  litterMin: 1,
+  litterMax: 1,
   metaMutationStd: 0.05,
 
   turnStd: 0.3,
@@ -545,6 +634,28 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   iceAgeCooling: 0.3,
   droughtSeverity: 0.8,
   meteorRadius: 40,
+  agingCoeff: 0,
+  agingPrimeFraction: 0.5,
+  agingRepairCoeff: 0.3,
+  kinDistance: 0,
+  herdBonus: 0,
+  herdRange: 8,
+  herdCap: 5,
+  diseaseTransmission: 0,
+  diseaseContactRange: 3,
+  diseaseWidth: 0.15,
+  diseaseDuration: 300,
+  diseaseImmunity: 600,
+  diseaseCost: 1,
+  diseaseIntroEvery: 3000,
+  diseaseMutationProb: 0.05,
+  diseaseDrift: 0.2,
+  camouflageMode: 0,
+  camoScale: 8,
+  camoDetectMin: 0.2,
+  camoGlance: 20,
+  camoLearning: 1,
+  camoLearnRate: 0.3,
   sexualReproduction: 0,
   mateRange: 6,
   mateDistance: 0.25,
@@ -619,6 +730,8 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     ["armor", c.armorMin, c.armorMax, c.initialArmor],
     ["stamina", c.staminaMin, c.staminaMax, c.initialStamina],
     ["thermal", c.thermalMin, c.thermalMax, c.initialThermal],
+    ["lifespan", c.lifespanMin, c.lifespanMax, c.initialLifespan],
+    ["litter", c.litterMin, c.litterMax, c.initialLitter],
   ];
   for (const [name, min, max, start] of ranges) {
     if (min > max) problems.push(`${name}Min exceeds ${name}Max`);
@@ -677,6 +790,10 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
       if (value < 0) problems.push(`${name} cannot be negative`);
     }
   }
+  if (c.agingCoeff < 0 || c.agingRepairCoeff < 0) problems.push("agingCoeff and agingRepairCoeff cannot be negative");
+  if (!(c.agingPrimeFraction >= 0 && c.agingPrimeFraction < 1)) problems.push("agingPrimeFraction must be from 0 up to (but not including) 1");
+  if (c.lifespanMin <= 0) problems.push("lifespanMin must be positive");
+  if (c.litterMin < 1) problems.push("litterMin must be at least 1");
   if (c.thermalCostCoeff < 0 || c.thermalTolerance < 0) problems.push("thermalCostCoeff and thermalTolerance cannot be negative");
   if (c.thermalCostCoeff > 0 && c.climateMode !== 1) problems.push("thermalCostCoeff needs a climate (set climateMode to 1)");
   if (![0, 1, 2, 3, 4].includes(c.catastropheKind)) problems.push("catastropheKind must be 0 (none), 1 (ice age), 2 (drought), 3 (meteor) or 4 (random)");
@@ -701,9 +818,33 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     if (c.seasonGrowthSwing < 0 || c.seasonGrowthSwing > 1) problems.push("seasonGrowthSwing must be between 0 and 1");
     if (c.seasonTempSwing < 0 || c.climateDriftAmplitude < 0 || c.latitudeCooling < 0 || c.mountainCooling < 0) problems.push("temperature swings and cooling cannot be negative");
   }
+  if (c.kinDistance < 0 || c.kinDistance > 1) problems.push("kinDistance must be between 0 and 1");
+  if (c.herdBonus < 0) problems.push("herdBonus cannot be negative");
+  if (c.herdBonus > 0 && c.kinDistance <= 0) problems.push("herdBonus needs kinDistance above 0 (who counts as a relative)");
+  if (!(c.herdRange > 0)) problems.push("herdRange must be positive");
+  if (!(c.herdCap >= 1)) problems.push("herdCap must be at least 1");
+  if (c.diseaseTransmission < 0 || c.diseaseTransmission > 1) problems.push("diseaseTransmission must be between 0 and 1");
+  if (c.diseaseTransmission > 0) {
+    if (!(c.diseaseContactRange > 0) || !(c.diseaseWidth > 0)) problems.push("diseaseContactRange and diseaseWidth must be positive");
+    if (!Number.isInteger(c.diseaseDuration) || c.diseaseDuration < 1 || c.diseaseDuration > 60000) problems.push("diseaseDuration must be a whole number of ticks from 1 to 60000");
+    if (!Number.isInteger(c.diseaseImmunity) || c.diseaseImmunity < 0 || c.diseaseImmunity > 60000) problems.push("diseaseImmunity must be a whole number of ticks from 0 to 60000");
+    if (c.diseaseCost < 0) problems.push("diseaseCost cannot be negative");
+    if (!Number.isInteger(c.diseaseIntroEvery) || c.diseaseIntroEvery < 1) problems.push("diseaseIntroEvery must be a whole number of ticks, 1 or more");
+    if (c.diseaseMutationProb < 0 || c.diseaseMutationProb > 1 || c.diseaseDrift < 0 || c.diseaseDrift > 1) problems.push("diseaseMutationProb and diseaseDrift must be between 0 and 1");
+  }
   if (![0, 1].includes(c.sexualReproduction)) problems.push("sexualReproduction must be 0 or 1");
   if (!(c.mateRange > 0)) problems.push("mateRange must be positive");
-  if (![0, 1].includes(c.matePreference)) problems.push("matePreference must be 0 (nearest) or 1 (most similar)");
+  if (![0, 1, 2].includes(c.matePreference)) problems.push("matePreference must be 0 (nearest), 1 (most similar genes) or 2 (most similar color)");
+  if (![0, 1].includes(c.camouflageMode)) problems.push("camouflageMode must be 0 or 1");
+  if (c.camouflageMode === 1) {
+    const gw = c.worldWidth / c.foodCellSize;
+    const gh = c.worldHeight / c.foodCellSize;
+    if (!Number.isInteger(c.camoScale) || c.camoScale < 1 || gw % c.camoScale !== 0 || gh % c.camoScale !== 0) problems.push("camoScale must be a whole number of food cells that divides the grid evenly");
+    if (c.camoDetectMin < 0 || c.camoDetectMin > 1) problems.push("camoDetectMin must be between 0 and 1");
+    if (!Number.isInteger(c.camoGlance) || c.camoGlance < 1) problems.push("camoGlance must be a whole number of ticks, 1 or more");
+    if (c.camoLearning < 0) problems.push("camoLearning cannot be negative");
+    if (c.camoLearnRate < 0 || c.camoLearnRate > 1) problems.push("camoLearnRate must be between 0 and 1");
+  }
   if (!(c.mateDistance > 0 && c.mateDistance <= 1)) problems.push("mateDistance must be above 0 and at most 1");
   if (c.macroMutationProb < 0 || c.macroMutationProb > 1) problems.push("macroMutationProb must be between 0 and 1");
   if (c.macroMutationStd < 0) problems.push("macroMutationStd cannot be negative");
