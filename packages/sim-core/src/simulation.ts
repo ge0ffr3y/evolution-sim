@@ -30,6 +30,7 @@ import {
   setConnection,
   measureBrain,
   mutateBrain,
+  crossoverBrains,
 } from "./brain";
 import { Rng } from "./rng";
 import { SpatialHash } from "./spatial-hash";
@@ -178,6 +179,8 @@ export interface SimStats {
 export interface OrganismSnapshot {
   id: number;
   parentId: number;
+  /** The second parent, when organisms reproduce sexually (0 otherwise). */
+  otherParentId: number;
   age: number;
   energy: number;
   /** Energy at which it will reproduce. */
@@ -406,6 +409,17 @@ export class Simulation {
   /** Movement this tick relative to normal speed (0 = standing still, 1 = normal, 2 = flat out). */
   readonly moveScale: Float32Array;
 
+  /** The second parent of each organism (sexual reproduction only; 0 for none). */
+  readonly parent2Id: Uint32Array;
+  private readonly sexOn: boolean;
+  /** Scratch for pairing up mates: who is ready, the pairs found, and the genes that count toward compatibility. */
+  private readonly ready: Uint8Array;
+  private readonly pairs: Uint32Array;
+  private readonly mateMask: number[];
+  private mateSelf = 0;
+  private mateBest = -1;
+  private mateBestDistSq = Infinity;
+
   /** Which species each organism belongs to (0 when species tracking is off). See species.ts. */
   readonly species: Uint32Array;
   private readonly tracker: SpeciesTracker | null;
@@ -569,6 +583,17 @@ export class Simulation {
     this.outAttack = new Float32Array(brainOrganisms);
     this.moveScale = new Float32Array(brainOrganisms);
     this.staminaOn = c.brainMode > 0 && c.sprintFatigue === 1;
+    this.sexOn = c.sexualReproduction === 1;
+    this.parent2Id = new Uint32Array(this.sexOn ? n : 0);
+    this.ready = new Uint8Array(this.sexOn ? n : 0);
+    this.pairs = new Uint32Array(this.sexOn ? n : 0);
+    // Compatibility looks at the same genes species do: not the color marker or the mutation rate.
+    this.mateMask = [];
+    for (const name of GENES) {
+      if (name === "hue" || name === "mutationRate") continue;
+      if (name === "stamina" && !this.staminaOn) continue;
+      this.mateMask.push(GENE[name]);
+    }
     this.species = new Uint32Array(c.speciesEvery > 0 ? n : 0);
     this.tracker = c.speciesEvery > 0 ? new SpeciesTracker(c, this.ranges, this.staminaOn) : null;
     const staminaOrganisms = this.staminaOn ? n : 0;
@@ -594,6 +619,7 @@ export class Simulation {
     this.float64Fields = [this.energy, this.plantTaken, this.meatTaken];
     this.uint32Fields = [this.id, this.parentId, this.age, this.kills];
     if (this.tracker) this.uint32Fields.push(this.species);
+    if (this.sexOn) this.uint32Fields.push(this.parent2Id);
     this.uint8Fields = [this.killed, this.attempted];
     this.uint16Fields = [this.resting];
     if (c.brainMode > 0) {
@@ -669,6 +695,7 @@ export class Simulation {
     const i = this.count++;
     this.id[i] = this.nextId++;
     this.parentId[i] = parent;
+    if (this.sexOn) this.parent2Id[i] = 0;
     this.x[i] = x;
     this.y[i] = y;
 
@@ -789,6 +816,41 @@ export class Simulation {
     }
   }
 
+  /** How different two organisms are, genetically: root-mean-square difference over the genes that count (squared). */
+  private geneDistanceSq(i: number, j: number): number {
+    const g = this.genes;
+    let sum = 0;
+    for (const k of this.mateMask) {
+      const d = g[i * GENE_COUNT + k]! - g[j * GENE_COUNT + k]!;
+      sum += d * d;
+    }
+    return sum / this.mateMask.length;
+  }
+
+  /** Mix two parents' genes (each gene comes from one or the other) and mutate the result. */
+  private inheritGenesFromTwo(child: number, a: number, b: number): void {
+    const meta = this.config.metaMutationStd;
+    const rate = (this.mutationRate[a]! + this.mutationRate[b]!) / 2;
+    const genes = this.staminaOn ? GENE_COUNT : CORE_GENE_COUNT;
+    if (genes < GENE_COUNT) this.genes[child * GENE_COUNT + GENE.stamina] = this.genes[a * GENE_COUNT + GENE.stamina]!;
+    for (let k = 0; k < genes; k++) {
+      const donor = this.rng.next() < 0.5 ? a : b;
+      const std = k === GENE.mutationRate ? meta : rate;
+      this.genes[child * GENE_COUNT + k] = clamp01(this.genes[donor * GENE_COUNT + k]! + this.rng.gaussian() * std);
+    }
+  }
+
+  /** Rare large mutations: now and then a few genes jump by a lot at once. */
+  private macroMutate(child: number): void {
+    const c = this.config;
+    if (c.macroMutationProb <= 0 || this.rng.next() >= c.macroMutationProb) return;
+    for (let j = 0; j < c.macroMutationGenes; j++) {
+      const k = this.mateMask[this.rng.int(this.mateMask.length)]!;
+      const at = child * GENE_COUNT + k;
+      this.genes[at] = clamp01(this.genes[at]! + this.rng.gaussian() * c.macroMutationStd);
+    }
+  }
+
   /** Give organism i its starting brain (empty, or fully wired with zero weights, depending on the mode). */
   private initBrain(i: number): void {
     const c = this.config;
@@ -822,6 +884,16 @@ export class Simulation {
     this.brainFrom.copyWithin(childBase, parentBase, parentBase + count);
     this.brainTo.copyWithin(childBase, parentBase, parentBase + count);
     this.brainWeight.copyWithin(childBase, parentBase, parentBase + count);
+    this.brainCount[child] = mutateBrain(c.brainMode, this.rng, c, this.brainFrom, this.brainTo, this.brainWeight, childBase, count);
+    this.refreshBrain(child);
+  }
+
+  /** Give a new organism a mixed copy of both parents' brains (see crossoverBrains), then mutate it. */
+  private inheritBrainFromTwo(child: number, a: number, b: number): void {
+    const c = this.config;
+    if (c.brainMode === 0) return;
+    const childBase = child * CONN_MAX;
+    const count = crossoverBrains(c.brainMode, this.rng, this.brainFrom, this.brainTo, this.brainWeight, a * CONN_MAX, this.brainCount[a]!, b * CONN_MAX, this.brainCount[b]!, childBase);
     this.brainCount[child] = mutateBrain(c.brainMode, this.rng, c, this.brainFrom, this.brainTo, this.brainWeight, childBase, count);
     this.refreshBrain(child);
   }
@@ -1053,6 +1125,45 @@ export class Simulation {
       prey[k] = prey[k]! + deposit * (1 - diet);
       hunter[k] = hunter[k]! + deposit * diet;
     }
+  }
+
+  /** Used while looking for a mate: remember the nearest other ready, compatible organism. */
+  private readonly considerMate = (index: number, distSq: number): void => {
+    if (index === this.mateSelf || this.ready[index] !== 1 || distSq >= this.mateBestDistSq) return;
+    const limit = this.config.mateDistance;
+    if (this.geneDistanceSq(this.mateSelf, index) > limit * limit) return;
+    this.mateBest = index;
+    this.mateBestDistSq = distSq;
+  };
+
+  /**
+   * Sexual reproduction: pair up the organisms that are ready to reproduce. Each takes the
+   * nearest ready, compatible, unpaired organism within mating range. Those who find nobody
+   * wait (and keep eating). Returns how many pairs were made, stored in this.pairs.
+   */
+  private pairUp(parentCount: number): number {
+    if (parentCount < 2) return 0;
+    const ready = this.ready;
+    for (let p = 0; p < parentCount; p++) ready[this.parents[p]!] = 1;
+    this.hash.rebuild(this.x, this.y, this.count);
+    let pairs = 0;
+    for (let p = 0; p < parentCount; p++) {
+      const a = this.parents[p]!;
+      if (ready[a] !== 1) continue;
+      this.mateSelf = a;
+      this.mateBest = -1;
+      this.mateBestDistSq = Infinity;
+      this.hash.forEachNear(this.x[a]!, this.y[a]!, this.config.mateRange, this.considerMate);
+      const b = this.mateBest;
+      if (b < 0) continue;
+      ready[a] = 2;
+      ready[b] = 2;
+      this.pairs[2 * pairs] = a;
+      this.pairs[2 * pairs + 1] = b;
+      pairs++;
+    }
+    for (let p = 0; p < parentCount; p++) ready[this.parents[p]!] = 0;
+    return pairs;
   }
 
   /** Record a notable first, once. */
@@ -1372,29 +1483,63 @@ export class Simulation {
     // Births: each parent hands a share of its energy to a slightly mutated child.
     // A newborn's body is built from the soil it is born on, so a barren patch
     // cannot support babies, and the baby's body also locks away some energy.
-    for (let p = 0; p < parentCount; p++) {
-      const parent = this.parents[p]!;
-      const savedNextId = this.nextId;
-      const child = this.spawn(this.id[parent]!, this.x[parent]!, this.y[parent]!);
-      if (child < 0) break;
-      this.inheritGenes(child, parent);
-      if (this.tracker) this.species[child] = this.species[parent]!;
-      this.express(child);
-      this.inheritBrain(child, parent);
-      const cell = this.cellOf[parent]!;
-      const given = this.energy[parent]! * c.offspringEnergyFraction;
-      const store = given - this.bodyEnergy[child]!;
-      if (nutrient[cell]! < this.bodyMatter[child]! || store < 0) {
-        // Cannot afford this baby right now: undo it. The parent keeps its energy and tries again later.
-        this.count--;
-        this.nextId = savedNextId;
-        this.blockedBirths++;
-        continue;
+    // (With sexual reproduction, two ready organisms pair up and each hands over half as much.)
+    if (this.sexOn) {
+      const pairCount = this.pairUp(parentCount);
+      for (let p = 0; p < pairCount; p++) {
+        const a = this.pairs[2 * p]!;
+        const b = this.pairs[2 * p + 1]!;
+        const savedNextId = this.nextId;
+        const child = this.spawn(this.id[a]!, this.x[a]!, this.y[a]!);
+        if (child < 0) break;
+        this.parent2Id[child] = this.id[b]!;
+        this.inheritGenesFromTwo(child, a, b);
+        this.macroMutate(child);
+        if (this.tracker) this.species[child] = this.species[a]!;
+        this.express(child);
+        this.inheritBrainFromTwo(child, a, b);
+        const cell = this.cellOf[a]!;
+        const givenA = this.energy[a]! * c.offspringEnergyFraction * 0.5;
+        const givenB = this.energy[b]! * c.offspringEnergyFraction * 0.5;
+        const store = givenA + givenB - this.bodyEnergy[child]!;
+        if (nutrient[cell]! < this.bodyMatter[child]! || store < 0) {
+          this.count--;
+          this.nextId = savedNextId;
+          this.blockedBirths++;
+          continue;
+        }
+        nutrient[cell] = nutrient[cell]! - this.bodyMatter[child]!;
+        this.energy[a] = this.energy[a]! - givenA;
+        this.energy[b] = this.energy[b]! - givenB;
+        this.energy[child] = store;
+        this.totalBirths++;
       }
-      nutrient[cell] = nutrient[cell]! - this.bodyMatter[child]!;
-      this.energy[parent] = this.energy[parent]! - given;
-      this.energy[child] = store;
-      this.totalBirths++;
+    } else {
+      for (let p = 0; p < parentCount; p++) {
+        const parent = this.parents[p]!;
+        const savedNextId = this.nextId;
+        const child = this.spawn(this.id[parent]!, this.x[parent]!, this.y[parent]!);
+        if (child < 0) break;
+        this.inheritGenes(child, parent);
+        this.macroMutate(child);
+        if (this.tracker) this.species[child] = this.species[parent]!;
+        this.express(child);
+        this.inheritBrain(child, parent);
+        const cell = this.cellOf[parent]!;
+        const given = this.energy[parent]! * c.offspringEnergyFraction;
+        const store = given - this.bodyEnergy[child]!;
+        if (nutrient[cell]! < this.bodyMatter[child]! || store < 0) {
+          // Cannot afford this baby right now: undo it. The parent keeps its energy and tries again later.
+          this.count--;
+          this.nextId = savedNextId;
+          this.blockedBirths++;
+          continue;
+        }
+        nutrient[cell] = nutrient[cell]! - this.bodyMatter[child]!;
+        this.energy[parent] = this.energy[parent]! - given;
+        this.energy[child] = store;
+        this.totalBirths++;
+      }
     }
 
     // Deaths: remove everyone who was killed or ran out of energy by moving the
@@ -1803,6 +1948,7 @@ export class Simulation {
     return {
       id: this.id[i]!,
       parentId: this.parentId[i]!,
+      otherParentId: this.sexOn ? this.parent2Id[i]! : 0,
       age: this.age[i]!,
       energy: this.energy[i]!,
       threshold: this.threshold[i]!,
@@ -1973,6 +2119,7 @@ export class Simulation {
     mixInts(this.parentId, n);
     mixInts(this.age, n);
     mixInts(this.kills, n);
+    if (this.sexOn) mixInts(this.parent2Id, n);
     mixBits(this.x, n);
     mixBits(this.y, n);
     mixBits(this.headingX, n);

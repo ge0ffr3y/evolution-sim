@@ -221,6 +221,31 @@ export interface SimConfig {
    */
   brainAppetiteSenses: number;
 
+  // --- Sexual reproduction (off by default) ---
+  /**
+   * 0 = organisms split in two when they have enough energy (the original way). 1 = two
+   * organisms that are both ready to reproduce, close together and genetically compatible
+   * pair up and have one baby, built from a mix of their genes (and brains), with each
+   * paying half the usual energy. A ready organism with no partner nearby waits.
+   */
+  sexualReproduction: number;
+  /** How close (in world units) two organisms must be to mate. */
+  mateRange: number;
+  /**
+   * How genetically different (root-mean-square gene difference, 0 to 1, same measure as
+   * speciesDistance) two organisms can be and still mate. Small = fussy, which splits a
+   * population into groups that never mix.
+   */
+  mateDistance: number;
+
+  /**
+   * Rare large mutations: with this chance per birth, a few genes at once change by a lot
+   * (no templates, just a big random jump; selection decides if it was any good). 0 = off.
+   */
+  macroMutationProb: number;
+  macroMutationStd: number;
+  macroMutationGenes: number;
+
   // --- Species tracking (only watches; never changes the world) ---
   /** How often (in ticks) to re-check everyone's species. 0 turns species tracking off. */
   speciesEvery: number;
@@ -383,6 +408,12 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   brainCostPerNeuron: 0.0005,
   brainCostPerConnection: 0.0001,
   brainAppetiteSenses: 0,
+  sexualReproduction: 0,
+  mateRange: 6,
+  mateDistance: 0.25,
+  macroMutationProb: 0,
+  macroMutationStd: 0.3,
+  macroMutationGenes: 3,
   speciesEvery: 50,
   speciesDistance: 0.2,
   speciesMinMembers: 10,
@@ -488,6 +519,12 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     problems.push("brainVisionRange plus senseRangeMax must be under half the world");
   }
   if (c.brainVisionRange < 0) problems.push("brainVisionRange cannot be negative");
+  if (![0, 1].includes(c.sexualReproduction)) problems.push("sexualReproduction must be 0 or 1");
+  if (!(c.mateRange > 0)) problems.push("mateRange must be positive");
+  if (!(c.mateDistance > 0 && c.mateDistance <= 1)) problems.push("mateDistance must be above 0 and at most 1");
+  if (c.macroMutationProb < 0 || c.macroMutationProb > 1) problems.push("macroMutationProb must be between 0 and 1");
+  if (c.macroMutationStd < 0) problems.push("macroMutationStd cannot be negative");
+  if (!Number.isInteger(c.macroMutationGenes) || c.macroMutationGenes < 1) problems.push("macroMutationGenes must be a whole number of 1 or more");
   if (!Number.isInteger(c.speciesEvery) || c.speciesEvery < 0) problems.push("speciesEvery must be a whole number of ticks (0 turns species tracking off)");
   if (c.speciesEvery > 0) {
     if (!(c.speciesDistance > 0 && c.speciesDistance <= 1)) problems.push("speciesDistance must be above 0 and at most 1");
