@@ -1,0 +1,11 @@
+{
+  "name": "Brains: sparse world (chase test)",
+  "description": "Brains on, with sprint stamina and kill ownership, and plants growing at a quarter of the normal rate so prey are scarce. Meat eaters boom and crash here, sometimes several times. This is the world where chasing came closest to paying off. Watch the 'hunters turn toward prey' readout (0.5 is random).",
+  "config": {
+    "brainMode": 2,
+    "brainAppetiteSenses": 1,
+    "sprintFatigue": 1,
+    "killOwnershipTicks": 30,
+    "foodRegrowPerTick": 0.02
+  }
+}

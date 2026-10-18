@@ -15,6 +15,7 @@ export interface EnergyFlows {
   sensingPerTick: number;
   fightingPerTick: number;
   armorPerTick: number;
+  brainPerTick: number;
   digestionPerTick: number;
   rotPerTick: number;
   /** Ticks the numbers are averaged over. */
@@ -63,6 +64,7 @@ export class FlowTracker {
       sensingPerTick: per("sensingBurned"),
       fightingPerTick: per("attackBurned"),
       armorPerTick: per("armorBurned"),
+      brainPerTick: per("brainBurned"),
       digestionPerTick: per("digestionLoss"),
       rotPerTick: per("decayLoss"),
       span,

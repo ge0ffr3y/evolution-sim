@@ -1,4 +1,13 @@
-import { GENES, Simulation, parseConfigOverrides, type SimConfig, type SimEvent, type SimEventKind, type SimStats } from "@evo/sim-core";
+import {
+  GENES,
+  Simulation,
+  parseConfigOverrides,
+  type BehaviorStats,
+  type SimConfig,
+  type SimEvent,
+  type SimEventKind,
+  type SimStats,
+} from "@evo/sim-core";
 
 /** Columns of the per-run stats CSV, in order. */
 export const CSV_COLUMNS: readonly string[] = [
@@ -18,6 +27,17 @@ export const CSV_COLUMNS: readonly string[] = [
   "totalKills",
   "totalStarved",
   "blockedBirths",
+  "totalAttacks",
+  "brainHidden",
+  "brainConnections",
+  "brainHiddenHerbivores",
+  "brainConnectionsHerbivores",
+  "brainHiddenCarnivores",
+  "brainConnectionsCarnivores",
+  "chaseTurn",
+  "chaseSamples",
+  "fleeTurn",
+  "fleeSamples",
   ...GENES.flatMap((gene) => [`mean_${gene}`, `sd_${gene}`]),
   "sunlightIn",
   "plantEaten",
@@ -29,6 +49,7 @@ export const CSV_COLUMNS: readonly string[] = [
   "sensingBurned",
   "attackBurned",
   "armorBurned",
+  "brainBurned",
 ];
 
 export const HIST_COLUMNS = ["tick", "trait", "bin", "binMin", "binMax", "count"] as const;
@@ -38,6 +59,8 @@ export interface RunOptions {
   ticks: number;
   /** Record one row of stats every this many ticks. */
   every: number;
+  /** Measure how purposefully organisms turn every this many ticks (0 turns it off). */
+  behaviorEvery?: number;
   /** Record trait histograms every this many ticks (0 turns histograms off). */
   histEvery?: number;
   /** Number of bins per trait histogram. */
@@ -53,6 +76,8 @@ export interface RunResult {
   histCsv: string;
   rows: number;
   final: SimStats;
+  /** Recent average of the behavior measurements at the end of the run (0.5 = random turning). */
+  behavior: BehaviorStats;
   /** Notable firsts: the first kill, the first carnivore, and so on. */
   events: SimEvent[];
   /** True if everyone died before the requested number of ticks. */
@@ -63,7 +88,7 @@ function fmt(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(5);
 }
 
-function statsRow(s: SimStats): string {
+function statsRow(s: SimStats, b: BehaviorStats): string {
   const values: number[] = [
     s.tick,
     s.population,
@@ -81,12 +106,45 @@ function statsRow(s: SimStats): string {
     s.totalKills,
     s.totalStarved,
     s.blockedBirths,
+    s.totalAttacks,
+    s.brain.all.hidden,
+    s.brain.all.connections,
+    s.brain.herbivores.hidden,
+    s.brain.herbivores.connections,
+    s.brain.carnivores.hidden,
+    s.brain.carnivores.connections,
+    b.chase,
+    b.chaseSamples,
+    b.flee,
+    b.fleeSamples,
   ];
   for (const gene of GENES) values.push(s.traits[gene].mean, s.traits[gene].sd);
   const L = s.ledger;
   values.push(L.sunlightIn, L.plantEaten, L.meatEaten, L.digestionLoss, L.decayLoss);
-  values.push(L.basalBurned, L.movementBurned, L.sensingBurned, L.attackBurned, L.armorBurned);
+  values.push(L.basalBurned, L.movementBurned, L.sensingBurned, L.attackBurned, L.armorBurned, L.brainBurned);
   return values.map(fmt).join(",");
+}
+
+/** How many recent behavior measurements to average. */
+const BEHAVIOR_WINDOW = 40;
+
+function averageBehavior(samples: readonly BehaviorStats[]): BehaviorStats {
+  let chase = 0;
+  let chaseN = 0;
+  let flee = 0;
+  let fleeN = 0;
+  for (const b of samples) {
+    chase += b.chase * b.chaseSamples;
+    chaseN += b.chaseSamples;
+    flee += b.flee * b.fleeSamples;
+    fleeN += b.fleeSamples;
+  }
+  return {
+    chase: chaseN > 0 ? chase / chaseN : 0.5,
+    chaseSamples: chaseN,
+    flee: fleeN > 0 ? flee / fleeN : 0.5,
+    fleeSamples: fleeN,
+  };
 }
 
 /** Run one simulation headless and collect its stats as CSV text. */
@@ -94,13 +152,17 @@ export function runToCsv(options: RunOptions): RunResult {
   const { seed, ticks, every, overrides, onProgress } = options;
   const histEvery = options.histEvery ?? 0;
   const bins = options.bins ?? 20;
+  const behaviorEvery = options.behaviorEvery ?? 100;
   if (!Number.isInteger(ticks) || ticks < 0) throw new Error("ticks must be a whole number, 0 or more");
   if (!Number.isInteger(every) || every < 1) throw new Error("every must be a whole number, 1 or more");
   if (!Number.isInteger(histEvery) || histEvery < 0) throw new Error("histEvery must be a whole number, 0 or more");
   if (!Number.isInteger(bins) || bins < 1) throw new Error("bins must be a whole number, 1 or more");
+  if (!Number.isInteger(behaviorEvery) || behaviorEvery < 0) throw new Error("behaviorEvery must be a whole number, 0 or more");
 
   const sim = new Simulation(seed, overrides);
-  const lines: string[] = [CSV_COLUMNS.join(","), statsRow(sim.stats())];
+  const behaviorSamples: BehaviorStats[] = [];
+  const behavior = (): BehaviorStats => averageBehavior(behaviorSamples);
+  const lines: string[] = [CSV_COLUMNS.join(","), statsRow(sim.stats(), behavior())];
   const histLines: string[] = histEvery > 0 ? [HIST_COLUMNS.join(",")] : [];
   const progressStep = Math.max(1, Math.floor(ticks / 10));
 
@@ -119,14 +181,21 @@ export function runToCsv(options: RunOptions): RunResult {
 
   let extinct = false;
   for (let t = 1; t <= ticks; t++) {
+    // Now and then, watch one tick closely to see how purposefully organisms turn.
+    const measure = behaviorEvery > 0 && (t - 1) % behaviorEvery === 0 && sim.count > 0;
+    if (measure) sim.behaviorBefore();
     sim.step();
+    if (measure) {
+      behaviorSamples.push(sim.behaviorAfter());
+      if (behaviorSamples.length > BEHAVIOR_WINDOW) behaviorSamples.shift();
+    }
     const atInterval = t % every === 0 || t === ticks;
-    if (atInterval) lines.push(statsRow(sim.stats()));
+    if (atInterval) lines.push(statsRow(sim.stats(), behavior()));
     if (histEvery > 0 && (t % histEvery === 0 || t === ticks)) recordHistograms();
     if (onProgress && t % progressStep === 0) onProgress(t / ticks);
     if (sim.count === 0) {
       // Record the moment of extinction (unless this tick was just recorded) and stop.
-      if (!atInterval) lines.push(statsRow(sim.stats()));
+      if (!atInterval) lines.push(statsRow(sim.stats(), behavior()));
       extinct = true;
       break;
     }
@@ -137,6 +206,7 @@ export function runToCsv(options: RunOptions): RunResult {
     histCsv: histLines.length > 0 ? histLines.join("\n") + "\n" : "",
     rows: lines.length - 1,
     final: sim.stats(),
+    behavior: behavior(),
     events: [...sim.events],
     extinct,
   };
@@ -185,6 +255,12 @@ export interface SeedSummary {
   omnivores: number;
   carnivores: number;
   totalKills: number;
+  /** How many attacks were tried (kills / attacks = success rate), and brain size and behavior at the end. */
+  totalAttacks: number;
+  brainConnectionsHerbivores: number;
+  brainConnectionsCarnivores: number;
+  chaseTurn: number;
+  fleeTurn: number;
   /** Tick of each notable first, or null if it never happened. */
   firsts: Record<SimEventKind, number | null>;
   /** Mean of each trait at the end. */
@@ -207,6 +283,11 @@ export function summarize(seed: number, result: RunResult): SeedSummary {
     omnivores: result.final.classes.omnivores,
     carnivores: result.final.classes.carnivores,
     totalKills: result.final.totalKills,
+    totalAttacks: result.final.totalAttacks,
+    brainConnectionsHerbivores: result.final.brain.herbivores.connections,
+    brainConnectionsCarnivores: result.final.brain.carnivores.connections,
+    chaseTurn: result.behavior.chase,
+    fleeTurn: result.behavior.flee,
     firsts,
     means,
   };

@@ -176,7 +176,10 @@ describe("energy conservation", () => {
     expect(end.totalKills).toBeGreaterThan(20);
     expect(end.totalStarved).toBeGreaterThan(0);
     const L = end.ledger;
-    for (const [name, value] of Object.entries(L)) expect(value, name).toBeGreaterThan(0);
+    for (const [name, value] of Object.entries(L)) {
+      if (name === "brainBurned") continue; // this world has no brains
+      expect(value, name).toBeGreaterThan(0);
+    }
   }, 60_000);
 
   it("sunlight is the only source: with no sun and no plants, energy can only go down", () => {

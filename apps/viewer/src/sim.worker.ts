@@ -1,4 +1,4 @@
-import { GENES, Simulation, SpatialHash, type GeneName } from "@evo/sim-core";
+import { GENES, Simulation, SpatialHash, type BehaviorStats, type GeneName } from "@evo/sim-core";
 import type { FrameMessage, HistogramSample, HistoryPoint, InspectedState, ToWorker, WorldInfo } from "./protocol";
 
 // The simulation runs here, off the main thread, so the page stays smooth.
@@ -16,6 +16,9 @@ const FRAME_INTERVAL_MS = 33;
 const MAX_SPEED_BUDGET_MS = 14;
 /** Never try to catch up by more than this many ticks in one go. */
 const MAX_TICKS_PER_LOOP = 5000;
+/** Measure how purposefully organisms turn every this many ticks, and average over the last few measurements. */
+const BEHAVIOR_EVERY = 100;
+const BEHAVIOR_WINDOW = 30;
 /** Clicking selects an organism only if it is within this many world units. */
 const PICK_RADIUS = 4;
 
@@ -32,6 +35,8 @@ let needsFrame = false;
 let sendCapacity = false;
 let points: HistoryPoint[] = [];
 let histograms: HistogramSample[] = [];
+let behaviorSamples: BehaviorStats[] = [];
+let measuringBehavior = false;
 let selectedId: number | null = null;
 let lastInspected: InspectedState | null = null;
 
@@ -60,7 +65,32 @@ function recordPoint(s: Simulation): void {
     sensingBurned: L.sensingBurned,
     attackBurned: L.attackBurned,
     armorBurned: L.armorBurned,
+    brainBurned: L.brainBurned,
+    hiddenHerbivores: stats.brain.herbivores.hidden,
+    connectionsHerbivores: stats.brain.herbivores.connections,
+    hiddenCarnivores: stats.brain.carnivores.hidden,
+    connectionsCarnivores: stats.brain.carnivores.connections,
   });
+}
+
+/** Recent average of the behavior measurements: 0.5 means turning at random. */
+function recentBehavior(): BehaviorStats {
+  let chaseSum = 0;
+  let chaseN = 0;
+  let fleeSum = 0;
+  let fleeN = 0;
+  for (const b of behaviorSamples) {
+    chaseSum += b.chase * b.chaseSamples;
+    chaseN += b.chaseSamples;
+    fleeSum += b.flee * b.fleeSamples;
+    fleeN += b.fleeSamples;
+  }
+  return {
+    chase: chaseN > 0 ? chaseSum / chaseN : 0.5,
+    chaseSamples: chaseN,
+    flee: fleeN > 0 ? fleeSum / fleeN : 0.5,
+    fleeSamples: fleeN,
+  };
 }
 
 function recordHistograms(s: Simulation): void {
@@ -71,7 +101,17 @@ function recordHistograms(s: Simulation): void {
 
 function advance(s: Simulation, ticks: number): void {
   for (let t = 0; t < ticks; t++) {
+    // Every so often, watch one tick closely to see whether hunters turn toward prey and prey away from threats.
+    if (s.tick % BEHAVIOR_EVERY === 0 && s.count > 0) {
+      s.behaviorBefore();
+      measuringBehavior = true;
+    }
     s.step();
+    if (measuringBehavior) {
+      measuringBehavior = false;
+      behaviorSamples.push(s.behaviorAfter());
+      if (behaviorSamples.length > BEHAVIOR_WINDOW) behaviorSamples.shift();
+    }
     if (s.tick % SAMPLE_EVERY === 0) recordPoint(s);
     if (s.tick % HISTOGRAM_EVERY === 0) recordHistograms(s);
     if (s.count === 0) {
@@ -103,10 +143,13 @@ function worldInfo(s: Simulation): WorldInfo {
     gridWidth: s.gridWidth,
     gridHeight: s.gridHeight,
     foodCap: s.config.foodCap,
-    overlayScale: { nutrient: s.config.initialNutrientPerCell, corpse: 30, detritus: 12 },
+    overlayScale: { nutrient: s.config.initialNutrientPerCell, corpse: 30, detritus: 12, scent: 8 * s.config.scentDeposit },
+    scentWidth: s.scentWidth,
+    scentHeight: s.scentHeight,
     ranges: s.ranges,
     histogramBins: HISTOGRAM_BINS,
     histogramEvery: HISTOGRAM_EVERY,
+    brainMode: s.config.brainMode,
   };
 }
 
@@ -129,6 +172,8 @@ function postFrame(s: Simulation): void {
   const nutrient = s.nutrient.slice();
   const corpse = s.corpseEnergy.slice();
   const detritus = s.detritus.slice();
+  const preyScent = Float32Array.from(s.preyScent);
+  const hunterScent = Float32Array.from(s.hunterScent);
   const capacity = sendCapacity ? s.foodCapacity.slice() : null;
 
   const message: FrameMessage = {
@@ -152,11 +197,14 @@ function postFrame(s: Simulation): void {
     nutrient,
     corpse,
     detritus,
+    preyScent,
+    hunterScent,
     capacity,
     points,
     histograms,
     inspected: inspect(s),
     events: s.events,
+    behavior: recentBehavior(),
   };
   points = [];
   histograms = [];
@@ -166,7 +214,7 @@ function postFrame(s: Simulation): void {
 
   const transfer: Transferable[] = [
     x.buffer, y.buffer, speed.buffer, size.buffer, sense.buffer, hue.buffer, diet.buffer, energyFraction.buffer,
-    food.buffer, nutrient.buffer, corpse.buffer, detritus.buffer,
+    food.buffer, nutrient.buffer, corpse.buffer, detritus.buffer, preyScent.buffer, hunterScent.buffer,
   ];
   if (capacity) transfer.push(capacity.buffer);
   // The options form of postMessage works in both a worker and the DOM typings.
@@ -220,6 +268,8 @@ self.onmessage = (event: MessageEvent<ToWorker>) => {
       histograms = [];
       selectedId = null;
       lastInspected = null;
+      behaviorSamples = [];
+      measuringBehavior = false;
       sendCapacity = true;
       recordPoint(sim);
       recordHistograms(sim);
@@ -243,12 +293,14 @@ self.onmessage = (event: MessageEvent<ToWorker>) => {
         // Clicking empty space keeps the current selection; clicking an organism selects it.
         if (picked !== null) {
           selectedId = picked;
+          sim.traceId = picked; // record what its brain is thinking
           lastInspected = null;
           needsFrame = true;
         }
       }
       break;
     case "clearInspect":
+      if (sim) sim.traceId = 0;
       selectedId = null;
       lastInspected = null;
       needsFrame = true;

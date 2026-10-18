@@ -14,9 +14,28 @@ export {
 export type { GeneName, TraitRange, Traits } from "./genome";
 export { parsePreset } from "./presets";
 export type { Preset } from "./presets";
+export {
+  CONN_MAX,
+  HIDDEN_MAX,
+  HIDDEN_START,
+  INPUT,
+  INPUT_COUNT,
+  NODE_COUNT,
+  OUTPUT,
+  OUTPUT_COUNT,
+  OUTPUT_LABELS,
+  OUTPUT_START,
+  RAY_COUNT,
+  evaluateBrain,
+  inputLabel,
+  soft,
+} from "./brain";
 export { SpatialHash } from "./spatial-hash";
 export { Simulation } from "./simulation";
 export type {
+  BehaviorStats,
+  BrainSnapshot,
+  BrainStats,
   DietClasses,
   EnergyAudit,
   EnergyLedger,

@@ -1,3 +1,5 @@
+import { CONN_MAX, INPUT_COUNT, OUTPUT_COUNT } from "./brain";
+
 /**
  * Every tuning number for the simulation lives here, and nowhere else.
  * To change how the world behaves, change a value in this object (or pass an
@@ -63,6 +65,8 @@ export interface SimConfig {
   /** Attack and armor start at zero: nobody starts out able to hunt or defend. */
   initialAttack: number;
   initialArmor: number;
+  /** Starting sprint reserve of the first generation (see sprintFatigue). */
+  initialStamina: number;
   /** Fraction of the reproduction threshold that new organisms start with. */
   initialEnergyFraction: number;
 
@@ -85,6 +89,9 @@ export interface SimConfig {
   attackMax: number;
   armorMin: number;
   armorMax: number;
+  /** Range of the stamina gene: the biggest sprint reserve, counted in ticks of flat-out running. */
+  staminaMin: number;
+  staminaMax: number;
   /** How much the mutation-rate gene itself changes between generations (in gene units). */
   metaMutationStd: number;
 
@@ -153,6 +160,104 @@ export interface SimConfig {
   /** After a kill, an attacker needs this many ticks to deal with its prey before it can attack again. */
   killCooldown: number;
 
+  // --- Senses and brains ---
+  /**
+   * 0 = no brains: organisms wander at random and steer toward food with a fixed rule
+   * (the Phase 3 behavior, kept as the control). 1 = every organism has a small neural
+   * network with a fixed layout whose weights evolve. 2 = the layout itself can evolve
+   * (connections and hidden units can be added and removed).
+   */
+  brainMode: number;
+  /** Hidden units in the fixed-layout brain (mode 1). */
+  brainHidden: number;
+  /**
+   * How far every organism with a brain can see, as a baseline. The sense-range gene adds
+   * extra reach on top (at an energy cost). Without a baseline, vision would be selected
+   * away before any brain had learned to use it.
+   */
+  brainVisionRange: number;
+  /** A brain thinks once every this many ticks (and keeps its last decision in between). */
+  brainEvery: number;
+  /** Radians per tick of turning when the brain's turn output is at its maximum. */
+  brainTurnMax: number;
+  /** The random wobble in heading that organisms with brains keep (they do not need as much as wanderers). */
+  brainTurnNoise: number;
+  /** Standing still lets an organism eat up to this much faster (a full stop gets the full bonus). */
+  brainStillEatBonus: number;
+  /** A brain can hold back an attack by driving its attack output below this. */
+  brainAttackGate: number;
+  /** Chance that each connection weight changes when a baby is born, and by how much (typically). */
+  brainWeightMutationProb: number;
+  brainWeightMutationStd: number;
+  /** When a weight mutates, the chance it is set back to zero (deleting the connection) instead of nudged. */
+  brainWeightZeroProb: number;
+  /** Connections weaker than this are treated as absent: free, and they do nothing. */
+  brainPruneBelow: number;
+  /**
+   * Reflexes founders start with, as ordinary evolvable weights (not fixed rules).
+   * 0 = start blank. 1 = plant smell turns them toward richer ground (this matches the
+   * steering the brains-off control has built in, so brains do not start out
+   * handicapped). 2 = that, plus a pull toward things smaller than themselves that they
+   * can see (so predators start with a way to approach prey, as prey have no such head
+   * start in fleeing). Hunting and fleeing still have to be refined by evolution.
+   */
+  brainFounderReflex: number;
+  /** Chances per birth of the layout changing (mode 2 only). */
+  brainAddConnectionProb: number;
+  brainAddNodeProb: number;
+  brainRemoveConnectionProb: number;
+  brainRemoveNodeProb: number;
+  /** Energy per tick for having a brain at all, per hidden unit, and per working connection. */
+  brainBaseCost: number;
+  brainCostPerNeuron: number;
+  brainCostPerConnection: number;
+  /**
+   * Appetite shapes perception (0 = off, 1 = on). When on, what an organism notices about
+   * food depends on what it can eat: the sight and scent of smaller animals, and the smell
+   * of corpses, reach the brain scaled by the organism's meat appetite, and the smell of
+   * plants scaled by its plant appetite. Threats (bigger animals, meat-eater trails) are
+   * noticed by everyone. A plant eater's brain can then carry wiring for chasing without
+   * it doing anything, and the wiring wakes up when a lineage turns to meat.
+   */
+  brainAppetiteSenses: number;
+
+  // --- Sprinting and stamina (only with brains) ---
+  /**
+   * 0 = off: brains can run flat out for as long as they like (paying the energy), and the
+   * stamina gene does nothing. 1 = on: running faster than normal drains a stamina reserve,
+   * running out means no more sprinting until it refills, and a bigger reserve costs
+   * energy every tick (the upkeep of muscle). Whoever has more stamina wins a long chase.
+   */
+  sprintFatigue: number;
+  /** Reserve (in ticks of flat-out running) regained each tick at normal pace. */
+  staminaRegen: number;
+  /** Extra recovery for slowing down: regen x (1 + this x how much slower than normal). */
+  staminaRestBonus: number;
+  /** Energy per tick for the reserve: this x the reserve size x body size. */
+  staminaCostCoeff: number;
+
+  // --- Kill ownership ---
+  /**
+   * After a kill, the killer has first claim on the meat for this many ticks (0 = off, as
+   * before: a corpse is a free-for-all). Others still get a share, but only `killOwnershipLeak`
+   * as strong a claim as usual, so free-riders cannot cheaply out-eat the one who did the work.
+   */
+  killOwnershipTicks: number;
+  killOwnershipLeak: number;
+
+  // --- Scent trails (only laid when brains are on) ---
+  /**
+   * Every organism leaves scent where it walks: plant eaters lay a "plant-eater" trail and
+   * meat eaters a "meat-eater" trail (an omnivore lays some of each, in proportion to its
+   * diet). Scent fades by scentDecay of its strength every tick, so a trail shows where
+   * animals were recently, and which way they went (it is fresher toward their end).
+   * scentDeposit 0 turns trails off.
+   */
+  scentDeposit: number;
+  scentDecay: number;
+  /** Size of a scent grid square, in world units. Must divide the world size. */
+  scentCellSize: number;
+
   // --- Reproduction ---
   /** An organism splits when its energy reaches this x its size. */
   reproThresholdPerSize: number;
@@ -189,6 +294,7 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   initialDiet: 0,
   initialAttack: 0,
   initialArmor: 0,
+  initialStamina: 10,
   initialEnergyFraction: 0.6,
 
   sizeMin: 0.3,
@@ -207,6 +313,8 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   attackMax: 2,
   armorMin: 0,
   armorMax: 2,
+  staminaMin: 0,
+  staminaMax: 30,
   metaMutationStd: 0.05,
 
   turnStd: 0.3,
@@ -232,6 +340,37 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   preyMaxSizeRatio: 1.25,
   herbivoreAttackPenalty: 4,
   killCooldown: 20,
+
+  brainMode: 0,
+  brainHidden: 8,
+  brainVisionRange: 6,
+  brainEvery: 2,
+  brainTurnMax: 0.5,
+  brainTurnNoise: 0.1,
+  brainStillEatBonus: 0.5,
+  brainAttackGate: -0.5,
+  brainWeightMutationProb: 0.03,
+  brainWeightMutationStd: 0.4,
+  brainWeightZeroProb: 0.3,
+  brainFounderReflex: 1,
+  brainPruneBelow: 0.05,
+  brainAddConnectionProb: 0.08,
+  brainAddNodeProb: 0.03,
+  brainRemoveConnectionProb: 0.03,
+  brainRemoveNodeProb: 0.01,
+  brainBaseCost: 0.001,
+  brainCostPerNeuron: 0.0005,
+  brainCostPerConnection: 0.0001,
+  brainAppetiteSenses: 0,
+  sprintFatigue: 0,
+  staminaRegen: 0.1,
+  staminaRestBonus: 1,
+  staminaCostCoeff: 0.001,
+  killOwnershipTicks: 0,
+  killOwnershipLeak: 0.1,
+  scentDeposit: 1,
+  scentDecay: 0.05,
+  scentCellSize: 4,
 
   reproThresholdPerSize: 30,
   offspringEnergyFraction: 0.5,
@@ -281,6 +420,7 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     ["diet", c.dietMin, c.dietMax, c.initialDiet],
     ["attack", c.attackMin, c.attackMax, c.initialAttack],
     ["armor", c.armorMin, c.armorMax, c.initialArmor],
+    ["stamina", c.staminaMin, c.staminaMax, c.initialStamina],
   ];
   for (const [name, min, max, start] of ranges) {
     if (min > max) problems.push(`${name}Min exceeds ${name}Max`);
@@ -298,6 +438,41 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (c.armorBase <= 0) problems.push("armorBase must be positive");
   if (c.preyMaxSizeRatio <= 0) problems.push("preyMaxSizeRatio must be positive");
   if (c.herbivoreAttackPenalty < 0) problems.push("herbivoreAttackPenalty cannot be negative");
+  if (![0, 1, 2].includes(c.brainMode)) problems.push("brainMode must be 0 (no brains), 1 (fixed layout) or 2 (evolvable layout)");
+  if (!Number.isInteger(c.brainHidden) || c.brainHidden < 1 || c.brainHidden > 12) problems.push("brainHidden must be a whole number from 1 to 12");
+  else if (c.brainMode === 1 && c.brainHidden * (INPUT_COUNT + OUTPUT_COUNT) > CONN_MAX) {
+    problems.push(`brainHidden ${c.brainHidden} needs ${c.brainHidden * (INPUT_COUNT + OUTPUT_COUNT)} connections per brain, but only ${CONN_MAX} fit (use at most ${Math.floor(CONN_MAX / (INPUT_COUNT + OUTPUT_COUNT))})`);
+  }
+  if (!Number.isInteger(c.brainEvery) || c.brainEvery < 1) problems.push("brainEvery must be a whole number of 1 or more");
+  if (c.brainWeightMutationProb < 0 || c.brainWeightMutationProb > 1) problems.push("brainWeightMutationProb must be between 0 and 1");
+  for (const [name, value] of [
+    ["brainAddConnectionProb", c.brainAddConnectionProb],
+    ["brainAddNodeProb", c.brainAddNodeProb],
+    ["brainRemoveConnectionProb", c.brainRemoveConnectionProb],
+    ["brainRemoveNodeProb", c.brainRemoveNodeProb],
+  ] as const) {
+    if (value < 0 || value > 1) problems.push(`${name} must be between 0 and 1`);
+  }
+  if (![0, 1, 2].includes(c.brainFounderReflex)) problems.push("brainFounderReflex must be 0, 1 or 2");
+  if (c.brainWeightZeroProb < 0 || c.brainWeightZeroProb > 1) problems.push("brainWeightZeroProb must be between 0 and 1");
+  if (c.brainPruneBelow < 0) problems.push("brainPruneBelow cannot be negative");
+  if (c.brainMode > 0 && c.brainVisionRange + c.senseRangeMax >= Math.min(c.worldWidth, c.worldHeight) / 2) {
+    problems.push("brainVisionRange plus senseRangeMax must be under half the world");
+  }
+  if (c.brainVisionRange < 0) problems.push("brainVisionRange cannot be negative");
+  if (![0, 1].includes(c.sprintFatigue)) problems.push("sprintFatigue must be 0 or 1");
+  if (c.staminaMin < 0) problems.push("staminaMin cannot be negative");
+  if (c.staminaRegen < 0 || c.staminaRestBonus < 0 || c.staminaCostCoeff < 0) problems.push("stamina regen, rest bonus and cost cannot be negative");
+  if (!Number.isInteger(c.killOwnershipTicks) || c.killOwnershipTicks < 0 || c.killOwnershipTicks > 65000) {
+    problems.push("killOwnershipTicks must be a whole number of ticks from 0 to 65000");
+  }
+  if (c.killOwnershipLeak < 0 || c.killOwnershipLeak > 1) problems.push("killOwnershipLeak must be between 0 and 1");
+  if (![0, 1].includes(c.brainAppetiteSenses)) problems.push("brainAppetiteSenses must be 0 or 1");
+  if (c.scentDeposit < 0) problems.push("scentDeposit cannot be negative");
+  if (!(c.scentDecay > 0 && c.scentDecay <= 1)) problems.push("scentDecay must be above 0 and at most 1");
+  if (!(c.scentCellSize > 0) || c.worldWidth % c.scentCellSize !== 0 || c.worldHeight % c.scentCellSize !== 0) {
+    problems.push("scentCellSize must be positive and divide the world width and height");
+  }
   if (!Number.isInteger(c.killCooldown) || c.killCooldown < 0 || c.killCooldown > 65000) {
     problems.push("killCooldown must be a whole number of ticks from 0 to 65000");
   }

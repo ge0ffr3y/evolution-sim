@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { GENES } from "@evo/sim-core";
 import {
   CSV_COLUMNS,
   HIST_COLUMNS,
@@ -34,7 +35,8 @@ describe("runToCsv", () => {
     for (const column of [
       "mean_size", "sd_speed", "mean_senseRange", "mean_mutationRate", "mean_diet", "mean_attack", "mean_armor",
       "carnivores", "totalKills", "sunlightIn", "plantEaten", "meatEaten", "digestionLoss", "decayLoss", "basalBurned",
-      "sensingBurned", "attackBurned", "armorBurned",
+      "sensingBurned", "attackBurned", "armorBurned", "brainBurned", "totalAttacks", "brainConnectionsCarnivores",
+      "chaseTurn", "fleeTurn",
     ]) {
       expect(CSV_COLUMNS).toContain(column);
     }
@@ -81,8 +83,8 @@ describe("histograms", () => {
     const lines = result.histCsv.trim().split("\n");
     expect(lines[0]).toBe(HIST_COLUMNS.join(","));
     const rows = lines.slice(1).map((l) => l.split(","));
-    // 3 snapshots (ticks 0, 500, 1000) x 9 traits x 8 bins
-    expect(rows).toHaveLength(3 * 9 * bins);
+    // 3 snapshots (ticks 0, 500, 1000) x every gene's trait x 8 bins
+    expect(rows).toHaveLength(3 * GENES.length * bins);
 
     const totals = new Map<string, number>();
     for (const [tick, trait, , , , count] of rows) {
@@ -141,6 +143,11 @@ describe("spreadAcrossSeeds", () => {
     omnivores: 0,
     carnivores: extinct ? 0 : 10,
     totalKills: 0,
+    totalAttacks: 0,
+    brainConnectionsHerbivores: 0,
+    brainConnectionsCarnivores: 0,
+    chaseTurn: 0.5,
+    fleeTurn: 0.5,
     firsts: { firstScavenger: null, firstKill: null, firstPredator: null, firstCarnivore: null },
     means: { size, speed: 1, senseRange: 0, metabolism: 1, hue: 0.5, mutationRate: 0.01, diet: 0, attack: 0, armor: 0 },
   });
@@ -171,6 +178,11 @@ describe("foodWebSummary", () => {
     omnivores: 0,
     carnivores,
     totalKills: 50,
+    totalAttacks: 100,
+    brainConnectionsHerbivores: 0,
+    brainConnectionsCarnivores: 0,
+    chaseTurn: 0.5,
+    fleeTurn: 0.5,
     firsts: { firstScavenger: 100, firstKill: 40, firstPredator: 90, firstCarnivore },
     means: { size: 1, speed: 1, senseRange: 0, metabolism: 1, hue: 0.5, mutationRate: 0.01, diet: 0.2, attack: 0.1, armor: 0.1 },
   });

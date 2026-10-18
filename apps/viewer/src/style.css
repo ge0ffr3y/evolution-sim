@@ -385,3 +385,12 @@ label {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
+
+.brain-canvas {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  background: #0b0f13;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}

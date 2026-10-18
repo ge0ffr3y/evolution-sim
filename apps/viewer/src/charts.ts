@@ -38,14 +38,19 @@ export class Charts {
   private readonly herbivores: number[] = [];
   private readonly omnivores: number[] = [];
   private readonly carnivores: number[] = [];
+  private readonly connHerb: number[] = [];
+  private readonly connCarn: number[] = [];
+  private readonly hiddenHerb: number[] = [];
+  private readonly hiddenCarn: number[] = [];
   private stride = 1;
   private seen = 0;
 
   private readonly popChart: uPlot;
   private readonly traitChart: uPlot;
   private readonly webChart: uPlot;
+  private readonly brainChart: uPlot;
 
-  constructor(popContainer: HTMLElement, traitContainer: HTMLElement, webContainer: HTMLElement) {
+  constructor(popContainer: HTMLElement, traitContainer: HTMLElement, webContainer: HTMLElement, brainContainer: HTMLElement) {
     const width = (el: HTMLElement): number => Math.max(el.clientWidth, 280);
 
     this.popChart = new uPlot(
@@ -118,14 +123,39 @@ export class Charts {
       webContainer,
     );
 
-    const observer = new ResizeObserver(() => this.resize(popContainer, traitContainer, webContainer));
+    this.brainChart = new uPlot(
+      {
+        width: width(brainContainer),
+        height: CHART_HEIGHT,
+        legend: { live: true },
+        cursor: { drag: { x: false, y: false } },
+        scales: { x: { time: false }, hidden: { auto: true } },
+        axes: [
+          baseAxis({ label: "tick" }),
+          baseAxis({ label: "working connections", scale: "y" }),
+          baseAxis({ label: "thinking units", scale: "hidden", side: 1, grid: { show: false } }),
+        ],
+        series: [
+          { label: "tick" },
+          { label: "plant eaters: connections", stroke: "#7bd88f", width: 2, scale: "y" },
+          { label: "meat eaters: connections", stroke: "#ff5d73", width: 2, scale: "y" },
+          { label: "plant eaters: thinking units", stroke: "#7bd88f", width: 1.5, dash: [5, 4], scale: "hidden" },
+          { label: "meat eaters: thinking units", stroke: "#ff5d73", width: 1.5, dash: [5, 4], scale: "hidden" },
+        ],
+      },
+      [[], [], [], [], []],
+      brainContainer,
+    );
+
+    const observer = new ResizeObserver(() => this.resize(popContainer, traitContainer, webContainer, brainContainer));
     observer.observe(popContainer);
   }
 
-  private resize(popContainer: HTMLElement, traitContainer: HTMLElement, webContainer: HTMLElement): void {
+  private resize(popContainer: HTMLElement, traitContainer: HTMLElement, webContainer: HTMLElement, brainContainer: HTMLElement): void {
     const w = Math.max(popContainer.clientWidth, 280);
     this.popChart.setSize({ width: w, height: CHART_HEIGHT });
     this.webChart.setSize({ width: Math.max(webContainer.clientWidth, 280), height: CHART_HEIGHT });
+    this.brainChart.setSize({ width: Math.max(brainContainer.clientWidth, 280), height: CHART_HEIGHT });
     this.traitChart.setSize({ width: Math.max(traitContainer.clientWidth, 280), height: CHART_HEIGHT });
   }
 
@@ -141,6 +171,10 @@ export class Charts {
     this.herbivores.length = 0;
     this.omnivores.length = 0;
     this.carnivores.length = 0;
+    this.connHerb.length = 0;
+    this.connCarn.length = 0;
+    this.hiddenHerb.length = 0;
+    this.hiddenCarn.length = 0;
     this.stride = 1;
     this.seen = 0;
     this.redraw();
@@ -160,12 +194,16 @@ export class Charts {
       this.herbivores.push(p.herbivores);
       this.omnivores.push(p.omnivores);
       this.carnivores.push(p.carnivores);
+      this.connHerb.push(p.connectionsHerbivores);
+      this.connCarn.push(p.connectionsCarnivores);
+      this.hiddenHerb.push(p.hiddenHerbivores);
+      this.hiddenCarn.push(p.hiddenCarnivores);
       if (this.ticks.length > MAX_POINTS) this.thin();
     }
   }
 
   private thin(): void {
-    for (const series of [this.ticks, this.population, this.food, this.speed, this.size, this.metabolism, this.sense, this.herbivores, this.omnivores, this.carnivores]) {
+    for (const series of [this.ticks, this.population, this.food, this.speed, this.size, this.metabolism, this.sense, this.herbivores, this.omnivores, this.carnivores, this.connHerb, this.connCarn, this.hiddenHerb, this.hiddenCarn]) {
       let write = 0;
       for (let read = 0; read < series.length; read += 2) series[write++] = series[read]!;
       series.length = write;
@@ -177,5 +215,6 @@ export class Charts {
     this.popChart.setData([this.ticks, this.population, this.food]);
     this.traitChart.setData([this.ticks, this.speed, this.size, this.metabolism, this.sense]);
     this.webChart.setData([this.ticks, this.herbivores, this.omnivores, this.carnivores]);
+    this.brainChart.setData([this.ticks, this.connHerb, this.connCarn, this.hiddenHerb, this.hiddenCarn]);
   }
 }

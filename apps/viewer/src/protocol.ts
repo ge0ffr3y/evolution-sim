@@ -1,4 +1,4 @@
-import type { GeneName, OrganismSnapshot, SimConfig, SimEvent, SimStats, TraitRange } from "@evo/sim-core";
+import type { BehaviorStats, GeneName, OrganismSnapshot, SimConfig, SimEvent, SimStats, TraitRange } from "@evo/sim-core";
 
 /** Messages from the page to the simulation worker. */
 export type ToWorker =
@@ -35,6 +35,12 @@ export interface HistoryPoint {
   sensingBurned: number;
   attackBurned: number;
   armorBurned: number;
+  brainBurned: number;
+  /** Average brain size (working hidden units and connections) by diet class. */
+  hiddenHerbivores: number;
+  connectionsHerbivores: number;
+  hiddenCarnivores: number;
+  connectionsCarnivores: number;
 }
 
 /** How many organisms fall in each slice of every trait's range, at one moment. */
@@ -59,10 +65,15 @@ export interface WorldInfo {
   gridHeight: number;
   foodCap: number;
   /** What a "full" cell looks like for each overlay, so the map can be shaded sensibly. */
-  overlayScale: { nutrient: number; corpse: number; detritus: number };
+  overlayScale: { nutrient: number; corpse: number; detritus: number; scent: number };
+  /** Size of the scent-trail grid (finer than the food grid). */
+  scentWidth: number;
+  scentHeight: number;
   ranges: Record<GeneName, TraitRange>;
   histogramBins: number;
   histogramEvery: number;
+  /** 0 = no brains, 1 = fixed layout, 2 = evolvable layout. */
+  brainMode: number;
 }
 
 /** Everything the page needs to draw one picture of the world. */
@@ -90,6 +101,9 @@ export interface FrameMessage {
   nutrient: Float64Array;
   corpse: Float64Array;
   detritus: Float64Array;
+  /** Plant-eater and meat-eater scent in each square of the scent grid (empty when brains are off). */
+  preyScent: Float32Array;
+  hunterScent: Float32Array;
   /** Most food each cell can hold. Sent only in the first frame after a restart. */
   capacity: Float64Array | null;
   /** Chart samples recorded since the previous frame. */
@@ -99,4 +113,6 @@ export interface FrameMessage {
   inspected: InspectedState | null;
   /** Notable firsts so far (the first kill, the first carnivore...). */
   events: SimEvent[];
+  /** How purposefully organisms have been turning recently (0.5 = random). */
+  behavior: BehaviorStats;
 }
