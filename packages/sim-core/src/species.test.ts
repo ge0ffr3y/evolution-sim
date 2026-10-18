@@ -205,6 +205,22 @@ describe("species tracking", () => {
     expect(sim.speciesEvents.filter((e) => e.kind === "crash")).toHaveLength(1); // not logged again while low
   });
 
+  it("describes how each species lives: share of food that was meat, kills per 1,000 ticks, average age", () => {
+    const sim = new Simulation(1, quiet({ speciesEvery: 10, foodRegrowPerTick: 0, initialFoodFraction: 0 }));
+    for (let i = 0; i < sim.count; i++) {
+      sim.meatTaken[i] = i < 30 ? 30 : 0;
+      sim.plantTaken[i] = i < 30 ? 10 : 40;
+      sim.kills[i] = i < 30 ? 2 : 0;
+      sim.age[i] = 1000;
+    }
+    sim.run(10);
+    const life = sim.speciesRecords[0]!.lifestyle;
+    // 30 members ate 30 meat + 10 plant each, 30 members ate 40 plant: meat is 900 of 900 + 300 + 1200.
+    expect(life.meatShare).toBeCloseTo(900 / (900 + 300 + 1200), 2);
+    expect(life.killRate).toBeCloseTo(((30 * 2) / (60 * 1010)) * 1000, 1); // ages have grown by the 10 ticks that passed
+    expect(life.meanAge).toBeCloseTo(1010, 0);
+  });
+
   it("rejects settings that make no sense", () => {
     expect(() => new Simulation(1, { speciesEvery: 30, speciesSampleEvery: 100 })).toThrow(/multiple of speciesEvery/);
     expect(() => new Simulation(1, { speciesDistance: 0 })).toThrow(/speciesDistance/);

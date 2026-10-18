@@ -1581,7 +1581,7 @@ export class Simulation {
 
     this.tick++;
     if (this.tick % EVENT_CHECK_EVERY === 0) this.checkSlowEvents();
-    if (this.tracker && this.tick % c.speciesEvery === 0) this.tracker.update(this.tick, this.count, this.genes, this.species);
+    if (this.tracker && this.tick % c.speciesEvery === 0) this.tracker.update(this.tick, this.count, this.genes, this.species, this);
   }
 
   /** `attacker` kills `prey`: the prey's body and whatever energy it carried become a corpse. */

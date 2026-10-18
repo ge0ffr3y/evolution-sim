@@ -46,6 +46,26 @@ export interface SpeciesRecord {
   ancestorTraits: number[] | null;
   /** Samples over time, flattened: [tick, members, trait values...] repeated (see SAMPLE_STRIDE). */
   history: number[];
+  /** How its members live, as of the last check. */
+  lifestyle: Lifestyle;
+}
+
+/** What the members of a species do for a living, averaged over its members alive now (their whole lives so far). */
+export interface Lifestyle {
+  /** Share of all the energy they have eaten that came from meat (0 to 1). */
+  meatShare: number;
+  /** Kills per 1,000 ticks lived, per member. */
+  killRate: number;
+  /** Average age of the members, in ticks. */
+  meanAge: number;
+}
+
+/** Per-organism records the tracker reads to work out lifestyles. */
+export interface LifeRecords {
+  plantTaken: Float64Array;
+  meatTaken: Float64Array;
+  kills: Uint32Array;
+  age: Uint32Array;
 }
 
 export type SpeciesEventKind = "speciation" | "extinction" | "crash";
@@ -235,6 +255,7 @@ export class SpeciesTracker {
       founderTraits: traits.slice(),
       ancestorTraits: ancestor,
       history: [],
+      lifestyle: { meatShare: 0, killRate: 0, meanAge: 0 },
     };
   }
 
@@ -255,7 +276,7 @@ export class SpeciesTracker {
   }
 
   /** Re-check everyone's species. Call every `speciesEvery` ticks, after births and deaths. */
-  update(tick: number, n: number, genes: Float32Array, species: Uint32Array): void {
+  update(tick: number, n: number, genes: Float32Array, species: Uint32Array, life?: LifeRecords): void {
     this.watchPopulation(tick, n);
     // 1. Everyone stays, joins a nearby species, or starts a candidate.
     for (const live of this.live.values()) {
@@ -342,6 +363,21 @@ export class SpeciesTracker {
       for (const live of this.live.values()) this.finish(live);
     }
 
+    // Lifestyles: add up what every member has eaten, killed and lived.
+    const eaten = new Map<number, { plant: number; meat: number; kills: number; ticks: number; members: number }>();
+    if (life) {
+      for (let i = 0; i < n; i++) {
+        const id = this.realSpeciesOf(species[i]!);
+        const entry = eaten.get(id) ?? { plant: 0, meat: 0, kills: 0, ticks: 0, members: 0 };
+        entry.plant += life.plantTaken[i]!;
+        entry.meat += life.meatTaken[i]!;
+        entry.kills += life.kills[i]!;
+        entry.ticks += life.age[i]!;
+        entry.members++;
+        eaten.set(id, entry);
+      }
+    }
+
     // 3. Real species with nobody left are extinct. Everyone else updates their record.
     // (Members of a candidate on probation still count toward the species it came from.)
     const onProbation = new Map<number, number>();
@@ -360,6 +396,15 @@ export class SpeciesTracker {
       record.count = members;
       if (members > record.peak) record.peak = members;
       if (live.count > 0) record.traits = this.traitsOf(live.center);
+      const total = eaten.get(live.id);
+      if (total && total.members > 0) {
+        const food = total.plant + total.meat;
+        record.lifestyle = {
+          meatShare: food > 0 ? total.meat / food : 0,
+          killRate: total.ticks > 0 ? (total.kills / total.ticks) * 1000 : 0,
+          meanAge: total.ticks / total.members,
+        };
+      }
       if (tick % this.config.speciesSampleEvery === 0) record.history.push(tick, members, ...record.traits);
     }
   }

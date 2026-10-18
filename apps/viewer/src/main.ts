@@ -275,7 +275,8 @@ function renderInspector(state: InspectedState | null): void {
     ? "Alive."
     : `Died of hunger around tick ${state.diedAtTick?.toLocaleString("en-US") ?? "?"}. Showing its last known state.`;
   el("insp-age").textContent = `${s.age.toLocaleString("en-US")} ticks`;
-  el("insp-parent").textContent = s.parentId === 0 ? "none (first generation)" : `#${s.parentId}`;
+  el("insp-parent").textContent =
+    s.parentId === 0 ? "none (first generation)" : s.otherParentId !== 0 ? `#${s.parentId} and #${s.otherParentId}` : `#${s.parentId}`;
 
   const fraction = Math.max(0, Math.min(1, s.energy / s.threshold));
   el("insp-energy-text").textContent = `${s.energy.toFixed(1)} of ${s.threshold.toFixed(1)} to reproduce`;
@@ -422,6 +423,11 @@ function renderSpeciesDetail(id: number | null): void {
   lines.textContent =
     `${parent ? `Split from #${parent.id}` : "A first-generation species"} at tick ${format.int.format(record.bornTick)}. ` +
     `${status[0]!.toUpperCase()}${status.slice(1)}. Most members at once: ${format.int.format(record.peak)}. Mostly ${dietWord(record.traits[GENE.diet]!)}.`;
+  const life = document.createElement("p");
+  life.className = "hint";
+  life.textContent =
+    `How its members live: ${Math.round(record.lifestyle.meatShare * 100)}% of the energy they have eaten came from meat; ` +
+    `${record.lifestyle.killRate.toFixed(2)} kills per 1,000 ticks lived; average age ${format.int.format(Math.round(record.lifestyle.meanAge))} ticks.`;
   const table = document.createElement("table");
   const head = table.createTHead().insertRow();
   for (const text of ["Trait", parent ? `#${parent.id} when it split` : "", "Founders", record.diedTick === null ? "Now" : "At the end"]) {
@@ -447,7 +453,7 @@ function renderSpeciesDetail(id: number | null): void {
   const note = document.createElement("p");
   note.className = "hint";
   note.textContent = parent ? "Green or red marks a trait that differed noticeably from the ancestor at the moment of the split." : "";
-  box.replaceChildren(title, lines, table, note);
+  box.replaceChildren(title, lines, life, table, note);
 }
 
 tree.onSelect = (id) => renderSpeciesDetail(id);

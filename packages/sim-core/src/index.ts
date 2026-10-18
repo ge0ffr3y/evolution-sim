@@ -47,6 +47,6 @@ export type {
   TraitSummary,
 } from "./simulation";
 export { SAMPLE_STRIDE } from "./species";
-export type { SpeciesEvent, SpeciesEventKind, SpeciesRecord } from "./species";
+export type { LifeRecords, Lifestyle, SpeciesEvent, SpeciesEventKind, SpeciesRecord } from "./species";
 export { SNAPSHOT_FORMAT, snapshotFromBytes, snapshotToBytes } from "./snapshot";
 export type { SimSnapshot, SnapshotArray } from "./snapshot";
