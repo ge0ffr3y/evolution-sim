@@ -115,6 +115,21 @@ export interface DietClasses {
   carnivores: number;
 }
 
+/**
+ * How complex the colonies are: how many there are (groups of two or more bonded cells), how many cells
+ * are in them, their average and largest size, how many different cell types a colony has (average and
+ * most), and how symmetrical their bodies are (0 to 1, for colonies of three or more cells).
+ */
+export interface ColonyStats {
+  count: number;
+  cells: number;
+  meanSize: number;
+  maxSize: number;
+  meanTypes: number;
+  maxTypes: number;
+  symmetry: number;
+}
+
 /** Things that happen to the whole world: catastrophes and their ends. */
 export interface WorldEvent {
   tick: number;
@@ -176,7 +191,7 @@ export interface SimStats {
   /** Species alive now, and how many there have ever been (0 when tracking is off). */
   species: { alive: number; ever: number };
   /** Colonies (groups of two or more bonded cells): how many, how many cells are in one, and the average and largest size. */
-  colonies: { count: number; cells: number; meanSize: number; maxSize: number };
+  colonies: ColonyStats;
   /** Disease: organisms sick now, strains alive in them, and infections so far (all 0 without disease). */
   disease: { infected: number; strains: number; totalInfections: number };
   traits: Record<GeneName, TraitSummary>;
@@ -1810,24 +1825,143 @@ export class Simulation {
     this.y[i] = ny;
   }
 
-  /** Every colony: how many there are (groups of two or more cells), their total cells, average and largest size. */
-  private colonyStats(): { count: number; cells: number; meanSize: number; maxSize: number } {
-    if (!this.bondsOn) return { count: 0, cells: 0, meanSize: 0, maxSize: 0 };
-    const sizes = this.colonySizes();
-    let count = 0;
+  /** The complexity of the colonies right now (all zeros without multicellularity). */
+  private colonyStats(): ColonyStats {
+    const none: ColonyStats = { count: 0, cells: 0, meanSize: 0, maxSize: 0, meanTypes: 0, maxTypes: 0, symmetry: 0 };
+    if (!this.bondsOn) return none;
+    const colonies = this.colonyMembers();
+    if (colonies.length === 0) return none;
     let cells = 0;
     let maxSize = 0;
-    const seen = new Set<number>();
-    for (let i = 0; i < this.count; i++) {
-      const size = sizes[i]!;
-      if (size < 2) continue;
-      cells++;
-      if (size > maxSize) maxSize = size;
-      // Count each colony once, by its lowest-numbered cell (cells of one colony share a size, so use a root marker).
-      seen.add(this.colonyRoot[i]!);
+    let typeSum = 0;
+    let maxTypes = 0;
+    let symmetrySum = 0;
+    let symmetric = 0;
+    for (const members of colonies) {
+      cells += members.length;
+      if (members.length > maxSize) maxSize = members.length;
+      let seen = 0;
+      if (this.typeOn) for (const cell of members) seen |= 1 << this.cellType[cell]!;
+      let kinds = 0;
+      for (let t = 0; t < 6; t++) if ((seen & (1 << t)) !== 0) kinds++;
+      if (!this.typeOn) kinds = 1;
+      typeSum += kinds;
+      if (kinds > maxTypes) maxTypes = kinds;
+      if (members.length >= 3) {
+        symmetrySum += this.colonySymmetry(members);
+        symmetric++;
+      }
     }
-    count = seen.size;
-    return { count, cells, meanSize: count > 0 ? cells / count : 0, maxSize };
+    return {
+      count: colonies.length,
+      cells,
+      meanSize: cells / colonies.length,
+      maxSize,
+      meanTypes: typeSum / colonies.length,
+      maxTypes,
+      symmetry: symmetric > 0 ? symmetrySum / symmetric : 0,
+    };
+  }
+
+  /** Every colony (two or more bonded cells) as a list of its cells. */
+  colonyMembers(): number[][] {
+    const n = this.count;
+    const out: number[][] = [];
+    if (!this.bondsOn) return out;
+    this.visitStamp++;
+    const stamp = this.visitStamp;
+    const stack = this.colonyStack;
+    for (let start = 0; start < n; start++) {
+      if (this.visitMark[start] === stamp) continue;
+      const members: number[] = [];
+      let top = 0;
+      stack[top++] = start;
+      this.visitMark[start] = stamp;
+      while (top > 0) {
+        const cell = stack[--top]!;
+        members.push(cell);
+        for (let k = 0; k < BOND_SLOTS; k++) {
+          const partner = this.bondTo[cell * BOND_SLOTS + k]!;
+          if (partner >= 0 && this.visitMark[partner] !== stamp) {
+            this.visitMark[partner] = stamp;
+            stack[top++] = partner;
+          }
+        }
+      }
+      if (members.length >= 2) out.push(members);
+    }
+    return out;
+  }
+
+  /**
+   * How mirror-symmetrical a colony's body is, from 0 to 1: reflect every cell across the colony's long
+   * axis and count the cells whose reflection lands on a cell of the same type.
+   */
+  private colonySymmetry(members: number[]): number {
+    const c = this.config;
+    const W = c.worldWidth;
+    const H = c.worldHeight;
+    const first = members[0]!;
+    const px: number[] = [];
+    const py: number[] = [];
+    let mx = 0;
+    let my = 0;
+    for (const cell of members) {
+      let dx = this.x[cell]! - this.x[first]!;
+      let dy = this.y[cell]! - this.y[first]!;
+      if (dx > W / 2) dx -= W;
+      else if (dx < -W / 2) dx += W;
+      if (dy > H / 2) dy -= H;
+      else if (dy < -H / 2) dy += H;
+      px.push(dx);
+      py.push(dy);
+      mx += dx;
+      my += dy;
+    }
+    const n = members.length;
+    mx /= n;
+    my /= n;
+    let sxx = 0;
+    let sxy = 0;
+    let syy = 0;
+    for (let k = 0; k < n; k++) {
+      px[k] = px[k]! - mx;
+      py[k] = py[k]! - my;
+      sxx += px[k]! * px[k]!;
+      sxy += px[k]! * py[k]!;
+      syy += py[k]! * py[k]!;
+    }
+    // The long axis: the eigenvector of the 2 x 2 covariance with the larger eigenvalue (exact arithmetic, no trigonometry).
+    const half = (sxx - syy) / 2;
+    const lambda = (sxx + syy) / 2 + Math.sqrt(half * half + sxy * sxy);
+    let ux = sxy;
+    let uy = lambda - sxx;
+    const length = Math.sqrt(ux * ux + uy * uy);
+    if (length < 1e-9) {
+      ux = sxx >= syy ? 1 : 0;
+      uy = sxx >= syy ? 0 : 1;
+    } else {
+      ux /= length;
+      uy /= length;
+    }
+    // A reflection counts as landing on a cell if it is within 0.4 of a bond length of it.
+    const tolerance = 0.16 * c.bondRestLength * c.bondRestLength;
+    let matched = 0;
+    for (let k = 0; k < n; k++) {
+      const along = px[k]! * ux + py[k]! * uy;
+      const rx = 2 * along * ux - px[k]!;
+      const ry = 2 * along * uy - py[k]!;
+      for (let j = 0; j < n; j++) {
+        const ex = px[j]! - rx;
+        const ey = py[j]! - ry;
+        if (ex * ex + ey * ey > tolerance) continue;
+        if (!this.typeOn || this.cellType[members[j]!] === this.cellType[members[k]!]) {
+          matched++;
+          break;
+        }
+      }
+    }
+    return matched / n;
   }
 
   /** For every cell, the size of its colony (1 for a cell on its own). Also fills colonyRoot with a number shared by the whole colony. */

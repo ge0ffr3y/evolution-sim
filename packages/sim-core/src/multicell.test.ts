@@ -75,7 +75,7 @@ describe("multicellularity: bonds and colonies", () => {
     expect(sim.bondTo).toHaveLength(0);
     sim.run(500);
     for (let i = 0; i < sim.count; i++) expect(sim.genes[i * GENE_COUNT + GENE.bond]).toBe(0);
-    expect(sim.stats().colonies).toEqual({ count: 0, cells: 0, meanSize: 0, maxSize: 0 });
+    expect(sim.stats().colonies).toEqual({ count: 0, cells: 0, meanSize: 0, maxSize: 0, meanTypes: 0, maxTypes: 0, symmetry: 0 });
   });
 
   it("a baby stays attached with the chance given by its parent's bonding gene: always at 1, never at 0", () => {

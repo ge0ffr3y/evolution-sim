@@ -75,6 +75,10 @@ function recordPoint(s: Simulation): void {
     connectionsHerbivores: stats.brain.herbivores.connections,
     hiddenCarnivores: stats.brain.carnivores.hidden,
     connectionsCarnivores: stats.brain.carnivores.connections,
+    colonyShare: stats.population > 0 ? stats.colonies.cells / stats.population : 0,
+    colonyMeanSize: stats.colonies.meanSize,
+    colonyMeanTypes: stats.colonies.meanTypes,
+    colonySymmetry: stats.colonies.symmetry,
   });
 }
 

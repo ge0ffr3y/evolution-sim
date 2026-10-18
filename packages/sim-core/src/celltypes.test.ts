@@ -213,3 +213,54 @@ describe("cell types", () => {
     expect(() => new Simulation(1, quiet({ typeFeederBite: -1 }))).toThrow(/typeFeederBite/);
   });
 });
+
+describe("colony complexity", () => {
+  /** Lay out cells at given positions, all bonded in a chain (the bonds do not matter for these measures except to make one colony). */
+  function colony(positions: [number, number][], types: number[]): Simulation {
+    const sim = new Simulation(1, quiet({ initialOrganisms: positions.length, bondShare: 0, bondAlign: 0 }));
+    positions.forEach(([x, y], i) => {
+      sim.x[i] = 20 + x;
+      sim.y[i] = 30 + y;
+      sim.cellType[i] = types[i]!;
+      if (i > 0) {
+        sim.bondTo[i * BOND_SLOTS] = i - 1;
+        sim.bondTo[(i - 1) * BOND_SLOTS + (i - 1 === 0 ? 0 : 1)] = i;
+      }
+    });
+    return sim;
+  }
+
+  it("a straight line is perfectly symmetric, and the stats count its cells and cell types", () => {
+    const sim = colony([[0, 0], [1.5, 0], [3, 0], [4.5, 0], [6, 0]], [0, 1, 1, 3, 4]);
+    const stats = sim.stats().colonies;
+    expect(stats.count).toBe(1);
+    expect(stats.cells).toBe(5);
+    expect(stats.maxSize).toBe(5);
+    expect(stats.meanTypes).toBe(4); // types 0, 1, 3 and 4
+    expect(stats.maxTypes).toBe(4);
+    expect(stats.symmetry).toBeCloseTo(1, 9);
+  });
+
+  it("a body with a lopsided arm is less symmetric than one with a mirrored pair, and a mirrored pair of different types is not symmetric", () => {
+    const lopsided = colony([[0, 0], [1.5, 0], [3, 0], [1.5, 1.5]], [0, 0, 0, 0]);
+    const mirrored = colony([[0, 0], [1.5, 1.2], [1.5, -1.2], [3, 0]], [0, 0, 0, 0]);
+    const mismatched = colony([[0, 0], [1.5, 1.2], [1.5, -1.2], [3, 0]], [0, 1, 2, 0]);
+    expect(mirrored.stats().colonies.symmetry).toBeCloseTo(1, 9);
+    expect(lopsided.stats().colonies.symmetry).toBeLessThan(0.9);
+    expect(mismatched.stats().colonies.symmetry).toBeCloseTo(0.5, 9); // the two end cells match themselves, the mirrored pair does not
+  });
+
+  it("is zero without colonies, and symmetry only counts colonies of three or more cells", () => {
+    const pair = colony([[0, 0], [1.5, 0]], [0, 1]);
+    expect(pair.stats().colonies.symmetry).toBe(0);
+    expect(pair.stats().colonies.count).toBe(1);
+    const alone = new Simulation(1, quiet({ initialOrganisms: 3 }));
+    expect(alone.stats().colonies).toEqual({ count: 0, cells: 0, meanSize: 0, maxSize: 0, meanTypes: 0, maxTypes: 0, symmetry: 0 });
+  });
+
+  it("works across the wrap-around edge of the world", () => {
+    const sim = colony([[0, 0], [1.5, 0], [3, 0]], [0, 0, 0]);
+    for (let i = 0; i < 3; i++) sim.x[i] = (62.5 + i * 1.5) % 64; // the line crosses x = 64 to 0
+    expect(sim.stats().colonies.symmetry).toBeCloseTo(1, 9);
+  });
+});

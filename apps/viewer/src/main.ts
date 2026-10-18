@@ -2,6 +2,7 @@ import "./style.css";
 import { GENE, GENES, parsePreset, type GeneName, type Preset, type SimEvent, type SpeciesEvent, type SpeciesRecord, type WorldEvent } from "@evo/sim-core";
 import { drawBrain } from "./brainview";
 import { Charts } from "./charts";
+import { ComplexityChart } from "./complexitychart";
 import { FlowTracker } from "./flows";
 import { HEATMAP_TRAITS, Heatmap } from "./heatmap";
 import type { FrameMessage, FromWorker, InspectedState, ToWorker } from "./protocol";
@@ -70,6 +71,7 @@ let timelineKey = "";
 const charts = new Charts(el("chart-pop"), el("chart-traits"), el("chart-web"), el("chart-brain"));
 const heatmap = new Heatmap(el("heatmap"));
 const flows = new FlowTracker();
+const complexity = new ComplexityChart(el("chart-complexity"));
 const worker = new Worker(new URL("./sim.worker.ts", import.meta.url), { type: "module" });
 
 function send(message: ToWorker): void {
@@ -120,6 +122,7 @@ function clearHistory(): void {
   shownEvents = -1;
   renderEvents([]);
   charts.clear();
+  complexity.clear();
   heatmap.clear();
   flows.clear();
   renderInspector(null);
@@ -567,9 +570,11 @@ worker.onmessage = (event: MessageEvent<FromWorker>) => {
     clearHistory();
     heatmap.setWorld(frame.world);
     el("brain-chart-block").hidden = frame.world.brainMode === 0;
+    el("complexity-chart-block").hidden = !frame.world.multicellular;
   }
   renderer.setLand(frame);
   charts.add(frame.points);
+  complexity.add(frame.points);
   flows.add(frame.points);
   heatmap.add(frame.histograms);
   chartsDirty = true;
@@ -670,6 +675,7 @@ setInterval(() => {
   if (chartsDirty) {
     chartsDirty = false;
     charts.redraw();
+    complexity.redraw();
     heatmap.redraw();
     renderFlows();
   }

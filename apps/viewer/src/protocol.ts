@@ -62,6 +62,11 @@ export interface HistoryPoint {
   connectionsHerbivores: number;
   hiddenCarnivores: number;
   connectionsCarnivores: number;
+  /** Multicellular complexity (zeros without bonding): the share of organisms that are in a colony, and the colonies' average size, average number of cell types and symmetry. */
+  colonyShare: number;
+  colonyMeanSize: number;
+  colonyMeanTypes: number;
+  colonySymmetry: number;
 }
 
 /** How many organisms fall in each slice of every trait's range, at one moment. */
