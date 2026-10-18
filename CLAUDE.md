@@ -56,6 +56,7 @@ npm run sim -- --seed 42 --ticks 100000     one headless run (CSV of stats + tra
 npm run sim -- --seeds 1-12 --ticks 50000   many seeds in parallel, then compare how they differ
 npm run sim -- --config configs/costly-movement.json --seed 3   run a preset world (--set name=value tweaks any setting)
 npm run bench      how fast is the simulation?
+npm run bench -w apps/runner -- --sizes 512,1024 --config configs/brains-evolvable.json --set foodRegrowPerTick=0.02   benchmark a big brainy world
 npm run sim -- --seed 5 --ticks 3000 --save w.evosnap     save the finished world
 npm run sim -- --load w.evosnap --ticks 2000               carry on from a saved world (add --branch-seed N for a different random future)
 npm run gif -- --seed 12 --ticks 60000   render a time-lapse GIF of a run
