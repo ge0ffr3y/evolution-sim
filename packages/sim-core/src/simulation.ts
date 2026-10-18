@@ -175,6 +175,8 @@ export interface SimStats {
   brain: BrainStats;
   /** Species alive now, and how many there have ever been (0 when tracking is off). */
   species: { alive: number; ever: number };
+  /** Disease: organisms sick now, strains alive in them, and infections so far (all 0 without disease). */
+  disease: { infected: number; strains: number; totalInfections: number };
   traits: Record<GeneName, TraitSummary>;
   classes: DietClasses;
   /** Matter in the soil, as rotting meat, and as detritus. */
@@ -476,6 +478,19 @@ export class Simulation {
   readonly thermalPref: Float32Array;
   private readonly thermalScale: Float32Array;
   private readonly thermalOn: boolean;
+  /**
+   * Disease (only when diseaseTransmission is above 0): for each organism, which strain it carries (0 =
+   * healthy), how many ticks of sickness are left and how many ticks of immunity. A strain is just the
+   * genes it "targets" (one number per gene that counts toward kinship).
+   */
+  readonly infection: Uint16Array;
+  readonly sickFor: Uint16Array;
+  readonly immuneFor: Uint16Array;
+  private readonly pending: Uint16Array;
+  private strains: Float64Array[] = [];
+  totalInfections = 0;
+  private readonly diseaseOn: boolean;
+  private diseaseHost = 0;
   /** Lifespan (ticks) and litter size of each organism (only when those genes are in use). */
   readonly lifespan: Float32Array;
   readonly litter: Float32Array;
@@ -656,6 +671,11 @@ export class Simulation {
     this.thermalOn = c.climateMode === 1 && c.thermalCostCoeff > 0;
     this.thermalPref = new Float32Array(this.thermalOn ? n : 0);
     this.thermalScale = new Float32Array(this.thermalOn ? n : 0);
+    this.diseaseOn = c.diseaseTransmission > 0;
+    this.infection = new Uint16Array(this.diseaseOn ? n : 0);
+    this.sickFor = new Uint16Array(this.diseaseOn ? n : 0);
+    this.immuneFor = new Uint16Array(this.diseaseOn ? n : 0);
+    this.pending = new Uint16Array(this.diseaseOn ? n : 0);
     this.agingOn = c.agingCoeff > 0;
     this.litterOn = c.litterMax > 1;
     this.lifespan = new Float32Array(this.agingOn ? n : 0);
@@ -711,6 +731,7 @@ export class Simulation {
     if (this.sexOn) this.uint32Fields.push(this.parent2Id);
     this.uint8Fields = [this.killed, this.attempted];
     this.uint16Fields = [this.resting];
+    if (this.diseaseOn) this.uint16Fields.push(this.infection, this.sickFor, this.immuneFor);
     if (c.brainMode > 0) {
       this.uint16Fields.push(this.brainCount, this.brainConnections);
       this.uint8Fields.push(this.brainHidden, this.brainSenses);
@@ -927,6 +948,11 @@ export class Simulation {
     this.id[i] = this.nextId++;
     this.parentId[i] = parent;
     if (this.sexOn) this.parent2Id[i] = 0;
+    if (this.diseaseOn) {
+      this.infection[i] = 0;
+      this.sickFor[i] = 0;
+      this.immuneFor[i] = 0;
+    }
     this.x[i] = x;
     this.y[i] = y;
 
@@ -1444,6 +1470,118 @@ export class Simulation {
     }
   }
 
+  /** How well a strain fits an organism's genes: 1 when they match exactly, falling toward 0 as they differ. */
+  private susceptibility(host: number, antigen: Float64Array): number {
+    const g = this.genes;
+    let sum = 0;
+    for (let m = 0; m < this.mateMask.length; m++) {
+      const d = g[host * GENE_COUNT + this.mateMask[m]!]! - antigen[m]!;
+      sum += d * d;
+    }
+    const w = this.config.diseaseWidth;
+    return 1 / (1 + sum / this.mateMask.length / (w * w));
+  }
+
+  /** A new pathogen strain aimed at organism j's genes, and j catches it. */
+  private newStrainIn(j: number): void {
+    const antigen = new Float64Array(this.mateMask.length);
+    for (let m = 0; m < antigen.length; m++) antigen[m] = this.genes[j * GENE_COUNT + this.mateMask[m]!]!;
+    this.strains.push(antigen);
+    this.infection[j] = this.strains.length;
+    this.sickFor[j] = this.config.diseaseDuration;
+    this.totalInfections++;
+  }
+
+  /** Used while a sick organism looks for neighbors to infect. */
+  private readonly tryInfect = (index: number, distSq: number): void => {
+    if (index === this.diseaseHost || distSq <= 0) return;
+    if (this.sickFor[index]! > 0 || this.immuneFor[index]! > 0 || this.pending[index]! > 0 || this.killed[index] === 1) return;
+    const c = this.config;
+    const strainId = this.infection[this.diseaseHost]!;
+    const antigen = this.strains[strainId - 1]!;
+    if (this.rng.next() >= c.diseaseTransmission * this.susceptibility(index, antigen)) return;
+    let carried = strainId;
+    // Now and then the strain changes: its target moves toward the genes of its new host (it adapts to whoever is common).
+    if (c.diseaseMutationProb > 0 && this.rng.next() < c.diseaseMutationProb && this.strains.length < 65000) {
+      const moved = new Float64Array(antigen.length);
+      for (let m = 0; m < moved.length; m++) {
+        const host = this.genes[index * GENE_COUNT + this.mateMask[m]!]!;
+        moved[m] = antigen[m]! + c.diseaseDrift * (host - antigen[m]!);
+      }
+      this.strains.push(moved);
+      carried = this.strains.length;
+    }
+    this.pending[index] = carried;
+  };
+
+  /** One tick of disease: new strains arrive, sick organisms infect their neighbors, sickness and immunity run down. */
+  private diseaseStep(n: number): void {
+    const c = this.config;
+    if (n > 0 && this.rng.next() < 1 / c.diseaseIntroEvery) {
+      const j = this.rng.int(n);
+      if (this.sickFor[j] === 0 && this.immuneFor[j] === 0) this.newStrainIn(j);
+    }
+    let sick = 0;
+    for (let i = 0; i < n; i++) if (this.sickFor[i]! > 0) sick++;
+    if (sick > 0) {
+      this.hash.rebuild(this.x, this.y, n);
+      for (let i = 0; i < n; i++) {
+        if (this.sickFor[i]! === 0) continue;
+        this.diseaseHost = i;
+        this.hash.forEachNear(this.x[i]!, this.y[i]!, c.diseaseContactRange, this.tryInfect);
+      }
+    }
+    // Sickness and immunity run down...
+    for (let i = 0; i < n; i++) {
+      if (this.sickFor[i]! > 0) {
+        this.sickFor[i] = this.sickFor[i]! - 1;
+        if (this.sickFor[i] === 0) {
+          this.infection[i] = 0;
+          this.immuneFor[i] = c.diseaseImmunity;
+        }
+      } else if (this.immuneFor[i]! > 0) {
+        this.immuneFor[i] = this.immuneFor[i]! - 1;
+      }
+    }
+    // ...and then this tick's new infections begin (after, so each gets its full duration).
+    for (let i = 0; i < n; i++) {
+      const carried = this.pending[i]!;
+      if (carried === 0) continue;
+      this.pending[i] = 0;
+      this.infection[i] = carried;
+      this.sickFor[i] = c.diseaseDuration;
+      this.totalInfections++;
+    }
+    if (this.strains.length > 300 && this.tick % 1000 === 0) this.compactStrains(n);
+  }
+
+  /** Forget strains nobody carries any more and renumber the rest, so the list does not grow forever. */
+  private compactStrains(n: number): void {
+    const newId = new Uint16Array(this.strains.length + 1);
+    const kept: Float64Array[] = [];
+    for (let i = 0; i < n; i++) {
+      const id = this.infection[i]!;
+      if (id === 0 || newId[id] !== 0) continue;
+      kept.push(this.strains[id - 1]!);
+      newId[id] = kept.length;
+    }
+    for (let i = 0; i < n; i++) if (this.infection[i]! !== 0) this.infection[i] = newId[this.infection[i]!]!;
+    this.strains = kept;
+  }
+
+  private diseaseStats(): { infected: number; strains: number; totalInfections: number } {
+    if (!this.diseaseOn) return { infected: 0, strains: 0, totalInfections: 0 };
+    const seen = new Set<number>();
+    let infected = 0;
+    for (let i = 0; i < this.count; i++) {
+      if (this.sickFor[i]! > 0) {
+        infected++;
+        seen.add(this.infection[i]!);
+      }
+    }
+    return { infected, strains: seen.size, totalInfections: this.totalInfections };
+  }
+
   /** How many babies this birth makes (1 unless the litter gene is in use; a fraction is rounded at random). */
   private litterSize(a: number, b: number): number {
     if (!this.litterOn) return 1;
@@ -1642,6 +1780,9 @@ export class Simulation {
     // Scent trails: old scent fades, then everyone leaves fresh scent where they now stand.
     if (this.scentOn) this.layScent(n);
 
+    // Disease: spreads by contact among the organisms that are now standing close together.
+    if (this.diseaseOn) this.diseaseStep(n);
+
     // Predation: each armed organism picks the nearest prey in reach (that is not
     // too big for it) and tries to kill it. A kill leaves a corpse right there.
     if (attackers > 0) {
@@ -1743,6 +1884,7 @@ export class Simulation {
           basal += c.agingCoeff * this.basalCost[i]! * worn * worn;
         }
       }
+      if (this.diseaseOn && this.sickFor[i]! > 0) basal += c.diseaseCost * this.basalCost[i]!; // being sick costs upkeep
       if (this.thermalOn) {
         // Too hot or too cold for comfort costs extra upkeep.
         const off = this.temperature[cell]! - this.thermalPref[i]!;
@@ -2067,6 +2209,8 @@ export class Simulation {
       events: this.events,
       worldEvents: this.worldEvents,
       catastrophe: [this.catKind, this.catStart, this.catEnd],
+      strains: this.strains.map((a) => Array.from(a)),
+      totalInfections: this.totalInfections,
       ledger: this.ledger,
       rng: Array.from(this.rng.getState()),
       species: this.tracker ? this.tracker.exportState() : null,
@@ -2127,6 +2271,8 @@ export class Simulation {
       events: SimEvent[];
       worldEvents: WorldEvent[];
       catastrophe: [number, number, number];
+      strains?: number[][];
+      totalInfections?: number;
       ledger: EnergyLedger;
       rng: [number, number, number, number];
       species: Record<string, unknown> | null;
@@ -2157,6 +2303,8 @@ export class Simulation {
     this.worldEvents.length = 0;
     this.worldEvents.push(...s.worldEvents);
     [this.catKind, this.catStart, this.catEnd] = s.catastrophe;
+    this.strains = (s.strains ?? []).map((a) => Float64Array.from(a));
+    this.totalInfections = s.totalInfections ?? 0;
     Object.assign(this.ledger, s.ledger);
     this.rng.setState(newFuture ? new Rng((this.seed + this.tick) >>> 0).getState() : s.rng);
     if (this.tracker && s.species) this.tracker.importState(s.species);
@@ -2268,6 +2416,7 @@ export class Simulation {
       totalEnergy: energySum,
       meanEnergy: n > 0 ? energySum / n : 0,
       species: { alive: this.tracker?.aliveCount ?? 0, ever: this.tracker?.records.length ?? 0 },
+      disease: this.diseaseStats(),
       totalBirths: this.totalBirths,
       totalDeaths: this.totalDeaths,
       totalKills: this.totalKills,
@@ -2548,6 +2697,10 @@ export class Simulation {
       mixBits(this.outAttack, n);
     }
     if (this.staminaOn) mixBits(this.stamina, n);
+    if (this.diseaseOn) {
+      for (let i = 0; i < n; i++) mix(this.infection[i]! | (this.sickFor[i]! << 16));
+      mix(this.totalInfections);
+    }
     if (this.guardOn) {
       mixInts(this.corpseOwner, this.corpseOwner.length);
       mixInts(this.corpseOwnerUntil, this.corpseOwnerUntil.length);

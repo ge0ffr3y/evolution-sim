@@ -355,6 +355,27 @@ export interface SimConfig {
   herdRange: number;
   herdCap: number;
 
+  // --- Disease (off by default) ---
+  /**
+   * 0 = no disease. Above 0, a pathogen spreads by contact: each tick, for every sick organism and
+   * every healthy neighbor within diseaseContactRange, the neighbor catches it with probability
+   * diseaseTransmission x how much the neighbor resembles the pathogen's strain. Resembling it
+   * means being genetically close to the strain's "target" (1 / (1 + (distance / diseaseWidth)^2)),
+   * so a population where everyone looks alike is wide open to an epidemic and a varied one is not.
+   */
+  diseaseTransmission: number;
+  diseaseContactRange: number;
+  diseaseWidth: number;
+  /** How long an infection lasts (ticks), how long the survivor is then immune, and the extra upkeep while sick (times normal upkeep). */
+  diseaseDuration: number;
+  diseaseImmunity: number;
+  diseaseCost: number;
+  /** A brand-new strain arrives from outside, on average once every this many ticks, aimed at a random organism's genes. */
+  diseaseIntroEvery: number;
+  /** Chance per infection that the strain changes, and how far toward its new host's genes its target moves when it does. */
+  diseaseMutationProb: number;
+  diseaseDrift: number;
+
   // --- Sexual reproduction (off by default) ---
   /**
    * 0 = organisms split in two when they have enough energy (the original way). 1 = two
@@ -600,6 +621,15 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   herdBonus: 0,
   herdRange: 8,
   herdCap: 5,
+  diseaseTransmission: 0,
+  diseaseContactRange: 3,
+  diseaseWidth: 0.15,
+  diseaseDuration: 300,
+  diseaseImmunity: 600,
+  diseaseCost: 1,
+  diseaseIntroEvery: 3000,
+  diseaseMutationProb: 0.05,
+  diseaseDrift: 0.2,
   sexualReproduction: 0,
   mateRange: 6,
   mateDistance: 0.25,
@@ -767,6 +797,15 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (c.herdBonus > 0 && c.kinDistance <= 0) problems.push("herdBonus needs kinDistance above 0 (who counts as a relative)");
   if (!(c.herdRange > 0)) problems.push("herdRange must be positive");
   if (!(c.herdCap >= 1)) problems.push("herdCap must be at least 1");
+  if (c.diseaseTransmission < 0 || c.diseaseTransmission > 1) problems.push("diseaseTransmission must be between 0 and 1");
+  if (c.diseaseTransmission > 0) {
+    if (!(c.diseaseContactRange > 0) || !(c.diseaseWidth > 0)) problems.push("diseaseContactRange and diseaseWidth must be positive");
+    if (!Number.isInteger(c.diseaseDuration) || c.diseaseDuration < 1 || c.diseaseDuration > 60000) problems.push("diseaseDuration must be a whole number of ticks from 1 to 60000");
+    if (!Number.isInteger(c.diseaseImmunity) || c.diseaseImmunity < 0 || c.diseaseImmunity > 60000) problems.push("diseaseImmunity must be a whole number of ticks from 0 to 60000");
+    if (c.diseaseCost < 0) problems.push("diseaseCost cannot be negative");
+    if (!Number.isInteger(c.diseaseIntroEvery) || c.diseaseIntroEvery < 1) problems.push("diseaseIntroEvery must be a whole number of ticks, 1 or more");
+    if (c.diseaseMutationProb < 0 || c.diseaseMutationProb > 1 || c.diseaseDrift < 0 || c.diseaseDrift > 1) problems.push("diseaseMutationProb and diseaseDrift must be between 0 and 1");
+  }
   if (![0, 1].includes(c.sexualReproduction)) problems.push("sexualReproduction must be 0 or 1");
   if (!(c.mateRange > 0)) problems.push("mateRange must be positive");
   if (![0, 1].includes(c.matePreference)) problems.push("matePreference must be 0 (nearest) or 1 (most similar)");

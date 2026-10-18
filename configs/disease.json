@@ -1,0 +1,8 @@
+{
+  "name": "Disease",
+  "description": "A pathogen spreads by contact. Each strain targets a particular set of genes, and organisms that resemble the target catch it easily; sick organisms pay double upkeep for 300 ticks and are then immune for 600. Strains drift toward the genes of whoever they infect, and new ones arrive from outside now and then. In our tests this keeps about 40% more genetic variety among the plant eaters than a world without disease (about a fifth of the population is sick at any time).",
+  "config": {
+    "diseaseTransmission": 0.3,
+    "diseaseWidth": 0.06
+  }
+}
