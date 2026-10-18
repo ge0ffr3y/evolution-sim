@@ -218,6 +218,138 @@ describe("smell and the body", () => {
   });
 });
 
+describe("knowing its own diet", () => {
+  it("feels its own diet: plant eater -1, meat eater +1, half and half 0", () => {
+    for (const [diet, expected] of [[0, -1], [1, 1], [0.5, 0]] as const) {
+      const sim = new Simulation(1, stage({ initialOrganisms: 1 }));
+      setGene(sim, 0, "diet", diet);
+      expect(seen(sim)[INPUT.diet]).toBeCloseTo(expected, 5);
+    }
+  });
+});
+
+describe("scent trails", () => {
+  /** Scent square for world position (x, y) in the 64x64 stage (4-unit squares, 16 across). */
+  const square = (x: number, y: number): number => Math.floor(y / 4) * 16 + Math.floor(x / 4);
+
+  it("plant eaters lay plant-eater scent, meat eaters lay meat-eater scent, omnivores some of each", () => {
+    for (const diet of [0, 1, 0.25]) {
+      const sim = new Simulation(1, stage({ initialOrganisms: 1, initialSpeed: 0.1 }));
+      setGene(sim, 0, "diet", diet);
+      place(sim, 0, 34, 34);
+      sim.step();
+      const k = square(sim.x[0]!, sim.y[0]!);
+      expect(sim.preyScent[k]).toBeCloseTo(1 - diet, 5);
+      expect(sim.hunterScent[k]).toBeCloseTo(diet, 5);
+    }
+  });
+
+  it("scent fades by scentDecay every tick", () => {
+    const sim = new Simulation(1, stage({ initialOrganisms: 1, scentDecay: 0.1 }));
+    place(sim, 0, 2, 2);
+    sim.preyScent[square(40, 40)] = 10;
+    sim.hunterScent[square(40, 40)] = 4;
+    sim.step();
+    expect(sim.preyScent[square(40, 40)]).toBeCloseTo(9, 9);
+    expect(sim.hunterScent[square(40, 40)]).toBeCloseTo(3.6, 9);
+    for (let t = 0; t < 60; t++) sim.step();
+    expect(sim.preyScent[square(40, 40)]).toBeLessThan(0.02);
+  });
+
+  it("smells which way a trail gets fresher: ahead and to the left are positive", () => {
+    const sim = new Simulation(1, stage({ initialOrganisms: 1 }));
+    place(sim, 0, 34, 34); // facing east, in square (8, 8)
+    sim.preyScent[square(38, 34)] = 4; // east: ahead
+    sim.hunterScent[square(34, 38)] = 4; // +y: to the left
+    const inputs = seen(sim);
+    expect(inputs[INPUT.smellPreyAhead]).toBeCloseTo(1, 5);
+    expect(inputs[INPUT.smellPreySide]).toBeCloseTo(0, 5);
+    expect(inputs[INPUT.smellHunterSide]).toBeCloseTo(1, 5);
+    expect(inputs[INPUT.smellHunterAhead]).toBeCloseTo(0, 5);
+  });
+
+  it("a predator standing on a plant eater's trail smells which way it went", () => {
+    const sim = new Simulation(1, stage({ initialOrganisms: 2, initialSpeed: 1 }));
+    setGene(sim, 0, "diet", 1);
+    setGene(sim, 1, "diet", 0);
+    setGene(sim, 1, "speed", 1);
+    place(sim, 0, 2, 2, 0, 1); // the predator waits in a corner, out of the way
+    setGene(sim, 0, "speed", 0.1);
+    place(sim, 1, 10, 34); // the plant eater walks east through the middle
+    for (let t = 0; t < 20; t++) sim.step();
+    expect(sim.x[1]).toBeGreaterThan(25);
+    // Put the predator on the trail behind it, facing the same way: the trail is fresher ahead.
+    place(sim, 0, 16, 34);
+    expect(seen(sim)[INPUT.smellPreyAhead]).toBeGreaterThan(0.05);
+    // Turned around, the same trail reads as fresher behind.
+    place(sim, 0, 16, 34, -1, 0);
+    expect(seen(sim)[INPUT.smellPreyAhead]).toBeLessThan(-0.05);
+  });
+
+  it("no trails in a brains-off world, or when scentDeposit is 0", () => {
+    const off = new Simulation(1, { worldWidth: 64, worldHeight: 64, initialOrganisms: 10 });
+    off.run(10);
+    expect(off.preyScent.length).toBe(0);
+    const none = new Simulation(1, stage({ scentDeposit: 0 }));
+    place(none, 0, 34, 34);
+    const inputs = seen(none);
+    expect(none.preyScent.length).toBe(0);
+    expect(inputs[INPUT.smellPreyAhead]).toBe(0);
+    expect(inputs[INPUT.smellHunterSide]).toBe(0);
+  });
+});
+
+describe("appetite shapes perception (brainAppetiteSenses)", () => {
+  /** What organism 0 (of the given diet) senses with a smaller animal and a bigger one ahead and plants to its left. */
+  function senses(diet: number, appetite: number): number[] {
+    const sim = new Simulation(1, stage({ initialOrganisms: 3, brainAppetiteSenses: appetite }));
+    setGene(sim, 0, "diet", diet);
+    place(sim, 0, 32, 32);
+    place(sim, 1, 36, 32, 0, 1); // smaller, dead ahead
+    setGene(sim, 1, "size", 0.6);
+    setGene(sim, 1, "speed", 0.1);
+    place(sim, 2, 35, 33.5, 0, 1); // bigger, a little to the left
+    setGene(sim, 2, "size", 2.5);
+    setGene(sim, 2, "speed", 0.1);
+    sim.food[5 * 8 + 4] = 9; // plants to the north (left)
+    sim.preyScent[Math.floor(32 / 4) * 16 + 9] = 4; // a plant-eater trail just ahead
+    return seen(sim);
+  }
+
+  it("off: everyone senses everything the same way", () => {
+    const plant = senses(0, 0);
+    const meat = senses(1, 0);
+    expect(plant[visionIndex(2, 0)]).toBeCloseTo(meat[visionIndex(2, 0)]!, 9);
+    expect(plant[INPUT.smellPlantSide]).toBeCloseTo(meat[INPUT.smellPlantSide]!, 9);
+    expect(plant[INPUT.smellPreyAhead]).toBeCloseTo(meat[INPUT.smellPreyAhead]!, 9);
+  });
+
+  it("on: a plant eater does not notice smaller animals or their trails, but smells plants and still sees threats", () => {
+    const plant = senses(0, 1);
+    expect(plant[visionIndex(2, 0)]).toBeCloseTo(0, 12);
+    expect(plant[visionIndex(2, 1)]).toBeCloseTo(0, 12);
+    expect(plant[INPUT.smellPreyAhead]).toBeCloseTo(0, 12);
+    expect(plant[INPUT.smellPlantSide]).toBeGreaterThan(0.3);
+    expect(plant[visionIndex(3, 2)]! + plant[visionIndex(2, 2)]!).toBeGreaterThan(0); // the bigger one
+  });
+
+  it("on: a meat eater notices prey and trails at full strength, and plants not at all", () => {
+    const meat = senses(1, 1);
+    const off = senses(1, 0);
+    expect(meat[visionIndex(2, 0)]).toBeGreaterThan(0);
+    expect(meat[visionIndex(2, 0)]).toBeCloseTo(off[visionIndex(2, 0)]!, 9);
+    expect(meat[INPUT.smellPreyAhead]).toBeGreaterThan(0.5);
+    expect(meat[INPUT.smellPlantSide]).toBeCloseTo(0, 12);
+  });
+
+  it("on: an omnivore notices each kind of food in proportion to its appetite for it", () => {
+    const half = senses(0.5, 1);
+    const off = senses(0.5, 0);
+    expect(half[visionIndex(2, 0)]).toBeCloseTo(off[visionIndex(2, 0)]! * 0.5, 5);
+    expect(half[INPUT.smellPlantSide]).toBeCloseTo(off[INPUT.smellPlantSide]! * 0.5, 5);
+  });
+});
+
 describe("what a brain can do", () => {
   it("turns left when the turn output is positive, and right when negative", () => {
     const turned = (weight: number): number => {
@@ -438,6 +570,23 @@ describe("worlds with brains", () => {
       expect(new Simulation(22, config).fingerprint()).not.toBe(a.fingerprint());
     }, 120_000);
   }
+
+  it("with trails and appetite senses on: still deterministic and still conserving energy and matter", () => {
+    const config = { worldWidth: 128, worldHeight: 128, initialOrganisms: 100, initialSenseRange: 6, brainMode: 2, brainAppetiteSenses: 1, brainAddConnectionProb: 0.3 };
+    const a = new Simulation(31, config);
+    const b = new Simulation(31, config);
+    const energy0 = a.energyAudit().total;
+    const matter0 = a.matterAudit().total;
+    a.run(1500);
+    b.run(1500);
+    expect(a.fingerprint()).toBe(b.fingerprint());
+    expect(Array.from(a.preyScent)).toEqual(Array.from(b.preyScent));
+    const L = a.ledger;
+    const burned = L.basalBurned + L.movementBurned + L.sensingBurned + L.attackBurned + L.armorBurned + L.brainBurned;
+    const expected = energy0 + L.sunlightIn - burned - L.digestionLoss - L.decayLoss;
+    expect(Math.abs(a.energyAudit().total - expected) / expected).toBeLessThan(1e-9);
+    expect(Math.abs(a.matterAudit().total - matter0) / matter0).toBeLessThan(1e-9);
+  }, 120_000);
 
   it("brains change the world: a brained world is not the same as the brains-off world", () => {
     const base = { worldWidth: 128, worldHeight: 128, initialOrganisms: 100, initialSenseRange: 6 };

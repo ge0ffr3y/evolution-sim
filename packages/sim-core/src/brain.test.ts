@@ -123,7 +123,7 @@ describe("brain size", () => {
   });
 
   it("input count matches the documented layout", () => {
-    expect(INPUT_COUNT).toBe(5 * RAY_CHANNELS + 10);
+    expect(INPUT_COUNT).toBe(5 * RAY_CHANNELS + 15);
   });
 });
 

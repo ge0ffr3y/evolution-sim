@@ -34,21 +34,29 @@ export const RAY_COUNT = 5;
 export const RAY_CHANNELS = 4; // smaller: how near, how meaty; larger: how near, how meaty
 const VISION_INPUTS = RAY_COUNT * RAY_CHANNELS;
 
-/** Input numbering. */
+/**
+ * Input numbering. Everything from smellPlantAhead up to (not including) energy is a
+ * smell; everything from energy on is the body sensing itself.
+ */
 export const INPUT = {
   visionStart: 0,
   smellPlantAhead: VISION_INPUTS,
   smellPlantSide: VISION_INPUTS + 1,
   smellMeatAhead: VISION_INPUTS + 2,
   smellMeatSide: VISION_INPUTS + 3,
-  plantHere: VISION_INPUTS + 4,
-  meatHere: VISION_INPUTS + 5,
-  energy: VISION_INPUTS + 6,
-  age: VISION_INPUTS + 7,
-  bias: VISION_INPUTS + 8,
-  noise: VISION_INPUTS + 9,
+  smellPreyAhead: VISION_INPUTS + 4,
+  smellPreySide: VISION_INPUTS + 5,
+  smellHunterAhead: VISION_INPUTS + 6,
+  smellHunterSide: VISION_INPUTS + 7,
+  plantHere: VISION_INPUTS + 8,
+  meatHere: VISION_INPUTS + 9,
+  energy: VISION_INPUTS + 10,
+  age: VISION_INPUTS + 11,
+  diet: VISION_INPUTS + 12,
+  bias: VISION_INPUTS + 13,
+  noise: VISION_INPUTS + 14,
 } as const;
-export const INPUT_COUNT = VISION_INPUTS + 10;
+export const INPUT_COUNT = VISION_INPUTS + 15;
 
 export const HIDDEN_MAX = 12;
 export const HIDDEN_START = INPUT_COUNT;
@@ -59,7 +67,7 @@ export const NODE_COUNT = OUTPUT_START + OUTPUT_COUNT;
 
 /**
  * Most connections one brain can hold. A fully wired fixed-layout brain needs
- * hidden x (INPUT_COUNT + OUTPUT_COUNT) of them (264 for 8 hidden units).
+ * hidden x (INPUT_COUNT + OUTPUT_COUNT) of them (304 for 8 hidden units).
  */
 export const CONN_MAX = 320;
 /** Weights are kept within this range. */
@@ -79,10 +87,15 @@ export function inputLabel(index: number): string {
     [INPUT.smellPlantSide]: "smell plants: left",
     [INPUT.smellMeatAhead]: "smell meat: ahead",
     [INPUT.smellMeatSide]: "smell meat: left",
+    [INPUT.smellPreyAhead]: "plant-eater trail: ahead",
+    [INPUT.smellPreySide]: "plant-eater trail: left",
+    [INPUT.smellHunterAhead]: "meat-eater trail: ahead",
+    [INPUT.smellHunterSide]: "meat-eater trail: left",
     [INPUT.plantHere]: "plants here",
     [INPUT.meatHere]: "meat here",
     [INPUT.energy]: "energy",
     [INPUT.age]: "age",
+    [INPUT.diet]: "my diet (meaty)",
     [INPUT.bias]: "bias",
     [INPUT.noise]: "noise",
   };

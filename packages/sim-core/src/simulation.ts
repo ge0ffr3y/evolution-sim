@@ -202,6 +202,8 @@ function clampUnit(value: number): number {
 
 /** How much corpse energy in a cell counts as "full strength" for smelling and display. */
 const MEAT_SMELL_FULL = 30;
+/** A trail difference this big (in ticks' worth of one organism's scent) reads as full strength. */
+const SCENT_FULL = 4;
 /** The kinds of input a brain can listen to (see brainSenses). */
 const SENSE_VISION = 1;
 const SENSE_SMELL = 2;
@@ -304,6 +306,15 @@ export class Simulation {
   readonly corpseEnergy: Float64Array;
   /** Waste and rotted corpses that will turn back into nutrient. */
   readonly detritus: Float64Array;
+  /**
+   * Scent trails (laid only when brains are on): how much plant-eater and meat-eater scent
+   * is in each square of a finer grid. It fades every tick, so it marks recent passage.
+   */
+  readonly scentWidth: number;
+  readonly scentHeight: number;
+  readonly preyScent: Float64Array;
+  readonly hunterScent: Float64Array;
+  private readonly scentOn: boolean;
 
   // Scratch space for sharing food (see step()).
   private readonly plantClaim: Float64Array;
@@ -465,6 +476,12 @@ export class Simulation {
     this.corpseMatter = new Float64Array(cells);
     this.corpseEnergy = new Float64Array(cells);
     this.detritus = new Float64Array(cells);
+    this.scentWidth = c.worldWidth / c.scentCellSize;
+    this.scentHeight = c.worldHeight / c.scentCellSize;
+    this.scentOn = c.brainMode > 0 && c.scentDeposit > 0;
+    const scentCells = this.scentOn ? this.scentWidth * this.scentHeight : 0;
+    this.preyScent = new Float64Array(scentCells);
+    this.hunterScent = new Float64Array(scentCells);
     this.plantClaim = new Float64Array(cells);
     this.meatClaim = new Float64Array(cells);
     this.plantShare = new Float64Array(cells);
@@ -899,11 +916,56 @@ export class Simulation {
       inputs[INPUT.smellMeatSide] = clampUnit(hx * gyMeat - hy * gxMeat);
       inputs[INPUT.plantHere] = Math.min(1, this.food[here]! * plantScale);
       inputs[INPUT.meatHere] = Math.min(1, this.corpseEnergy[here]! * meatScale);
+
+      // Trails: which way does plant-eater and meat-eater scent get fresher?
+      if (this.scentOn) {
+        const ss = c.scentCellSize;
+        const sw = this.scentWidth;
+        const sh = this.scentHeight;
+        const sx = Math.floor(x / ss);
+        const sy = Math.floor(y / ss);
+        const sEast = sy * sw + ((sx + 1) % sw);
+        const sWest = sy * sw + ((sx + sw - 1) % sw);
+        const sSouth = ((sy + 1) % sh) * sw + sx;
+        const sNorth = ((sy + sh - 1) % sh) * sw + sx;
+        const scentScale = 1 / (c.scentDeposit * SCENT_FULL);
+        const prey = this.preyScent;
+        const gxPrey = (prey[sEast]! - prey[sWest]!) * scentScale;
+        const gyPrey = (prey[sSouth]! - prey[sNorth]!) * scentScale;
+        inputs[INPUT.smellPreyAhead] = clampUnit(gxPrey * hx + gyPrey * hy);
+        inputs[INPUT.smellPreySide] = clampUnit(hx * gyPrey - hy * gxPrey);
+        const hunter = this.hunterScent;
+        const gxHunter = (hunter[sEast]! - hunter[sWest]!) * scentScale;
+        const gyHunter = (hunter[sSouth]! - hunter[sNorth]!) * scentScale;
+        inputs[INPUT.smellHunterAhead] = clampUnit(gxHunter * hx + gyHunter * hy);
+        inputs[INPUT.smellHunterSide] = clampUnit(hx * gyHunter - hy * gxHunter);
+      }
     }
 
-    // The body: hunger, age, a constant, and a little noise (a deterministic scramble of the tick and the organism).
+    // Appetite shapes perception (optional): food signals are only as loud as the appetite
+    // for that food. Threat signals are left alone.
+    if (c.brainAppetiteSenses === 1) {
+      const meat = this.diet[i]!;
+      const plant = 1 - meat;
+      for (let k = 0; k < RAY_COUNT; k++) {
+        const slot = INPUT.visionStart + k * RAY_CHANNELS;
+        inputs[slot] = inputs[slot]! * meat;
+        inputs[slot + 1] = inputs[slot + 1]! * meat;
+      }
+      inputs[INPUT.smellPreyAhead] = inputs[INPUT.smellPreyAhead]! * meat;
+      inputs[INPUT.smellPreySide] = inputs[INPUT.smellPreySide]! * meat;
+      inputs[INPUT.smellMeatAhead] = inputs[INPUT.smellMeatAhead]! * meat;
+      inputs[INPUT.smellMeatSide] = inputs[INPUT.smellMeatSide]! * meat;
+      inputs[INPUT.meatHere] = inputs[INPUT.meatHere]! * meat;
+      inputs[INPUT.smellPlantAhead] = inputs[INPUT.smellPlantAhead]! * plant;
+      inputs[INPUT.smellPlantSide] = inputs[INPUT.smellPlantSide]! * plant;
+      inputs[INPUT.plantHere] = inputs[INPUT.plantHere]! * plant;
+    }
+
+    // The body: hunger, age, its own diet, a constant, and a little noise (a deterministic scramble of the tick and the organism).
     inputs[INPUT.energy] = Math.min(this.energy[i]! / this.threshold[i]!, 1) * 2 - 1;
     inputs[INPUT.age] = Math.min(this.age[i]! / AGE_FULL, 1) * 2 - 1;
+    inputs[INPUT.diet] = this.diet[i]! * 2 - 1;
     inputs[INPUT.bias] = 1;
     inputs[INPUT.noise] = ((Math.imul(this.tick + 1, 0x9e3779b1) ^ Math.imul(this.id[i]!, 0x85ebca6b)) >>> 0) / 2147483648 - 1;
 
@@ -919,6 +981,30 @@ export class Simulation {
       this.traceHidden.set(hidden);
       this.traceOutputs.set(outputs);
       this.traceValid = true;
+    }
+  }
+
+  /**
+   * Fade every trail a little, then add each organism's scent to the square it stands in:
+   * plant appetite goes into the plant-eater trail, meat appetite into the meat-eater trail.
+   */
+  private layScent(n: number): void {
+    const c = this.config;
+    const keep = 1 - c.scentDecay;
+    const prey = this.preyScent;
+    const hunter = this.hunterScent;
+    for (let k = 0; k < prey.length; k++) {
+      prey[k] = prey[k]! * keep;
+      hunter[k] = hunter[k]! * keep;
+    }
+    const ss = c.scentCellSize;
+    const sw = this.scentWidth;
+    const deposit = c.scentDeposit;
+    for (let i = 0; i < n; i++) {
+      const k = Math.floor(this.y[i]! / ss) * sw + Math.floor(this.x[i]! / ss);
+      const diet = this.diet[i]!;
+      prey[k] = prey[k]! + deposit * (1 - diet);
+      hunter[k] = hunter[k]! + deposit * diet;
     }
   }
 
@@ -1034,6 +1120,9 @@ export class Simulation {
       this.cellOf[i] = Math.floor(ny / cs) * gw + Math.floor(nx / cs);
       if (this.attack[i]! >= c.attackThreshold) attackers++;
     }
+
+    // Scent trails: old scent fades, then everyone leaves fresh scent where they now stand.
+    if (this.scentOn) this.layScent(n);
 
     // Predation: each armed organism picks the nearest prey in reach (that is not
     // too big for it) and tries to kill it. A kill leaves a corpse right there.

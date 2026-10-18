@@ -65,7 +65,10 @@ export interface WorldInfo {
   gridHeight: number;
   foodCap: number;
   /** What a "full" cell looks like for each overlay, so the map can be shaded sensibly. */
-  overlayScale: { nutrient: number; corpse: number; detritus: number };
+  overlayScale: { nutrient: number; corpse: number; detritus: number; scent: number };
+  /** Size of the scent-trail grid (finer than the food grid). */
+  scentWidth: number;
+  scentHeight: number;
   ranges: Record<GeneName, TraitRange>;
   histogramBins: number;
   histogramEvery: number;
@@ -98,6 +101,9 @@ export interface FrameMessage {
   nutrient: Float64Array;
   corpse: Float64Array;
   detritus: Float64Array;
+  /** Plant-eater and meat-eater scent in each square of the scent grid (empty when brains are off). */
+  preyScent: Float32Array;
+  hunterScent: Float32Array;
   /** Most food each cell can hold. Sent only in the first frame after a restart. */
   capacity: Float64Array | null;
   /** Chart samples recorded since the previous frame. */

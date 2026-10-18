@@ -143,7 +143,9 @@ function worldInfo(s: Simulation): WorldInfo {
     gridWidth: s.gridWidth,
     gridHeight: s.gridHeight,
     foodCap: s.config.foodCap,
-    overlayScale: { nutrient: s.config.initialNutrientPerCell, corpse: 30, detritus: 12 },
+    overlayScale: { nutrient: s.config.initialNutrientPerCell, corpse: 30, detritus: 12, scent: 8 * s.config.scentDeposit },
+    scentWidth: s.scentWidth,
+    scentHeight: s.scentHeight,
     ranges: s.ranges,
     histogramBins: HISTOGRAM_BINS,
     histogramEvery: HISTOGRAM_EVERY,
@@ -170,6 +172,8 @@ function postFrame(s: Simulation): void {
   const nutrient = s.nutrient.slice();
   const corpse = s.corpseEnergy.slice();
   const detritus = s.detritus.slice();
+  const preyScent = Float32Array.from(s.preyScent);
+  const hunterScent = Float32Array.from(s.hunterScent);
   const capacity = sendCapacity ? s.foodCapacity.slice() : null;
 
   const message: FrameMessage = {
@@ -193,6 +197,8 @@ function postFrame(s: Simulation): void {
     nutrient,
     corpse,
     detritus,
+    preyScent,
+    hunterScent,
     capacity,
     points,
     histograms,
@@ -208,7 +214,7 @@ function postFrame(s: Simulation): void {
 
   const transfer: Transferable[] = [
     x.buffer, y.buffer, speed.buffer, size.buffer, sense.buffer, hue.buffer, diet.buffer, energyFraction.buffer,
-    food.buffer, nutrient.buffer, corpse.buffer, detritus.buffer,
+    food.buffer, nutrient.buffer, corpse.buffer, detritus.buffer, preyScent.buffer, hunterScent.buffer,
   ];
   if (capacity) transfer.push(capacity.buffer);
   // The options form of postMessage works in both a worker and the DOM typings.

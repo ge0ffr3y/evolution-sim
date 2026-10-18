@@ -206,6 +206,28 @@ export interface SimConfig {
   brainBaseCost: number;
   brainCostPerNeuron: number;
   brainCostPerConnection: number;
+  /**
+   * Appetite shapes perception (0 = off, 1 = on). When on, what an organism notices about
+   * food depends on what it can eat: the sight and scent of smaller animals, and the smell
+   * of corpses, reach the brain scaled by the organism's meat appetite, and the smell of
+   * plants scaled by its plant appetite. Threats (bigger animals, meat-eater trails) are
+   * noticed by everyone. A plant eater's brain can then carry wiring for chasing without
+   * it doing anything, and the wiring wakes up when a lineage turns to meat.
+   */
+  brainAppetiteSenses: number;
+
+  // --- Scent trails (only laid when brains are on) ---
+  /**
+   * Every organism leaves scent where it walks: plant eaters lay a "plant-eater" trail and
+   * meat eaters a "meat-eater" trail (an omnivore lays some of each, in proportion to its
+   * diet). Scent fades by scentDecay of its strength every tick, so a trail shows where
+   * animals were recently, and which way they went (it is fresher toward their end).
+   * scentDeposit 0 turns trails off.
+   */
+  scentDeposit: number;
+  scentDecay: number;
+  /** Size of a scent grid square, in world units. Must divide the world size. */
+  scentCellSize: number;
 
   // --- Reproduction ---
   /** An organism splits when its energy reaches this x its size. */
@@ -307,6 +329,10 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   brainBaseCost: 0.001,
   brainCostPerNeuron: 0.0005,
   brainCostPerConnection: 0.0001,
+  brainAppetiteSenses: 0,
+  scentDeposit: 1,
+  scentDecay: 0.05,
+  scentCellSize: 4,
 
   reproThresholdPerSize: 30,
   offspringEnergyFraction: 0.5,
@@ -395,6 +421,12 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     problems.push("brainVisionRange plus senseRangeMax must be under half the world");
   }
   if (c.brainVisionRange < 0) problems.push("brainVisionRange cannot be negative");
+  if (![0, 1].includes(c.brainAppetiteSenses)) problems.push("brainAppetiteSenses must be 0 or 1");
+  if (c.scentDeposit < 0) problems.push("scentDeposit cannot be negative");
+  if (!(c.scentDecay > 0 && c.scentDecay <= 1)) problems.push("scentDecay must be above 0 and at most 1");
+  if (!(c.scentCellSize > 0) || c.worldWidth % c.scentCellSize !== 0 || c.worldHeight % c.scentCellSize !== 0) {
+    problems.push("scentCellSize must be positive and divide the world width and height");
+  }
   if (!Number.isInteger(c.killCooldown) || c.killCooldown < 0 || c.killCooldown > 65000) {
     problems.push("killCooldown must be a whole number of ticks from 0 to 65000");
   }

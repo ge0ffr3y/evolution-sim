@@ -4,13 +4,14 @@ import type { FrameMessage } from "./protocol";
 export type ColorBy = "diet" | "speed" | "size" | "hue" | "energy" | "sense";
 
 /** What the map background shows. */
-export type Overlay = "plants" | "nutrients" | "corpses" | "detritus";
+export type Overlay = "plants" | "nutrients" | "corpses" | "detritus" | "trails";
 
 export const OVERLAYS: readonly { id: Overlay; label: string }[] = [
   { id: "plants", label: "Plants" },
   { id: "nutrients", label: "Soil nutrients" },
   { id: "corpses", label: "Corpses" },
   { id: "detritus", label: "Detritus" },
+  { id: "trails", label: "Scent trails (brains only)" },
 ];
 
 export const COLOR_MODES: readonly { id: ColorBy; label: string; legendLow: string; legendHigh: string }[] = [
@@ -84,6 +85,9 @@ export class WorldRenderer {
   private readonly foodCanvas = document.createElement("canvas");
   private readonly foodCtx: CanvasRenderingContext2D;
   private foodImage: ImageData | null = null;
+  private readonly trailCanvas = document.createElement("canvas");
+  private readonly trailCtx: CanvasRenderingContext2D;
+  private trailImage: ImageData | null = null;
   /** Most food each cell can hold, so rich and barren land look different even when full. */
   private capacity: Float64Array | null = null;
   private maxCapacity = 1;
@@ -91,9 +95,11 @@ export class WorldRenderer {
   constructor(private readonly canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext("2d");
     const foodCtx = this.foodCanvas.getContext("2d");
-    if (!ctx || !foodCtx) throw new Error("This browser cannot draw on a canvas");
+    const trailCtx = this.trailCanvas.getContext("2d");
+    if (!ctx || !foodCtx || !trailCtx) throw new Error("This browser cannot draw on a canvas");
     this.ctx = ctx;
     this.foodCtx = foodCtx;
+    this.trailCtx = trailCtx;
   }
 
   /** Match the canvas's pixel size to how big it is on screen (sharp on high-DPI screens). */
@@ -116,9 +122,14 @@ export class WorldRenderer {
       this.maxCapacity = Math.max(...frame.capacity, 1);
     }
 
-    this.drawFood(frame);
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(this.foodCanvas, 0, 0, canvas.width, canvas.height);
+    if (this.overlay === "trails" && frame.preyScent.length > 0) {
+      this.drawTrails(frame);
+      ctx.drawImage(this.trailCanvas, 0, 0, canvas.width, canvas.height);
+    } else {
+      this.drawFood(frame);
+      ctx.drawImage(this.foodCanvas, 0, 0, canvas.width, canvas.height);
+    }
 
     const scaleX = canvas.width / world.width;
     const scaleY = canvas.height / world.height;
@@ -142,6 +153,39 @@ export class WorldRenderer {
       ctx.arc(px, py, scaleX * 4, 0, Math.PI * 2);
       ctx.stroke();
     }
+  }
+
+  /** Scent trails on their own finer grid: plant-eater scent in green, meat-eater scent in red. */
+  private drawTrails(frame: FrameMessage): void {
+    const { scentWidth, scentHeight } = frame.world;
+    if (this.trailCanvas.width !== scentWidth || this.trailCanvas.height !== scentHeight) {
+      this.trailCanvas.width = scentWidth;
+      this.trailCanvas.height = scentHeight;
+      this.trailImage = this.trailCtx.createImageData(scentWidth, scentHeight);
+    }
+    const data = this.trailImage!.data;
+    // Shade each trail relative to how much of it there is overall (at least a few
+    // passing animals' worth), so a crowded world does not wash out into one color and
+    // the few meat-eater trails still stand out.
+    let preyTotal = 0;
+    let hunterTotal = 0;
+    for (let k = 0; k < frame.preyScent.length; k++) {
+      preyTotal += frame.preyScent[k]!;
+      hunterTotal += frame.hunterScent[k]!;
+    }
+    const cells = Math.max(frame.preyScent.length, 1);
+    const preyFull = Math.max(frame.world.overlayScale.scent, (4 * preyTotal) / cells);
+    const hunterFull = Math.max(frame.world.overlayScale.scent, (4 * hunterTotal) / cells);
+    for (let k = 0; k < frame.preyScent.length; k++) {
+      const prey = Math.min(Math.sqrt(frame.preyScent[k]! / preyFull), 1);
+      const hunter = Math.min(Math.sqrt(frame.hunterScent[k]! / hunterFull), 1);
+      const o = k * 4;
+      data[o] = Math.round(14 + hunter * 220);
+      data[o + 1] = Math.round(18 + prey * 150 + hunter * 30);
+      data[o + 2] = Math.round(22 + prey * 40);
+      data[o + 3] = 255;
+    }
+    this.trailCtx.putImageData(this.trailImage!, 0, 0);
   }
 
   private drawFood(frame: FrameMessage): void {
