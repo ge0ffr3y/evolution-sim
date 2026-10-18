@@ -394,3 +394,65 @@ label {
   border: 1px solid var(--border);
   border-radius: 5px;
 }
+
+/* Family tree */
+.tree-scroll {
+  max-height: 520px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+}
+
+.tree-scroll canvas {
+  display: block;
+  cursor: pointer;
+}
+
+.species-detail {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+}
+
+.species-detail table {
+  border-collapse: collapse;
+  width: 100%;
+  max-width: 560px;
+  font-size: 0.85rem;
+}
+
+.species-detail th,
+.species-detail td {
+  padding: 2px 8px;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+}
+
+.species-detail th:first-child,
+.species-detail td:first-child {
+  text-align: left;
+}
+
+.species-detail .up {
+  color: #5fd38d;
+}
+
+.species-detail .down {
+  color: #ff7a8a;
+}
+
+.timeline {
+  max-height: 320px;
+  overflow: auto;
+}
+
+.timeline li {
+  grid-template-columns: 96px 1fr;
+}
+
+.timeline .event-tick {
+  white-space: nowrap;
+}

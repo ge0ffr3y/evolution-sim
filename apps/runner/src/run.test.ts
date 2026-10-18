@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GENES } from "@evo/sim-core";
+import { GENES, Simulation } from "@evo/sim-core";
 import {
   CSV_COLUMNS,
   HIST_COLUMNS,
@@ -13,6 +13,18 @@ import {
 } from "./run";
 
 const SMALL = { worldWidth: 64, worldHeight: 64, initialOrganisms: 30 };
+
+describe("continuing a saved world", () => {
+  it("runToCsv carries on from an existing world and ends exactly where a straight run would", () => {
+    const straight = runToCsv({ seed: 4, ticks: 1200, every: 400, overrides: SMALL });
+    const first = new Simulation(4, SMALL);
+    first.run(500);
+    const resumed = Simulation.load(first.save());
+    const result = runToCsv({ sim: resumed, seed: 4, ticks: 700, every: 350, overrides: {} });
+    expect(result.final.tick).toBe(1200);
+    expect(result.sim.fingerprint()).toBe(straight.sim.fingerprint());
+  });
+});
 
 describe("runToCsv", () => {
   it("writes a header, a starting row, and one row per interval", () => {
@@ -148,6 +160,8 @@ describe("spreadAcrossSeeds", () => {
     brainConnectionsCarnivores: 0,
     chaseTurn: 0.5,
     fleeTurn: 0.5,
+    speciesAlive: 1,
+    speciesEver: 1,
     firsts: { firstScavenger: null, firstKill: null, firstPredator: null, firstCarnivore: null },
     means: { size, speed: 1, senseRange: 0, metabolism: 1, hue: 0.5, mutationRate: 0.01, diet: 0, attack: 0, armor: 0 },
   });
@@ -183,6 +197,8 @@ describe("foodWebSummary", () => {
     brainConnectionsCarnivores: 0,
     chaseTurn: 0.5,
     fleeTurn: 0.5,
+    speciesAlive: 1,
+    speciesEver: 1,
     firsts: { firstScavenger: 100, firstKill: 40, firstPredator: 90, firstCarnivore },
     means: { size: 1, speed: 1, senseRange: 0, metabolism: 1, hue: 0.5, mutationRate: 0.01, diet: 0.2, attack: 0.1, armor: 0.1 },
   });

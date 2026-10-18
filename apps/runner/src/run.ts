@@ -38,6 +38,8 @@ export const CSV_COLUMNS: readonly string[] = [
   "chaseSamples",
   "fleeTurn",
   "fleeSamples",
+  "speciesAlive",
+  "speciesEver",
   ...GENES.flatMap((gene) => [`mean_${gene}`, `sd_${gene}`]),
   "sunlightIn",
   "plantEaten",
@@ -55,6 +57,8 @@ export const CSV_COLUMNS: readonly string[] = [
 export const HIST_COLUMNS = ["tick", "trait", "bin", "binMin", "binMax", "count"] as const;
 
 export interface RunOptions {
+  /** Continue a world that already exists (for example one loaded from a save) instead of starting a new one. */
+  sim?: Simulation;
   seed: number;
   ticks: number;
   /** Record one row of stats every this many ticks. */
@@ -82,6 +86,8 @@ export interface RunResult {
   events: SimEvent[];
   /** True if everyone died before the requested number of ticks. */
   extinct: boolean;
+  /** The world as it ended up (so it can be saved or carried on). */
+  sim: Simulation;
 }
 
 function fmt(value: number): string {
@@ -117,6 +123,8 @@ function statsRow(s: SimStats, b: BehaviorStats): string {
     b.chaseSamples,
     b.flee,
     b.fleeSamples,
+    s.species.alive,
+    s.species.ever,
   ];
   for (const gene of GENES) values.push(s.traits[gene].mean, s.traits[gene].sd);
   const L = s.ledger;
@@ -159,7 +167,7 @@ export function runToCsv(options: RunOptions): RunResult {
   if (!Number.isInteger(bins) || bins < 1) throw new Error("bins must be a whole number, 1 or more");
   if (!Number.isInteger(behaviorEvery) || behaviorEvery < 0) throw new Error("behaviorEvery must be a whole number, 0 or more");
 
-  const sim = new Simulation(seed, overrides);
+  const sim = options.sim ?? new Simulation(seed, overrides);
   const behaviorSamples: BehaviorStats[] = [];
   const behavior = (): BehaviorStats => averageBehavior(behaviorSamples);
   const lines: string[] = [CSV_COLUMNS.join(","), statsRow(sim.stats(), behavior())];
@@ -209,6 +217,7 @@ export function runToCsv(options: RunOptions): RunResult {
     behavior: behavior(),
     events: [...sim.events],
     extinct,
+    sim,
   };
 }
 
@@ -261,6 +270,9 @@ export interface SeedSummary {
   brainConnectionsCarnivores: number;
   chaseTurn: number;
   fleeTurn: number;
+  /** Species alive at the end, and how many there have ever been. */
+  speciesAlive: number;
+  speciesEver: number;
   /** Tick of each notable first, or null if it never happened. */
   firsts: Record<SimEventKind, number | null>;
   /** Mean of each trait at the end. */
@@ -288,6 +300,8 @@ export function summarize(seed: number, result: RunResult): SeedSummary {
     brainConnectionsCarnivores: result.final.brain.carnivores.connections,
     chaseTurn: result.behavior.chase,
     fleeTurn: result.behavior.flee,
+    speciesAlive: result.final.species.alive,
+    speciesEver: result.final.species.ever,
     firsts,
     means,
   };

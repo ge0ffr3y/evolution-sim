@@ -1,0 +1,7 @@
+{
+  "name": "Rare big mutations",
+  "description": "One baby in fifty gets a big random jump in three genes at once. The family tree branches about three times as much as in the standard world (50 to 70 species over 600,000 ticks against 22 to 28), with more short-lived offshoots.",
+  "config": {
+    "macroMutationProb": 0.02
+  }
+}

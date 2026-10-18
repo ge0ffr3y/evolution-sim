@@ -1,0 +1,7 @@
+{
+  "name": "Sexual reproduction",
+  "description": "Two ready, nearby, genetically compatible organisms pair up and have one baby with a mix of their genes; each pays half the usual energy. In our tests this world stays a single species of plant eaters (about 2,000 of them) and no meat eaters appeared in 300,000 to 600,000 ticks, where the standard world grows them within about 100,000. Click an organism to see both of its parents.",
+  "config": {
+    "sexualReproduction": 1
+  }
+}

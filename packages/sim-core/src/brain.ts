@@ -354,3 +354,86 @@ export function mutateBrain(
   }
   return count;
 }
+
+/** True for a connection that involves a hidden unit (as its source or its target). */
+function touchesHidden(source: number, target: number): boolean {
+  return (source >= HIDDEN_START && source < OUTPUT_START) || (target >= HIDDEN_START && target < OUTPUT_START);
+}
+
+/**
+ * Make a child's brain from two parents' brains (written into the child's slot at `outBase`).
+ *
+ * Fixed layout (mode 1): every brain has the same connections, so each connection's strength
+ * comes from one parent or the other, chosen at random.
+ *
+ * Evolvable layout (mode 2): the thinking units are not numbered consistently between
+ * lineages (unit 3 in one family may do something quite different from unit 3 in another),
+ * so mixing them could produce nonsense. The child therefore gets ALL of its hidden units and
+ * their connections from one randomly chosen parent. The direct sense-to-action connections
+ * are mixed: a connection both parents have takes either one's strength, and one only a
+ * single parent has is passed on half the time.
+ *
+ * Returns the number of connections written. Mutation is applied afterwards by the caller.
+ */
+export function crossoverBrains(
+  mode: number,
+  rng: Rng,
+  from: Uint8Array,
+  to: Uint8Array,
+  weight: Float32Array,
+  baseA: number,
+  countA: number,
+  baseB: number,
+  countB: number,
+  outBase: number,
+): number {
+  if (mode === 1 && countA === countB) {
+    for (let c = 0; c < countA; c++) {
+      const fromA = rng.next() < 0.5;
+      const base = fromA ? baseA : baseB;
+      from[outBase + c] = from[base + c]!;
+      to[outBase + c] = to[base + c]!;
+      weight[outBase + c] = weight[base + c]!;
+    }
+    return countA;
+  }
+  const donorIsA = rng.next() < 0.5;
+  const donorBase = donorIsA ? baseA : baseB;
+  const donorCount = donorIsA ? countA : countB;
+  let count = 0;
+  for (let c = 0; c < donorCount && count < CONN_MAX; c++) {
+    if (!touchesHidden(from[donorBase + c]!, to[donorBase + c]!)) continue;
+    from[outBase + count] = from[donorBase + c]!;
+    to[outBase + count] = to[donorBase + c]!;
+    weight[outBase + count] = weight[donorBase + c]!;
+    count++;
+  }
+  // Direct connections, keyed by (source, target). Map keeps insertion order, so this is deterministic.
+  const direct = new Map<number, { a: number | null; b: number | null }>();
+  const gather = (base: number, n: number, isA: boolean): void => {
+    for (let c = 0; c < n; c++) {
+      const source = from[base + c]!;
+      const target = to[base + c]!;
+      if (touchesHidden(source, target)) continue;
+      const key = source * 256 + target;
+      const entry = direct.get(key) ?? { a: null, b: null };
+      if (isA) entry.a = weight[base + c]!;
+      else entry.b = weight[base + c]!;
+      direct.set(key, entry);
+    }
+  };
+  gather(baseA, countA, true);
+  gather(baseB, countB, false);
+  for (const [key, entry] of direct) {
+    let w: number;
+    if (entry.a !== null && entry.b !== null) w = rng.next() < 0.5 ? entry.a : entry.b;
+    else if (rng.next() < 0.5) w = (entry.a ?? entry.b)!;
+    else continue;
+    if (count >= CONN_MAX) break;
+    from[outBase + count] = Math.floor(key / 256);
+    to[outBase + count] = key % 256;
+    weight[outBase + count] = w;
+    count++;
+  }
+  return count;
+}

@@ -11,6 +11,8 @@ import {
   type TraitRange,
   type Traits,
 } from "./genome";
+import { SNAPSHOT_FORMAT, type SimSnapshot, type SnapshotArray } from "./snapshot";
+import { SpeciesTracker, type SpeciesEvent, type SpeciesRecord } from "./species";
 import {
   CONN_MAX,
   HIDDEN_MAX,
@@ -28,6 +30,7 @@ import {
   setConnection,
   measureBrain,
   mutateBrain,
+  crossoverBrains,
 } from "./brain";
 import { Rng } from "./rng";
 import { SpatialHash } from "./spatial-hash";
@@ -161,6 +164,8 @@ export interface SimStats {
   /** Attacks tried, and how many killed (so kills / attacks is the success rate). */
   totalAttacks: number;
   brain: BrainStats;
+  /** Species alive now, and how many there have ever been (0 when tracking is off). */
+  species: { alive: number; ever: number };
   traits: Record<GeneName, TraitSummary>;
   classes: DietClasses;
   /** Matter in the soil, as rotting meat, and as detritus. */
@@ -174,6 +179,8 @@ export interface SimStats {
 export interface OrganismSnapshot {
   id: number;
   parentId: number;
+  /** The second parent, when organisms reproduce sexually (0 otherwise). */
+  otherParentId: number;
   age: number;
   energy: number;
   /** Energy at which it will reproduce. */
@@ -402,6 +409,22 @@ export class Simulation {
   /** Movement this tick relative to normal speed (0 = standing still, 1 = normal, 2 = flat out). */
   readonly moveScale: Float32Array;
 
+  /** The second parent of each organism (sexual reproduction only; 0 for none). */
+  readonly parent2Id: Uint32Array;
+  private readonly sexOn: boolean;
+  /** Scratch for pairing up mates: who is ready, the pairs found, and the genes that count toward compatibility. */
+  private readonly ready: Uint8Array;
+  private readonly pairs: Uint32Array;
+  private readonly mateMask: number[];
+  private mateSelf = 0;
+  private mateBest = -1;
+  private mateBestDistSq = Infinity;
+  private mateBestScore = Infinity;
+
+  /** Which species each organism belongs to (0 when species tracking is off). See species.ts. */
+  readonly species: Uint32Array;
+  private readonly tracker: SpeciesTracker | null;
+
   /** Sprint reserve now, its size (from the stamina gene) and its upkeep per tick. Used only with sprintFatigue. */
   readonly stamina: Float32Array;
   readonly staminaMax: Float32Array;
@@ -561,6 +584,19 @@ export class Simulation {
     this.outAttack = new Float32Array(brainOrganisms);
     this.moveScale = new Float32Array(brainOrganisms);
     this.staminaOn = c.brainMode > 0 && c.sprintFatigue === 1;
+    this.sexOn = c.sexualReproduction === 1;
+    this.parent2Id = new Uint32Array(this.sexOn ? n : 0);
+    this.ready = new Uint8Array(this.sexOn ? n : 0);
+    this.pairs = new Uint32Array(this.sexOn ? n : 0);
+    // Compatibility looks at the same genes species do: not the color marker or the mutation rate.
+    this.mateMask = [];
+    for (const name of GENES) {
+      if (name === "hue" || name === "mutationRate") continue;
+      if (name === "stamina" && !this.staminaOn) continue;
+      this.mateMask.push(GENE[name]);
+    }
+    this.species = new Uint32Array(c.speciesEvery > 0 ? n : 0);
+    this.tracker = c.speciesEvery > 0 ? new SpeciesTracker(c, this.ranges, this.staminaOn) : null;
     const staminaOrganisms = this.staminaOn ? n : 0;
     this.stamina = new Float32Array(staminaOrganisms);
     this.staminaMax = new Float32Array(staminaOrganisms);
@@ -583,6 +619,8 @@ export class Simulation {
     if (this.staminaOn) this.float32Fields.push(this.stamina, this.staminaMax, this.staminaCost);
     this.float64Fields = [this.energy, this.plantTaken, this.meatTaken];
     this.uint32Fields = [this.id, this.parentId, this.age, this.kills];
+    if (this.tracker) this.uint32Fields.push(this.species);
+    if (this.sexOn) this.uint32Fields.push(this.parent2Id);
     this.uint8Fields = [this.killed, this.attempted];
     this.uint16Fields = [this.resting];
     if (c.brainMode > 0) {
@@ -609,6 +647,7 @@ export class Simulation {
       this.initBrain(index);
       this.energy[index] = this.threshold[index]! * c.initialEnergyFraction;
     }
+    this.tracker?.start(this.count, this.genes, this.species);
   }
 
   /**
@@ -657,6 +696,7 @@ export class Simulation {
     const i = this.count++;
     this.id[i] = this.nextId++;
     this.parentId[i] = parent;
+    if (this.sexOn) this.parent2Id[i] = 0;
     this.x[i] = x;
     this.y[i] = y;
 
@@ -777,6 +817,41 @@ export class Simulation {
     }
   }
 
+  /** How different two organisms are, genetically: root-mean-square difference over the genes that count (squared). */
+  private geneDistanceSq(i: number, j: number): number {
+    const g = this.genes;
+    let sum = 0;
+    for (const k of this.mateMask) {
+      const d = g[i * GENE_COUNT + k]! - g[j * GENE_COUNT + k]!;
+      sum += d * d;
+    }
+    return sum / this.mateMask.length;
+  }
+
+  /** Mix two parents' genes (each gene comes from one or the other) and mutate the result. */
+  private inheritGenesFromTwo(child: number, a: number, b: number): void {
+    const meta = this.config.metaMutationStd;
+    const rate = (this.mutationRate[a]! + this.mutationRate[b]!) / 2;
+    const genes = this.staminaOn ? GENE_COUNT : CORE_GENE_COUNT;
+    if (genes < GENE_COUNT) this.genes[child * GENE_COUNT + GENE.stamina] = this.genes[a * GENE_COUNT + GENE.stamina]!;
+    for (let k = 0; k < genes; k++) {
+      const donor = this.rng.next() < 0.5 ? a : b;
+      const std = k === GENE.mutationRate ? meta : rate;
+      this.genes[child * GENE_COUNT + k] = clamp01(this.genes[donor * GENE_COUNT + k]! + this.rng.gaussian() * std);
+    }
+  }
+
+  /** Rare large mutations: now and then a few genes jump by a lot at once. */
+  private macroMutate(child: number): void {
+    const c = this.config;
+    if (c.macroMutationProb <= 0 || this.rng.next() >= c.macroMutationProb) return;
+    for (let j = 0; j < c.macroMutationGenes; j++) {
+      const k = this.mateMask[this.rng.int(this.mateMask.length)]!;
+      const at = child * GENE_COUNT + k;
+      this.genes[at] = clamp01(this.genes[at]! + this.rng.gaussian() * c.macroMutationStd);
+    }
+  }
+
   /** Give organism i its starting brain (empty, or fully wired with zero weights, depending on the mode). */
   private initBrain(i: number): void {
     const c = this.config;
@@ -810,6 +885,16 @@ export class Simulation {
     this.brainFrom.copyWithin(childBase, parentBase, parentBase + count);
     this.brainTo.copyWithin(childBase, parentBase, parentBase + count);
     this.brainWeight.copyWithin(childBase, parentBase, parentBase + count);
+    this.brainCount[child] = mutateBrain(c.brainMode, this.rng, c, this.brainFrom, this.brainTo, this.brainWeight, childBase, count);
+    this.refreshBrain(child);
+  }
+
+  /** Give a new organism a mixed copy of both parents' brains (see crossoverBrains), then mutate it. */
+  private inheritBrainFromTwo(child: number, a: number, b: number): void {
+    const c = this.config;
+    if (c.brainMode === 0) return;
+    const childBase = child * CONN_MAX;
+    const count = crossoverBrains(c.brainMode, this.rng, this.brainFrom, this.brainTo, this.brainWeight, a * CONN_MAX, this.brainCount[a]!, b * CONN_MAX, this.brainCount[b]!, childBase);
     this.brainCount[child] = mutateBrain(c.brainMode, this.rng, c, this.brainFrom, this.brainTo, this.brainWeight, childBase, count);
     this.refreshBrain(child);
   }
@@ -1041,6 +1126,51 @@ export class Simulation {
       prey[k] = prey[k]! + deposit * (1 - diet);
       hunter[k] = hunter[k]! + deposit * diet;
     }
+  }
+
+  /** Used while looking for a mate: remember the nearest other ready, compatible organism. */
+  private readonly considerMate = (index: number, distSq: number): void => {
+    if (index === this.mateSelf || this.ready[index] !== 1) return;
+    const limit = this.config.mateDistance;
+    const geneSq = this.geneDistanceSq(this.mateSelf, index);
+    if (geneSq > limit * limit) return;
+    // The score to beat: how near (default) or how genetically similar (matePreference 1, nearer wins a tie).
+    const score = this.config.matePreference === 1 ? geneSq : distSq;
+    if (score > this.mateBestScore || (score === this.mateBestScore && distSq >= this.mateBestDistSq)) return;
+    this.mateBest = index;
+    this.mateBestScore = score;
+    this.mateBestDistSq = distSq;
+  };
+
+  /**
+   * Sexual reproduction: pair up the organisms that are ready to reproduce. Each takes the
+   * nearest ready, compatible, unpaired organism within mating range. Those who find nobody
+   * wait (and keep eating). Returns how many pairs were made, stored in this.pairs.
+   */
+  private pairUp(parentCount: number): number {
+    if (parentCount < 2) return 0;
+    const ready = this.ready;
+    for (let p = 0; p < parentCount; p++) ready[this.parents[p]!] = 1;
+    this.hash.rebuild(this.x, this.y, this.count);
+    let pairs = 0;
+    for (let p = 0; p < parentCount; p++) {
+      const a = this.parents[p]!;
+      if (ready[a] !== 1) continue;
+      this.mateSelf = a;
+      this.mateBest = -1;
+      this.mateBestDistSq = Infinity;
+      this.mateBestScore = Infinity;
+      this.hash.forEachNear(this.x[a]!, this.y[a]!, this.config.mateRange, this.considerMate);
+      const b = this.mateBest;
+      if (b < 0) continue;
+      ready[a] = 2;
+      ready[b] = 2;
+      this.pairs[2 * pairs] = a;
+      this.pairs[2 * pairs + 1] = b;
+      pairs++;
+    }
+    for (let p = 0; p < parentCount; p++) ready[this.parents[p]!] = 0;
+    return pairs;
   }
 
   /** Record a notable first, once. */
@@ -1360,28 +1490,63 @@ export class Simulation {
     // Births: each parent hands a share of its energy to a slightly mutated child.
     // A newborn's body is built from the soil it is born on, so a barren patch
     // cannot support babies, and the baby's body also locks away some energy.
-    for (let p = 0; p < parentCount; p++) {
-      const parent = this.parents[p]!;
-      const savedNextId = this.nextId;
-      const child = this.spawn(this.id[parent]!, this.x[parent]!, this.y[parent]!);
-      if (child < 0) break;
-      this.inheritGenes(child, parent);
-      this.express(child);
-      this.inheritBrain(child, parent);
-      const cell = this.cellOf[parent]!;
-      const given = this.energy[parent]! * c.offspringEnergyFraction;
-      const store = given - this.bodyEnergy[child]!;
-      if (nutrient[cell]! < this.bodyMatter[child]! || store < 0) {
-        // Cannot afford this baby right now: undo it. The parent keeps its energy and tries again later.
-        this.count--;
-        this.nextId = savedNextId;
-        this.blockedBirths++;
-        continue;
+    // (With sexual reproduction, two ready organisms pair up and each hands over half as much.)
+    if (this.sexOn) {
+      const pairCount = this.pairUp(parentCount);
+      for (let p = 0; p < pairCount; p++) {
+        const a = this.pairs[2 * p]!;
+        const b = this.pairs[2 * p + 1]!;
+        const savedNextId = this.nextId;
+        const child = this.spawn(this.id[a]!, this.x[a]!, this.y[a]!);
+        if (child < 0) break;
+        this.parent2Id[child] = this.id[b]!;
+        this.inheritGenesFromTwo(child, a, b);
+        this.macroMutate(child);
+        if (this.tracker) this.species[child] = this.species[a]!;
+        this.express(child);
+        this.inheritBrainFromTwo(child, a, b);
+        const cell = this.cellOf[a]!;
+        const givenA = this.energy[a]! * c.offspringEnergyFraction * 0.5;
+        const givenB = this.energy[b]! * c.offspringEnergyFraction * 0.5;
+        const store = givenA + givenB - this.bodyEnergy[child]!;
+        if (nutrient[cell]! < this.bodyMatter[child]! || store < 0) {
+          this.count--;
+          this.nextId = savedNextId;
+          this.blockedBirths++;
+          continue;
+        }
+        nutrient[cell] = nutrient[cell]! - this.bodyMatter[child]!;
+        this.energy[a] = this.energy[a]! - givenA;
+        this.energy[b] = this.energy[b]! - givenB;
+        this.energy[child] = store;
+        this.totalBirths++;
       }
-      nutrient[cell] = nutrient[cell]! - this.bodyMatter[child]!;
-      this.energy[parent] = this.energy[parent]! - given;
-      this.energy[child] = store;
-      this.totalBirths++;
+    } else {
+      for (let p = 0; p < parentCount; p++) {
+        const parent = this.parents[p]!;
+        const savedNextId = this.nextId;
+        const child = this.spawn(this.id[parent]!, this.x[parent]!, this.y[parent]!);
+        if (child < 0) break;
+        this.inheritGenes(child, parent);
+        this.macroMutate(child);
+        if (this.tracker) this.species[child] = this.species[parent]!;
+        this.express(child);
+        this.inheritBrain(child, parent);
+        const cell = this.cellOf[parent]!;
+        const given = this.energy[parent]! * c.offspringEnergyFraction;
+        const store = given - this.bodyEnergy[child]!;
+        if (nutrient[cell]! < this.bodyMatter[child]! || store < 0) {
+          // Cannot afford this baby right now: undo it. The parent keeps its energy and tries again later.
+          this.count--;
+          this.nextId = savedNextId;
+          this.blockedBirths++;
+          continue;
+        }
+        nutrient[cell] = nutrient[cell]! - this.bodyMatter[child]!;
+        this.energy[parent] = this.energy[parent]! - given;
+        this.energy[child] = store;
+        this.totalBirths++;
+      }
     }
 
     // Deaths: remove everyone who was killed or ran out of energy by moving the
@@ -1423,6 +1588,7 @@ export class Simulation {
 
     this.tick++;
     if (this.tick % EVENT_CHECK_EVERY === 0) this.checkSlowEvents();
+    if (this.tracker && this.tick % c.speciesEvery === 0) this.tracker.update(this.tick, this.count, this.genes, this.species, this);
   }
 
   /** `attacker` kills `prey`: the prey's body and whatever energy it carried become a corpse. */
@@ -1499,6 +1665,142 @@ export class Simulation {
   /** Run several ticks in a row. */
   run(ticks: number): void {
     for (let t = 0; t < ticks; t++) this.step();
+  }
+
+  /**
+   * Save the whole world. Loading it with Simulation.load() and running on gives exactly
+   * the history the original would have had.
+   */
+  save(): SimSnapshot {
+    const n = this.count;
+    const arrays: Record<string, SnapshotArray> = {};
+    // Per-organism arrays: only the living part is saved.
+    const organism = (name: string, array: SnapshotArray, stride = 1): void => {
+      arrays[name] = array.slice(0, n * stride);
+    };
+    this.float32Fields.forEach((array, k) => organism(`f32.${k}`, array));
+    this.float64Fields.forEach((array, k) => organism(`f64.${k}`, array));
+    this.uint32Fields.forEach((array, k) => organism(`u32.${k}`, array));
+    this.uint16Fields.forEach((array, k) => organism(`u16.${k}`, array));
+    this.uint8Fields.forEach((array, k) => organism(`u8.${k}`, array));
+    organism("genes", this.genes, GENE_COUNT);
+    organism("cellOf", this.cellOf);
+    organism("brainFrom", this.brainFrom, CONN_MAX);
+    organism("brainTo", this.brainTo, CONN_MAX);
+    organism("brainWeight", this.brainWeight, CONN_MAX);
+    // The land and the scent trails, in full.
+    for (const [name, array] of this.landArrays()) arrays[name] = array.slice();
+    const state: Record<string, unknown> = {
+      tick: this.tick,
+      count: n,
+      nextId: this.nextId,
+      totalBirths: this.totalBirths,
+      totalDeaths: this.totalDeaths,
+      totalKills: this.totalKills,
+      totalStarved: this.totalStarved,
+      blockedBirths: this.blockedBirths,
+      totalAttacks: this.totalAttacks,
+      seen: [this.seenScavenger, this.seenKill, this.seenPredator, this.seenCarnivore],
+      events: this.events,
+      ledger: this.ledger,
+      rng: Array.from(this.rng.getState()),
+      species: this.tracker ? this.tracker.exportState() : null,
+    };
+    return { format: SNAPSHOT_FORMAT, seed: this.seed, config: this.config, state: JSON.parse(JSON.stringify(state)) as Record<string, unknown>, arrays };
+  }
+
+  /**
+   * Bring a saved world back. With `seed` given, the world continues from the same moment
+   * but with a different random future (a branch of the original history).
+   */
+  static load(snapshot: SimSnapshot, options: { seed?: number } = {}): Simulation {
+    if (snapshot.format !== SNAPSHOT_FORMAT) throw new Error(`Cannot load a saved world of format ${snapshot.format}`);
+    const sim = new Simulation(options.seed ?? snapshot.seed, snapshot.config);
+    sim.restore(snapshot, options.seed !== undefined);
+    return sim;
+  }
+
+  /** The land-sized arrays that make up the world's surroundings, by saved name. */
+  private landArrays(): [string, SnapshotArray][] {
+    return [
+      ["food", this.food],
+      ["foodCapacity", this.foodCapacity],
+      ["foodRegrow", this.foodRegrow],
+      ["nutrient", this.nutrient],
+      ["corpseMatter", this.corpseMatter],
+      ["corpseEnergy", this.corpseEnergy],
+      ["detritus", this.detritus],
+      ["preyScent", this.preyScent],
+      ["hunterScent", this.hunterScent],
+      ["corpseOwner", this.corpseOwner],
+      ["corpseOwnerUntil", this.corpseOwnerUntil],
+    ];
+  }
+
+  private restore(snapshot: SimSnapshot, newFuture: boolean): void {
+    const take = (name: string, target: SnapshotArray): void => {
+      const source = snapshot.arrays[name];
+      if (!source) throw new Error(`The saved world is missing "${name}"`);
+      if (source.length > target.length) throw new Error(`The saved world's "${name}" does not fit this world`);
+      target.fill(0);
+      (target as Float64Array).set(source as Float64Array);
+    };
+    const s = snapshot.state as {
+      tick: number;
+      count: number;
+      nextId: number;
+      totalBirths: number;
+      totalDeaths: number;
+      totalKills: number;
+      totalStarved: number;
+      blockedBirths: number;
+      totalAttacks: number;
+      seen: boolean[];
+      events: SimEvent[];
+      ledger: EnergyLedger;
+      rng: [number, number, number, number];
+      species: Record<string, unknown> | null;
+    };
+    this.float32Fields.forEach((array, k) => take(`f32.${k}`, array));
+    this.float64Fields.forEach((array, k) => take(`f64.${k}`, array));
+    this.uint32Fields.forEach((array, k) => take(`u32.${k}`, array));
+    this.uint16Fields.forEach((array, k) => take(`u16.${k}`, array));
+    this.uint8Fields.forEach((array, k) => take(`u8.${k}`, array));
+    take("genes", this.genes);
+    take("cellOf", this.cellOf);
+    take("brainFrom", this.brainFrom);
+    take("brainTo", this.brainTo);
+    take("brainWeight", this.brainWeight);
+    for (const [name, array] of this.landArrays()) take(name, array);
+    this.tick = s.tick;
+    this.count = s.count;
+    this.nextId = s.nextId;
+    this.totalBirths = s.totalBirths;
+    this.totalDeaths = s.totalDeaths;
+    this.totalKills = s.totalKills;
+    this.totalStarved = s.totalStarved;
+    this.blockedBirths = s.blockedBirths;
+    this.totalAttacks = s.totalAttacks;
+    [this.seenScavenger, this.seenKill, this.seenPredator, this.seenCarnivore] = s.seen as [boolean, boolean, boolean, boolean];
+    this.events.length = 0;
+    this.events.push(...s.events);
+    Object.assign(this.ledger, s.ledger);
+    this.rng.setState(newFuture ? new Rng((this.seed + this.tick) >>> 0).getState() : s.rng);
+    if (this.tracker && s.species) this.tracker.importState(s.species);
+  }
+
+  /** Every real species so far (alive or extinct), and the births and extinctions among them. */
+  get speciesRecords(): readonly SpeciesRecord[] {
+    return this.tracker?.records ?? [];
+  }
+
+  get speciesEvents(): readonly SpeciesEvent[] {
+    return this.tracker?.events ?? [];
+  }
+
+  /** The species organism i belongs to (0 when species tracking is off). */
+  speciesOf(i: number): number {
+    return this.tracker ? this.tracker.realSpeciesOf(this.species[i]!) : 0;
   }
 
   /** The value of one trait for organism i (hue is the raw 0 to 1 gene). */
@@ -1579,6 +1881,7 @@ export class Simulation {
       totalFood: sumOf(this.food),
       totalEnergy: energySum,
       meanEnergy: n > 0 ? energySum / n : 0,
+      species: { alive: this.tracker?.aliveCount ?? 0, ever: this.tracker?.records.length ?? 0 },
       totalBirths: this.totalBirths,
       totalDeaths: this.totalDeaths,
       totalKills: this.totalKills,
@@ -1652,6 +1955,7 @@ export class Simulation {
     return {
       id: this.id[i]!,
       parentId: this.parentId[i]!,
+      otherParentId: this.sexOn ? this.parent2Id[i]! : 0,
       age: this.age[i]!,
       energy: this.energy[i]!,
       threshold: this.threshold[i]!,
@@ -1822,6 +2126,7 @@ export class Simulation {
     mixInts(this.parentId, n);
     mixInts(this.age, n);
     mixInts(this.kills, n);
+    if (this.sexOn) mixInts(this.parent2Id, n);
     mixBits(this.x, n);
     mixBits(this.y, n);
     mixBits(this.headingX, n);

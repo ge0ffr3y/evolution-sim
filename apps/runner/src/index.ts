@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { GENES, parsePreset, type SimConfig } from "@evo/sim-core";
+import { GENES, Simulation, parsePreset, snapshotFromBytes, snapshotToBytes, type SimConfig } from "@evo/sim-core";
 import { foodWebSummary, parseOverrides, parseSeedList, runToCsv, spreadAcrossSeeds, summarize, type SeedSummary } from "./run";
 
 const USAGE = `Evolution Sim headless runner
@@ -24,6 +24,9 @@ Options:
   --config FILE    JSON preset file with config changes (see the configs/ folder)
   --set NAME=VALUE override a config number, e.g. --set moveCostCoeff=0.05 (repeatable, applied after --config)
   --out PATH       CSV file for one run, or folder for --seeds (default: experiments/results/...)
+  --save FILE      save the finished world to FILE (a .evosnap file) so it can be continued later
+  --load FILE      continue a saved world instead of starting a new one (--ticks is then how many MORE ticks to run)
+  --branch-seed N  with --load: continue from the same moment but with a different random future
   --help           show this message
 `;
 
@@ -42,6 +45,9 @@ const { values } = parseArgs({
     "hist-every": { type: "string", default: "1000" },
     config: { type: "string" },
     out: { type: "string" },
+    save: { type: "string" },
+    load: { type: "string" },
+    "branch-seed": { type: "string" },
     set: { type: "string", multiple: true, default: [] },
     "summary-json": { type: "boolean", default: false },
     help: { type: "boolean", default: false },
@@ -136,7 +142,7 @@ async function runSweep(seeds: number[]): Promise<void> {
   await Promise.all(workers);
 
   summaries.sort((a, b) => a.seed - b.seed);
-  const header = ["seed", "extinct", "tick", "population", "herbivores", "omnivores", "carnivores", "totalKills", "totalAttacks", "brainConnHerbivores", "brainConnCarnivores", "chaseTurn", "fleeTurn", "firstScavenger", "firstKill", "firstPredator", "firstCarnivore", ...GENES.map((g) => `mean_${g}`)];
+  const header = ["seed", "extinct", "tick", "population", "herbivores", "omnivores", "carnivores", "totalKills", "totalAttacks", "brainConnHerbivores", "brainConnCarnivores", "chaseTurn", "fleeTurn", "speciesAlive", "speciesEver", "firstScavenger", "firstKill", "firstPredator", "firstCarnivore", ...GENES.map((g) => `mean_${g}`)];
   const tickOrBlank = (t: number | null): string => (t === null ? "" : String(t));
   const rows = summaries.map((s) =>
     [
@@ -153,6 +159,8 @@ async function runSweep(seeds: number[]): Promise<void> {
       s.brainConnectionsCarnivores.toFixed(2),
       s.chaseTurn.toFixed(3),
       s.fleeTurn.toFixed(3),
+      s.speciesAlive,
+      s.speciesEver,
       tickOrBlank(s.firsts.firstScavenger),
       tickOrBlank(s.firsts.firstKill),
       tickOrBlank(s.firsts.firstPredator),
@@ -186,6 +194,8 @@ async function runSweep(seeds: number[]): Promise<void> {
     console.log("\nHow purposeful is behavior? (turning at random scores 50%)");
     console.log(`  hunters that can see prey off to one side turn toward it: ${(avg((s) => s.chaseTurn) * 100).toFixed(0)}%`);
     console.log(`  plant eaters that can see a threat off to one side turn away: ${(avg((s) => s.fleeTurn) * 100).toFixed(0)}%`);
+    const ever = avg((s) => s.speciesEver);
+    if (ever > 0) console.log(`\nSpecies (genetically distinct groups): ${avg((s) => s.speciesAlive).toFixed(1)} alive at the end, ${ever.toFixed(1)} ever, per seed (on average)`);
     const attacks = avg((s) => s.totalAttacks);
     if (attacks > 0) console.log(`  attacks that killed (whole run): ${((avg((s) => s.totalKills) / attacks) * 100).toFixed(0)}%`);
     const brainSize = avg((s) => s.brainConnectionsHerbivores + s.brainConnectionsCarnivores);
@@ -205,9 +215,24 @@ function runSingle(): void {
   const outPath = values.out ? resolve(here, values.out) : join(repoRoot, "experiments", "results", `seed-${seed}.csv`);
   const quiet = values["summary-json"];
 
-  if (!quiet) console.log(`Running seed ${seed} for ${ticks} ticks (a row every ${every}) with ${describeConfig()}...`);
+  let resume: Simulation | undefined;
+  if (values.load) {
+    if (values.config || values.set.length > 0) fail("--load continues a saved world with its own settings, so --config and --set cannot be used with it");
+    try {
+      const snapshot = snapshotFromBytes(new Uint8Array(readFileSync(resolve(here, values.load))));
+      resume = Simulation.load(snapshot, values["branch-seed"] !== undefined ? { seed: Number(values["branch-seed"]) } : {});
+    } catch (error) {
+      fail(error instanceof Error ? error.message : String(error));
+    }
+    if (!quiet) console.log(`Loaded ${values.load} (tick ${resume!.tick.toLocaleString("en-US")}, ${resume!.count} organisms). Running ${ticks} more ticks...`);
+  } else if (values["branch-seed"] !== undefined) {
+    fail("--branch-seed only makes sense together with --load");
+  } else if (!quiet) {
+    console.log(`Running seed ${seed} for ${ticks} ticks (a row every ${every}) with ${describeConfig()}...`);
+  }
   const started = performance.now();
   const result = runToCsv({
+    sim: resume,
     seed,
     ticks,
     every,
@@ -221,6 +246,12 @@ function runSingle(): void {
   writeFileSync(outPath, result.csv);
   const histPath = outPath.replace(/\.csv$/, "") + "-hist.csv";
   if (result.histCsv) writeFileSync(histPath, result.histCsv);
+  if (values.save) {
+    const savePath = resolve(here, values.save);
+    mkdirSync(dirname(savePath), { recursive: true });
+    writeFileSync(savePath, snapshotToBytes(result.sim.save()));
+    if (!quiet) console.log(`Saved the world at tick ${result.sim.tick.toLocaleString("en-US")} to ${savePath}`);
+  }
 
   if (quiet) {
     console.log(`SUMMARY ${JSON.stringify(summarize(seed, result))}`);

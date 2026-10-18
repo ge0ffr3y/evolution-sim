@@ -1,5 +1,5 @@
-import { GENES, Simulation, SpatialHash, type BehaviorStats, type GeneName } from "@evo/sim-core";
-import type { FrameMessage, HistogramSample, HistoryPoint, InspectedState, ToWorker, WorldInfo } from "./protocol";
+import { GENES, SAMPLE_STRIDE, Simulation, SpatialHash, snapshotFromBytes, snapshotToBytes, type BehaviorStats, type GeneName, type SpeciesRecord } from "@evo/sim-core";
+import type { FrameMessage, HistogramSample, HistoryPoint, InspectedState, LoadFailedMessage, SavedMessage, ToWorker, WorldInfo } from "./protocol";
 
 // The simulation runs here, off the main thread, so the page stays smooth.
 // Real-time clocks are fine in this file: they only decide how many ticks to
@@ -12,6 +12,10 @@ const HISTOGRAM_EVERY = 1000;
 const HISTOGRAM_BINS = 24;
 /** Send a picture of the world to the page at most this often. */
 const FRAME_INTERVAL_MS = 33;
+/** The family tree is big, so it goes out about once a second (and right after a restart). */
+const SPECIES_INTERVAL_MS = 1000;
+/** Species history is thinned to about this many samples so the tree message stays small in long runs. */
+const MAX_HISTORY_SAMPLES = 300;
 /** In "as fast as possible" mode, run for about this long between frames. */
 const MAX_SPEED_BUDGET_MS = 14;
 /** Never try to catch up by more than this many ticks in one go. */
@@ -31,6 +35,7 @@ let ticksPerSecond = 60;
 let owedTicks = 0;
 let lastLoop = performance.now();
 let lastFrame = 0;
+let lastSpeciesSent = -Infinity;
 let needsFrame = false;
 let sendCapacity = false;
 let points: HistoryPoint[] = [];
@@ -153,8 +158,27 @@ function worldInfo(s: Simulation): WorldInfo {
   };
 }
 
+/** Copy the family tree for sending, keeping only about MAX_HISTORY_SAMPLES samples of each history. */
+function speciesForSending(s: Simulation): SpeciesRecord[] {
+  return s.speciesRecords.map((record) => {
+    const samples = record.history.length / SAMPLE_STRIDE;
+    const step = Math.max(1, Math.ceil(samples / MAX_HISTORY_SAMPLES));
+    let history = record.history;
+    if (step > 1) {
+      history = [];
+      for (let k = 0; k < samples; k += step) history.push(...record.history.slice(k * SAMPLE_STRIDE, (k + 1) * SAMPLE_STRIDE));
+      // Always keep the latest sample so the branch reaches the present.
+      const last = samples - 1;
+      if ((last % step) !== 0) history.push(...record.history.slice(last * SAMPLE_STRIDE, (last + 1) * SAMPLE_STRIDE));
+    }
+    return { ...record, history };
+  });
+}
+
 function postFrame(s: Simulation): void {
   const n = s.count;
+  const sendSpecies = performance.now() - lastSpeciesSent >= SPECIES_INTERVAL_MS;
+  if (sendSpecies) lastSpeciesSent = performance.now();
   // Copy the live arrays (the simulation keeps using them) and hand the copies over.
   const x = s.x.slice(0, n);
   const y = s.y.slice(0, n);
@@ -205,6 +229,8 @@ function postFrame(s: Simulation): void {
     inspected: inspect(s),
     events: s.events,
     behavior: recentBehavior(),
+    species: sendSpecies ? speciesForSending(s) : null,
+    speciesEvents: sendSpecies ? s.speciesEvents.slice() : null,
   };
   points = [];
   histograms = [];
@@ -255,25 +281,45 @@ function pickNear(s: Simulation, x: number, y: number): number | null {
   return best >= 0 ? s.id[best]! : null;
 }
 
+/** Start showing a new world (fresh or loaded): forget everything about the old one. */
+function startWorld(newSim: Simulation): void {
+  lastSpeciesSent = -Infinity;
+  resetId++;
+  sim = newSim;
+  hash = null;
+  extinct = false;
+  owedTicks = 0;
+  points = [];
+  histograms = [];
+  selectedId = null;
+  lastInspected = null;
+  behaviorSamples = [];
+  measuringBehavior = false;
+  sendCapacity = true;
+  recordPoint(sim);
+  recordHistograms(sim);
+  needsFrame = true;
+}
+
 self.onmessage = (event: MessageEvent<ToWorker>) => {
   const message = event.data;
   switch (message.type) {
     case "reset":
-      resetId++;
-      sim = new Simulation(message.seed, message.config);
-      hash = null;
-      extinct = false;
-      owedTicks = 0;
-      points = [];
-      histograms = [];
-      selectedId = null;
-      lastInspected = null;
-      behaviorSamples = [];
-      measuringBehavior = false;
-      sendCapacity = true;
-      recordPoint(sim);
-      recordHistograms(sim);
-      needsFrame = true;
+      startWorld(new Simulation(message.seed, message.config));
+      break;
+    case "save":
+      if (sim) {
+        const bytes = snapshotToBytes(sim.save());
+        self.postMessage({ type: "saved", bytes, tick: sim.tick, seed: sim.seed } satisfies SavedMessage, { transfer: [bytes.buffer] });
+      }
+      break;
+    case "load":
+      try {
+        const snapshot = snapshotFromBytes(message.bytes);
+        startWorld(Simulation.load(snapshot, message.branchSeed === undefined ? {} : { seed: message.branchSeed }));
+      } catch (error) {
+        self.postMessage({ type: "loadFailed", message: error instanceof Error ? error.message : String(error) } satisfies LoadFailedMessage);
+      }
       break;
     case "play":
       if (!extinct) running = true;

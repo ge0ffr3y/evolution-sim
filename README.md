@@ -10,7 +10,11 @@ Nobody is told to be a predator, a herbivore or a scavenger. Those roles, along 
 
 *Seed 12 over 60,000 ticks. Everyone starts as a green, unarmed plant eater. The first kill happens at tick 60, the first scavenger at 566, and by tick 8,690 a lineage lives mostly on meat (red). Larger dots are larger bodies.*
 
-> **Status: v0.1 release (Phase 3, food webs), with Phase 4 (senses and brains) added on top.** Predators, plant eaters and scavengers emerge on their own, from nothing but mutation and the rule that everything costs energy. In 12 of 12 seeds a lineage that lives mostly on meat evolves, and all 12 ecosystems were still going after 1,000,000 ticks. Phase 4 adds evolvable neural-network brains: prey evolve to run from threats, and meat eaters evolve to ambush. Chasing has not evolved yet (see the [Phase 4 devlog](docs/devlog/0004-senses-and-brains.md) for why).
+> **Status: v0.2 (Phase 5, species and family trees), on top of Phase 4 (senses and brains) and the v0.1 food webs.** Predators, plant eaters and scavengers emerge on their own, from nothing but mutation and the rule that everything costs energy. In 12 of 12 seeds a lineage that lives mostly on meat evolves, and all 12 ecosystems were still going after 1,000,000 ticks. Phase 4 adds evolvable neural-network brains: prey evolve to run from threats, and meat eaters evolve to ambush. Chasing has not evolved yet (see the [Phase 4 devlog](docs/devlog/0004-senses-and-brains.md) for why). Phase 5 adds a family tree of species, saving and loading worlds, and sexual reproduction.
+
+![A family tree: green branches are plant eaters, orange and red are meat eaters, red crosses mark extinctions](docs/media/family-tree.png)
+
+*Seed 4 over 406,000 ticks: 27 species so far, 3 alive. Time runs left to right, a branch's thickness is its number of members, and a thin line joins a branch to the species it split from.*
 
 ## What happens in a run
 
@@ -28,7 +32,8 @@ What emerged (details in the [devlog](docs/devlog)):
 2. A lineage that survives mostly on meat appeared in **12 of 12 seeds** (median tick 29,000).
 3. After the first predators arrive, plant eaters crash, then a stable predator and prey system settles in: about 230 plant eaters and 90 meat eaters, with carnivore numbers swinging in irregular waves.
 4. Prey answer with armor and speed, and the arms race never ends.
-5. With brains on, prey evolve to turn away from threats (about 0.68 of the time, against 0.52 for the no-brain control), and meat eaters evolve to ambush: they slow down and let prey walk into reach. They do not chase. In sparse worlds the meat eaters repeatedly crash and re-evolve, which wipes out any chasing wiring.
+5. A family tree grows: over 1,000,000 ticks every one of 12 seeds made 23 to 50 species (3 to 4 alive at the end), with a stream of short-lived offshoots from three lasting groups.
+6. With brains on, prey evolve to turn away from threats (about 0.68 of the time, against 0.52 for the no-brain control), and meat eaters evolve to ambush: they slow down and let prey walk into reach. They do not chase. In sparse worlds the meat eaters repeatedly crash and re-evolve, which wipes out any chasing wiring.
 
 ## Goals
 
@@ -76,6 +81,8 @@ The headless runner also accepts `--config configs/<preset>.json` to run a named
 
 ### In the viewer
 
+Scroll down for the **family tree** (click a branch to see how it differs from its ancestor) and the **timeline** of new species, extinctions and population crashes. **Save world** and **Load world** store a run in a file and bring it back exactly (tick the "as a branch" box to carry on with a different random future).
+
 Click any organism to inspect its genes, energy, age, parent, what it has eaten and how many kills it has. Color the dots by diet, speed, size, color gene, energy or sense range. Switch the map between plants, soil nutrients, corpses and detritus. Watch the energy-flow bar, the "who eats what" chart, the trait heatmaps over time, and the log of notable firsts.
 
 ### Preset worlds
@@ -92,6 +99,8 @@ Each preset is a short JSON file in [`configs/`](configs) naming the settings it
 | Poor soil | Nutrients, not sunlight, limit the population: many births are blocked |
 | Costly movement / Cheap movement | One cost changed 5 times over: watch the speed histograms |
 | Scarce food | Plants regrow at half the rate |
+| Sexual reproduction | Pairs of ready, compatible neighbors have babies with mixed genes. Result: one species, no meat eaters (see devlog 5) |
+| Rare big mutations | One baby in fifty gets a big jump in three genes: the family tree branches about three times as much |
 | Brains: evolvable layout | Neural-network brains whose layout evolves: click an organism to watch it think |
 | Brains: fixed layout | Every brain has the same wiring plan and only the strengths evolve |
 | Brains: sparse world (chase test) | Brains plus stamina and kill ownership in a world with scarce prey: meat eaters boom and crash |
@@ -106,7 +115,7 @@ Each preset is a short JSON file in [`configs/`](configs) naming the settings it
 | 2 | Genome and trade-offs | Real energy economics, diverging traits (done) |
 | 3 | Food webs | Emergent predators, nutrient loop (**v0.1, done**) |
 | 4 | Senses and brains | Prey flee and hunters ambush (done; chasing did not evolve) |
-| 5 | Species and phylogeny | Speciation tracking, family tree (v0.2) |
+| 5 | Species and phylogeny | Species tracking, family tree, sexual reproduction, save and load (**v0.2, done**) |
 | 6 | Dynamic world | Biomes, seasons, climate, catastrophes |
 | 7 | Ecological depth | Disease, aging, social behavior (v0.3) |
 | 8 | Multicellularity | Colonies, cell types, body plans (v0.4) |
