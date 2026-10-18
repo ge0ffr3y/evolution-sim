@@ -42,6 +42,7 @@ export type {
   MatterAudit,
   OrganismSnapshot,
   SimEvent,
+  WorldEvent,
   SimEventKind,
   SimStats,
   TraitSummary,

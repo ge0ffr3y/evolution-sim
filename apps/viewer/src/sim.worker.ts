@@ -238,6 +238,7 @@ function postFrame(s: Simulation): void {
     behavior: recentBehavior(),
     species: sendSpecies ? speciesForSending(s) : null,
     speciesEvents: sendSpecies ? s.speciesEvents.slice() : null,
+    worldEvents: sendSpecies ? s.worldEvents.slice() : null,
   };
   points = [];
   histograms = [];

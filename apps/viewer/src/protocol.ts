@@ -1,4 +1,4 @@
-import type { BehaviorStats, GeneName, OrganismSnapshot, SimConfig, SimEvent, SimStats, SpeciesEvent, SpeciesRecord, TraitRange } from "@evo/sim-core";
+import type { BehaviorStats, GeneName, OrganismSnapshot, SimConfig, SimEvent, SimStats, SpeciesEvent, SpeciesRecord, TraitRange, WorldEvent } from "@evo/sim-core";
 
 /** Messages from the page to the simulation worker. */
 export type ToWorker =
@@ -151,4 +151,6 @@ export interface FrameMessage {
   species: SpeciesRecord[] | null;
   /** Speciations, extinctions and population crashes (sent along with `species`). */
   speciesEvents: SpeciesEvent[] | null;
+  /** Catastrophes and their ends (sent along with `species`). */
+  worldEvents: WorldEvent[] | null;
 }

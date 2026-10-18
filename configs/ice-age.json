@@ -1,0 +1,13 @@
+{
+  "name": "Ice age",
+  "description": "Climate with a preferred-temperature gene, and at tick 60,000 an ice age: for 20,000 ticks the whole world gets up to 0.3 colder, then recovers. Watch the population crash, the species that go extinct, and what the survivors are like afterwards (the trait heatmaps and the family tree).",
+  "config": {
+    "climateMode": 1,
+    "yearLength": 2000,
+    "thermalCostCoeff": 1.5,
+    "catastropheKind": 1,
+    "catastropheAt": 60000,
+    "catastropheLength": 20000,
+    "iceAgeCooling": 0.3
+  }
+}

@@ -1,5 +1,5 @@
 import "./style.css";
-import { GENE, GENES, parsePreset, type GeneName, type Preset, type SimEvent, type SpeciesEvent, type SpeciesRecord } from "@evo/sim-core";
+import { GENE, GENES, parsePreset, type GeneName, type Preset, type SimEvent, type SpeciesEvent, type SpeciesRecord, type WorldEvent } from "@evo/sim-core";
 import { drawBrain } from "./brainview";
 import { Charts } from "./charts";
 import { FlowTracker } from "./flows";
@@ -64,6 +64,7 @@ const renderer = new WorldRenderer(canvas);
 const tree = new TreeView(el<HTMLCanvasElement>("tree-canvas"));
 let speciesRecords: SpeciesRecord[] = [];
 let speciesEventList: SpeciesEvent[] = [];
+let worldEventList: WorldEvent[] = [];
 let firstsList: readonly SimEvent[] = [];
 let timelineKey = "";
 const charts = new Charts(el("chart-pop"), el("chart-traits"), el("chart-web"), el("chart-brain"));
@@ -463,6 +464,7 @@ tree.onSelect = (id) => renderSpeciesDetail(id);
 function resetTree(): void {
   speciesRecords = [];
   speciesEventList = [];
+  worldEventList = [];
   firstsList = [];
   timelineKey = "";
   tree.selected = null;
@@ -472,7 +474,7 @@ function resetTree(): void {
 }
 
 function renderTimeline(): void {
-  const key = `${firstsList.length}/${speciesEventList.length}`;
+  const key = `${firstsList.length}/${speciesEventList.length}/${worldEventList.length}`;
   if (key === timelineKey) return;
   timelineKey = key;
   interface Entry {
@@ -490,6 +492,7 @@ function renderTimeline(): void {
       entries.push({ tick: e.tick, text: `Population crash: from ${format.int.format(e.from ?? 0)} down to ${format.int.format(e.to ?? 0)}` });
     }
   }
+  for (const e of worldEventList) entries.push({ tick: e.tick, text: e.text });
   entries.sort((a, b) => b.tick - a.tick);
   el("timeline-list").replaceChildren(
     ...entries.slice(0, 300).map((entry) => {
@@ -566,6 +569,7 @@ worker.onmessage = (event: MessageEvent<FromWorker>) => {
   if (frame.species) {
     speciesRecords = frame.species;
     speciesEventList = frame.speciesEvents ?? [];
+    worldEventList = frame.worldEvents ?? [];
     tree.setData(frame.species, frame.stats.tick);
     renderSpeciesDetail(tree.selected);
     timelineKey = "";

@@ -1,0 +1,9 @@
+{
+  "name": "Meteor strike",
+  "description": "At tick 30,000 a meteor hits a random spot: everything within 50 units dies and the plants there are destroyed. Watch the crater refill from the edges, and what the colonizers are like.",
+  "config": {
+    "catastropheKind": 3,
+    "catastropheAt": 30000,
+    "meteorRadius": 50
+  }
+}

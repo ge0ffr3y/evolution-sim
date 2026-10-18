@@ -293,6 +293,26 @@ export interface SimConfig {
   thermalCostCoeff: number;
   thermalTolerance: number;
 
+  // --- Catastrophes (off by default) ---
+  /**
+   * 0 = none. 1 = an ice age (the whole world gets colder, then recovers). 2 = a drought
+   * (plants grow much more slowly, then recover). 3 = a meteor strike (everything in a circle
+   * dies and the plants there are destroyed). 4 = a random one of those each time. Ice ages
+   * and droughts need a climate (climateMode 1).
+   */
+  catastropheKind: number;
+  /** A catastrophe starts at exactly this tick (0 = not scheduled)... */
+  catastropheAt: number;
+  /** ...and/or one starts at a random moment, on average once every this many ticks (0 = never). */
+  catastropheEvery: number;
+  /** How long an ice age or drought lasts, in ticks (it builds up and fades smoothly, worst in the middle). */
+  catastropheLength: number;
+  /** How much colder it gets at the worst of an ice age, and how much plant growth falls at the worst of a drought (0 to 1). */
+  iceAgeCooling: number;
+  droughtSeverity: number;
+  /** The radius of a meteor strike, in world units. */
+  meteorRadius: number;
+
   // --- Sexual reproduction (off by default) ---
   /**
    * 0 = organisms split in two when they have enough energy (the original way). 1 = two
@@ -518,6 +538,13 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   climateDriftAmplitude: 0.15,
   thermalCostCoeff: 0,
   thermalTolerance: 0.1,
+  catastropheKind: 0,
+  catastropheAt: 0,
+  catastropheEvery: 0,
+  catastropheLength: 3000,
+  iceAgeCooling: 0.3,
+  droughtSeverity: 0.8,
+  meteorRadius: 40,
   sexualReproduction: 0,
   mateRange: 6,
   mateDistance: 0.25,
@@ -652,6 +679,16 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   }
   if (c.thermalCostCoeff < 0 || c.thermalTolerance < 0) problems.push("thermalCostCoeff and thermalTolerance cannot be negative");
   if (c.thermalCostCoeff > 0 && c.climateMode !== 1) problems.push("thermalCostCoeff needs a climate (set climateMode to 1)");
+  if (![0, 1, 2, 3, 4].includes(c.catastropheKind)) problems.push("catastropheKind must be 0 (none), 1 (ice age), 2 (drought), 3 (meteor) or 4 (random)");
+  if (c.catastropheKind !== 0) {
+    if ((c.catastropheKind === 1 || c.catastropheKind === 2 || c.catastropheKind === 4) && c.climateMode !== 1) problems.push("ice ages and droughts need a climate (set climateMode to 1)");
+    if (!Number.isInteger(c.catastropheAt) || c.catastropheAt < 0) problems.push("catastropheAt must be a whole number of ticks (0 = not scheduled)");
+    if (!Number.isInteger(c.catastropheEvery) || c.catastropheEvery < 0) problems.push("catastropheEvery must be a whole number of ticks (0 = never)");
+    if (!Number.isInteger(c.catastropheLength) || c.catastropheLength < 2) problems.push("catastropheLength must be a whole number of ticks, at least 2");
+    if (c.iceAgeCooling < 0) problems.push("iceAgeCooling cannot be negative");
+    if (c.droughtSeverity < 0 || c.droughtSeverity > 1) problems.push("droughtSeverity must be between 0 and 1");
+    if (!(c.meteorRadius > 0)) problems.push("meteorRadius must be positive");
+  }
   if (![0, 1].includes(c.climateMode)) problems.push("climateMode must be 0 (no climate) or 1 (climate)");
   if (c.climateMode === 1) {
     for (const [name, value] of [["dayLength", c.dayLength], ["yearLength", c.yearLength], ["climateDriftPeriod", c.climateDriftPeriod]] as const) {

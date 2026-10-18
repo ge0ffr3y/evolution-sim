@@ -115,6 +115,13 @@ export interface DietClasses {
   carnivores: number;
 }
 
+/** Things that happen to the whole world: catastrophes and their ends. */
+export interface WorldEvent {
+  tick: number;
+  kind: "iceAge" | "drought" | "meteor" | "recovery";
+  text: string;
+}
+
 /** Notable firsts in the history of a run. */
 export type SimEventKind = "firstScavenger" | "firstKill" | "firstPredator" | "firstCarnivore";
 
@@ -286,6 +293,12 @@ export class Simulation {
   blockedBirths = 0;
   totalAttacks = 0;
   readonly events: SimEvent[] = [];
+  /** Catastrophes and their ends (a separate list, so it never disturbs the notable firsts). */
+  readonly worldEvents: WorldEvent[] = [];
+  /** The catastrophe going on now (0 none, 1 ice age, 2 drought) and when it began and ends. */
+  private catKind = 0;
+  private catStart = 0;
+  private catEnd = 0;
   readonly ledger: EnergyLedger = {
     sunlightIn: 0,
     plantEaten: 0,
@@ -731,16 +744,96 @@ export class Simulation {
     const season = c.yearLength > 0 ? smoothWave(t / c.yearLength + 0.25) : 0;
     const daylight = c.dayLength > 0 ? 1 - c.dayNightDepth * (1 - (smoothWave(t / c.dayLength + 0.25) + 1) / 2) : 1;
     const drift = c.climateDriftPeriod > 0 ? c.climateDriftAmplitude * smoothWave(t / c.climateDriftPeriod + 0.25) : 0;
-    const seasonGrowth = 1 + c.seasonGrowthSwing * season;
+    // A catastrophe in progress builds up and fades smoothly, worst in the middle.
+    let cooling = 0;
+    let dryness = 1;
+    if (this.catKind !== 0 && t < this.catEnd) {
+      const p = (t - this.catStart) / (this.catEnd - this.catStart);
+      const hump = 4 * p * (1 - p);
+      if (this.catKind === 1) cooling = c.iceAgeCooling * hump;
+      else dryness = 1 - c.droughtSeverity * hump;
+    }
+    const seasonGrowth = (1 + c.seasonGrowthSwing * season) * dryness;
     const optimum = c.plantTempOptimum;
     const tolerance = c.plantTempTolerance;
     for (let cell = 0; cell < this.temperature.length; cell++) {
-      const temp = this.tempBase[cell]! + this.tempSwing[cell]! * season + drift;
+      const temp = this.tempBase[cell]! + this.tempSwing[cell]! * season + drift - cooling;
       this.temperature[cell] = temp;
       const off = (temp - optimum) / tolerance;
       const comfort = 1 - off * off;
       this.growthFactor[cell] = comfort > 0 ? this.lightBase[cell]! * daylight * seasonGrowth * comfort : 0;
     }
+  }
+
+  /** Start, end or ignore a catastrophe this tick, according to the schedule and the dice. */
+  private catastropheCheck(): void {
+    const c = this.config;
+    const t = this.tick;
+    if (this.catKind !== 0 && t >= this.catEnd) {
+      this.worldEvents.push({ tick: t, kind: "recovery", text: this.catKind === 1 ? "The ice age ends" : "The drought ends" });
+      this.catKind = 0;
+    }
+    let start = c.catastropheAt > 0 && t === c.catastropheAt;
+    // Random ones: a fresh roll every tick (only when enabled, so other worlds draw no extra random numbers).
+    if (!start && c.catastropheEvery > 0 && this.catKind === 0 && this.rng.next() < 1 / c.catastropheEvery) start = true;
+    if (!start || this.catKind !== 0) return;
+    const kind = c.catastropheKind === 4 ? 1 + this.rng.int(3) : c.catastropheKind;
+    if (kind === 3) {
+      this.meteorStrike();
+      return;
+    }
+    this.catKind = kind;
+    this.catStart = t;
+    this.catEnd = t + c.catastropheLength;
+    this.worldEvents.push({
+      tick: t,
+      kind: kind === 1 ? "iceAge" : "drought",
+      text: kind === 1 ? `An ice age begins: up to ${c.iceAgeCooling} colder everywhere for ${c.catastropheLength} ticks` : `A drought begins: plant growth falls by up to ${Math.round(c.droughtSeverity * 100)}% for ${c.catastropheLength} ticks`,
+    });
+  }
+
+  /**
+   * A meteor lands somewhere at random: every organism within the radius dies (its body and
+   * whatever energy it carried become a corpse), and the plants in the crater are destroyed (their
+   * matter becomes detritus and their energy is lost as heat, so the books still balance).
+   */
+  private meteorStrike(): void {
+    const c = this.config;
+    const W = c.worldWidth;
+    const H = c.worldHeight;
+    const x0 = this.rng.range(0, W);
+    const y0 = this.rng.range(0, H);
+    const r2 = c.meteorRadius * c.meteorRadius;
+    const near = (x: number, y: number): boolean => {
+      let dx = x - x0;
+      let dy = y - y0;
+      if (dx > W / 2) dx -= W;
+      else if (dx < -W / 2) dx += W;
+      if (dy > H / 2) dy -= H;
+      else if (dy < -H / 2) dy += H;
+      return dx * dx + dy * dy <= r2;
+    };
+    const cs = c.foodCellSize;
+    let killed = 0;
+    for (let i = 0; i < this.count; i++) {
+      if (this.killed[i] === 1 || !near(this.x[i]!, this.y[i]!)) continue;
+      const cell = Math.floor(this.y[i]! / cs) * this.gridWidth + Math.floor(this.x[i]! / cs);
+      this.corpseEnergy[cell] = this.corpseEnergy[cell]! + this.bodyEnergy[i]! + this.energy[i]!;
+      this.corpseMatter[cell] = this.corpseMatter[cell]! + this.bodyMatter[i]!;
+      this.energy[i] = 0;
+      this.killed[i] = 1;
+      killed++;
+    }
+    for (let cy = 0; cy < this.gridHeight; cy++) {
+      for (let cx = 0; cx < this.gridWidth; cx++) {
+        if (!near((cx + 0.5) * cs, (cy + 0.5) * cs)) continue;
+        const cell = cy * this.gridWidth + cx;
+        this.detritus[cell] = this.detritus[cell]! + this.food[cell]!;
+        this.ledger.decayLoss += this.food[cell]! * c.energyPerFood;
+        this.food[cell] = 0;
+      }
+    }
+    this.worldEvents.push({ tick: this.tick, kind: "meteor", text: `A meteor strikes near (${Math.round(x0)}, ${Math.round(y0)}): ${killed} organisms killed` });
   }
 
   /** Fill in the terrain arrays from a biome map, and scale plant growth by biome. */
@@ -1310,6 +1403,7 @@ export class Simulation {
     const ledger = this.ledger;
     const brainMode = c.brainMode;
     let attackers = 0;
+    if (c.catastropheKind !== 0) this.catastropheCheck();
     if (this.climateOn) this.updateClimate();
 
     // Pass 0 (brains only): everyone who is due to think looks, smells and decides, before
@@ -1838,6 +1932,8 @@ export class Simulation {
       totalAttacks: this.totalAttacks,
       seen: [this.seenScavenger, this.seenKill, this.seenPredator, this.seenCarnivore],
       events: this.events,
+      worldEvents: this.worldEvents,
+      catastrophe: [this.catKind, this.catStart, this.catEnd],
       ledger: this.ledger,
       rng: Array.from(this.rng.getState()),
       species: this.tracker ? this.tracker.exportState() : null,
@@ -1896,6 +1992,8 @@ export class Simulation {
       totalAttacks: number;
       seen: boolean[];
       events: SimEvent[];
+      worldEvents: WorldEvent[];
+      catastrophe: [number, number, number];
       ledger: EnergyLedger;
       rng: [number, number, number, number];
       species: Record<string, unknown> | null;
@@ -1923,6 +2021,9 @@ export class Simulation {
     [this.seenScavenger, this.seenKill, this.seenPredator, this.seenCarnivore] = s.seen as [boolean, boolean, boolean, boolean];
     this.events.length = 0;
     this.events.push(...s.events);
+    this.worldEvents.length = 0;
+    this.worldEvents.push(...s.worldEvents);
+    [this.catKind, this.catStart, this.catEnd] = s.catastrophe;
     Object.assign(this.ledger, s.ledger);
     this.rng.setState(newFuture ? new Rng((this.seed + this.tick) >>> 0).getState() : s.rng);
     if (this.tracker && s.species) this.tracker.importState(s.species);
