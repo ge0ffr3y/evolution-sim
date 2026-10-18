@@ -47,7 +47,7 @@ describe("evaluating a brain", () => {
   it("an empty brain outputs zero", () => {
     const b = blankBrain();
     evaluateBrain(b.from, b.to, b.weight, 0, 0, 0.05, inputs, hidden, outputs);
-    expect([...outputs]).toEqual([0, 0, 0]);
+    expect([...outputs]).toEqual(new Array(OUTPUT_COUNT).fill(0));
   });
 
   it("a direct input->output connection gives soft(input x weight)", () => {
@@ -123,7 +123,7 @@ describe("brain size", () => {
   });
 
   it("input count matches the documented layout", () => {
-    expect(INPUT_COUNT).toBe(5 * RAY_CHANNELS + 21);
+    expect(INPUT_COUNT).toBe(5 * RAY_CHANNELS + 32);
   });
 });
 

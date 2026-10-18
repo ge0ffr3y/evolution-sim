@@ -12,7 +12,7 @@ import {
   type Traits,
 } from "./genome";
 import { polarness, smoothWave } from "./climate";
-import { BIOME, generateBackground, generateBiomes, growthMultipliers, moveMultipliers } from "./terrain";
+import { BIOME, generateBackground, generateBiomes, generatePlantTypes, generateWeatherMap, growthMultipliers, moveMultipliers } from "./terrain";
 import { SNAPSHOT_FORMAT, type SimSnapshot, type SnapshotArray } from "./snapshot";
 import { SpeciesTracker, type SpeciesEvent, type SpeciesRecord } from "./species";
 import {
@@ -24,6 +24,7 @@ import {
   NODE_COUNT,
   OUTPUT,
   OUTPUT_COUNT,
+  MEMORY_COUNT,
   OUTPUT_START,
   RAY_CHANNELS,
   RAY_COUNT,
@@ -181,6 +182,8 @@ export interface SimStats {
   meanEnergy: number;
   /** Births and deaths since the simulation started. */
   totalBirths: number;
+  /** Births with two parents. */
+  sexualBirths: number;
   totalDeaths: number;
   /** Deaths caused by another organism, and total deaths from starvation. */
   totalKills: number;
@@ -257,6 +260,15 @@ const SENSE_BODY = 4;
 const SENSE_SOCIAL = 8;
 /** Room for this many bonds per cell (the config can allow fewer). */
 const BOND_SLOTS = 6;
+
+/** A fixed scramble of two whole numbers into a number between 0 and 1 (so "random" things such as a year's harshness need no random stream). */
+function unitHash(a: number, b: number): number {
+  let h = Math.imul(a | 0, 0x9e3779b1) ^ Math.imul(b | 0, 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d);
+  h = Math.imul(h ^ (h >>> 12), 0x297a2d39);
+  h ^= h >>> 15;
+  return (h >>> 0) / 4294967296;
+}
 /** Strength of the founders' plant-smell reflex. */
 const FOUNDER_REFLEX_WEIGHT = 1.5;
 /** The founders' chase reflex: turning strength per ray away from the middle, and the speed-up when prey is dead ahead. */
@@ -319,6 +331,8 @@ export class Simulation {
   /** Number of organisms currently alive. They occupy indices 0 to count-1. */
   count = 0;
   totalBirths = 0;
+  /** Births that came from two parents (with sexualReproduction 2 only part of all births do). */
+  sexualBirths = 0;
   totalDeaths = 0;
   totalKills = 0;
   totalStarved = 0;
@@ -479,12 +493,46 @@ export class Simulation {
   /** The second parent of each organism (sexual reproduction only; 0 for none). */
   readonly parent2Id: Uint32Array;
   private readonly sexOn: boolean;
+  /** Sex as a gene (sexualReproduction 2): each organism's choice for its next birth: 0 not decided, 1 split in two, 2 look for a mate. */
+  private readonly sexGeneOn: boolean;
+  private readonly sexMode: Uint8Array;
+  /** The ready organisms that chose to look for a mate this tick (a scratch list). */
+  private readonly sexParents: Uint32Array;
+  /** And the ones that chose to split in two, plus who was taken as a mate this tick (so they do not also split). */
+  private readonly soloParents: Uint32Array;
+  private readonly matedNow: Uint8Array;
   /** Scratch for pairing up mates: who is ready, the pairs found, and the genes that count toward compatibility. */
   private readonly ready: Uint8Array;
   private readonly pairs: Uint32Array;
   private readonly mateMask: number[];
   /** Kin recognition: how close genetically counts as a relative (squared; 0 = off), and scratch for counting relatives. */
   private readonly kinLimitSq: number;
+  /** With kinTolerance: each organism's own squared closeness limit for not attacking a relative (cached from its gene). */
+  private readonly kinToleranceOn: boolean;
+  /** Brain memory (what each brain wrote last time, MEMORY_COUNT numbers per organism) and the place each organism calls home. */
+  private readonly memoryOn: boolean;
+  private readonly memState: Float32Array;
+  /** Chemical signals: four per organism (reward, stress, bond, calm), plus what has happened to the organism since it last thought. */
+  private readonly chemOn: boolean;
+  private readonly chem: Float32Array;
+  private readonly chemIntake: Float32Array;
+  private readonly chemHit: Uint8Array;
+  private readonly homeX: Float32Array;
+  private readonly homeY: Float32Array;
+  /** Weather fronts: two fixed smooth maps (blended and drifted over time), and whether the fat and torpor genes are in use. */
+  private readonly weatherOn: boolean;
+  /** Kinds of plant: which kind grows in each cell (fixed from the seed), and the seasonal wave each kind follows this tick. */
+  private readonly plantKinds: number;
+  private readonly plantTypeOf: Uint8Array;
+  private readonly kindGrowth: Float64Array;
+  private readonly kindOptimum: Float64Array;
+  private readonly weatherA: Float32Array;
+  private readonly weatherB: Float32Array;
+  private readonly fatOn: boolean;
+  private readonly torporOn: boolean;
+  /** Who is dormant this tick (worked out fresh every tick; not saved). */
+  private readonly torpid: Uint8Array;
+  private readonly toleranceSq: Float32Array;
   private kinCount = 0;
   private kinVx = 0;
   private kinVy = 0;
@@ -597,8 +645,9 @@ export class Simulation {
   private readonly considerPrey = (index: number, distSq: number): void => {
     if (index === this.pickAttacker || this.killed[index] === 1 || this.size[index]! > this.pickSizeLimit) return;
     if (this.camoOn && !this.detects(this.pickAttacker, index)) return; // never noticed it
-    // Nobody attacks a relative.
-    if (this.kinLimitSq > 0 && this.geneDistanceSq(this.pickAttacker, index) <= this.kinLimitSq) return;
+    // Nobody attacks a relative (or, with kinTolerance, nobody tolerant enough to count the target as one).
+    const limitSq = this.kinToleranceOn ? this.toleranceSq[this.pickAttacker]! : this.kinLimitSq;
+    if (limitSq > 0 && this.geneDistanceSq(this.pickAttacker, index) <= limitSq) return;
     if (distSq < this.pickBestDistSq || (distSq === this.pickBestDistSq && index < this.pickBest)) {
       this.pickBest = index;
       this.pickBestDistSq = distSq;
@@ -642,6 +691,13 @@ export class Simulation {
     this.tempBase = new Float64Array(climateCells);
     this.tempSwing = new Float64Array(climateCells);
     this.lightBase = new Float64Array(climateCells);
+    this.plantKinds = c.plantTypes;
+    this.plantTypeOf = c.plantTypes > 1 ? generatePlantTypes(seed, this.gridWidth, this.gridHeight, c.plantTypeScale, c.plantTypes) : new Uint8Array(0);
+    this.kindGrowth = new Float64Array(c.plantTypes);
+    this.kindOptimum = new Float64Array(c.plantTypes);
+    this.weatherOn = this.climateOn && c.weatherAmplitude > 0;
+    this.weatherA = this.weatherOn ? generateWeatherMap(seed, this.gridWidth, this.gridHeight, c.weatherScale, 0x51f3a7c9) : new Float32Array(0);
+    this.weatherB = this.weatherOn ? generateWeatherMap(seed, this.gridWidth, this.gridHeight, c.weatherScale, 0x1d8e4b27) : new Float32Array(0);
     if (this.climateOn) this.setUpClimate();
     this.food = new Float64Array(cells);
     for (let cell = 0; cell < cells; cell++) this.food[cell] = this.foodCapacity[cell]! * c.initialFoodFraction;
@@ -759,10 +815,33 @@ export class Simulation {
         (k === GENE.litter && this.litterOn) ||
         (k === GENE.bond && this.bondsOn) ||
         ((k === GENE.plan1 || k === GENE.plan2 || k === GENE.plan3) && this.typeOn) ||
-        (k === GENE.stick && this.bondsOn && c.contactBonding === 1),
+        (k === GENE.stick && this.bondsOn && c.contactBonding === 1) ||
+        (k === GENE.tolerance && c.kinTolerance === 1) ||
+        (k === GENE.sex && c.sexualReproduction === 2) ||
+        (k === GENE.fat && c.fatMax > 0) ||
+        (k === GENE.torpor && this.climateOn && c.torporSaving > 0) ||
+        (k === GENE.palate && c.plantTypes > 1),
     );
     this.kinLimitSq = c.kinDistance * c.kinDistance;
-    this.sexOn = c.sexualReproduction === 1;
+    this.fatOn = c.fatMax > 0;
+    this.torporOn = this.climateOn && c.torporSaving > 0;
+    this.torpid = new Uint8Array(this.torporOn ? n : 0);
+    this.memoryOn = c.brainMode > 0 && c.brainMemory === 1;
+    this.memState = new Float32Array(this.memoryOn ? n * MEMORY_COUNT : 0);
+    this.chemOn = c.brainMode > 0 && c.chemicals === 1;
+    this.chem = new Float32Array(this.chemOn ? n * 4 : 0);
+    this.chemIntake = new Float32Array(this.chemOn ? n : 0);
+    this.chemHit = new Uint8Array(this.chemOn ? n : 0);
+    this.homeX = new Float32Array(c.brainMode > 0 && c.homeMode > 0 ? n : 0);
+    this.homeY = new Float32Array(c.brainMode > 0 && c.homeMode > 0 ? n : 0);
+    this.kinToleranceOn = c.kinTolerance === 1;
+    this.toleranceSq = new Float32Array(this.kinToleranceOn ? n : 0);
+    this.sexOn = c.sexualReproduction >= 1;
+    this.sexGeneOn = c.sexualReproduction === 2;
+    this.sexMode = new Uint8Array(this.sexGeneOn ? n : 0);
+    this.sexParents = new Uint32Array(this.sexGeneOn ? n : 0);
+    this.soloParents = new Uint32Array(this.sexGeneOn ? n : 0);
+    this.matedNow = new Uint8Array(this.sexGeneOn ? n : 0);
     this.parent2Id = new Uint32Array(this.sexOn ? n : 0);
     this.ready = new Uint8Array(this.sexOn ? n : 0);
     this.pairs = new Uint32Array(this.sexOn ? n : 0);
@@ -773,10 +852,14 @@ export class Simulation {
       if (!this.activeGene[GENE[name]]) continue;
       // The bonding and body-plan genes describe how a body is built, not what kind of organism it is.
       if (name === "bond" || name === "plan1" || name === "plan2" || name === "plan3" || name === "stick") continue;
+      // How tolerant an organism is of relatives is a behavior setting, not part of what kind of organism it is.
+      if (name === "tolerance" || name === "sex") continue;
       this.mateMask.push(GENE[name]);
     }
     this.species = new Uint32Array(c.speciesEvery > 0 ? n : 0);
-    this.tracker = c.speciesEvery > 0 ? new SpeciesTracker(c, this.ranges, this.activeGene) : null;
+    // Species, like compatibility, ignore tolerance of relatives: it is a behavior setting, not a kind of body.
+    const speciesGenes = this.activeGene.map((on, k) => on && k !== GENE.tolerance && k !== GENE.sex);
+    this.tracker = c.speciesEvery > 0 ? new SpeciesTracker(c, this.ranges, speciesGenes) : null;
     const staminaOrganisms = this.staminaOn ? n : 0;
     this.stamina = new Float32Array(staminaOrganisms);
     this.staminaMax = new Float32Array(staminaOrganisms);
@@ -800,6 +883,9 @@ export class Simulation {
     if (this.thermalOn) this.float32Fields.push(this.thermalPref, this.thermalScale);
     if (this.agingOn) this.float32Fields.push(this.lifespan);
     if (this.litterOn) this.float32Fields.push(this.litter);
+    if (this.kinToleranceOn) this.float32Fields.push(this.toleranceSq);
+    if (this.homeX.length > 0) this.float32Fields.push(this.homeX, this.homeY);
+    if (this.chemOn) this.float32Fields.push(this.chemIntake);
     this.float64Fields = [this.energy, this.plantTaken, this.meatTaken];
     this.uint32Fields = [this.id, this.parentId, this.age, this.kills];
     if (this.tracker) this.uint32Fields.push(this.species);
@@ -813,6 +899,8 @@ export class Simulation {
       this.uint8Fields.push(this.hasImage);
       this.float32Fields.push(this.searchHue);
     }
+    if (this.sexGeneOn) this.uint8Fields.push(this.sexMode);
+    if (this.chemOn) this.uint8Fields.push(this.chemHit);
     this.uint16Fields = [this.resting];
     if (this.diseaseOn) this.uint16Fields.push(this.infection, this.sickFor, this.immuneFor);
     if (c.brainMode > 0) {
@@ -836,6 +924,11 @@ export class Simulation {
     founder[GENE.litter] = traitToGene(c.initialLitter, this.ranges.litter);
     founder[GENE.bond] = c.initialBond;
     founder[GENE.stick] = c.initialStick;
+    founder[GENE.tolerance] = c.initialTolerance;
+    founder[GENE.sex] = c.initialSex;
+    founder[GENE.fat] = c.initialFat;
+    founder[GENE.torpor] = c.initialTorpor;
+    founder[GENE.palate] = c.initialPalate;
     for (let i = 0; i < c.initialOrganisms; i++) {
       let fx = this.rng.range(0, c.worldWidth);
       let fy = this.rng.range(0, c.worldHeight);
@@ -847,6 +940,12 @@ export class Simulation {
       const index = this.spawn(0, fx, fy);
       for (let g = 0; g < GENE_COUNT; g++) this.genes[index * GENE_COUNT + g] = founder[g]!;
       this.genes[index * GENE_COUNT + GENE.hue] = this.rng.next();
+      if (c.founderSpread > 0) {
+        // Standing variety: the newer genes that are switched on start a random amount above their starting value.
+        for (const gene of [GENE.tolerance, GENE.sex, GENE.fat, GENE.torpor, GENE.palate]) {
+          if (this.activeGene[gene]) this.genes[index * GENE_COUNT + gene] = clamp01(this.genes[index * GENE_COUNT + gene]! + c.founderSpread * this.rng.next());
+        }
+      }
       if (this.typeOn) for (const plan of [GENE.plan1, GENE.plan2, GENE.plan3]) this.genes[index * GENE_COUNT + plan] = this.rng.next();
       this.express(index);
       this.initBrain(index);
@@ -877,7 +976,13 @@ export class Simulation {
   private updateClimate(): void {
     const c = this.config;
     const t = this.tick;
-    const season = c.yearLength > 0 ? smoothWave(t / c.yearLength + 0.25) : 0;
+    let yearMult = 1;
+    if (c.yearVariability > 0) {
+      // Harsh and mild years: a fixed scramble of the year number stretches or shrinks that year's swing.
+      const year = Math.floor(t / c.yearLength);
+      yearMult = 1 + c.yearVariability * (2 * unitHash(year, this.seed) - 1);
+    }
+    const season = (c.yearLength > 0 ? smoothWave(t / c.yearLength + 0.25) : 0) * yearMult;
     const daylight = c.dayLength > 0 ? 1 - c.dayNightDepth * (1 - (smoothWave(t / c.dayLength + 0.25) + 1) / 2) : 1;
     const drift = c.climateDriftPeriod > 0 ? c.climateDriftAmplitude * smoothWave(t / c.climateDriftPeriod + 0.25) : 0;
     // A catastrophe in progress builds up and fades smoothly, worst in the middle.
@@ -889,15 +994,46 @@ export class Simulation {
       if (this.catKind === 1) cooling = c.iceAgeCooling * hump;
       else dryness = 1 - c.droughtSeverity * hump;
     }
-    const seasonGrowth = (1 + c.seasonGrowthSwing * season) * dryness;
+    // (A harsh year can push the swing past what plants can take: growth stops, it never goes negative.)
+    const swungGrowth = 1 + c.seasonGrowthSwing * season;
+    const seasonGrowth = (swungGrowth > 0 ? swungGrowth : 0) * dryness;
     const optimum = c.plantTempOptimum;
     const tolerance = c.plantTempTolerance;
+    // Kinds of plant: each peaks at a different time of year and likes a slightly different temperature.
+    const kinds = this.plantKinds;
+    if (kinds > 1) {
+      for (let j = 0; j < kinds; j++) {
+        const wave = c.yearLength > 0 ? smoothWave(t / c.yearLength + 0.25 - (j / kinds) * c.plantTypePhase) * yearMult : 0;
+        const swung = 1 + c.seasonGrowthSwing * wave;
+        this.kindGrowth[j] = (swung > 0 ? swung : 0) * dryness;
+        this.kindOptimum[j] = optimum + (j - (kinds - 1) / 2) * c.plantTypeTempSpread;
+      }
+    }
+    // Weather: the two weather maps shift east and south as time passes and are blended, so fronts move and change shape.
+    let shiftX = 0;
+    let shiftY = 0;
+    let blend = 0;
+    const gw = this.gridWidth;
+    const gh = this.gridHeight;
+    if (this.weatherOn) {
+      if (c.weatherDriftTicks > 0) shiftX = Math.floor(t / c.weatherDriftTicks) % gw;
+      if (c.weatherDriftYTicks > 0) shiftY = Math.floor(t / c.weatherDriftYTicks) % gh;
+      if (c.weatherMorphPeriod > 0) blend = (smoothWave(t / c.weatherMorphPeriod + 0.25) + 1) / 2;
+    }
     for (let cell = 0; cell < this.temperature.length; cell++) {
-      const temp = this.tempBase[cell]! + this.tempSwing[cell]! * season + drift - cooling;
+      let weather = 0;
+      if (this.weatherOn) {
+        const cx = cell % gw;
+        const cy = (cell - cx) / gw;
+        const from = ((cy - shiftY + gh) % gh) * gw + ((cx - shiftX + gw) % gw);
+        weather = c.weatherAmplitude * (this.weatherA[from]! * (1 - blend) + this.weatherB[from]! * blend);
+      }
+      const temp = this.tempBase[cell]! + this.tempSwing[cell]! * season + drift - cooling + weather;
       this.temperature[cell] = temp;
-      const off = (temp - optimum) / tolerance;
+      const kind = kinds > 1 ? this.plantTypeOf[cell]! : 0;
+      const off = (temp - (kinds > 1 ? this.kindOptimum[kind]! : optimum)) / tolerance;
       const comfort = 1 - off * off;
-      this.growthFactor[cell] = comfort > 0 ? this.lightBase[cell]! * daylight * seasonGrowth * comfort : 0;
+      this.growthFactor[cell] = comfort > 0 ? this.lightBase[cell]! * daylight * (kinds > 1 ? this.kindGrowth[kind]! : seasonGrowth) * comfort : 0;
     }
   }
 
@@ -1034,6 +1170,18 @@ export class Simulation {
     this.id[i] = this.nextId++;
     this.parentId[i] = parent;
     if (this.sexOn) this.parent2Id[i] = 0;
+    if (this.sexGeneOn) this.sexMode[i] = 0;
+    if (this.memoryOn) this.memState.fill(0, i * MEMORY_COUNT, (i + 1) * MEMORY_COUNT);
+    if (this.chemOn) {
+      this.chem.fill(0, i * 4, i * 4 + 4);
+      this.chem[i * 4 + 3] = 0.5; // a newborn starts out neither calm nor stressed
+      this.chemIntake[i] = 0;
+      this.chemHit[i] = 0;
+    }
+    if (this.homeX.length > 0) {
+      this.homeX[i] = x;
+      this.homeY[i] = y;
+    }
     if (this.bondsOn) this.bondTo.fill(-1, i * BOND_SLOTS, (i + 1) * BOND_SLOTS);
     if (this.typeOn) this.cellType[i] = 0;
     if (this.camoOn) this.hasImage[i] = 0;
@@ -1145,6 +1293,12 @@ export class Simulation {
     if (this.typeOn) this.photoGain[i] = photo * sizeToThreeQuarters;
     this.moveCost[i] = c.moveCostCoeff * size * speed * speed * (1 + c.armorMoveFactor * armor);
     this.senseCost[i] = c.senseCostCoeff * sense;
+    if (this.kinToleranceOn) {
+      const tolerance = genes[g + GENE.tolerance]!;
+      // The circle of relatives this organism spares is its tolerance times the most kinDistance allows.
+      this.toleranceSq[i] = tolerance * tolerance * this.kinLimitSq;
+      this.senseCost[i] = this.senseCost[i]! + c.toleranceCostCoeff * tolerance;
+    }
     const fightingPenalty = 1 + c.herbivoreAttackPenalty * (1 - diet);
     this.attackCost[i] = c.attackCostCoeff * attack * size * fightingPenalty;
     this.attemptCost[i] = c.attackAttemptCost * size * fightingPenalty;
@@ -1192,6 +1346,14 @@ export class Simulation {
     this.bodyEnergy[i] = c.bodyEnergyPerSize * size;
     this.bodyMatter[i] = c.bodyMatterPerSize * size;
     this.threshold[i] = c.reproThresholdPerSize * size;
+    if (this.fatOn) {
+      // A fat body banks more before reproducing, and costs more to haul around and keep.
+      const fat = genes[g + GENE.fat]!;
+      this.threshold[i] = this.threshold[i]! * (1 + c.fatMax * fat);
+      this.moveCost[i] = this.moveCost[i]! * (1 + c.fatMoveCost * fat);
+      this.basalCost[i] = this.basalCost[i]! * (1 + c.fatUpkeep * fat);
+    }
+    if (this.torporOn) this.basalCost[i] = this.basalCost[i]! * (1 + c.torporUpkeep * genes[g + GENE.torpor]!);
   }
 
   /** Give a new organism (at index `child`) a mutated copy of its parent's genes. */
@@ -1302,19 +1464,73 @@ export class Simulation {
     this.brainConnections[i] = size.connections;
     // Work out which kinds of input any working connection reads, so thinking can skip the rest.
     let senses = 0;
+    let readsChem = false;
     const base = i * CONN_MAX;
     for (let k = 0; k < this.brainCount[i]!; k++) {
       const w = this.brainWeight[base + k]!;
       if (w < c.brainPruneBelow && w > -c.brainPruneBelow) continue;
       const source = this.brainFrom[base + k]!;
       if (source >= INPUT_COUNT) continue; // hidden units read other inputs, which are counted on their own
+      if (source >= INPUT.chemReward && source <= INPUT.chemCalm) readsChem = true;
       if (source < INPUT.smellPlantAhead) senses |= SENSE_VISION;
       else if (source < INPUT.energy) senses |= SENSE_SMELL;
       else if (source >= INPUT.kinDensity && source <= INPUT.kinSide) senses |= SENSE_SOCIAL;
       else senses |= SENSE_BODY;
     }
     this.brainSenses[i] = senses;
-    this.brainCost[i] = c.brainBaseCost + c.brainCostPerNeuron * size.hidden + c.brainCostPerConnection * size.connections;
+    this.brainCost[i] = c.brainBaseCost + c.brainCostPerNeuron * size.hidden + c.brainCostPerConnection * size.connections + (readsChem && this.chemOn ? c.chemicalsCost : 0);
+  }
+
+  /** Which kind of plant grows in each cell (empty when there is only one kind). Fixed for the whole run. */
+  plantKindMap(): Uint8Array {
+    return this.plantTypeOf;
+  }
+
+  /** How well organism i digests the plants growing in a cell: 1 for its favorite kind, falling to the floor (kinds are spaced evenly from 0 to 1). */
+  private palateMatch(i: number, cell: number): number {
+    const c = this.config;
+    const position = this.plantTypeOf[cell]! / (this.plantKinds - 1);
+    const distance = Math.abs(this.genes[i * GENE_COUNT + GENE.palate]! - position);
+    const match = 1 - distance / c.plantPalateWidth;
+    return match > c.plantPalateFloor ? match : c.plantPalateFloor;
+  }
+
+  /** Move organism i's four chemical signals (reward, stress, bond, calm) on by one thought. */
+  private updateChemicals(i: number): void {
+    const c = this.config;
+    const at = i * 4;
+    const decay = c.chemDecay;
+    const energyFraction = Math.min(this.energy[i]! / this.threshold[i]!, 1);
+    // Reward: food just eaten.
+    const reward = this.chem[at]! * decay + (c.chemRewardGain * this.chemIntake[i]!) / this.threshold[i]!;
+    // Stress: being attacked, being very hungry, being sick.
+    let stress = this.chem[at + 1]! * decay;
+    if (this.chemHit[i] === 1) stress += c.chemStressHit;
+    if (energyFraction < c.chemHungerBelow) stress += (c.chemStressHunger * (c.chemHungerBelow - energyFraction)) / c.chemHungerBelow;
+    if (this.diseaseOn && this.sickFor[i]! > 0) stress += c.chemStressSick;
+    // Bonding: relatives close by (or bonded neighbors).
+    let company = 0;
+    if (this.kinLimitSq > 0) {
+      this.visSelf = i;
+      this.visX = this.x[i]!;
+      this.visY = this.y[i]!;
+      this.kinCount = 0;
+      this.kinVx = 0;
+      this.kinVy = 0;
+      this.hash.forEachNear(this.visX, this.visY, c.herdRange, this.seeKin);
+      company = Math.min(1, this.kinCount / c.herdCap);
+    }
+    if (this.bondsOn) company = Math.max(company, this.bondCount(i) / BOND_SLOTS);
+    const bond = this.chem[at + 2]! * decay + c.chemBondGain * company;
+    // Calm: well fed and not stressed.
+    const clampedStress = stress > 1 ? 1 : stress;
+    const calm = this.chem[at + 3]! + c.chemCalmRate * (energyFraction * (1 - clampedStress) - this.chem[at + 3]!);
+    this.chem[at] = reward > 1 ? 1 : reward;
+    this.chem[at + 1] = clampedStress;
+    this.chem[at + 2] = bond > 1 ? 1 : bond;
+    this.chem[at + 3] = calm;
+    this.chemIntake[i] = 0;
+    this.chemHit[i] = 0;
   }
 
   /** Used while sensing relatives: count the genetically close ones in range and add up the directions to them. */
@@ -1468,8 +1684,10 @@ export class Simulation {
       const south = ((cy + 1) % gh) * gw + cx;
       const north = ((cy + gh - 1) % gh) * gw + cx;
       const plantScale = 1 / c.foodCap;
-      const gxPlant = (this.food[east]! - this.food[west]!) * plantScale;
-      const gyPlant = (this.food[south]! - this.food[north]!) * plantScale;
+      // With kinds of plant, what an animal smells is food it can digest.
+      const kinds = this.plantKinds > 1;
+      const gxPlant = (this.food[east]! * (kinds ? this.palateMatch(i, east) : 1) - this.food[west]! * (kinds ? this.palateMatch(i, west) : 1)) * plantScale;
+      const gyPlant = (this.food[south]! * (kinds ? this.palateMatch(i, south) : 1) - this.food[north]! * (kinds ? this.palateMatch(i, north) : 1)) * plantScale;
       inputs[INPUT.smellPlantAhead] = clampUnit(gxPlant * hx + gyPlant * hy);
       inputs[INPUT.smellPlantSide] = clampUnit(hx * gyPlant - hy * gxPlant);
       const meatScale = 1 / MEAT_SMELL_FULL;
@@ -1477,7 +1695,7 @@ export class Simulation {
       const gyMeat = (this.corpseEnergy[south]! - this.corpseEnergy[north]!) * meatScale;
       inputs[INPUT.smellMeatAhead] = clampUnit(gxMeat * hx + gyMeat * hy);
       inputs[INPUT.smellMeatSide] = clampUnit(hx * gyMeat - hy * gxMeat);
-      inputs[INPUT.plantHere] = Math.min(1, this.food[here]! * plantScale);
+      inputs[INPUT.plantHere] = Math.min(1, this.food[here]! * (kinds ? this.palateMatch(i, here) : 1) * plantScale);
       inputs[INPUT.meatHere] = Math.min(1, this.corpseEnergy[here]! * meatScale);
 
       // Trails: which way does plant-eater and meat-eater scent get fresher?
@@ -1560,6 +1778,33 @@ export class Simulation {
       inputs[INPUT.barrier] = blockedAt(0.75 * cs) ? 1 : blockedAt(1.75 * cs) ? 0.5 : 0;
     }
 
+    // Chemical signals: update them from what has happened since the last thought, then offer them as inputs.
+    if (this.chemOn) {
+      this.updateChemicals(i);
+      for (let k = 0; k < 4; k++) inputs[INPUT.chemReward + k] = this.chem[i * 4 + k]!;
+    }
+    // Home: which way, and how far, is the place this organism (or its lineage) calls home?
+    if (this.homeX.length > 0) {
+      const W = c.worldWidth;
+      const H = c.worldHeight;
+      let dx = this.homeX[i]! - x;
+      let dy = this.homeY[i]! - y;
+      if (dx > W / 2) dx -= W;
+      else if (dx < -W / 2) dx += W;
+      if (dy > H / 2) dy -= H;
+      else if (dy < -H / 2) dy += H;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      if (distance > 0) {
+        inputs[INPUT.homeAhead] = (dx * hx + dy * hy) / distance;
+        inputs[INPUT.homeSide] = (hx * dy - hy * dx) / distance;
+        inputs[INPUT.homeDistance] = Math.min(1, distance / c.homeRange);
+      }
+    }
+    // Memory: what the brain wrote to its memory cells last time it thought.
+    if (this.memoryOn) {
+      for (let k = 0; k < MEMORY_COUNT; k++) inputs[INPUT.memory0 + k] = this.memState[i * MEMORY_COUNT + k]!;
+    }
+
     // The body: hunger, age, its own diet, a constant, and a little noise (a deterministic scramble of the tick and the organism).
     inputs[INPUT.energy] = Math.min(this.energy[i]! / this.threshold[i]!, 1) * 2 - 1;
     inputs[INPUT.age] = Math.min(this.age[i]! / AGE_FULL, 1) * 2 - 1;
@@ -1575,6 +1820,9 @@ export class Simulation {
     this.outTurn[i] = outputs[OUTPUT.turn]!;
     this.outSpeed[i] = outputs[OUTPUT.speed]!;
     this.outAttack[i] = outputs[OUTPUT.attack]!;
+    if (this.memoryOn) {
+      for (let k = 0; k < MEMORY_COUNT; k++) this.memState[i * MEMORY_COUNT + k] = outputs[OUTPUT.memory0 + k]!;
+    }
 
     if (traced) {
       this.traceInputs.set(inputs);
@@ -2192,14 +2440,14 @@ export class Simulation {
    * nearest ready, compatible, unpaired organism within mating range. Those who find nobody
    * wait (and keep eating). Returns how many pairs were made, stored in this.pairs.
    */
-  private pairUp(parentCount: number): number {
-    if (parentCount < 2) return 0;
+  private pairUp(list: Uint32Array, parentCount: number, candidates: Uint32Array = list, candidateCount: number = parentCount): number {
+    if (parentCount < 1 || candidateCount < 2) return 0;
     const ready = this.ready;
-    for (let p = 0; p < parentCount; p++) ready[this.parents[p]!] = 1;
+    for (let p = 0; p < candidateCount; p++) ready[candidates[p]!] = 1;
     this.hash.rebuild(this.x, this.y, this.count);
     let pairs = 0;
     for (let p = 0; p < parentCount; p++) {
-      const a = this.parents[p]!;
+      const a = list[p]!;
       if (ready[a] !== 1) continue;
       this.mateSelf = a;
       this.mateBest = -1;
@@ -2214,7 +2462,7 @@ export class Simulation {
       this.pairs[2 * pairs + 1] = b;
       pairs++;
     }
-    for (let p = 0; p < parentCount; p++) ready[this.parents[p]!] = 0;
+    for (let p = 0; p < candidateCount; p++) ready[candidates[p]!] = 0;
     return pairs;
   }
 
@@ -2263,6 +2511,12 @@ export class Simulation {
       let hy = this.headingY[i]!;
       this.attempted[i] = 0;
       if (this.resting[i]! > 0) this.resting[i] = this.resting[i]! - 1;
+      if (this.torporOn) {
+        // Where plants have stopped growing a dormant organism sits still (and cannot attack) and saves upkeep.
+        const dormant = this.growthFactor[this.cellOf[i]!]! < c.torporBelowGrowth && this.genes[i * GENE_COUNT + GENE.torpor]! > 0;
+        this.torpid[i] = dormant ? 1 : 0;
+        if (dormant) this.resting[i] = 1;
+      }
 
       let stepSpeed = this.speed[i]!;
       if (brainMode === 0) {
@@ -2270,13 +2524,16 @@ export class Simulation {
         // behavior, kept exactly as the control.)
         const sense = this.senseRange[i]!;
         if (sense > 0) {
-          const here = food[Math.floor(y0 / cs) * gw + Math.floor(x0 / cs)]!;
+          const hereCell = Math.floor(y0 / cs) * gw + Math.floor(x0 / cs);
+          const kinds = this.plantKinds > 1;
+          // (With kinds of plant it leans toward food it can digest.)
+          const here = food[hereCell]! * (kinds ? this.palateMatch(i, hereCell) : 1);
           let gx = 0;
           let gy = 0;
           for (let d = 0; d < 8; d++) {
             const cx = wrapCell(Math.floor((x0 + DIR_X[d]! * sense) / cs), gw);
             const cy = wrapCell(Math.floor((y0 + DIR_Y[d]! * sense) / cs), gh);
-            const diff = food[cy * gw + cx]! - here;
+            const diff = food[cy * gw + cx]! * (kinds ? this.palateMatch(i, cy * gw + cx) : 1) - here;
             gx += DIR_X[d]! * diff;
             gy += DIR_Y[d]! * diff;
           }
@@ -2337,6 +2594,7 @@ export class Simulation {
       }
       this.headingX[i] = hx;
       this.headingY[i] = hy;
+      if (this.torporOn && this.torpid[i] === 1) stepSpeed = 0;
 
       let nx = x0 + hx * stepSpeed;
       let ny = y0 + hy * stepSpeed;
@@ -2391,6 +2649,7 @@ export class Simulation {
         if (prey < 0) continue;
         this.attempted[i] = 1;
         this.totalAttacks++;
+        if (this.chemOn) this.chemHit[prey] = 1; // whether or not it works, the prey knows it was attacked
         const power = this.attackPower[i]!;
         const odds = power / (power + this.defendedBy(prey));
         if (this.rng.next() < odds) this.kill(i, prey);
@@ -2453,13 +2712,14 @@ export class Simulation {
       meatClaim[cell] = meatClaim[cell]! + meatMass;
       const plantRaw = plantMass * energyPerFood;
       const meatRaw = meatMass * meatDensity[cell]!;
-      const plantGain = plantRaw * this.plantEff[i]!;
+      const plantGain = plantRaw * this.plantEff[i]! * (this.plantKinds > 1 ? this.palateMatch(i, cell) : 1);
       const meatGain = meatRaw * this.meatEff[i]!;
       plantEnergyTaken += plantRaw;
       meatEnergyTaken += meatRaw;
       digestionLoss += plantRaw - plantGain + (meatRaw - meatGain);
       this.plantTaken[i] = this.plantTaken[i]! + plantGain;
       this.meatTaken[i] = this.meatTaken[i]! + meatGain;
+      if (this.chemOn) this.chemIntake[i] = this.chemIntake[i]! + plantGain + meatGain;
       let energy = this.energy[i]! + plantGain + meatGain;
       if (this.typeOn) {
         // A photosynthesizing cell collects sunlight directly (the only new energy that enters the world, so it goes in the ledger as sunlight).
@@ -2488,6 +2748,7 @@ export class Simulation {
         }
       }
       if (this.diseaseOn && this.sickFor[i]! > 0) basal += c.diseaseCost * this.basalCost[i]!; // being sick costs upkeep
+      if (this.torporOn && this.torpid[i] === 1) basal *= 1 - c.torporSaving * this.genes[i * GENE_COUNT + GENE.torpor]!;
       if (this.thermalOn) {
         // Too hot or too cold for comfort costs extra upkeep.
         const off = this.temperature[cell]! - this.thermalPref[i]!;
@@ -2591,12 +2852,37 @@ export class Simulation {
     // A newborn's body is built from the soil it is born on, so a barren patch
     // cannot support babies, and the baby's body also locks away some energy.
     // (With sexual reproduction, two ready organisms pair up and each hands over half as much.)
+    // With sex as a gene, each ready organism first settles (once per birth) whether it splits in two or looks for a mate.
+    let soloCount = parentCount;
+    let mateCount = parentCount;
+    let mateList = this.parents;
+    let soloList = this.parents;
+    if (this.sexGeneOn) {
+      soloCount = 0;
+      mateCount = 0;
+      mateList = this.sexParents;
+      soloList = this.soloParents;
+      for (let p = 0; p < parentCount; p++) {
+        const i = this.parents[p]!;
+        if (this.sexMode[i] === 0) this.sexMode[i] = this.rng.next() < this.genes[i * GENE_COUNT + GENE.sex]! ? 2 : 1;
+        if (this.sexMode[i] === 2) this.sexParents[mateCount++] = i;
+        else this.soloParents[soloCount++] = i;
+      }
+    }
+    let pairCount = 0;
     if (this.sexOn) {
-      const pairCount = this.pairUp(parentCount);
+      // With sexAcceptAny every ready organism is a possible mate, not only the ones that went looking.
+      pairCount = this.sexGeneOn && this.config.sexAcceptAny === 1 ? this.pairUp(mateList, mateCount, this.parents, parentCount) : this.pairUp(mateList, mateCount);
       birthsLoop: for (let p = 0; p < pairCount; p++) {
         const a = this.pairs[2 * p]!;
         const b = this.pairs[2 * p + 1]!;
         const litter = this.litterSize(a, b);
+        if (this.sexGeneOn) {
+          this.sexMode[a] = 0;
+          this.sexMode[b] = 0;
+          this.matedNow[a] = 1;
+          this.matedNow[b] = 1;
+        }
         // Each parent hands over half of the usual total, split between the babies.
         const eachA = (this.energy[a]! * c.offspringEnergyFraction * 0.5) / litter;
         const eachB = (this.energy[b]! * c.offspringEnergyFraction * 0.5) / litter;
@@ -2605,6 +2891,10 @@ export class Simulation {
           const child = this.spawn(this.id[a]!, this.x[a]!, this.y[a]!);
           if (child < 0) break birthsLoop;
           this.parent2Id[child] = this.id[b]!;
+          if (this.homeX.length > 0 && c.homeMode === 2) {
+            this.homeX[child] = this.homeX[a]!;
+            this.homeY[child] = this.homeY[a]!;
+          }
           this.inheritGenesFromTwo(child, a, b);
           this.macroMutate(child);
           if (this.tracker) this.species[child] = this.species[a]!;
@@ -2623,12 +2913,18 @@ export class Simulation {
           this.energy[b] = this.energy[b]! - eachB;
           this.energy[child] = store;
           this.totalBirths++;
+          this.sexualBirths++;
           if (this.bondsOn) this.maybeAttach(a, child);
         }
       }
-    } else {
-      birthsLoop: for (let p = 0; p < parentCount; p++) {
-        const parent = this.parents[p]!;
+    }
+    if (!this.sexOn || this.sexGeneOn) {
+      birthsLoop: for (let p = 0; p < soloCount; p++) {
+        const parent = soloList[p]!;
+        if (this.sexGeneOn) {
+          this.sexMode[parent] = 0;
+          if (this.matedNow[parent] === 1) continue; // it was taken as a mate this tick
+        }
         const litter = this.litterSize(parent, -1);
         // The same total as always, split between the babies (a litter of one hands over exactly what it always did).
         const each = (this.energy[parent]! * c.offspringEnergyFraction) / litter;
@@ -2636,6 +2932,10 @@ export class Simulation {
           const savedNextId = this.nextId;
           const child = this.spawn(this.id[parent]!, this.x[parent]!, this.y[parent]!);
           if (child < 0) break birthsLoop;
+          if (this.homeX.length > 0 && c.homeMode === 2) {
+            this.homeX[child] = this.homeX[parent]!;
+            this.homeY[child] = this.homeY[parent]!;
+          }
           this.inheritGenes(child, parent);
           this.macroMutate(child);
           if (this.tracker) this.species[child] = this.species[parent]!;
@@ -2656,6 +2956,13 @@ export class Simulation {
           this.totalBirths++;
           if (this.bondsOn) this.maybeAttach(parent, child);
         }
+      }
+    }
+
+    if (this.sexGeneOn) {
+      for (let p = 0; p < pairCount; p++) {
+        this.matedNow[this.pairs[2 * p]!] = 0;
+        this.matedNow[this.pairs[2 * p + 1]!] = 0;
       }
     }
 
@@ -2796,6 +3103,8 @@ export class Simulation {
       this.brainFrom.copyWithin(target, source, source + count);
       this.brainTo.copyWithin(target, source, source + count);
       this.brainWeight.copyWithin(target, source, source + count);
+      if (this.memoryOn) this.memState.copyWithin(to * MEMORY_COUNT, from * MEMORY_COUNT, (from + 1) * MEMORY_COUNT);
+      if (this.chemOn) this.chem.copyWithin(to * 4, from * 4, from * 4 + 4);
     }
   }
 
@@ -2826,6 +3135,8 @@ export class Simulation {
     organism("brainFrom", this.brainFrom, CONN_MAX);
     organism("brainTo", this.brainTo, CONN_MAX);
     organism("brainWeight", this.brainWeight, CONN_MAX);
+    if (this.memoryOn) organism("memState", this.memState, MEMORY_COUNT);
+    if (this.chemOn) organism("chem", this.chem, 4);
     // The land and the scent trails, in full.
     for (const [name, array] of this.landArrays()) arrays[name] = array.slice();
     const state: Record<string, unknown> = {
@@ -2833,6 +3144,7 @@ export class Simulation {
       count: n,
       nextId: this.nextId,
       totalBirths: this.totalBirths,
+      sexualBirths: this.sexualBirths,
       totalDeaths: this.totalDeaths,
       totalKills: this.totalKills,
       totalStarved: this.totalStarved,
@@ -2896,6 +3208,7 @@ export class Simulation {
       count: number;
       nextId: number;
       totalBirths: number;
+      sexualBirths?: number;
       totalDeaths: number;
       totalKills: number;
       totalStarved: number;
@@ -2926,11 +3239,14 @@ export class Simulation {
     take("brainFrom", this.brainFrom);
     take("brainTo", this.brainTo);
     take("brainWeight", this.brainWeight);
+    if (this.memoryOn) take("memState", this.memState);
+    if (this.chemOn) take("chem", this.chem);
     for (const [name, array] of this.landArrays()) take(name, array);
     this.tick = s.tick;
     this.count = s.count;
     this.nextId = s.nextId;
     this.totalBirths = s.totalBirths;
+    this.sexualBirths = s.sexualBirths ?? 0;
     this.totalDeaths = s.totalDeaths;
     this.totalKills = s.totalKills;
     this.totalStarved = s.totalStarved;
@@ -2990,6 +3306,11 @@ export class Simulation {
       case "plan2":
       case "plan3":
       case "stick":
+      case "tolerance":
+      case "sex":
+      case "fat":
+      case "torpor":
+      case "palate":
         return this.genes[i * GENE_COUNT + GENE[name]]!;
       case "lifespan": {
         const range = this.ranges.lifespan;
@@ -3064,6 +3385,7 @@ export class Simulation {
       colonies: this.colonyStats(),
       disease: this.diseaseStats(),
       totalBirths: this.totalBirths,
+      sexualBirths: this.sexualBirths,
       totalDeaths: this.totalDeaths,
       totalKills: this.totalKills,
       totalStarved: this.totalStarved,

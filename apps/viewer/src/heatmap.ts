@@ -20,6 +20,11 @@ export const HEATMAP_TRAITS: readonly { id: GeneName; label: string }[] = [
   { id: "lifespan", label: "Lifespan" },
   { id: "litter", label: "Litter size" },
   { id: "bond", label: "Bonding" },
+  { id: "tolerance", label: "Tolerance of relatives" },
+  { id: "sex", label: "Mate-seeking" },
+  { id: "fat", label: "Fat" },
+  { id: "torpor", label: "Torpor" },
+  { id: "palate", label: "Palate (kind of plant)" },
 ];
 
 /**

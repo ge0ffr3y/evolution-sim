@@ -1,4 +1,4 @@
-import { CONN_MAX, INPUT_COUNT, OUTPUT_COUNT } from "./brain";
+import { CONN_MAX, HIDDEN_MAX, INPUT_COUNT, OUTPUT_COUNT } from "./brain";
 
 /**
  * Every tuning number for the simulation lives here, and nowhere else.
@@ -220,6 +220,44 @@ export interface SimConfig {
   brainAddNodeProb: number;
   brainRemoveConnectionProb: number;
   brainRemoveNodeProb: number;
+  /**
+   * Memory (needs brains): four memory cells. What the brain writes to its four memory outputs
+   * is kept and comes back as inputs the next time it thinks, so a brain can wire a cell to
+   * itself to remember something, or count, or keep a mood. 0 = off (the inputs stay at zero).
+   */
+  brainMemory: number;
+  /**
+   * Home (needs brains): 0 = no sense of home. 1 = each organism can sense the direction and
+   * distance of the place it was born. 2 = the same, but a baby inherits its parent's home, so a
+   * whole lineage shares a home range. homeRange is how far away counts as "far" (the distance
+   * input reaches 1 there).
+   */
+  homeMode: number;
+  homeRange: number;
+  /**
+   * Chemical signals (needs brains): each organism has four slow internal signals that its brain can
+   * read: a reward signal that jumps when it eats, a stress signal that jumps when it is attacked,
+   * starving or sick, a bonding signal that rises with relatives close by (or bonded neighbors),
+   * and a calm signal that is high when it is well fed and unstressed. Nothing is rewarded for
+   * having them: they only tell the brain things it could not otherwise know about the recent past,
+   * and an organism that does not read them just does not pay for them (chemicalsCost, per tick,
+   * for a brain that reads at least one). 0 = off (the inputs stay at zero).
+   */
+  chemicals: number;
+  /** Each signal keeps this share of its value from one thought to the next (0 to 1). */
+  chemDecay: number;
+  /** Reward rises by this much per unit of food energy eaten, as a share of the energy needed to reproduce. */
+  chemRewardGain: number;
+  /** Stress rises by chemStressHit when an attack is made on the organism, chemStressSick while sick, and up to chemStressHunger when its energy is below chemHungerBelow of what it needs to reproduce. */
+  chemStressHit: number;
+  chemStressSick: number;
+  chemStressHunger: number;
+  chemHungerBelow: number;
+  /** Bonding rises by this much when the relatives it can count (up to herdCap) are all around it. */
+  chemBondGain: number;
+  /** How fast calm moves toward (well fed x not stressed). */
+  chemCalmRate: number;
+  chemicalsCost: number;
   /** Energy per tick for having a brain at all, per hidden unit, and per working connection. */
   brainBaseCost: number;
   brainCostPerNeuron: number;
@@ -301,6 +339,71 @@ export interface SimConfig {
   thermalCostCoeff: number;
   thermalTolerance: number;
 
+  // --- Weather, harsh and mild years, reserves and dormancy (all off by default; weather and harsh years need a climate) ---
+  /**
+   * Weather fronts: smooth warm and cold patches that drift across the world and slowly change
+   * shape, so one region has a good spell while another has a bad one. weatherAmplitude is how
+   * much warmer or colder (on the 0 to 1 temperature scale) a patch is at its most extreme
+   * (0 = no weather). weatherScale is the patch size in food cells (it must divide the grid),
+   * weatherDriftTicks the ticks a front takes to move one cell east (0 = it stays put),
+   * weatherDriftYTicks the same going south, and weatherMorphPeriod how long the pattern takes to
+   * change from one shape to another (0 = it keeps its shape).
+   */
+  weatherAmplitude: number;
+  weatherScale: number;
+  weatherDriftTicks: number;
+  weatherDriftYTicks: number;
+  weatherMorphPeriod: number;
+  /** Harsh and mild years: each year's seasonal swing is multiplied by 1 plus or minus this much, by a fixed scramble of the year number (0 = every year alike; needs yearLength). */
+  yearVariability: number;
+  /**
+   * The fat gene (the 21st; fatMax above 0 turns it on): an organism with the most fat banks fatMax times
+   * as much energy before it reproduces, but pays fatMoveCost times more to move and fatUpkeep times
+   * more upkeep for carrying it.
+   */
+  fatMax: number;
+  fatMoveCost: number;
+  fatUpkeep: number;
+  initialFat: number;
+  /**
+   * The torpor gene (the 22nd; needs a climate, and torporSaving above 0 turns it on): where plants are
+   * growing at less than torporBelowGrowth of full speed an organism goes dormant. It does not move or
+   * attack, and its upkeep falls by torporSaving times its gene. Having the machinery for it costs
+   * torporUpkeep times the gene extra upkeep all the time.
+   */
+  torporSaving: number;
+  torporBelowGrowth: number;
+  torporUpkeep: number;
+  initialTorpor: number;
+
+  // --- Kinds of plant (off by default: 1 = every plant is alike) ---
+  /**
+   * How many kinds of plant there are (1 to 6). Each cell grows one kind, in smooth patches
+   * (plantTypeScale food cells across; it must divide the grid). The kinds differ in the time of
+   * year they grow best (their peaks are spread over plantTypePhase of a year, which needs seasons)
+   * and the temperature they like (plantTypeTempSpread apart, which needs a climate). A new gene,
+   * the palate (the 23rd), says which kind an animal digests best: it digests the kind it matches
+   * at full efficiency, and a kind that is plantPalateWidth away at the floor efficiency
+   * (plantPalateFloor), falling in a straight line in between. Being good at one kind therefore
+   * means being worse at the others, and the kinds are spaced evenly from 0 to 1. Brains smell
+   * plants in proportion to how well they can digest them.
+   */
+  plantTypes: number;
+  plantTypeScale: number;
+  plantTypePhase: number;
+  plantTypeTempSpread: number;
+  plantPalateWidth: number;
+  plantPalateFloor: number;
+  /** The first generation's palate. */
+  initialPalate: number;
+  /**
+   * Standing variety in the first generation: each of the newer genes that is switched on
+   * (tolerance, mate-seeking, fat, torpor, palate) starts at its initial value plus a random amount
+   * between 0 and this, so selection has something to work with from the start. 0 = every
+   * founder is alike (the original way).
+   */
+  founderSpread: number;
+
   // --- Catastrophes (off by default) ---
   /**
    * 0 = none. 1 = an ice age (the whole world gets colder, then recovers). 2 = a drought
@@ -346,6 +449,18 @@ export interface SimConfig {
    * kin, and brains can sense how many relatives are near and in which direction. 0 = off.
    */
   kinDistance: number;
+  /**
+   * Make tolerance of relatives a gene (the 19th) instead of a fixed rule. 1 = each organism's own
+   * gene (0 to 1) times kinDistance is the closeness at which it will not attack a relative, so
+   * a founder with tolerance 0 attacks anyone and tolerance has to evolve (kinDistance is then the
+   * most it can reach, and still decides who counts as a relative for sensing and herding). Needs
+   * kinDistance above 0. 0 = everybody follows kinDistance.
+   */
+  kinTolerance: number;
+  /** Tolerance of the first generation (0 to 1). */
+  initialTolerance: number;
+  /** Energy per tick per unit of tolerance: recognizing relatives is a kind of sensing, so it is counted on the sensing line. */
+  toleranceCostCoeff: number;
   /**
    * The selfish herd: prey with relatives close by are harder to kill. An attack's odds use the
    * prey's defense times (1 + herdBonus x relatives within herdRange / herdCap), counting at most
@@ -401,7 +516,7 @@ export interface SimConfig {
    * 0 = every organism lives alone. 1 = cells can stay together: a gene gives the chance that a baby
    * stays attached to its parent, forming a colony. Bonded cells are held near each other like
    * linked beads, turn toward their neighbors' heading so the colony moves as one, and share
-   * energy (a hungry cell is fed by a fed neighbor). Needs brainMode 0 for now.
+   * energy (a hungry cell is fed by a fed neighbor). With brains, every cell keeps its own brain.
    */
   multicellular: number;
   /** The most bonds one cell can have (at most 6) and the most cells one colony can hold; a baby that would exceed either floats off alone. */
@@ -463,8 +578,19 @@ export interface SimConfig {
    * organisms that are both ready to reproduce, close together and genetically compatible
    * pair up and have one baby, built from a mix of their genes (and brains), with each
    * paying half the usual energy. A ready organism with no partner nearby waits.
+   * 2 = sex is a gene (the 20th): each time an organism becomes ready it either splits in
+   * two or goes looking for a mate, with the gene as the chance of looking. Nobody is told
+   * to be sexual, and the only price of looking is the wait for a partner.
    */
   sexualReproduction: number;
+  /** The chance of looking for a mate in the first generation, with sexualReproduction 2 (0 = everyone starts out splitting). */
+  initialSex: number;
+  /**
+   * With sexualReproduction 2: 1 = a ready organism that did not choose to look for a mate will still
+   * accept a compatible neighbor who asks (it pays half the energy, as a mate does), so a rare
+   * mate-seeker is not stuck waiting for another mate-seeker. 0 = only mate-seekers pair with each other.
+   */
+  sexAcceptAny: number;
   /** How close (in world units) two organisms must be to mate. */
   mateRange: number;
   /**
@@ -655,6 +781,19 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   brainAddNodeProb: 0.03,
   brainRemoveConnectionProb: 0.03,
   brainRemoveNodeProb: 0.01,
+  brainMemory: 0,
+  chemicals: 0,
+  chemDecay: 0.95,
+  chemRewardGain: 20,
+  chemStressHit: 0.5,
+  chemStressSick: 0.05,
+  chemStressHunger: 0.1,
+  chemHungerBelow: 0.3,
+  chemBondGain: 0.1,
+  chemCalmRate: 0.02,
+  chemicalsCost: 0.0005,
+  homeMode: 0,
+  homeRange: 64,
   brainBaseCost: 0.001,
   brainCostPerNeuron: 0.0005,
   brainCostPerConnection: 0.0001,
@@ -686,6 +825,28 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   seasonTempSwing: 0.15,
   climateDriftPeriod: 0,
   climateDriftAmplitude: 0.15,
+  plantTypes: 1,
+  plantTypeScale: 8,
+  plantTypePhase: 1,
+  plantTypeTempSpread: 0.1,
+  plantPalateWidth: 0.5,
+  plantPalateFloor: 0.1,
+  initialPalate: 0.5,
+  founderSpread: 0,
+  weatherAmplitude: 0,
+  weatherScale: 8,
+  weatherDriftTicks: 400,
+  weatherDriftYTicks: 1500,
+  weatherMorphPeriod: 30000,
+  yearVariability: 0,
+  fatMax: 0,
+  fatMoveCost: 0.3,
+  fatUpkeep: 0.15,
+  initialFat: 0,
+  torporSaving: 0,
+  torporBelowGrowth: 0.35,
+  torporUpkeep: 0.1,
+  initialTorpor: 0,
   thermalCostCoeff: 0,
   thermalTolerance: 0.1,
   catastropheKind: 0,
@@ -699,6 +860,9 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   agingPrimeFraction: 0.5,
   agingRepairCoeff: 0.3,
   kinDistance: 0,
+  kinTolerance: 0,
+  initialTolerance: 0,
+  toleranceCostCoeff: 0.003,
   herdBonus: 0,
   herdRange: 8,
   herdCap: 5,
@@ -744,6 +908,8 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   typeSensorSpeed: 0.7,
   colonyDefenseShare: 0.5,
   sexualReproduction: 0,
+  initialSex: 0,
+  sexAcceptAny: 0,
   mateRange: 6,
   mateDistance: 0.25,
   matePreference: 0,
@@ -837,7 +1003,7 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (c.preyMaxSizeRatio <= 0) problems.push("preyMaxSizeRatio must be positive");
   if (c.herbivoreAttackPenalty < 0) problems.push("herbivoreAttackPenalty cannot be negative");
   if (![0, 1, 2].includes(c.brainMode)) problems.push("brainMode must be 0 (no brains), 1 (fixed layout) or 2 (evolvable layout)");
-  if (!Number.isInteger(c.brainHidden) || c.brainHidden < 1 || c.brainHidden > 12) problems.push("brainHidden must be a whole number from 1 to 12");
+  if (!Number.isInteger(c.brainHidden) || c.brainHidden < 1 || c.brainHidden > HIDDEN_MAX) problems.push(`brainHidden must be a whole number from 1 to ${HIDDEN_MAX}`);
   else if (c.brainMode === 1 && c.brainHidden * (INPUT_COUNT + OUTPUT_COUNT) > CONN_MAX) {
     problems.push(`brainHidden ${c.brainHidden} needs ${c.brainHidden * (INPUT_COUNT + OUTPUT_COUNT)} connections per brain, but only ${CONN_MAX} fit (use at most ${Math.floor(CONN_MAX / (INPUT_COUNT + OUTPUT_COUNT))})`);
   }
@@ -858,6 +1024,16 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     problems.push("brainVisionRange plus senseRangeMax must be under half the world");
   }
   if (c.brainVisionRange < 0) problems.push("brainVisionRange cannot be negative");
+  if (![0, 1].includes(c.brainMemory)) problems.push("brainMemory must be 0 or 1");
+  if (![0, 1].includes(c.chemicals)) problems.push("chemicals must be 0 or 1");
+  if (c.chemicals === 1 && c.brainMode === 0) problems.push("chemicals need brains (set brainMode to 1 or 2)");
+  if (c.chemDecay < 0 || c.chemDecay >= 1) problems.push("chemDecay must be at least 0 and under 1");
+  if (c.chemRewardGain < 0 || c.chemStressHit < 0 || c.chemStressSick < 0 || c.chemStressHunger < 0 || c.chemBondGain < 0 || c.chemCalmRate < 0 || c.chemicalsCost < 0) problems.push("the chemical settings cannot be negative");
+  if (c.chemHungerBelow <= 0 || c.chemHungerBelow > 1) problems.push("chemHungerBelow must be above 0 and at most 1");
+  if (c.brainMemory === 1 && c.brainMode === 0) problems.push("brainMemory needs brains (set brainMode to 1 or 2)");
+  if (![0, 1, 2].includes(c.homeMode)) problems.push("homeMode must be 0, 1 or 2");
+  if (c.homeMode > 0 && c.brainMode === 0) problems.push("homeMode needs brains (set brainMode to 1 or 2)");
+  if (!(c.homeRange > 0)) problems.push("homeRange must be positive");
   if (![0, 1].includes(c.terrainMode)) problems.push("terrainMode must be 0 (open plain) or 1 (biomes)");
   if (c.terrainMode === 1) {
     const gw = c.worldWidth / c.foodCellSize;
@@ -894,6 +1070,36 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     if (!(c.meteorRadius > 0)) problems.push("meteorRadius must be positive");
   }
   if (![0, 1].includes(c.climateMode)) problems.push("climateMode must be 0 (no climate) or 1 (climate)");
+  if (c.weatherAmplitude < 0) problems.push("weatherAmplitude cannot be negative");
+  if (c.weatherAmplitude > 0) {
+    if (c.climateMode !== 1) problems.push("weather needs a climate (set climateMode to 1)");
+    const gw = c.worldWidth / c.foodCellSize;
+    const gh = c.worldHeight / c.foodCellSize;
+    if (!Number.isInteger(c.weatherScale) || c.weatherScale < 1 || gw % c.weatherScale !== 0 || gh % c.weatherScale !== 0) {
+      problems.push("weatherScale must be a whole number of food cells that divides the grid evenly");
+    }
+    if (c.weatherDriftTicks < 0 || c.weatherDriftYTicks < 0 || c.weatherMorphPeriod < 0) problems.push("weather drift and morph times cannot be negative");
+  }
+  if (!Number.isInteger(c.plantTypes) || c.plantTypes < 1 || c.plantTypes > 6) problems.push("plantTypes must be a whole number from 1 to 6");
+  if (c.plantTypes > 1) {
+    const gw = c.worldWidth / c.foodCellSize;
+    const gh = c.worldHeight / c.foodCellSize;
+    if (!Number.isInteger(c.plantTypeScale) || c.plantTypeScale < 1 || gw % c.plantTypeScale !== 0 || gh % c.plantTypeScale !== 0) problems.push("plantTypeScale must be a whole number of food cells that divides the grid evenly");
+    if (c.plantTypePhase < 0 || c.plantTypePhase > 1) problems.push("plantTypePhase must be between 0 and 1");
+    if (c.plantTypePhase > 0 && c.climateMode !== 1) problems.push("plantTypePhase above 0 needs a climate with seasons (set climateMode to 1 and a yearLength), or set it to 0");
+    if (c.plantTypeTempSpread < 0) problems.push("plantTypeTempSpread cannot be negative");
+    if (!(c.plantPalateWidth > 0)) problems.push("plantPalateWidth must be positive");
+    if (c.plantPalateFloor < 0 || c.plantPalateFloor > 1) problems.push("plantPalateFloor must be between 0 and 1");
+    if (c.initialPalate < 0 || c.initialPalate > 1) problems.push("initialPalate must be between 0 and 1");
+  }
+  if (c.founderSpread < 0 || c.founderSpread > 1) problems.push("founderSpread must be between 0 and 1");
+  if (c.yearVariability < 0 || c.yearVariability > 1) problems.push("yearVariability must be between 0 and 1");
+  if (c.yearVariability > 0 && (c.climateMode !== 1 || c.yearLength <= 0)) problems.push("yearVariability needs a climate with seasons (climateMode 1 and a yearLength)");
+  if (c.fatMax < 0 || c.fatMoveCost < 0 || c.fatUpkeep < 0) problems.push("the fat settings cannot be negative");
+  if (c.initialFat < 0 || c.initialFat > 1 || c.initialTorpor < 0 || c.initialTorpor > 1) problems.push("initialFat and initialTorpor must be between 0 and 1");
+  if (c.torporSaving < 0 || c.torporSaving > 1) problems.push("torporSaving must be between 0 and 1");
+  if (c.torporSaving > 0 && c.climateMode !== 1) problems.push("torpor needs a climate (set climateMode to 1)");
+  if (c.torporBelowGrowth < 0 || c.torporUpkeep < 0) problems.push("the torpor settings cannot be negative");
   if (c.climateMode === 1) {
     for (const [name, value] of [["dayLength", c.dayLength], ["yearLength", c.yearLength], ["climateDriftPeriod", c.climateDriftPeriod]] as const) {
       if (!Number.isInteger(value) || value < 0) problems.push(`${name} must be a whole number of ticks (0 turns it off)`);
@@ -906,6 +1112,10 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     if (c.seasonTempSwing < 0 || c.climateDriftAmplitude < 0 || c.latitudeCooling < 0 || c.mountainCooling < 0) problems.push("temperature swings and cooling cannot be negative");
   }
   if (c.kinDistance < 0 || c.kinDistance > 1) problems.push("kinDistance must be between 0 and 1");
+  if (![0, 1].includes(c.kinTolerance)) problems.push("kinTolerance must be 0 or 1");
+  if (c.kinTolerance === 1 && c.kinDistance <= 0) problems.push("kinTolerance needs kinDistance above 0 (the most closeness a tolerant organism can reach)");
+  if (c.initialTolerance < 0 || c.initialTolerance > 1) problems.push("initialTolerance must be between 0 and 1");
+  if (c.toleranceCostCoeff < 0) problems.push("toleranceCostCoeff cannot be negative");
   if (c.herdBonus < 0) problems.push("herdBonus cannot be negative");
   if (c.herdBonus > 0 && c.kinDistance <= 0) problems.push("herdBonus needs kinDistance above 0 (who counts as a relative)");
   if (!(c.herdRange > 0)) problems.push("herdRange must be positive");
@@ -921,7 +1131,6 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   }
   if (![0, 1].includes(c.multicellular)) problems.push("multicellular must be 0 or 1");
   if (c.multicellular === 1) {
-    if (c.brainMode !== 0) problems.push("multicellular worlds do not support brains yet (set brainMode to 0)");
     if (!Number.isInteger(c.bondLinksMax) || c.bondLinksMax < 1 || c.bondLinksMax > 6) problems.push("bondLinksMax must be a whole number from 1 to 6");
     if (!Number.isInteger(c.colonyMax) || c.colonyMax < 2) problems.push("colonyMax must be a whole number of 2 or more");
     if (!(c.bondRestLength > 0)) problems.push("bondRestLength must be positive");
@@ -940,7 +1149,9 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
       if (value < 0) problems.push(`${name} cannot be negative`);
     }
   }
-  if (![0, 1].includes(c.sexualReproduction)) problems.push("sexualReproduction must be 0 or 1");
+  if (![0, 1, 2].includes(c.sexualReproduction)) problems.push("sexualReproduction must be 0, 1 or 2");
+  if (c.initialSex < 0 || c.initialSex > 1) problems.push("initialSex must be between 0 and 1");
+  if (![0, 1].includes(c.sexAcceptAny)) problems.push("sexAcceptAny must be 0 or 1");
   if (!(c.mateRange > 0)) problems.push("mateRange must be positive");
   if (![0, 1, 2].includes(c.matePreference)) problems.push("matePreference must be 0 (nearest), 1 (most similar genes) or 2 (most similar color)");
   if (![0, 1].includes(c.camouflageMode)) problems.push("camouflageMode must be 0 or 1");

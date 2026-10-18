@@ -132,3 +132,39 @@ export function generateBackground(seed: number, gw: number, gh: number, scale: 
   for (let k = 0; k < noise.length; k++) out[k] = Math.min(0.999999, (noise[k]! - lo) / span);
   return out;
 }
+
+/**
+ * A smooth map of weather anomalies, between -1 (cold and gloomy) and +1 (warm and bright), from
+ * its own random stream. `salt` makes a second, different map from the same seed.
+ */
+export function generateWeatherMap(seed: number, gw: number, gh: number, scale: number, salt: number): Float32Array {
+  const rng = new Rng((seed ^ salt) >>> 0);
+  const noise = layeredNoise(rng, gw, gh, scale);
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (let k = 0; k < noise.length; k++) {
+    if (noise[k]! < lo) lo = noise[k]!;
+    if (noise[k]! > hi) hi = noise[k]!;
+  }
+  const span = hi - lo > 1e-9 ? hi - lo : 1;
+  const out = new Float32Array(gw * gh);
+  for (let k = 0; k < noise.length; k++) out[k] = ((noise[k]! - lo) / span) * 2 - 1;
+  return out;
+}
+
+/**
+ * Which kind of plant grows in each cell: smooth patches from their own random stream, with
+ * the same number of cells of each kind (the type boundaries are quantiles of the noise).
+ */
+export function generatePlantTypes(seed: number, gw: number, gh: number, scale: number, kinds: number): Uint8Array {
+  const rng = new Rng((seed ^ 0x6b43a9b5) >>> 0);
+  const noise = layeredNoise(rng, gw, gh, scale);
+  const sorted = Float64Array.from(noise).sort();
+  const out = new Uint8Array(gw * gh);
+  for (let k = 0; k < noise.length; k++) {
+    let type = 0;
+    for (let j = 1; j < kinds; j++) if (noise[k]! >= sorted[Math.min(sorted.length - 1, Math.floor((j * sorted.length) / kinds))]!) type = j;
+    out[k] = type;
+  }
+  return out;
+}
