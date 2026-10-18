@@ -46,3 +46,5 @@ export type {
   SimStats,
   TraitSummary,
 } from "./simulation";
+export { SAMPLE_STRIDE } from "./species";
+export type { SpeciesEvent, SpeciesEventKind, SpeciesRecord } from "./species";

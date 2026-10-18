@@ -11,6 +11,7 @@ import {
   type TraitRange,
   type Traits,
 } from "./genome";
+import { SpeciesTracker, type SpeciesEvent, type SpeciesRecord } from "./species";
 import {
   CONN_MAX,
   HIDDEN_MAX,
@@ -161,6 +162,8 @@ export interface SimStats {
   /** Attacks tried, and how many killed (so kills / attacks is the success rate). */
   totalAttacks: number;
   brain: BrainStats;
+  /** Species alive now, and how many there have ever been (0 when tracking is off). */
+  species: { alive: number; ever: number };
   traits: Record<GeneName, TraitSummary>;
   classes: DietClasses;
   /** Matter in the soil, as rotting meat, and as detritus. */
@@ -402,6 +405,10 @@ export class Simulation {
   /** Movement this tick relative to normal speed (0 = standing still, 1 = normal, 2 = flat out). */
   readonly moveScale: Float32Array;
 
+  /** Which species each organism belongs to (0 when species tracking is off). See species.ts. */
+  readonly species: Uint32Array;
+  private readonly tracker: SpeciesTracker | null;
+
   /** Sprint reserve now, its size (from the stamina gene) and its upkeep per tick. Used only with sprintFatigue. */
   readonly stamina: Float32Array;
   readonly staminaMax: Float32Array;
@@ -561,6 +568,8 @@ export class Simulation {
     this.outAttack = new Float32Array(brainOrganisms);
     this.moveScale = new Float32Array(brainOrganisms);
     this.staminaOn = c.brainMode > 0 && c.sprintFatigue === 1;
+    this.species = new Uint32Array(c.speciesEvery > 0 ? n : 0);
+    this.tracker = c.speciesEvery > 0 ? new SpeciesTracker(c, this.ranges, this.staminaOn) : null;
     const staminaOrganisms = this.staminaOn ? n : 0;
     this.stamina = new Float32Array(staminaOrganisms);
     this.staminaMax = new Float32Array(staminaOrganisms);
@@ -583,6 +592,7 @@ export class Simulation {
     if (this.staminaOn) this.float32Fields.push(this.stamina, this.staminaMax, this.staminaCost);
     this.float64Fields = [this.energy, this.plantTaken, this.meatTaken];
     this.uint32Fields = [this.id, this.parentId, this.age, this.kills];
+    if (this.tracker) this.uint32Fields.push(this.species);
     this.uint8Fields = [this.killed, this.attempted];
     this.uint16Fields = [this.resting];
     if (c.brainMode > 0) {
@@ -609,6 +619,7 @@ export class Simulation {
       this.initBrain(index);
       this.energy[index] = this.threshold[index]! * c.initialEnergyFraction;
     }
+    this.tracker?.start(this.count, this.genes, this.species);
   }
 
   /**
@@ -1366,6 +1377,7 @@ export class Simulation {
       const child = this.spawn(this.id[parent]!, this.x[parent]!, this.y[parent]!);
       if (child < 0) break;
       this.inheritGenes(child, parent);
+      if (this.tracker) this.species[child] = this.species[parent]!;
       this.express(child);
       this.inheritBrain(child, parent);
       const cell = this.cellOf[parent]!;
@@ -1423,6 +1435,7 @@ export class Simulation {
 
     this.tick++;
     if (this.tick % EVENT_CHECK_EVERY === 0) this.checkSlowEvents();
+    if (this.tracker && this.tick % c.speciesEvery === 0) this.tracker.update(this.tick, this.count, this.genes, this.species);
   }
 
   /** `attacker` kills `prey`: the prey's body and whatever energy it carried become a corpse. */
@@ -1499,6 +1512,20 @@ export class Simulation {
   /** Run several ticks in a row. */
   run(ticks: number): void {
     for (let t = 0; t < ticks; t++) this.step();
+  }
+
+  /** Every real species so far (alive or extinct), and the births and extinctions among them. */
+  get speciesRecords(): readonly SpeciesRecord[] {
+    return this.tracker?.records ?? [];
+  }
+
+  get speciesEvents(): readonly SpeciesEvent[] {
+    return this.tracker?.events ?? [];
+  }
+
+  /** The species organism i belongs to (0 when species tracking is off). */
+  speciesOf(i: number): number {
+    return this.tracker ? this.tracker.realSpeciesOf(this.species[i]!) : 0;
   }
 
   /** The value of one trait for organism i (hue is the raw 0 to 1 gene). */
@@ -1579,6 +1606,7 @@ export class Simulation {
       totalFood: sumOf(this.food),
       totalEnergy: energySum,
       meanEnergy: n > 0 ? energySum / n : 0,
+      species: { alive: this.tracker?.aliveCount ?? 0, ever: this.tracker?.records.length ?? 0 },
       totalBirths: this.totalBirths,
       totalDeaths: this.totalDeaths,
       totalKills: this.totalKills,

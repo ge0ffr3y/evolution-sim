@@ -221,6 +221,20 @@ export interface SimConfig {
    */
   brainAppetiteSenses: number;
 
+  // --- Species tracking (only watches; never changes the world) ---
+  /** How often (in ticks) to re-check everyone's species. 0 turns species tracking off. */
+  speciesEvery: number;
+  /**
+   * How different (root-mean-square gene difference, 0 to 1) an organism can be from the
+   * center of its species before it counts as something else.
+   */
+  speciesDistance: number;
+  /** A candidate species needs this many members, for this many ticks, to count as a real one. */
+  speciesMinMembers: number;
+  speciesProbation: number;
+  /** Every this many ticks each living species records its size and average traits (a multiple of speciesEvery). */
+  speciesSampleEvery: number;
+
   // --- Sprinting and stamina (only with brains) ---
   /**
    * 0 = off: brains can run flat out for as long as they like (paying the energy), and the
@@ -362,6 +376,11 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   brainCostPerNeuron: 0.0005,
   brainCostPerConnection: 0.0001,
   brainAppetiteSenses: 0,
+  speciesEvery: 50,
+  speciesDistance: 0.2,
+  speciesMinMembers: 10,
+  speciesProbation: 2000,
+  speciesSampleEvery: 500,
   sprintFatigue: 0,
   staminaRegen: 0.1,
   staminaRestBonus: 1,
@@ -460,6 +479,15 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     problems.push("brainVisionRange plus senseRangeMax must be under half the world");
   }
   if (c.brainVisionRange < 0) problems.push("brainVisionRange cannot be negative");
+  if (!Number.isInteger(c.speciesEvery) || c.speciesEvery < 0) problems.push("speciesEvery must be a whole number of ticks (0 turns species tracking off)");
+  if (c.speciesEvery > 0) {
+    if (!(c.speciesDistance > 0 && c.speciesDistance <= 1)) problems.push("speciesDistance must be above 0 and at most 1");
+    if (!Number.isInteger(c.speciesMinMembers) || c.speciesMinMembers < 1) problems.push("speciesMinMembers must be a whole number of 1 or more");
+    if (!Number.isInteger(c.speciesProbation) || c.speciesProbation < 0) problems.push("speciesProbation must be a whole number of ticks");
+    if (!Number.isInteger(c.speciesSampleEvery) || c.speciesSampleEvery < c.speciesEvery || c.speciesSampleEvery % c.speciesEvery !== 0) {
+      problems.push("speciesSampleEvery must be a multiple of speciesEvery");
+    }
+  }
   if (![0, 1].includes(c.sprintFatigue)) problems.push("sprintFatigue must be 0 or 1");
   if (c.staminaMin < 0) problems.push("staminaMin cannot be negative");
   if (c.staminaRegen < 0 || c.staminaRestBonus < 0 || c.staminaCostCoeff < 0) problems.push("stamina regen, rest bonus and cost cannot be negative");

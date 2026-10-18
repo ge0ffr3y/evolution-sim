@@ -186,6 +186,8 @@ async function runSweep(seeds: number[]): Promise<void> {
     console.log("\nHow purposeful is behavior? (turning at random scores 50%)");
     console.log(`  hunters that can see prey off to one side turn toward it: ${(avg((s) => s.chaseTurn) * 100).toFixed(0)}%`);
     console.log(`  plant eaters that can see a threat off to one side turn away: ${(avg((s) => s.fleeTurn) * 100).toFixed(0)}%`);
+    const ever = avg((s) => s.speciesEver);
+    if (ever > 0) console.log(`\nSpecies (genetically distinct groups): ${avg((s) => s.speciesAlive).toFixed(1)} alive at the end, ${ever.toFixed(1)} ever, per seed (on average)`);
     const attacks = avg((s) => s.totalAttacks);
     if (attacks > 0) console.log(`  attacks that killed (whole run): ${((avg((s) => s.totalKills) / attacks) * 100).toFixed(0)}%`);
     const brainSize = avg((s) => s.brainConnectionsHerbivores + s.brainConnectionsCarnivores);
