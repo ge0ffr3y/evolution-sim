@@ -221,6 +221,32 @@ export interface SimConfig {
    */
   brainAppetiteSenses: number;
 
+  // --- Terrain (off by default) ---
+  /**
+   * 0 = the land is a uniform, open plain (the original world). 1 = the land gets biomes
+   * from smooth noise: water (a hard barrier: nothing can enter it and plants do not grow
+   * there), plains, forest, desert and mountains, which change plant growth and what it
+   * costs to move.
+   */
+  terrainMode: number;
+  /** Size of the broad terrain features, in food cells (must divide the grid). Bigger = bigger continents. */
+  terrainScale: number;
+  /** Share of all cells that are water and mountains; and of the remaining land, the share that is desert and forest. */
+  terrainWaterFraction: number;
+  terrainMountainFraction: number;
+  terrainDesertFraction: number;
+  terrainForestFraction: number;
+  /** Width, in food cells, of two straight channels of water that cut the world in two (0 = none). */
+  terrainBarrierWidth: number;
+  /** How fast plants grow in each biome, relative to plains. */
+  terrainGrowthForest: number;
+  terrainGrowthDesert: number;
+  terrainGrowthMountain: number;
+  /** What it costs to move in each biome, relative to plains. */
+  terrainMoveForest: number;
+  terrainMoveDesert: number;
+  terrainMoveMountain: number;
+
   // --- Sexual reproduction (off by default) ---
   /**
    * 0 = organisms split in two when they have enough energy (the original way). 1 = two
@@ -414,6 +440,19 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   brainCostPerNeuron: 0.0005,
   brainCostPerConnection: 0.0001,
   brainAppetiteSenses: 0,
+  terrainMode: 0,
+  terrainScale: 8,
+  terrainWaterFraction: 0.25,
+  terrainMountainFraction: 0.1,
+  terrainDesertFraction: 0.25,
+  terrainForestFraction: 0.3,
+  terrainBarrierWidth: 0,
+  terrainGrowthForest: 1.3,
+  terrainGrowthDesert: 0.3,
+  terrainGrowthMountain: 0.4,
+  terrainMoveForest: 1.4,
+  terrainMoveDesert: 1.2,
+  terrainMoveMountain: 3,
   sexualReproduction: 0,
   mateRange: 6,
   mateDistance: 0.25,
@@ -526,6 +565,25 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     problems.push("brainVisionRange plus senseRangeMax must be under half the world");
   }
   if (c.brainVisionRange < 0) problems.push("brainVisionRange cannot be negative");
+  if (![0, 1].includes(c.terrainMode)) problems.push("terrainMode must be 0 (open plain) or 1 (biomes)");
+  if (c.terrainMode === 1) {
+    const gw = c.worldWidth / c.foodCellSize;
+    const gh = c.worldHeight / c.foodCellSize;
+    if (!Number.isInteger(c.terrainScale) || c.terrainScale < 1 || gw % c.terrainScale !== 0 || gh % c.terrainScale !== 0) {
+      problems.push("terrainScale must be a whole number of food cells that divides the grid evenly");
+    }
+    for (const [name, value] of [["terrainWaterFraction", c.terrainWaterFraction], ["terrainMountainFraction", c.terrainMountainFraction], ["terrainDesertFraction", c.terrainDesertFraction], ["terrainForestFraction", c.terrainForestFraction]] as const) {
+      if (value < 0 || value >= 1) problems.push(`${name} must be from 0 up to (but not including) 1`);
+    }
+    if (c.terrainWaterFraction + c.terrainMountainFraction >= 1) problems.push("water and mountains cannot cover the whole world");
+    if (c.terrainDesertFraction + c.terrainForestFraction > 1) problems.push("desert and forest fractions cannot add up to more than 1");
+    if (!Number.isInteger(c.terrainBarrierWidth) || c.terrainBarrierWidth < 0 || c.terrainBarrierWidth * 2 > gw / 2) {
+      problems.push("terrainBarrierWidth must be a whole number of cells, at most a quarter of the world's width");
+    }
+    for (const [name, value] of [["terrainGrowthForest", c.terrainGrowthForest], ["terrainGrowthDesert", c.terrainGrowthDesert], ["terrainGrowthMountain", c.terrainGrowthMountain], ["terrainMoveForest", c.terrainMoveForest], ["terrainMoveDesert", c.terrainMoveDesert], ["terrainMoveMountain", c.terrainMoveMountain]] as const) {
+      if (value < 0) problems.push(`${name} cannot be negative`);
+    }
+  }
   if (![0, 1].includes(c.sexualReproduction)) problems.push("sexualReproduction must be 0 or 1");
   if (!(c.mateRange > 0)) problems.push("mateRange must be positive");
   if (![0, 1].includes(c.matePreference)) problems.push("matePreference must be 0 (nearest) or 1 (most similar)");

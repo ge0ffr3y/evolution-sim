@@ -199,6 +199,7 @@ function postFrame(s: Simulation): void {
   const preyScent = Float32Array.from(s.preyScent);
   const hunterScent = Float32Array.from(s.hunterScent);
   const capacity = sendCapacity ? s.foodCapacity.slice() : null;
+  const terrain = sendCapacity && s.biome.length > 0 ? s.biome.slice() : null;
 
   const message: FrameMessage = {
     type: "frame",
@@ -224,6 +225,7 @@ function postFrame(s: Simulation): void {
     preyScent,
     hunterScent,
     capacity,
+    terrain,
     points,
     histograms,
     inspected: inspect(s),
@@ -243,6 +245,7 @@ function postFrame(s: Simulation): void {
     food.buffer, nutrient.buffer, corpse.buffer, detritus.buffer, preyScent.buffer, hunterScent.buffer,
   ];
   if (capacity) transfer.push(capacity.buffer);
+  if (terrain) transfer.push(terrain.buffer);
   // The options form of postMessage works in both a worker and the DOM typings.
   self.postMessage(message, { transfer });
 }

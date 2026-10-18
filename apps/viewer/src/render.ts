@@ -4,7 +4,7 @@ import type { FrameMessage } from "./protocol";
 export type ColorBy = "diet" | "speed" | "size" | "hue" | "energy" | "sense";
 
 /** What the map background shows. */
-export type Overlay = "plants" | "nutrients" | "corpses" | "detritus" | "trails";
+export type Overlay = "plants" | "nutrients" | "corpses" | "detritus" | "trails" | "terrain";
 
 export const OVERLAYS: readonly { id: Overlay; label: string }[] = [
   { id: "plants", label: "Plants" },
@@ -12,6 +12,7 @@ export const OVERLAYS: readonly { id: Overlay; label: string }[] = [
   { id: "corpses", label: "Corpses" },
   { id: "detritus", label: "Detritus" },
   { id: "trails", label: "Scent trails (brains only)" },
+  { id: "terrain", label: "Terrain (worlds with terrain)" },
 ];
 
 export const COLOR_MODES: readonly { id: ColorBy; label: string; legendLow: string; legendHigh: string }[] = [
@@ -76,6 +77,15 @@ export function legendGradient(mode: ColorBy): string {
   return `linear-gradient(90deg, ${stops.join(", ")})`;
 }
 
+/** Map colors for each biome: water, plains, forest, desert, mountains. */
+const BIOME_COLORS: readonly (readonly [number, number, number])[] = [
+  [28, 70, 128],
+  [96, 140, 70],
+  [30, 92, 56],
+  [196, 170, 100],
+  [128, 128, 134],
+];
+
 /** Draws the food grid and the organisms onto a canvas. */
 export class WorldRenderer {
   colorBy: ColorBy = "diet";
@@ -91,6 +101,8 @@ export class WorldRenderer {
   /** Most food each cell can hold, so rich and barren land look different even when full. */
   private capacity: Float64Array | null = null;
   private maxCapacity = 1;
+  /** The biome of every cell (kept from the first frame after a restart). */
+  private terrain: Uint8Array | null = null;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext("2d");
@@ -112,15 +124,24 @@ export class WorldRenderer {
     }
   }
 
+  /**
+   * Take in the land's fixed facts (how fertile each cell is, and its biome), which the worker
+   * sends only with the first frame after a restart. Called for every frame as it arrives, so
+   * it is not lost if the page skips drawing that particular frame.
+   */
+  setLand(frame: FrameMessage): void {
+    if (!frame.capacity) return;
+    this.terrain = frame.terrain;
+    this.capacity = frame.capacity;
+    this.maxCapacity = Math.max(...frame.capacity, 1);
+  }
+
   draw(frame: FrameMessage): void {
     this.fitToScreen();
     const { ctx, canvas } = this;
     const { world } = frame;
 
-    if (frame.capacity) {
-      this.capacity = frame.capacity;
-      this.maxCapacity = Math.max(...frame.capacity, 1);
-    }
+    this.setLand(frame);
 
     ctx.imageSmoothingEnabled = false;
     if (this.overlay === "trails" && frame.preyScent.length > 0) {
@@ -206,6 +227,25 @@ export class WorldRenderer {
       let r = 14 + fertility * 10;
       let g = 18 + fertility * 22;
       let b = 22 + fertility * 6;
+      const biome = this.terrain ? this.terrain[cell]! : -1;
+      if (overlay === "terrain" && biome >= 0) {
+        const [br, bg, bb] = BIOME_COLORS[biome]!;
+        // A little of the plant cover shows through so you can still see where food is.
+        const cover = biome === 0 ? 0 : Math.min(frame.food[cell]! / Math.max(this.maxCapacity, foodCap), 1) * 0.35;
+        data[o] = Math.round(br * (1 - cover) + 40 * cover);
+        data[o + 1] = Math.round(bg * (1 - cover) + 200 * cover);
+        data[o + 2] = Math.round(bb * (1 - cover) + 80 * cover);
+        data[o + 3] = 255;
+        continue;
+      }
+      if (biome === 0) {
+        // Water is always drawn as water, whatever the overlay.
+        data[o] = BIOME_COLORS[0]![0];
+        data[o + 1] = BIOME_COLORS[0]![1];
+        data[o + 2] = BIOME_COLORS[0]![2];
+        data[o + 3] = 255;
+        continue;
+      }
       if (overlay === "plants") {
         const amount = Math.min(frame.food[cell]! / Math.max(this.maxCapacity, foodCap), 1);
         g += amount * 100;

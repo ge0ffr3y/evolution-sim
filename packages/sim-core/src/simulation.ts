@@ -11,6 +11,7 @@ import {
   type TraitRange,
   type Traits,
 } from "./genome";
+import { BIOME, generateBiomes, growthMultipliers, moveMultipliers } from "./terrain";
 import { SNAPSHOT_FORMAT, type SimSnapshot, type SnapshotArray } from "./snapshot";
 import { SpeciesTracker, type SpeciesEvent, type SpeciesRecord } from "./species";
 import {
@@ -315,6 +316,14 @@ export class Simulation {
   /** Waste and rotted corpses that will turn back into nutrient. */
   readonly detritus: Float64Array;
   /**
+   * Terrain (only when terrainMode is 1): each cell's biome (see terrain.ts), whether it can be
+   * entered, and what it costs to move there relative to plains.
+   */
+  readonly biome: Uint8Array;
+  readonly passable: Uint8Array;
+  readonly terrainMove: Float64Array;
+  private readonly terrainOn: boolean;
+  /**
    * Scent trails (laid only when brains are on): how much plant-eater and meat-eater scent
    * is in each square of a finer grid. It fades every tick, so it marks recent passage.
    */
@@ -504,9 +513,15 @@ export class Simulation {
     this.foodCapacity = new Float64Array(cells).fill(c.foodCap);
     this.foodRegrow = new Float64Array(cells).fill(c.foodRegrowPerTick);
     if (c.fertilityVariation > 0) this.makeFertilityMap();
+    this.terrainOn = c.terrainMode === 1;
+    this.biome = new Uint8Array(this.terrainOn ? cells : 0);
+    this.passable = new Uint8Array(this.terrainOn ? cells : 0);
+    this.terrainMove = new Float64Array(this.terrainOn ? cells : 0);
+    if (this.terrainOn) this.applyTerrain(generateBiomes(c, seed, this.gridWidth, this.gridHeight));
     this.food = new Float64Array(cells);
     for (let cell = 0; cell < cells; cell++) this.food[cell] = this.foodCapacity[cell]! * c.initialFoodFraction;
     this.nutrient = new Float64Array(cells).fill(c.initialNutrientPerCell);
+    if (this.terrainOn) for (let cell = 0; cell < cells; cell++) if (this.biome[cell] === BIOME.water) this.nutrient[cell] = 0;
     this.corpseMatter = new Float64Array(cells);
     this.corpseEnergy = new Float64Array(cells);
     this.detritus = new Float64Array(cells);
@@ -640,7 +655,14 @@ export class Simulation {
     founder[GENE.armor] = traitToGene(c.initialArmor, this.ranges.armor);
     founder[GENE.stamina] = traitToGene(c.initialStamina, this.ranges.stamina);
     for (let i = 0; i < c.initialOrganisms; i++) {
-      const index = this.spawn(0, this.rng.range(0, c.worldWidth), this.rng.range(0, c.worldHeight));
+      let fx = this.rng.range(0, c.worldWidth);
+      let fy = this.rng.range(0, c.worldHeight);
+      // With terrain, founders start on dry land.
+      while (this.terrainOn && this.passable[Math.floor(fy / c.foodCellSize) * this.gridWidth + Math.floor(fx / c.foodCellSize)] === 0) {
+        fx = this.rng.range(0, c.worldWidth);
+        fy = this.rng.range(0, c.worldHeight);
+      }
+      const index = this.spawn(0, fx, fy);
       for (let g = 0; g < GENE_COUNT; g++) this.genes[index * GENE_COUNT + g] = founder[g]!;
       this.genes[index * GENE_COUNT + GENE.hue] = this.rng.next();
       this.express(index);
@@ -648,6 +670,21 @@ export class Simulation {
       this.energy[index] = this.threshold[index]! * c.initialEnergyFraction;
     }
     this.tracker?.start(this.count, this.genes, this.species);
+  }
+
+  /** Fill in the terrain arrays from a biome map, and scale plant growth by biome. */
+  private applyTerrain(biome: Uint8Array): void {
+    const c = this.config;
+    const growth = growthMultipliers(c);
+    const move = moveMultipliers(c);
+    this.biome.set(biome);
+    for (let cell = 0; cell < biome.length; cell++) {
+      const kind = biome[cell]!;
+      this.passable[cell] = kind === BIOME.water ? 0 : 1;
+      this.terrainMove[cell] = move[kind]!;
+      this.foodCapacity[cell] = this.foodCapacity[cell]! * growth[kind]!;
+      this.foodRegrow[cell] = this.foodRegrow[cell]! * growth[kind]!;
+    }
   }
 
   /**
@@ -1296,10 +1333,19 @@ export class Simulation {
       // Rounding to 32 bits can land exactly on the far edge; fold it back to 0.
       if (nx >= W) nx = 0;
       if (ny >= H) ny = 0;
+      let cellNow = Math.floor(ny / cs) * gw + Math.floor(nx / cs);
+      if (this.terrainOn && this.passable[cellNow] === 0) {
+        // Water ahead: stay where we are and turn around.
+        nx = x0;
+        ny = y0;
+        cellNow = Math.floor(ny / cs) * gw + Math.floor(nx / cs);
+        this.headingX[i] = -hx;
+        this.headingY[i] = -hy;
+      }
       this.x[i] = nx;
       this.y[i] = ny;
 
-      this.cellOf[i] = Math.floor(ny / cs) * gw + Math.floor(nx / cs);
+      this.cellOf[i] = cellNow;
       if (this.attack[i]! >= c.attackThreshold) attackers++;
     }
 
@@ -1399,6 +1445,7 @@ export class Simulation {
       const basal = this.basalCost[i]!;
       // Moving costs more the faster the brain drives the body (cost grows with speed squared).
       let move = brainMode > 0 ? this.moveCost[i]! * this.moveScale[i]! * this.moveScale[i]! : this.moveCost[i]!;
+      if (this.terrainOn) move *= this.terrainMove[cell]!; // mountains and forest cost more to cross
       if (this.staminaOn) move += this.staminaCost[i]!; // the upkeep of the sprint reserve counts as movement
       const sensing = this.senseCost[i]!;
       const fighting = this.attackCost[i]! + (this.attempted[i] === 1 ? this.attemptCost[i]! : 0);
@@ -1730,6 +1777,9 @@ export class Simulation {
       ["corpseMatter", this.corpseMatter],
       ["corpseEnergy", this.corpseEnergy],
       ["detritus", this.detritus],
+      ["biome", this.biome],
+      ["passable", this.passable],
+      ["terrainMove", this.terrainMove],
       ["preyScent", this.preyScent],
       ["hunterScent", this.hunterScent],
       ["corpseOwner", this.corpseOwner],

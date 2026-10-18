@@ -127,6 +127,8 @@ export interface FrameMessage {
   hunterScent: Float32Array;
   /** Most food each cell can hold. Sent only in the first frame after a restart. */
   capacity: Float64Array | null;
+  /** The biome of each cell (0 water, 1 plains, 2 forest, 3 desert, 4 mountains); null except in the first frame after a restart, and in worlds without terrain. */
+  terrain: Uint8Array | null;
   /** Chart samples recorded since the previous frame. */
   points: HistoryPoint[];
   /** Histogram snapshots taken since the previous frame. */

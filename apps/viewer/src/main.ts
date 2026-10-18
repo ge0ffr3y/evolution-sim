@@ -551,6 +551,7 @@ worker.onmessage = (event: MessageEvent<FromWorker>) => {
     heatmap.setWorld(frame.world);
     el("brain-chart-block").hidden = frame.world.brainMode === 0;
   }
+  renderer.setLand(frame);
   charts.add(frame.points);
   flows.add(frame.points);
   heatmap.add(frame.histograms);

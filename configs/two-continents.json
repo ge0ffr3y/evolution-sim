@@ -1,0 +1,12 @@
+{
+  "name": "Two continents",
+  "description": "Two straight channels of water cut the world into two halves that cannot reach each other. Everything else is land with forests, deserts and a few mountains. Use it to see whether two separated populations drift apart (watch the family tree and the Terrain map).",
+  "config": {
+    "terrainMode": 1,
+    "terrainBarrierWidth": 2,
+    "terrainWaterFraction": 0,
+    "terrainMountainFraction": 0.08,
+    "terrainDesertFraction": 0.2,
+    "terrainForestFraction": 0.3
+  }
+}

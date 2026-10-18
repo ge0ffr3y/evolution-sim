@@ -10,6 +10,7 @@ const WORLDS: { name: string; seed: number; config: Partial<SimConfig> }[] = [
     seed: 7,
     config: { worldWidth: 128, worldHeight: 128, initialOrganisms: 120, brainMode: 2, brainAppetiteSenses: 1, sprintFatigue: 1, killOwnershipTicks: 30, brainAddConnectionProb: 0.3, speciesDistance: 0.1, speciesProbation: 300 },
   },
+  { name: "terrain with a water barrier", seed: 9, config: { worldWidth: 128, worldHeight: 128, initialOrganisms: 100, terrainMode: 1, terrainBarrierWidth: 1 } },
   { name: "fixed-layout brains", seed: 5, config: { worldWidth: 128, worldHeight: 128, initialOrganisms: 80, brainMode: 1, brainHidden: 3 } },
 ];
 
@@ -120,7 +121,7 @@ describe("saving and loading a world", () => {
     // to save() and restore()) or is scratch space rebuilt every tick, then list it below.
     const rebuilt = new Set([
       // Settings and layout worked out from the config when a world is built.
-      "config", "ranges", "seed", "gridHeight", "gridWidth", "scentWidth", "scentHeight", "scentOn", "guardOn", "staminaOn", "hash", "tracker",
+      "config", "ranges", "seed", "gridHeight", "gridWidth", "terrainOn", "scentWidth", "scentHeight", "scentOn", "guardOn", "staminaOn", "hash", "tracker",
       "float32Fields", "float64Fields", "uint32Fields", "uint16Fields", "uint8Fields", "seeOther", "considerPrey",
       // Scratch space: filled in and used up within one tick, or only used while measuring.
       "behaviorHeading", "behaviorIds", "behaviorIsHunter", "behaviorSideLeft",
