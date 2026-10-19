@@ -224,6 +224,8 @@ export interface OrganismSnapshot {
   traits: Traits;
   /** Energy burned per tick on each activity. */
   costs: { basal: number; movement: number; sensing: number; attack: number; armor: number; brain: number };
+  /** This organism's luck multipliers on upkeep and on its reproduction threshold (null when luck is off). */
+  luck: { upkeep: number; fertility: number } | null;
   /** Its brain, if the world has brains. */
   brain: BrainSnapshot | null;
   /** Disease (all 0 without it): ticks of sickness and of immunity left, and which strain it carries. */
@@ -534,6 +536,10 @@ export class Simulation {
   private readonly fatOn: boolean;
   /** Harmful mutations: which of the genome's spots have gone bad, one bit each (see mutationLoadRate). */
   private readonly loadOn: boolean;
+  /** Luck: multipliers (around 1) on each organism's upkeep and on its reproduction threshold, rolled at birth. */
+  private readonly luckOn: boolean;
+  private readonly upkeepLuck: Float32Array;
+  private readonly fertilityLuck: Float32Array;
   private readonly loadMask: Uint32Array;
   /** Energy held in the fat reserve (counted in the energy audit; it goes into the corpse when the body dies). */
   private readonly fatStore: Float64Array;
@@ -832,6 +838,9 @@ export class Simulation {
         ((k === GENE.stressResponse || k === GENE.calmResponse) && c.brainMode > 0 && c.chemicals === 1 && c.chemBodyEffects === 1),
     );
     this.kinLimitSq = c.kinDistance * c.kinDistance;
+    this.luckOn = c.luckSpread > 0;
+    this.upkeepLuck = new Float32Array(this.luckOn ? n : 0);
+    this.fertilityLuck = new Float32Array(this.luckOn ? n : 0);
     this.loadOn = c.mutationLoadRate > 0;
     this.loadMask = new Uint32Array(this.loadOn ? n : 0);
     this.fatOn = c.fatDepositRate > 0;
@@ -918,6 +927,7 @@ export class Simulation {
     }
     if (this.sexGeneOn) this.uint8Fields.push(this.sexMode);
     if (this.loadOn) this.uint32Fields.push(this.loadMask);
+    if (this.luckOn) this.float32Fields.push(this.upkeepLuck, this.fertilityLuck);
     if (this.chemOn) this.uint8Fields.push(this.chemHit);
     this.uint16Fields = [this.resting];
     if (this.diseaseOn) this.uint16Fields.push(this.infection, this.sickFor, this.immuneFor);
@@ -1193,6 +1203,10 @@ export class Simulation {
     if (this.sexGeneOn) this.sexMode[i] = 0;
     if (this.fatOn) this.fatStore[i] = 0;
     if (this.loadOn) this.loadMask[i] = 0;
+    if (this.luckOn) {
+      this.upkeepLuck[i] = this.rollLuck();
+      this.fertilityLuck[i] = this.rollLuck();
+    }
     if (this.memoryOn) this.memState.fill(0, i * MEMORY_COUNT, (i + 1) * MEMORY_COUNT);
     if (this.chemOn) {
       this.chem.fill(0, i * 4, i * 4 + 4);
@@ -1369,8 +1383,10 @@ export class Simulation {
     this.bodyEnergy[i] = c.bodyEnergyPerSize * size;
     this.bodyMatter[i] = c.bodyMatterPerSize * size;
     this.threshold[i] = c.reproThresholdPerSize * size;
+    if (this.luckOn) this.threshold[i] = this.threshold[i]! * this.fertilityLuck[i]!;
     if (this.torporOn) this.basalCost[i] = this.basalCost[i]! * (1 + c.torporUpkeep * genes[g + GENE.torpor]!);
     if (this.loadOn) this.basalCost[i] = this.basalCost[i]! * (1 + c.mutationLoadCost * this.badSpots(i));
+    if (this.luckOn) this.basalCost[i] = this.basalCost[i]! * this.upkeepLuck[i]!;
   }
 
   /** Give a new organism (at index `child`) a mutated copy of its parent's genes. */
@@ -1398,6 +1414,15 @@ export class Simulation {
       sum += d * d;
     }
     return sum / this.mateMask.length;
+  }
+
+  /** One roll of luck: a bell curve around 1, cut off a set number of spreads either way. */
+  private rollLuck(): number {
+    const c = this.config;
+    let z = this.rng.gaussian();
+    if (z > c.luckLimit) z = c.luckLimit;
+    else if (z < -c.luckLimit) z = -c.luckLimit;
+    return 1 + c.luckSpread * z;
   }
 
   /** How many of organism i's spots have gone bad. */
@@ -3601,6 +3626,7 @@ export class Simulation {
       plantTaken: this.plantTaken[i]!,
       meatTaken: this.meatTaken[i]!,
       kills: this.kills[i]!,
+      luck: this.luckOn ? { upkeep: this.upkeepLuck[i]!, fertility: this.fertilityLuck[i]! } : null,
     };
   }
 

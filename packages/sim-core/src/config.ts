@@ -453,6 +453,17 @@ export interface SimConfig {
   mutationLoadBack: number;
   mutationLoadCost: number;
 
+  // --- Developmental noise: luck (off by default) ---
+  /**
+   * Two bits of luck per organism, rolled at birth and never inherited (a baby rolls its own): one
+   * multiplies its upkeep, the other the energy it needs before reproducing. Each is a bell curve
+   * around 1 with this spread (a standard deviation: 0.08 means about two in three organisms are
+   * within 8% of normal and almost all within 16%) and is cut off at luckLimit spreads either way.
+   * Both are costs and gates, never gains, so luck cannot create energy. 0 = off.
+   */
+  luckSpread: number;
+  luckLimit: number;
+
   // --- Catastrophes (off by default) ---
   /**
    * 0 = none. 1 = an ice age (the whole world gets colder, then recovers). 2 = a drought
@@ -895,6 +906,8 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   mutationLoadLoci: 24,
   mutationLoadBack: 0.01,
   mutationLoadCost: 0.03,
+  luckSpread: 0,
+  luckLimit: 2.5,
   weatherAmplitude: 0,
   weatherScale: 8,
   weatherDriftTicks: 400,
@@ -1172,6 +1185,8 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     if (c.mutationLoadBack < 0 || c.mutationLoadBack > 1 || c.mutationLoadCost < 0) problems.push("mutationLoadBack must be between 0 and 1 and mutationLoadCost cannot be negative");
     if (c.mutationLoadRate > c.mutationLoadLoci) problems.push("mutationLoadRate cannot be more than mutationLoadLoci");
   }
+  if (c.luckSpread < 0 || c.luckSpread * c.luckLimit >= 1) problems.push("luckSpread cannot be negative, and luckSpread x luckLimit must stay under 1 (or an organism could have zero upkeep)");
+  if (c.luckLimit <= 0) problems.push("luckLimit must be positive");
   if (c.yearVariability < 0 || c.yearVariability > 1) problems.push("yearVariability must be between 0 and 1");
   if (c.yearVariability > 0 && (c.climateMode !== 1 || c.yearLength <= 0)) problems.push("yearVariability needs a climate with seasons (climateMode 1 and a yearLength)");
   if (c.fatDepositRate < 0 || c.fatDepositRate > 1 || c.fatDrawRate < 0 || c.fatCap < 0 || c.fatMoveCost < 0 || c.fatUpkeep < 0) problems.push("the fat settings cannot be negative (and fatDepositRate is at most 1)");
