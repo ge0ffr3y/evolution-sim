@@ -99,3 +99,24 @@ describe("facultative sex and easier mates together", () => {
     expect(loaded.fingerprint()).toBe(a.fingerprint());
   }, 60_000);
 });
+
+describe("harmful mutations that lower fertility", () => {
+  it("each bad spot raises the energy needed to reproduce, and nothing else changes when it is off", () => {
+    const sim = new Simulation(1, { worldWidth: 64, worldHeight: 64, initialOrganisms: 2, mutationLoadRate: 1, mutationLoadFertility: 0.05 });
+    const h = sim as unknown as { loadMask: Uint32Array; threshold: Float32Array };
+    h.loadMask[0] = 0;
+    sim.express(0);
+    const clean = h.threshold[0]!;
+    h.loadMask[0] = 0b111; // three bad spots
+    sim.express(0);
+    expect(h.threshold[0]! / clean).toBeCloseTo(1 + 0.05 * 3, 5);
+    const off = new Simulation(1, { worldWidth: 64, worldHeight: 64, initialOrganisms: 2, mutationLoadRate: 1 });
+    const o = off as unknown as { loadMask: Uint32Array; threshold: Float32Array };
+    o.loadMask[0] = 0;
+    off.express(0);
+    const before = o.threshold[0]!;
+    o.loadMask[0] = 0b111;
+    off.express(0);
+    expect(o.threshold[0]).toBe(before);
+  });
+});

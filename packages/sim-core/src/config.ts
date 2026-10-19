@@ -480,6 +480,12 @@ export interface SimConfig {
    * epistasis": it keeps the load lower and makes mixing genes pay more.) 0 = every spot costs the same.
    */
   mutationLoadSynergy: number;
+  /**
+   * Harmful mutations can also lower fertility: each bad spot raises the energy needed to reproduce
+   * by this share (0 = they only cost upkeep). Fertility counts in every world, where a little
+   * extra upkeep may not, and it only delays reproduction, so it cannot create energy.
+   */
+  mutationLoadFertility: number;
   /** Standing load: founders start with about this many bad spots each (0 = a clean start). */
   mutationLoadStart: number;
 
@@ -961,6 +967,7 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   mutationLoadCost: 0.03,
   mutationLoadStart: 0,
   mutationLoadSynergy: 0,
+  mutationLoadFertility: 0,
   luckSpread: 0,
   luckLimit: 2.5,
   weatherAmplitude: 0,
@@ -1251,7 +1258,7 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     if (!Number.isInteger(c.mutationLoadLoci) || c.mutationLoadLoci < 1 || c.mutationLoadLoci > 30) problems.push("mutationLoadLoci must be a whole number from 1 to 30");
     if (c.mutationLoadBack < 0 || c.mutationLoadBack > 1 || c.mutationLoadCost < 0) problems.push("mutationLoadBack must be between 0 and 1 and mutationLoadCost cannot be negative");
     if (c.mutationLoadRate > c.mutationLoadLoci) problems.push("mutationLoadRate cannot be more than mutationLoadLoci");
-    if (c.mutationLoadSynergy < 0) problems.push("mutationLoadSynergy cannot be negative");
+    if (c.mutationLoadSynergy < 0 || c.mutationLoadFertility < 0) problems.push("mutationLoadSynergy and mutationLoadFertility cannot be negative");
     if (c.mutationLoadStart < 0 || c.mutationLoadStart > c.mutationLoadLoci) problems.push("mutationLoadStart must be between 0 and mutationLoadLoci");
   }
   if (c.luckSpread < 0 || c.luckSpread * c.luckLimit >= 1) problems.push("luckSpread cannot be negative, and luckSpread x luckLimit must stay under 1 (or an organism could have zero upkeep)");

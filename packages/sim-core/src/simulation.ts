@@ -1412,6 +1412,7 @@ export class Simulation {
     this.bodyMatter[i] = c.bodyMatterPerSize * size;
     this.threshold[i] = c.reproThresholdPerSize * size;
     if (this.luckOn) this.threshold[i] = this.threshold[i]! * this.fertilityLuck[i]!;
+    if (this.loadOn && c.mutationLoadFertility > 0) this.threshold[i] = this.threshold[i]! * (1 + c.mutationLoadFertility * this.badSpots(i));
     if (this.torporOn) this.basalCost[i] = this.basalCost[i]! * (1 + c.torporUpkeep * genes[g + GENE.torpor]!);
     if (this.loadOn) {
       const spots = this.badSpots(i);
