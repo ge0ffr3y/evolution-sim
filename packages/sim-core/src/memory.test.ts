@@ -151,3 +151,53 @@ describe("brains with memory and home", () => {
     expect(CONN_MAX).toBeGreaterThan(0);
   }, 90_000);
 });
+
+describe("home as the best place remembered (homeMode 3)", () => {
+  const hidden = (s: Simulation): { homeX: Float32Array; homeY: Float32Array; homeValue: Float32Array } => s as unknown as { homeX: Float32Array; homeY: Float32Array; homeValue: Float32Array };
+
+  it("moves to where it ate a better meal than any it remembers, and fades otherwise", () => {
+    const sim = new Simulation(1, stage({ homeMode: 3, homeMemoryDecay: 0.9, homeMemoryMin: 0.001, reproThresholdPerSize: 20 }));
+    sim.genes[0 + 6] = 0; // plant eater
+    sim.express(0);
+    sim.speed[0] = 0;
+    sim.x[0] = 20;
+    sim.y[0] = 20;
+    const home0 = hidden(sim).homeX[0]!;
+    const cellAt = (x: number, y: number): number => Math.floor(y / sim.config.foodCellSize) * sim.gridWidth + Math.floor(x / sim.config.foodCellSize);
+    sim.food[cellAt(20, 20)] = 50;
+    sim.step();
+    expect(hidden(sim).homeX[0]).toBeCloseTo(20, 4);
+    expect(hidden(sim).homeY[0]).toBeCloseTo(20, 4);
+    expect(home0).not.toBeCloseTo(20, 1); // it was somewhere else before (the founder's random place)
+    const value = hidden(sim).homeValue[0]!;
+    expect(value).toBeGreaterThan(0.001);
+    // Move to a poor patch: a weaker meal does not move home, and the memory fades.
+    sim.x[0] = 40;
+    sim.y[0] = 40;
+    sim.food.fill(0);
+    sim.food[cellAt(40, 40)] = 0.02;
+    sim.step();
+    expect(hidden(sim).homeX[0]).toBeCloseTo(20, 4);
+    expect(hidden(sim).homeValue[0]!).toBeLessThan(value);
+  });
+
+  it("babies inherit the remembered place", () => {
+    const sim = new Simulation(3, { worldWidth: 128, worldHeight: 128, initialOrganisms: 40, brainMode: 2, homeMode: 3, foodRegrowPerTick: 0.06 });
+    sim.run(1500);
+    expect(sim.count).toBeGreaterThan(40);
+    expect(Array.from({ length: sim.count }, (_, i) => hidden(sim).homeValue[i]!).some((v) => v > 0)).toBe(true);
+  });
+
+  it("conserves energy, is deterministic, and saves and reloads exactly", () => {
+    const config = { worldWidth: 128, worldHeight: 128, initialOrganisms: 120, brainMode: 2, homeMode: 3, brainAddConnectionProb: 0.3, foodRegrowPerTick: 0.05 } as Partial<SimConfig>;
+    const a = new Simulation(5, config);
+    const b = new Simulation(5, config);
+    a.run(1500);
+    b.run(1500);
+    expect(a.fingerprint()).toBe(b.fingerprint());
+    const loaded = Simulation.load(a.save());
+    a.run(400);
+    loaded.run(400);
+    expect(loaded.fingerprint()).toBe(a.fingerprint());
+  }, 60_000);
+});

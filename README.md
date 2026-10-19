@@ -143,6 +143,7 @@ Each preset is a short JSON file in [`configs/`](configs) naming the settings it
 | 6 | Dynamic world | Terrain, climate, seasons, catastrophes (**done**) |
 | 7 | Ecological depth | Aging, litter size, kin, disease, camouflage (**v0.3, done**; symbiosis not built) |
 | 8 | Multicellularity | Colonies, cell types, body plans (**v0.4, done**; arises rarely from scratch) |
+| 8c | Making features pay | Graded torpor, fat reserve, place memory and stress and calm responses now evolve; sex only partly (**built**; see devlog 11) |
 | 8b | The grand world | Evolvable kin tolerance and sex, weather, kinds of plant, brain memory and chemical signals, colonies with brains (**built**; see devlog 10) |
 | 9 | Experiments at scale | Parameter sweeps and findings |
 | 10 | Ship it | Portfolio page and write-ups (v1.0) |

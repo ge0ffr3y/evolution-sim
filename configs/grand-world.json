@@ -1,13 +1,12 @@
 {
   "name": "The grand world (everything on, extra large)",
-  "description": "Every optional feature at once, in a 512 x 512 world with sparse food: continents and seas, seasons with weather fronts and harsh and mild years, random ice ages, droughts and meteors, three kinds of plant that peak at different times of year, brains with memory, a sense of home and chemical signals, disease, camouflage, aging, litter size, fat and torpor genes, tolerance of relatives and sex as genes (everyone starts splitting in two), and cells that can bond into colonies with specialized cells. The first generation starts with some variety in the newer genes. Nothing here has been tuned or run for long, so treat it as an open experiment: watch the population chart for booms and busts, the Palate and Torpor trait charts, and the births-with-two-parents readout to see whether sex catches on.",
+  "description": "Every optional feature at once, in a 512 x 512 world with sparse food: continents and seas, seasons with weather fronts and harsh and mild years, random ice ages, droughts and meteors, three kinds of plant that peak at different times of year, brains with memory, a sense of home (the best feeding place remembered) and chemical signals that also act on the body (stress and calm responses), deadly fast-adapting disease, camouflage, aging, litter size, fat and torpor genes, tolerance of relatives and sex as genes (everyone starts splitting in two), and cells that can bond into colonies with specialized cells. Harmful mutations (every animal slowly picks up bad spots unless its lineage mixes its genes) give sex a reason to exist, and a little luck at birth varies upkeep and reproduction timing. The first generation starts with some variety in the newer genes, including how readily they look for a mate. Phase 8c made torpor graded, fat a separate reserve, and found that place memory, the stress and calm responses and (with harmful mutations plus starting variety) sex all pay off; fat still does not. Animals can also share spare energy with hungry close relatives (it evolves only when relatives are defined tightly, as here at 0.05). Nothing here has been tuned or run for long, so treat it as an open experiment: watch the population chart for booms and busts, the Palate and Torpor trait charts, and the births-with-two-parents readout to see whether sex catches on.",
   "config": {
     "worldWidth": 512,
     "worldHeight": 512,
     "initialOrganisms": 600,
     "maxOrganisms": 30000,
-    "foodRegrowPerTick": 0.03,
-
+    "foodRegrowPerTick": 0.08,
     "terrainMode": 1,
     "climateMode": 1,
     "yearLength": 3000,
@@ -20,35 +19,43 @@
     "catastropheKind": 4,
     "catastropheEvery": 150000,
     "catastropheLength": 15000,
-
     "plantTypes": 3,
     "plantTypePhase": 1,
     "founderSpread": 0.6,
     "initialPalate": 0,
-
     "brainMode": 2,
     "brainAppetiteSenses": 1,
     "killOwnershipTicks": 30,
     "brainMemory": 1,
-    "homeMode": 2,
+    "homeMode": 3,
     "chemicals": 1,
-
+    "chemBodyEffects": 1,
     "kinDistance": 0.05,
     "kinTolerance": 1,
     "herdBonus": 0.3,
     "sexualReproduction": 2,
     "sexAcceptAny": 1,
-    "diseaseTransmission": 0.3,
-    "diseaseWidth": 0.06,
+    "diseaseTransmission": 0.5,
+    "diseaseWidth": 0.05,
     "camouflageMode": 1,
     "agingCoeff": 3,
     "litterMax": 4,
-    "fatMax": 2,
+    "fatDepositRate": 0.5,
     "torporSaving": 0.7,
-
     "multicellular": 1,
     "cellTypes": 1,
     "initialBond": 0.15,
-    "typePhotoGain": 0.05
+    "typePhotoGain": 0.05,
+    "diseaseDuration": 200,
+    "diseaseImmunity": 600,
+    "diseaseMutationProb": 0.5,
+    "diseaseDrift": 0.5,
+    "diseaseIntroEvery": 20000,
+    "diseaseCost": 30,
+    "mutationLoadRate": 3,
+    "mutationLoadLoci": 24,
+    "mutationLoadCost": 0.04,
+    "luckSpread": 0.08,
+    "shareRate": 0.4
   }
 }

@@ -230,10 +230,15 @@ export interface SimConfig {
    * Home (needs brains): 0 = no sense of home. 1 = each organism can sense the direction and
    * distance of the place it was born. 2 = the same, but a baby inherits its parent's home, so a
    * whole lineage shares a home range. homeRange is how far away counts as "far" (the distance
-   * input reaches 1 there).
+   * input reaches 1 there). 3 = home is the best feeding place the organism remembers: whenever
+   * it eats at a better rate than the best it remembers (which fades by homeMemoryDecay a tick),
+   * home moves to where it stands (only if the meal is at least homeMemoryMin of its reproduction
+   * energy in one tick). A baby inherits its parent's remembered place.
    */
   homeMode: number;
   homeRange: number;
+  homeMemoryDecay: number;
+  homeMemoryMin: number;
   /**
    * Chemical signals (needs brains): each organism has four slow internal signals that its brain can
    * read: a reward signal that jumps when it eats, a stress signal that jumps when it is attacked,
@@ -258,6 +263,21 @@ export interface SimConfig {
   /** How fast calm moves toward (well fed x not stressed). */
   chemCalmRate: number;
   chemicalsCost: number;
+  /**
+   * Body effects of the signals (needs chemicals; 1 = on). Two more genes (the 24th and 25th) say how
+   * strongly the stress and calm signals act on an organism's own body, so evolution sets how
+   * much of a stress response to have. Stress, scaled by the gene, speeds the organism up by up to
+   * chemStressSpeed (as a share of its speed) and raises its upkeep by up to chemStressUpkeep.
+   * Calm, scaled by the gene, cuts upkeep by up to chemCalmSaving and slows the organism by up to
+   * chemCalmSlow. Neither is a reward: each has a price as well as a use.
+   */
+  chemBodyEffects: number;
+  chemStressSpeed: number;
+  chemStressUpkeep: number;
+  chemCalmSaving: number;
+  chemCalmSlow: number;
+  initialStressResponse: number;
+  initialCalmResponse: number;
   /** Energy per tick for having a brain at all, per hidden unit, and per working connection. */
   brainBaseCost: number;
   brainCostPerNeuron: number;
@@ -357,23 +377,36 @@ export interface SimConfig {
   /** Harsh and mild years: each year's seasonal swing is multiplied by 1 plus or minus this much, by a fixed scramble of the year number (0 = every year alike; needs yearLength). */
   yearVariability: number;
   /**
-   * The fat gene (the 21st; fatMax above 0 turns it on): an organism with the most fat banks fatMax times
-   * as much energy before it reproduces, but pays fatMoveCost times more to move and fatUpkeep times
-   * more upkeep for carrying it.
+   * The fat gene (the 21st; fatDepositRate above 0 turns it on) is a separate energy reserve. When an
+   * organism's energy is above fatDepositAbove of what it needs to reproduce, it moves a share
+   * (fat gene x fatDepositRate) of the excess into fat each tick, losing 1 - fatEfficiency of it as
+   * heat. When its energy falls below fatDrawBelow it draws the fat back (up to fatDrawRate of its
+   * reproduction energy per tick) at full value. The reserve is capped at fatCap times the energy
+   * needed to reproduce, and carrying it costs: movement costs rise by fatMoveCost and upkeep by
+   * fatUpkeep for every whole reproduction-energy of fat carried. A little fat does a little good,
+   * so evolution can find it.
    */
-  fatMax: number;
+  fatDepositRate: number;
+  fatDepositAbove: number;
+  fatEfficiency: number;
+  fatDrawBelow: number;
+  fatDrawRate: number;
+  fatCap: number;
   fatMoveCost: number;
   fatUpkeep: number;
   initialFat: number;
   /**
    * The torpor gene (the 22nd; needs a climate, and torporSaving above 0 turns it on): where plants are
-   * growing at less than torporBelowGrowth of full speed an organism goes dormant. It does not move or
-   * attack, and its upkeep falls by torporSaving times its gene. Having the machinery for it costs
-   * torporUpkeep times the gene extra upkeep all the time.
+   * growing at less than torporBelowGrowth of full speed an organism slows down in proportion to its
+   * gene (a gene of 0.3 means 30% slower, and 30% less movement cost), and its upkeep falls by
+   * torporSaving times its gene. At torporSleepAt or more it cannot attack either. Having the machinery
+   * for it costs torporUpkeep times the gene extra upkeep all the time. (It is graded on purpose: a
+   * little torpor does a little good, so evolution can find it.)
    */
   torporSaving: number;
   torporBelowGrowth: number;
   torporUpkeep: number;
+  torporSleepAt: number;
   initialTorpor: number;
 
   // --- Kinds of plant (off by default: 1 = every plant is alike) ---
@@ -403,6 +436,55 @@ export interface SimConfig {
    * founder is alike (the original way).
    */
   founderSpread: number;
+
+  // --- Sharing food (off by default) ---
+  /**
+   * The generosity gene (the 26th; shareRate above 0 turns it on). Each tick an organism gives
+   * (gene x shareRate) of its energy above shareAbove of what it needs to reproduce to up to
+   * shareRecipients hungry neighbors within shareRange, split equally. Only neighbors below
+   * shareAcceptBelow of their reproduction energy get any. shareTarget picks who is served first:
+   * 0 = the hungriest, 1 = the youngest. With shareKinOnly 1 only genetic relatives (within
+   * kinDistance, which must be above 0) count; with 0 anyone does, which lets stingy animals
+   * live off generous ones. shareEfficiency of a gift arrives and the rest is lost as heat. Gifts
+   * are worked out from everyone's energy at the start of the tick, so the order animals are
+   * processed in changes nothing.
+   */
+  shareRate: number;
+  shareAbove: number;
+  shareAcceptBelow: number;
+  shareRange: number;
+  shareRecipients: number;
+  shareTarget: number;
+  shareKinOnly: number;
+  shareEfficiency: number;
+  initialShare: number;
+
+  // --- Harmful mutations (off by default) ---
+  /**
+   * Most real mutations do harm, and a line that never mixes its genes cannot get rid of them
+   * (Muller's ratchet): each birth, every one of mutationLoadLoci spots in the genome that is still
+   * sound goes bad with chance mutationLoadRate / mutationLoadLoci, and a spot that has gone bad
+   * mends with chance mutationLoadBack. Every bad spot raises upkeep by mutationLoadCost (as a share of
+   * normal upkeep). A baby that splits off keeps all its parent's bad spots (plus new ones); a
+   * baby of two parents takes each spot from one parent or the other, so sexual lineages can
+   * shed bad spots and put good ones back together. Nobody is told that sex helps: this only
+   * makes mixing matter. 0 = off (mutationLoadRate).
+   */
+  mutationLoadRate: number;
+  mutationLoadLoci: number;
+  mutationLoadBack: number;
+  mutationLoadCost: number;
+
+  // --- Developmental noise: luck (off by default) ---
+  /**
+   * Two bits of luck per organism, rolled at birth and never inherited (a baby rolls its own): one
+   * multiplies its upkeep, the other the energy it needs before reproducing. Each is a bell curve
+   * around 1 with this spread (a standard deviation: 0.08 means about two in three organisms are
+   * within 8% of normal and almost all within 16%) and is cut off at luckLimit spreads either way.
+   * Both are costs and gates, never gains, so luck cannot create energy. 0 = off.
+   */
+  luckSpread: number;
+  luckLimit: number;
 
   // --- Catastrophes (off by default) ---
   /**
@@ -792,8 +874,17 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   chemBondGain: 0.1,
   chemCalmRate: 0.02,
   chemicalsCost: 0.0005,
+  chemBodyEffects: 0,
+  chemStressSpeed: 0.5,
+  chemStressUpkeep: 0.5,
+  chemCalmSaving: 0.3,
+  chemCalmSlow: 0.3,
+  initialStressResponse: 0,
+  initialCalmResponse: 0,
   homeMode: 0,
   homeRange: 64,
+  homeMemoryDecay: 0.999,
+  homeMemoryMin: 0.005,
   brainBaseCost: 0.001,
   brainCostPerNeuron: 0.0005,
   brainCostPerConnection: 0.0001,
@@ -833,19 +924,40 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   plantPalateFloor: 0.1,
   initialPalate: 0.5,
   founderSpread: 0,
+  shareRate: 0,
+  shareAbove: 0.6,
+  shareAcceptBelow: 0.9,
+  shareRange: 6,
+  shareRecipients: 2,
+  shareTarget: 0,
+  shareKinOnly: 1,
+  shareEfficiency: 0.9,
+  initialShare: 0,
+  mutationLoadRate: 0,
+  mutationLoadLoci: 24,
+  mutationLoadBack: 0.01,
+  mutationLoadCost: 0.03,
+  luckSpread: 0,
+  luckLimit: 2.5,
   weatherAmplitude: 0,
   weatherScale: 8,
   weatherDriftTicks: 400,
   weatherDriftYTicks: 1500,
   weatherMorphPeriod: 30000,
   yearVariability: 0,
-  fatMax: 0,
-  fatMoveCost: 0.3,
-  fatUpkeep: 0.15,
+  fatDepositRate: 0,
+  fatDepositAbove: 0.6,
+  fatEfficiency: 0.8,
+  fatDrawBelow: 0.35,
+  fatDrawRate: 0.05,
+  fatCap: 1,
+  fatMoveCost: 0.5,
+  fatUpkeep: 0.2,
   initialFat: 0,
   torporSaving: 0,
   torporBelowGrowth: 0.35,
   torporUpkeep: 0.1,
+  torporSleepAt: 0.5,
   initialTorpor: 0,
   thermalCostCoeff: 0,
   thermalTolerance: 0.1,
@@ -1027,11 +1139,16 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (![0, 1].includes(c.brainMemory)) problems.push("brainMemory must be 0 or 1");
   if (![0, 1].includes(c.chemicals)) problems.push("chemicals must be 0 or 1");
   if (c.chemicals === 1 && c.brainMode === 0) problems.push("chemicals need brains (set brainMode to 1 or 2)");
+  if (![0, 1].includes(c.chemBodyEffects)) problems.push("chemBodyEffects must be 0 or 1");
+  if (c.chemBodyEffects === 1 && c.chemicals !== 1) problems.push("chemBodyEffects needs chemicals (set chemicals to 1)");
+  if (c.chemStressSpeed < 0 || c.chemStressUpkeep < 0 || c.chemCalmSaving < 0 || c.chemCalmSaving > 1 || c.chemCalmSlow < 0 || c.chemCalmSlow > 1) problems.push("the chemical body-effect settings must not be negative, and the calm ones at most 1");
+  if (c.initialStressResponse < 0 || c.initialStressResponse > 1 || c.initialCalmResponse < 0 || c.initialCalmResponse > 1) problems.push("initialStressResponse and initialCalmResponse must be between 0 and 1");
   if (c.chemDecay < 0 || c.chemDecay >= 1) problems.push("chemDecay must be at least 0 and under 1");
   if (c.chemRewardGain < 0 || c.chemStressHit < 0 || c.chemStressSick < 0 || c.chemStressHunger < 0 || c.chemBondGain < 0 || c.chemCalmRate < 0 || c.chemicalsCost < 0) problems.push("the chemical settings cannot be negative");
   if (c.chemHungerBelow <= 0 || c.chemHungerBelow > 1) problems.push("chemHungerBelow must be above 0 and at most 1");
   if (c.brainMemory === 1 && c.brainMode === 0) problems.push("brainMemory needs brains (set brainMode to 1 or 2)");
-  if (![0, 1, 2].includes(c.homeMode)) problems.push("homeMode must be 0, 1 or 2");
+  if (![0, 1, 2, 3].includes(c.homeMode)) problems.push("homeMode must be 0, 1, 2 or 3");
+  if (c.homeMemoryDecay < 0 || c.homeMemoryDecay > 1 || c.homeMemoryMin < 0) problems.push("homeMemoryDecay must be between 0 and 1 and homeMemoryMin cannot be negative");
   if (c.homeMode > 0 && c.brainMode === 0) problems.push("homeMode needs brains (set brainMode to 1 or 2)");
   if (!(c.homeRange > 0)) problems.push("homeRange must be positive");
   if (![0, 1].includes(c.terrainMode)) problems.push("terrainMode must be 0 (open plain) or 1 (biomes)");
@@ -1093,12 +1210,32 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     if (c.initialPalate < 0 || c.initialPalate > 1) problems.push("initialPalate must be between 0 and 1");
   }
   if (c.founderSpread < 0 || c.founderSpread > 1) problems.push("founderSpread must be between 0 and 1");
+  if (c.shareRate < 0 || c.shareRate > 1) problems.push("shareRate must be between 0 and 1");
+  if (c.shareRate > 0) {
+    if (!Number.isInteger(c.shareRecipients) || c.shareRecipients < 1 || c.shareRecipients > 4) problems.push("shareRecipients must be a whole number from 1 to 4");
+    if (![0, 1].includes(c.shareTarget) || ![0, 1].includes(c.shareKinOnly)) problems.push("shareTarget and shareKinOnly must be 0 or 1");
+    if (c.shareKinOnly === 1 && c.kinDistance <= 0) problems.push("shareKinOnly needs kinDistance above 0 (who counts as a relative)");
+    if (!(c.shareRange > 0) || c.shareEfficiency <= 0 || c.shareEfficiency > 1) problems.push("shareRange must be positive and shareEfficiency above 0 and at most 1");
+    if (c.shareAbove < 0 || c.shareAbove > 1 || c.shareAcceptBelow <= 0 || c.shareAcceptBelow > 1) problems.push("shareAbove and shareAcceptBelow must be between 0 and 1");
+    if (c.initialShare < 0 || c.initialShare > 1) problems.push("initialShare must be between 0 and 1");
+  }
+  if (c.mutationLoadRate < 0) problems.push("mutationLoadRate cannot be negative");
+  if (c.mutationLoadRate > 0) {
+    if (!Number.isInteger(c.mutationLoadLoci) || c.mutationLoadLoci < 1 || c.mutationLoadLoci > 30) problems.push("mutationLoadLoci must be a whole number from 1 to 30");
+    if (c.mutationLoadBack < 0 || c.mutationLoadBack > 1 || c.mutationLoadCost < 0) problems.push("mutationLoadBack must be between 0 and 1 and mutationLoadCost cannot be negative");
+    if (c.mutationLoadRate > c.mutationLoadLoci) problems.push("mutationLoadRate cannot be more than mutationLoadLoci");
+  }
+  if (c.luckSpread < 0 || c.luckSpread * c.luckLimit >= 1) problems.push("luckSpread cannot be negative, and luckSpread x luckLimit must stay under 1 (or an organism could have zero upkeep)");
+  if (c.luckLimit <= 0) problems.push("luckLimit must be positive");
   if (c.yearVariability < 0 || c.yearVariability > 1) problems.push("yearVariability must be between 0 and 1");
   if (c.yearVariability > 0 && (c.climateMode !== 1 || c.yearLength <= 0)) problems.push("yearVariability needs a climate with seasons (climateMode 1 and a yearLength)");
-  if (c.fatMax < 0 || c.fatMoveCost < 0 || c.fatUpkeep < 0) problems.push("the fat settings cannot be negative");
+  if (c.fatDepositRate < 0 || c.fatDepositRate > 1 || c.fatDrawRate < 0 || c.fatCap < 0 || c.fatMoveCost < 0 || c.fatUpkeep < 0) problems.push("the fat settings cannot be negative (and fatDepositRate is at most 1)");
+  if (c.fatDepositRate > 0 && (c.fatEfficiency <= 0 || c.fatEfficiency > 1)) problems.push("fatEfficiency must be above 0 and at most 1");
+  if (c.fatDepositAbove < 0 || c.fatDepositAbove > 1 || c.fatDrawBelow < 0 || c.fatDrawBelow > 1) problems.push("fatDepositAbove and fatDrawBelow must be between 0 and 1");
   if (c.initialFat < 0 || c.initialFat > 1 || c.initialTorpor < 0 || c.initialTorpor > 1) problems.push("initialFat and initialTorpor must be between 0 and 1");
   if (c.torporSaving < 0 || c.torporSaving > 1) problems.push("torporSaving must be between 0 and 1");
   if (c.torporSaving > 0 && c.climateMode !== 1) problems.push("torpor needs a climate (set climateMode to 1)");
+  if (c.torporSleepAt <= 0 || c.torporSleepAt > 1) problems.push("torporSleepAt must be above 0 and at most 1");
   if (c.torporBelowGrowth < 0 || c.torporUpkeep < 0) problems.push("the torpor settings cannot be negative");
   if (c.climateMode === 1) {
     for (const [name, value] of [["dayLength", c.dayLength], ["yearLength", c.yearLength], ["climateDriftPeriod", c.climateDriftPeriod]] as const) {

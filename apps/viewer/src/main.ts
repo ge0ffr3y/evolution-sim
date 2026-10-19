@@ -274,6 +274,9 @@ const GENE_LABELS: Record<GeneName, string> = {
   fat: "Fat (energy banked before reproducing)",
   torpor: "Torpor (dormancy when plants stop growing)",
   palate: "Palate (which kind of plant it digests best)",
+  stressResponse: "Stress response (how strongly stress acts on the body)",
+  calmResponse: "Calm response (how strongly calm acts on the body)",
+  generosity: "Generosity (share of spare energy given to hungry neighbors)",
 };
 
 function traitText(gene: GeneName, value: number): string {
@@ -339,6 +342,7 @@ function renderInspector(state: InspectedState | null): void {
   else if (health.immuneFor > 0) bits.push(`Immune for ${format.int.format(health.immuneFor)} more ticks`);
   if (s.lifespan > 0) bits.push(`Lifespan ${format.int.format(Math.round(s.lifespan))} ticks (age ${format.int.format(s.age)})`);
   if (s.litter > 1.001) bits.push(`Litter size ${s.litter.toFixed(1)}`);
+  if (s.luck) bits.push(`Luck: upkeep ${s.luck.upkeep.toFixed(2)}x, reproduction threshold ${s.luck.fertility.toFixed(2)}x (below 1 is lucky)`);
   el("insp-health").textContent = bits.join(". ");
   el("insp-ate").textContent =
     eaten > 0

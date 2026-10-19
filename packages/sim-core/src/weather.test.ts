@@ -79,54 +79,117 @@ describe("harsh and mild years", () => {
   });
 });
 
-describe("the fat gene", () => {
-  function expressed(fat: number): Simulation {
-    const sim = new Simulation(1, quiet({ fatMax: 2, fatMoveCost: 0.5, fatUpkeep: 0.2 }));
-    sim.genes[GENE.fat] = fat;
+describe("the fat gene (a separate reserve)", () => {
+  const fatConfig = { fatDepositRate: 0.5, fatDepositAbove: 0.6, fatEfficiency: 0.8, fatDrawBelow: 0.35, fatDrawRate: 0.1, fatCap: 1, fatMoveCost: 0.5, fatUpkeep: 0.2 };
+  const hidden = (s: Simulation): { fatStore: Float64Array } => s as unknown as { fatStore: Float64Array };
+
+  function oneStep(gene: number, energyFraction: number, store = 0, extra: Partial<SimConfig> = {}): Simulation {
+    const sim = new Simulation(1, quiet({ ...fatConfig, ...extra }));
+    sim.genes[GENE.fat] = gene;
     sim.express(0);
+    sim.energy[0] = energyFraction * sim.threshold[0]!;
+    hidden(sim).fatStore[0] = store * sim.threshold[0]!;
+    sim.step();
     return sim;
   }
-  it("a fat body banks more before reproducing, and costs more to move and keep", () => {
-    const lean = expressed(0);
-    const fat = expressed(1);
-    expect(fat.stats().meanEnergy).toBeDefined();
-    const internals = (s: Simulation): { threshold: Float32Array; moveCost: Float32Array; basalCost: Float32Array } => s as unknown as { threshold: Float32Array; moveCost: Float32Array; basalCost: Float32Array };
-    expect(internals(fat).threshold[0]! / internals(lean).threshold[0]!).toBeCloseTo(3, 5);
-    expect(internals(fat).moveCost[0]! / internals(lean).moveCost[0]!).toBeCloseTo(1.5, 5);
-    expect(internals(fat).basalCost[0]! / internals(lean).basalCost[0]!).toBeCloseTo(1.2, 5);
-  });
-  it("is off by default", () => {
+
+  it("is off by default (no store, no gene use)", () => {
     const sim = new Simulation(1, quiet());
+    expect(hidden(sim).fatStore).toHaveLength(0);
+  });
+
+  it("banks a share of the surplus above the deposit line, losing some as heat", () => {
+    const sim = new Simulation(1, quiet(fatConfig));
     sim.genes[GENE.fat] = 1;
     sim.express(0);
-    const lean = new Simulation(1, quiet());
-    lean.express(0);
-    expect((sim as unknown as { threshold: Float32Array }).threshold[0]).toBe((lean as unknown as { threshold: Float32Array }).threshold[0]);
+    const need = sim.threshold[0]!;
+    sim.energy[0] = 0.9 * need;
+    const lossBefore = sim.ledger.digestionLoss;
+    sim.step();
+    const deposited = 0.5 * (0.9 - 0.6) * need; // fat gene 1 x rate 0.5 x the excess
+    expect(hidden(sim).fatStore[0]!).toBeCloseTo(deposited * 0.8, 4);
+    expect(sim.ledger.digestionLoss - lossBefore).toBeCloseTo(deposited * 0.2, 4);
+  });
+
+  it("a little fat banks a little: the deposit is proportional to the gene, and zero at 0", () => {
+    const store = (gene: number): number => hidden(oneStep(gene, 0.9)).fatStore[0]!;
+    expect(store(0)).toBe(0);
+    expect(store(0.5) / store(1)).toBeCloseTo(0.5, 3);
+  });
+
+  it("draws the reserve back when hungry, at full value, and never below zero", () => {
+    const sim = oneStep(1, 0.2, 0.5);
+    const need = sim.threshold[0]!;
+    expect(hidden(sim).fatStore[0]! / need).toBeCloseTo(0.5 - 0.1, 3);
+    const nearlyEmpty = oneStep(1, 0.2, 0.03);
+    expect(hidden(nearlyEmpty).fatStore[0]!).toBe(0);
+  });
+
+  it("never banks more than the cap", () => {
+    const sim = oneStep(1, 0.95, 0.99);
+    expect(hidden(sim).fatStore[0]! / sim.threshold[0]!).toBeLessThanOrEqual(1 + 1e-6);
+  });
+
+  it("carrying fat costs movement and upkeep", () => {
+    const lean = oneStep(0, 0.5, 0);
+    const fat = oneStep(0, 0.5, 0.5);
+    expect(fat.ledger.movementBurned / lean.ledger.movementBurned).toBeCloseTo(1 + 0.5 * 0.5, 3);
+    expect(fat.ledger.basalBurned / lean.ledger.basalBurned).toBeCloseTo(1 + 0.2 * 0.5, 3);
+  });
+
+  it("a body that dies leaves its fat in the corpse, so no energy is lost", () => {
+    const sim = new Simulation(1, quiet({ ...fatConfig, fatDrawRate: 0 }));
+    sim.express(0);
+    sim.energy[0] = 1e-9; // it cannot pay its upkeep
+    hidden(sim).fatStore[0] = 3;
+    const before = sim.energyAudit().total;
+    sim.step();
+    expect(sim.count).toBe(0);
+    const L = sim.ledger;
+    const burned = L.basalBurned + L.movementBurned + L.sensingBurned + L.attackBurned + L.armorBurned + L.brainBurned;
+    expect(sim.energyAudit().total).toBeCloseTo(before - burned - L.digestionLoss - L.decayLoss + L.sunlightIn, 6);
+    expect(sim.energyAudit().corpses).toBeGreaterThan(3);
   });
 });
 
 describe("torpor", () => {
-  function oneStep(torpor: number, extra: Partial<SimConfig> = {}): { moved: number; basal: number } {
+  function oneStep(torpor: number, extra: Partial<SimConfig> = {}): { moved: number; basal: number; movement: number } {
     const sim = new Simulation(1, quiet({ ...climate, torporSaving: 0.6, torporBelowGrowth: 10, torporUpkeep: 0.1, ...extra }));
     sim.genes[GENE.torpor] = torpor;
     sim.express(0);
     const x0 = sim.x[0]!;
     const y0 = sim.y[0]!;
     sim.step();
-    return { moved: Math.hypot(sim.x[0]! - x0, sim.y[0]! - y0), basal: sim.ledger.basalBurned };
+    return { moved: Math.hypot(sim.x[0]! - x0, sim.y[0]! - y0), basal: sim.ledger.basalBurned, movement: sim.ledger.movementBurned };
   }
-  it("a dormant organism does not move and burns less; one without the gene carries on", () => {
+  it("is graded: the more torpor, the slower it moves, the less it spends on moving and on upkeep", () => {
     const awake = oneStep(0);
-    const asleep = oneStep(1);
+    const some = oneStep(0.3);
+    const deep = oneStep(1);
     expect(awake.moved).toBeGreaterThan(0);
-    expect(asleep.moved).toBe(0);
-    expect(asleep.basal / awake.basal).toBeCloseTo((1 + 0.1) * (1 - 0.6), 5);
+    expect(some.moved / awake.moved).toBeCloseTo(0.7, 3);
+    expect(deep.moved).toBe(0);
+    expect(some.movement / awake.movement).toBeCloseTo(0.7 * 0.7, 3);
+    expect(some.basal / awake.basal).toBeCloseTo((1 + 0.1 * 0.3) * (1 - 0.6 * 0.3), 5);
+    expect(deep.basal / awake.basal).toBeCloseTo((1 + 0.1) * (1 - 0.6), 5);
+  });
+  it("only a deeply dormant organism cannot attack", () => {
+    const sim = (torpor: number): Simulation => {
+      const s = new Simulation(1, quiet({ ...climate, torporSaving: 0.6, torporBelowGrowth: 10, torporSleepAt: 0.5 }));
+      s.genes[GENE.torpor] = torpor;
+      s.express(0);
+      s.step();
+      return s;
+    };
+    expect((sim(0.3) as unknown as { resting: Uint16Array }).resting[0]).toBe(0);
+    expect((sim(0.8) as unknown as { resting: Uint16Array }).resting[0]).toBeGreaterThan(0);
   });
   it("it only happens where plants are not growing", () => {
     expect(oneStep(1, { torporBelowGrowth: 0 }).moved).toBeGreaterThan(0);
   });
   it("needs a climate", () => {
     expect(() => new Simulation(1, quiet({ torporSaving: 0.5 }))).toThrow(/needs a climate/);
+    expect(() => new Simulation(1, quiet({ ...climate, torporSaving: 0.5, torporSleepAt: 0 }))).toThrow(/torporSleepAt/);
   });
 });
 
@@ -134,7 +197,7 @@ describe("weather, harsh years, fat and torpor together", () => {
   it("are deterministic, conserve energy and matter, and a saved world carries on exactly", () => {
     const config = {
       worldWidth: 128, worldHeight: 128, initialOrganisms: 200, climateMode: 1, yearLength: 1500, thermalCostCoeff: 1,
-      weatherAmplitude: 0.15, yearVariability: 0.4, fatMax: 1.5, initialFat: 0.3, torporSaving: 0.5, initialTorpor: 0.3,
+      weatherAmplitude: 0.15, yearVariability: 0.4, fatDepositRate: 0.5, initialFat: 0.3, torporSaving: 0.5, initialTorpor: 0.3,
       mutationRateMin: 0.02, initialMutationRate: 0.02,
     } as Partial<SimConfig>;
     const a = new Simulation(8, config);

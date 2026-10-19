@@ -146,7 +146,7 @@ describe("kinds of plant", () => {
 describe("founder spread", () => {
   const genesOf = (sim: Simulation, gene: number): number[] => Array.from({ length: sim.count }, (_, i) => sim.genes[i * GENE_COUNT + gene]!);
   it("gives the founders a spread of values for the newer genes that are on, and leaves the rest alone", () => {
-    const sim = new Simulation(4, { initialOrganisms: 100, founderSpread: 0.6, sexualReproduction: 2, kinDistance: 0.1, kinTolerance: 1, fatMax: 1 });
+    const sim = new Simulation(4, { initialOrganisms: 100, founderSpread: 0.6, sexualReproduction: 2, kinDistance: 0.1, kinTolerance: 1, fatDepositRate: 0.5 });
     for (const gene of [GENE.tolerance, GENE.sex, GENE.fat]) {
       const values = genesOf(sim, gene);
       expect(Math.max(...values) - Math.min(...values)).toBeGreaterThan(0.3);
