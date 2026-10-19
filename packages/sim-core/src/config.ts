@@ -474,6 +474,14 @@ export interface SimConfig {
   mutationLoadLoci: number;
   mutationLoadBack: number;
   mutationLoadCost: number;
+  /**
+   * Synergy between harmful mutations: each bad spot hurts more than the last. Upkeep rises by
+   * mutationLoadCost x spots + mutationLoadSynergy x spots squared. (Biologists' "synergistic
+   * epistasis": it keeps the load lower and makes mixing genes pay more.) 0 = every spot costs the same.
+   */
+  mutationLoadSynergy: number;
+  /** Standing load: founders start with about this many bad spots each (0 = a clean start). */
+  mutationLoadStart: number;
 
   // --- Developmental noise: luck (off by default) ---
   /**
@@ -667,6 +675,20 @@ export interface SimConfig {
   sexualReproduction: number;
   /** The chance of looking for a mate in the first generation, with sexualReproduction 2 (0 = everyone starts out splitting). */
   initialSex: number;
+  /**
+   * Facultative sex (sexualReproduction 2): a mate-seeker that has waited this many ticks since it
+   * decided to look for a mate gives up and splits in two instead, as aphids and water fleas do
+   * when no mate is around. 0 = it waits for as long as it takes.
+   */
+  sexWaitLimit: number;
+  /**
+   * With sexAcceptAny: how much energy (as a share of what it needs to reproduce on its own) an
+   * animal needs to be taken as a mate. 1 = it must be ready to reproduce itself (the original
+   * rule); lower means any well-fed neighbor can contribute its half of the baby.
+   */
+  mateReadyFraction: number;
+  /** Starting variety for the mate-seeking gene alone (like founderSpread, which it overrides for this gene). -1 = use founderSpread. */
+  sexFounderSpread: number;
   /**
    * With sexualReproduction 2: 1 = a ready organism that did not choose to look for a mate will still
    * accept a compatible neighbor who asks (it pays half the energy, as a mate does), so a rare
@@ -937,6 +959,8 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   mutationLoadLoci: 24,
   mutationLoadBack: 0.01,
   mutationLoadCost: 0.03,
+  mutationLoadStart: 0,
+  mutationLoadSynergy: 0,
   luckSpread: 0,
   luckLimit: 2.5,
   weatherAmplitude: 0,
@@ -1021,6 +1045,9 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   colonyDefenseShare: 0.5,
   sexualReproduction: 0,
   initialSex: 0,
+  sexFounderSpread: -1,
+  sexWaitLimit: 0,
+  mateReadyFraction: 1,
   sexAcceptAny: 0,
   mateRange: 6,
   mateDistance: 0.25,
@@ -1224,6 +1251,8 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     if (!Number.isInteger(c.mutationLoadLoci) || c.mutationLoadLoci < 1 || c.mutationLoadLoci > 30) problems.push("mutationLoadLoci must be a whole number from 1 to 30");
     if (c.mutationLoadBack < 0 || c.mutationLoadBack > 1 || c.mutationLoadCost < 0) problems.push("mutationLoadBack must be between 0 and 1 and mutationLoadCost cannot be negative");
     if (c.mutationLoadRate > c.mutationLoadLoci) problems.push("mutationLoadRate cannot be more than mutationLoadLoci");
+    if (c.mutationLoadSynergy < 0) problems.push("mutationLoadSynergy cannot be negative");
+    if (c.mutationLoadStart < 0 || c.mutationLoadStart > c.mutationLoadLoci) problems.push("mutationLoadStart must be between 0 and mutationLoadLoci");
   }
   if (c.luckSpread < 0 || c.luckSpread * c.luckLimit >= 1) problems.push("luckSpread cannot be negative, and luckSpread x luckLimit must stay under 1 (or an organism could have zero upkeep)");
   if (c.luckLimit <= 0) problems.push("luckLimit must be positive");
@@ -1288,6 +1317,9 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   }
   if (![0, 1, 2].includes(c.sexualReproduction)) problems.push("sexualReproduction must be 0, 1 or 2");
   if (c.initialSex < 0 || c.initialSex > 1) problems.push("initialSex must be between 0 and 1");
+  if (c.sexWaitLimit < 0 || !Number.isInteger(c.sexWaitLimit)) problems.push("sexWaitLimit must be a whole number of ticks, 0 or more");
+  if (!(c.mateReadyFraction > 0) || c.mateReadyFraction > 1) problems.push("mateReadyFraction must be above 0 and at most 1");
+  if (c.sexFounderSpread !== -1 && (c.sexFounderSpread < 0 || c.sexFounderSpread > 1)) problems.push("sexFounderSpread must be -1 (follow founderSpread) or between 0 and 1");
   if (![0, 1].includes(c.sexAcceptAny)) problems.push("sexAcceptAny must be 0 or 1");
   if (!(c.mateRange > 0)) problems.push("mateRange must be positive");
   if (![0, 1, 2].includes(c.matePreference)) problems.push("matePreference must be 0 (nearest), 1 (most similar genes) or 2 (most similar color)");

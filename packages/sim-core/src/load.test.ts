@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { GENE, GENE_COUNT } from "./genome";
 import { Simulation } from "./simulation";
 import type { SimConfig } from "./config";
 
@@ -94,4 +95,25 @@ describe("harmful mutations", () => {
     loaded.run(500);
     expect(loaded.fingerprint()).toBe(a.fingerprint());
   }, 60_000);
+});
+
+describe("standing load and starting variety for sex", () => {
+  it("founders can start with harmful mutations already, about as many as asked", () => {
+    const sim = new Simulation(2, { initialOrganisms: 2000, maxOrganisms: 3000, mutationLoadRate: 1, mutationLoadLoci: 24, mutationLoadStart: 4 });
+    expect(sim.meanMutationLoad()).toBeGreaterThan(3.6);
+    expect(sim.meanMutationLoad()).toBeLessThan(4.4);
+    const clean = new Simulation(2, { initialOrganisms: 200, mutationLoadRate: 1 });
+    expect(clean.meanMutationLoad()).toBe(0);
+  });
+
+  it("the mate-seeking gene can get its own starting variety, and -1 keeps the old behavior exactly", () => {
+    const genesOf = (sim: Simulation, gene: number): number[] => Array.from({ length: sim.count }, (_, i) => sim.genes[i * GENE_COUNT + gene]!);
+    const own = new Simulation(4, { initialOrganisms: 300, sexualReproduction: 2, founderSpread: 0.2, sexFounderSpread: 1, fatDepositRate: 0.5 });
+    expect(Math.max(...genesOf(own, GENE.sex))).toBeGreaterThan(0.8);
+    expect(Math.max(...genesOf(own, GENE.fat))).toBeLessThanOrEqual(0.2);
+    const a = new Simulation(4, { initialOrganisms: 100, sexualReproduction: 2, founderSpread: 0.5 });
+    const b = new Simulation(4, { initialOrganisms: 100, sexualReproduction: 2, founderSpread: 0.5, sexFounderSpread: -1 });
+    expect(a.fingerprint()).toBe(b.fingerprint());
+    expect(() => new Simulation(1, { sexFounderSpread: 2 })).toThrow(/sexFounderSpread/);
+  });
 });

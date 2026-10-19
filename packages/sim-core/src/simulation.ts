@@ -502,6 +502,9 @@ export class Simulation {
   private readonly sexParents: Uint32Array;
   /** And the ones that chose to split in two, plus who was taken as a mate this tick (so they do not also split). */
   private readonly soloParents: Uint32Array;
+  /** When each mate-seeker decided to look (for facultative sex), and the animals well fed enough to be taken as a mate this tick. */
+  private readonly mateSince: Uint32Array;
+  private readonly partnerList: Uint32Array;
   private readonly matedNow: Uint8Array;
   /** Scratch for pairing up mates: who is ready, the pairs found, and the genes that count toward compatibility. */
   private readonly ready: Uint8Array;
@@ -876,6 +879,8 @@ export class Simulation {
     this.sexMode = new Uint8Array(this.sexGeneOn ? n : 0);
     this.sexParents = new Uint32Array(this.sexGeneOn ? n : 0);
     this.soloParents = new Uint32Array(this.sexGeneOn ? n : 0);
+    this.mateSince = new Uint32Array(this.sexGeneOn ? n : 0);
+    this.partnerList = new Uint32Array(this.sexGeneOn ? n : 0);
     this.matedNow = new Uint8Array(this.sexGeneOn ? n : 0);
     this.parent2Id = new Uint32Array(this.sexOn ? n : 0);
     this.ready = new Uint8Array(this.sexOn ? n : 0);
@@ -940,6 +945,7 @@ export class Simulation {
     if (this.sexGeneOn) this.uint8Fields.push(this.sexMode);
     if (this.loadOn) this.uint32Fields.push(this.loadMask);
     if (this.luckOn) this.float32Fields.push(this.upkeepLuck, this.fertilityLuck);
+    if (this.sexGeneOn) this.uint32Fields.push(this.mateSince);
     if (this.chemOn) this.uint8Fields.push(this.chemHit);
     this.uint16Fields = [this.resting];
     if (this.diseaseOn) this.uint16Fields.push(this.infection, this.sickFor, this.immuneFor);
@@ -983,11 +989,20 @@ export class Simulation {
       const index = this.spawn(0, fx, fy);
       for (let g = 0; g < GENE_COUNT; g++) this.genes[index * GENE_COUNT + g] = founder[g]!;
       this.genes[index * GENE_COUNT + GENE.hue] = this.rng.next();
-      if (c.founderSpread > 0) {
+      if (c.founderSpread > 0 || c.sexFounderSpread > 0) {
         // Standing variety: the newer genes that are switched on start a random amount above their starting value.
+        // (The mate-seeking gene can have its own amount, sexFounderSpread; -1 means it follows founderSpread.)
         for (const gene of [GENE.tolerance, GENE.sex, GENE.fat, GENE.torpor, GENE.palate, GENE.stressResponse, GENE.calmResponse, GENE.generosity]) {
-          if (this.activeGene[gene]) this.genes[index * GENE_COUNT + gene] = clamp01(this.genes[index * GENE_COUNT + gene]! + c.founderSpread * this.rng.next());
+          const spread = gene === GENE.sex && c.sexFounderSpread >= 0 ? c.sexFounderSpread : c.founderSpread;
+          if (this.activeGene[gene] && spread > 0) this.genes[index * GENE_COUNT + gene] = clamp01(this.genes[index * GENE_COUNT + gene]! + spread * this.rng.next());
         }
+      }
+      if (this.loadOn && c.mutationLoadStart > 0) {
+        // Standing load: real populations already carry harmful mutations, so founders can start with some.
+        const chance = c.mutationLoadStart / c.mutationLoadLoci;
+        let mask = 0;
+        for (let j = 0; j < c.mutationLoadLoci; j++) if (this.rng.next() < chance) mask |= 1 << j;
+        this.loadMask[index] = mask >>> 0;
       }
       if (this.typeOn) for (const plan of [GENE.plan1, GENE.plan2, GENE.plan3]) this.genes[index * GENE_COUNT + plan] = this.rng.next();
       this.express(index);
@@ -1398,7 +1413,10 @@ export class Simulation {
     this.threshold[i] = c.reproThresholdPerSize * size;
     if (this.luckOn) this.threshold[i] = this.threshold[i]! * this.fertilityLuck[i]!;
     if (this.torporOn) this.basalCost[i] = this.basalCost[i]! * (1 + c.torporUpkeep * genes[g + GENE.torpor]!);
-    if (this.loadOn) this.basalCost[i] = this.basalCost[i]! * (1 + c.mutationLoadCost * this.badSpots(i));
+    if (this.loadOn) {
+      const spots = this.badSpots(i);
+      this.basalCost[i] = this.basalCost[i]! * (1 + c.mutationLoadCost * spots + c.mutationLoadSynergy * spots * spots);
+    }
     if (this.luckOn) this.basalCost[i] = this.basalCost[i]! * this.upkeepLuck[i]!;
   }
 
@@ -3068,7 +3086,12 @@ export class Simulation {
       soloList = this.soloParents;
       for (let p = 0; p < parentCount; p++) {
         const i = this.parents[p]!;
-        if (this.sexMode[i] === 0) this.sexMode[i] = this.rng.next() < this.genes[i * GENE_COUNT + GENE.sex]! ? 2 : 1;
+        if (this.sexMode[i] === 0) {
+          this.sexMode[i] = this.rng.next() < this.genes[i * GENE_COUNT + GENE.sex]! ? 2 : 1;
+          if (this.sexMode[i] === 2) this.mateSince[i] = this.tick;
+        }
+        // Facultative sex: a seeker that has waited too long gives up and splits in two.
+        if (this.sexMode[i] === 2 && c.sexWaitLimit > 0 && this.tick - this.mateSince[i]! >= c.sexWaitLimit) this.sexMode[i] = 1;
         if (this.sexMode[i] === 2) this.sexParents[mateCount++] = i;
         else this.soloParents[soloCount++] = i;
       }
@@ -3076,7 +3099,17 @@ export class Simulation {
     let pairCount = 0;
     if (this.sexOn) {
       // With sexAcceptAny every ready organism is a possible mate, not only the ones that went looking.
-      pairCount = this.sexGeneOn && this.config.sexAcceptAny === 1 ? this.pairUp(mateList, mateCount, this.parents, parentCount) : this.pairUp(mateList, mateCount);
+      if (this.sexGeneOn && c.sexAcceptAny === 1 && c.mateReadyFraction < 1) {
+        // Any animal fed well enough can be taken as a mate, not only those ready to reproduce on their own.
+        let partnerCount = 0;
+        for (let i = 0; i < n; i++) {
+          if (this.killed[i] === 1 || (this.typeOn && this.cellType[i] !== 0)) continue;
+          if (this.energy[i]! >= c.mateReadyFraction * this.threshold[i]!) this.partnerList[partnerCount++] = i;
+        }
+        pairCount = this.pairUp(mateList, mateCount, this.partnerList, partnerCount);
+      } else {
+        pairCount = this.sexGeneOn && c.sexAcceptAny === 1 ? this.pairUp(mateList, mateCount, this.parents, parentCount) : this.pairUp(mateList, mateCount);
+      }
       birthsLoop: for (let p = 0; p < pairCount; p++) {
         const a = this.pairs[2 * p]!;
         const b = this.pairs[2 * p + 1]!;
