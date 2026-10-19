@@ -1,6 +1,6 @@
 # Devlog 12: Sex in the grand world
 
-*Phase 8d. Sex spread in simple worlds (devlog 11) but faded in the grand world. A long hunt, mostly by measurement and switching things off, found two flaws of mine and one real interaction. Sex now holds its ground in the grand world, but it does not take over.*
+*Phase 8d. Sex spread in simple worlds (devlog 11) but faded in the grand world. A long hunt, mostly by measurement and switching things off, found two flaws of mine and one real interaction. Over a longer run, sex now spreads in the grand world: it rose in 6 of 7 worlds, and in two it became the majority way of reproducing.*
 
 ## How the hunt went
 
@@ -75,7 +75,29 @@ All are tested for determinism, energy conservation and save and load.
 
 ## Where sex stands
 
-In the grand world, with the textbook model, food at 1.5 times standard, facultative sex, easier mates and no fat, sex holds its ground. About 28% of births have two parents, and the mate-seeking gene rises in half of worlds and falls in the other half. It does not take over within 100,000 ticks. A longer run is below.
+The grand world preset now uses:
+- the textbook model;
+- food at 1.5 times standard;
+- facultative sex and easier mates;
+- a full spread of mate-seeking in the first generation;
+- no fat.
+
+At 100,000 ticks sex held its ground (about 28% of births with two parents). Over a longer run it spreads. 7 worlds at 300,000 ticks:
+
+| World | Population | Mate-seeking gene (start to end) | Births with two parents |
+|---|---|---|---|
+| 1 | 1,277 | 0.35 to **0.71** | **65%** |
+| 2 | 894 | 0.48 to 0.35 | 31% |
+| 3 | 485 | 0.25 to 0.27 | 23% |
+| 4 | 2,000 | 0.37 to **0.65** | **56%** |
+| 5 | 1,194 | 0.28 to 0.38 | 28% |
+| 6 | 866 | 0.31 to **0.52** | 44% |
+| 7 | 1,148 | 0.36 to **0.51** | 40% |
+| **Average** | **1,123** | **0.34 to 0.49** (± 0.06) | **41%** |
+
+The gene rose in 6 of 7 worlds, and in two of them most births now have two parents. Mate-seekers almost never die waiting (2 to 4%). The advantage builds slowly because harmful mutations take time to pile up in lines that don't mix, which is why 100,000 ticks was too short to see it. It is still not a sweep: one world lost ground and one barely moved.
+
+**One caveat about "emerging".** The first generation starts with a full spread of mate-seeking (0 to 1). That is standing variety, not a lucky mutation from zero. As in devlog 11, evolution in this sim cannot find sex starting from a population that never mates, because the first few mate-seekers have nobody to mate with. What it does show is that sex wins against splitting when both are present.
 
 ## Lessons
 
