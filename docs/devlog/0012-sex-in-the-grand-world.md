@@ -99,6 +99,20 @@ The gene rose in 6 of 7 worlds, and in two of them most births now have two pare
 
 **One caveat about "emerging".** The first generation starts with a full spread of mate-seeking (0 to 1). That is standing variety, not a lucky mutation from zero. As in devlog 11, evolution in this sim cannot find sex starting from a population that never mates, because the first few mate-seekers have nobody to mate with. What it does show is that sex wins against splitting when both are present.
 
+## Addendum: can sex emerge from zero by mutation?
+
+The result above needs a spread of mate-seeking in the first generation. So the owner asked whether the trait can instead appear by mutation, starting from a population where nobody seeks a mate. Mutation changes each gene by about 1% of its range per generation, so on its own the gene wanders only to about 0.01. Every earlier test, before this phase's fixes, stayed at that floor. With this phase's fixes, 300,000 ticks, mate-seeking starting at exactly 0:
+
+| World | Mate-seeking gene (start to end) | Births with two parents | Population |
+|---|---|---|---|
+| Lab world (10 worlds) | 0.012 to **0.053** (two worlds at 0.14 and 0.19) | 5% | 1,301 |
+| Grand world (7 worlds) | 0.012 to **0.118** (5 of 7 worlds at 0.11 to 0.20, 2 stayed near 0) | 9% (up to 14%) | 214 |
+| For comparison: grand world with starting variety | 0.34 to 0.49 | 41% | 1,123 |
+
+- **Sex now emerges by mutation, but levels off at occasional sex.** Selection pushes the gene well above what chance alone produces, so occasional mixing pays. The likely reason it stops there is that at low levels each small step up adds only a sliver of mixing, so the advantage is tiny and chance can outweigh it. Many real organisms work this way too (water fleas, aphids, many plants and fungi): mostly asexual, with occasional sex, which gives most of the benefit.
+- **The population cost of rarely mixing is large.** The mostly asexual grand worlds held about 214 animals, against about 1,123 where sex took over. That is the clearest evidence in the project that mixing genes pays the whole population.
+- **Not tried:** the sim's "rare big mutation" option never touches the mate-seeking gene, and runs past 300,000 ticks may climb further.
+
 ## Lessons
 
 - **Measure before fixing.** Three of my explanations were plausible and wrong. Following individual mate-seekers, and counting offspring against load, found what guessing didn't.
