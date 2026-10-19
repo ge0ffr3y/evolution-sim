@@ -537,7 +537,7 @@ export class Simulation {
   private readonly weatherA: Float32Array;
   private readonly weatherB: Float32Array;
   private readonly fatOn: boolean;
-  /** Harmful mutations: which of the genome's spots have gone bad, one bit each (see mutationLoadRate). */
+  /** Harmful mutations: which of the genome's spots have gone bad, one bit each (model 0), or simply how many harmful mutations it carries (model 1). */
   private readonly loadOn: boolean;
   /** Luck: multipliers (around 1) on each organism's upkeep and on its reproduction threshold, rolled at birth. */
   private readonly giveOn: boolean;
@@ -999,10 +999,14 @@ export class Simulation {
       }
       if (this.loadOn && c.mutationLoadStart > 0) {
         // Standing load: real populations already carry harmful mutations, so founders can start with some.
-        const chance = c.mutationLoadStart / c.mutationLoadLoci;
-        let mask = 0;
-        for (let j = 0; j < c.mutationLoadLoci; j++) if (this.rng.next() < chance) mask |= 1 << j;
-        this.loadMask[index] = mask >>> 0;
+        if (c.mutationLoadModel === 1) {
+          this.loadMask[index] = this.newHarm(c.mutationLoadStart);
+        } else {
+          const chance = c.mutationLoadStart / c.mutationLoadLoci;
+          let mask = 0;
+          for (let j = 0; j < c.mutationLoadLoci; j++) if (this.rng.next() < chance) mask |= 1 << j;
+          this.loadMask[index] = mask >>> 0;
+        }
       }
       if (this.typeOn) for (const plan of [GENE.plan1, GENE.plan2, GENE.plan3]) this.genes[index * GENE_COUNT + plan] = this.rng.next();
       this.express(index);
@@ -1457,8 +1461,19 @@ export class Simulation {
     return 1 + c.luckSpread * z;
   }
 
+  /** A random number of new harmful mutations averaging `mean` (many small independent chances, which is close to the usual Poisson count). */
+  private newHarm(mean: number): number {
+    if (mean <= 0) return 0;
+    const trials = Math.max(8, Math.ceil(mean * 8));
+    const chance = mean / trials;
+    let count = 0;
+    for (let t = 0; t < trials; t++) if (this.rng.next() < chance) count++;
+    return count;
+  }
+
   /** How many of organism i's spots have gone bad. */
   private badSpots(i: number): number {
+    if (this.config.mutationLoadModel === 1) return this.loadMask[i]!;
     let v = this.loadMask[i]!;
     let count = 0;
     while (v !== 0) {
@@ -1479,6 +1494,18 @@ export class Simulation {
   /** Hand down the harmful mutations: all of one parent's, or a mix of two parents' (each spot from one or the other), then new ones. */
   private inheritLoad(child: number, a: number, b: number): void {
     const c = this.config;
+    if (c.mutationLoadModel === 1) {
+      // Unlimited places for harm: a split-off baby keeps all its parent's mutations; a baby of two parents gets each one with a 50/50 chance.
+      let count = 0;
+      if (b >= 0) {
+        for (let k = this.loadMask[a]!; k > 0; k--) if (this.rng.next() < 0.5) count++;
+        for (let k = this.loadMask[b]!; k > 0; k--) if (this.rng.next() < 0.5) count++;
+      } else {
+        count = this.loadMask[a]!;
+      }
+      this.loadMask[child] = count + this.newHarm(c.mutationLoadRate);
+      return;
+    }
     const loci = c.mutationLoadLoci;
     const fromA = this.loadMask[a]!;
     let mask = fromA;

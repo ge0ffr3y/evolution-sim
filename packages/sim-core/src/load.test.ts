@@ -117,3 +117,65 @@ describe("standing load and starting variety for sex", () => {
     expect(() => new Simulation(1, { sexFounderSpread: 2 })).toThrow(/sexFounderSpread/);
   });
 });
+
+describe("the textbook ratchet model (unlimited places for harm)", () => {
+  const hidden = (s: Simulation): { loadMask: Uint32Array; inheritLoad(child: number, a: number, b: number): void } => s as unknown as { loadMask: Uint32Array; inheritLoad(child: number, a: number, b: number): void };
+
+  it("a split-off baby keeps all its parent's mutations plus about the asked number of new ones", () => {
+    const sim = new Simulation(1, { worldWidth: 64, worldHeight: 64, initialOrganisms: 3, mutationLoadRate: 2, mutationLoadModel: 1 });
+    const m = hidden(sim);
+    m.loadMask[0] = 40;
+    let total = 0;
+    for (let trial = 0; trial < 2000; trial++) {
+      m.inheritLoad(1, 0, -1);
+      expect(m.loadMask[1]).toBeGreaterThanOrEqual(40);
+      total += m.loadMask[1]! - 40;
+    }
+    expect(total / 2000).toBeGreaterThan(1.85);
+    expect(total / 2000).toBeLessThan(2.15);
+  });
+
+  it("a baby of two parents gets about half of each parent's mutations, so mixing can shed them", () => {
+    const sim = new Simulation(1, { worldWidth: 64, worldHeight: 64, initialOrganisms: 3, mutationLoadRate: 1e-9, mutationLoadModel: 1 });
+    const m = hidden(sim);
+    m.loadMask[0] = 30;
+    m.loadMask[1] = 10;
+    let total = 0;
+    let lowest = Infinity;
+    for (let trial = 0; trial < 2000; trial++) {
+      m.inheritLoad(2, 0, 1);
+      total += m.loadMask[2]!;
+      lowest = Math.min(lowest, m.loadMask[2]!);
+    }
+    expect(total / 2000).toBeGreaterThan(19);
+    expect(total / 2000).toBeLessThan(21);
+    expect(lowest).toBeLessThan(15); // some babies carry fewer than either... well, fewer than the average of their parents
+  });
+
+  it("with no ceiling and selection at work, an asexual world carries more load than a sexual one", () => {
+    const loadAt = (sexual: number): number => {
+      const sim = new Simulation(4, { sexualReproduction: sexual, mateRange: 10, mutationLoadRate: 2, mutationLoadModel: 1, mutationLoadCost: 0.02 });
+      sim.run(30000);
+      return sim.meanMutationLoad();
+    };
+    expect(loadAt(0)).toBeGreaterThan(loadAt(1));
+  }, 120_000);
+
+  it("is deterministic, conserves energy, and saves and reloads exactly", () => {
+    const config = { worldWidth: 128, worldHeight: 128, initialOrganisms: 200, sexualReproduction: 2, sexFounderSpread: 1, sexAcceptAny: 1, mutationLoadRate: 2, mutationLoadModel: 1, mutationLoadStart: 3 } as Partial<SimConfig>;
+    const a = new Simulation(7, config);
+    const b = new Simulation(7, config);
+    const energy0 = a.energyAudit().total;
+    a.run(2000);
+    b.run(2000);
+    const L = a.ledger;
+    const burned = L.basalBurned + L.movementBurned + L.sensingBurned + L.attackBurned + L.armorBurned + L.brainBurned;
+    const expected = energy0 + L.sunlightIn - burned - L.digestionLoss - L.decayLoss;
+    expect(Math.abs(a.energyAudit().total - expected) / expected).toBeLessThan(1e-9);
+    expect(a.fingerprint()).toBe(b.fingerprint());
+    const loaded = Simulation.load(a.save());
+    a.run(500);
+    loaded.run(500);
+    expect(loaded.fingerprint()).toBe(a.fingerprint());
+  }, 60_000);
+});

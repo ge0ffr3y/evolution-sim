@@ -471,6 +471,15 @@ export interface SimConfig {
    * makes mixing matter. 0 = off (mutationLoadRate).
    */
   mutationLoadRate: number;
+  /**
+   * 0 = the genome has mutationLoadLoci spots that can go bad (and mend with mutationLoadBack).
+   * 1 = the textbook model of Muller's ratchet: effectively unlimited places for harm, no mending,
+   * new harmful mutations arrive about mutationLoadRate per birth, a baby that splits off keeps all
+   * its parent's, and a baby of two parents gets each of each parent's mutations with a 50/50
+   * chance. Here the load cannot hit a ceiling, so a line that never mixes keeps getting worse when
+   * selection is weak, which is the situation sex is thought to solve.
+   */
+  mutationLoadModel: number;
   mutationLoadLoci: number;
   mutationLoadBack: number;
   mutationLoadCost: number;
@@ -962,6 +971,7 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   shareEfficiency: 0.9,
   initialShare: 0,
   mutationLoadRate: 0,
+  mutationLoadModel: 0,
   mutationLoadLoci: 24,
   mutationLoadBack: 0.01,
   mutationLoadCost: 0.03,
@@ -1255,11 +1265,12 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   }
   if (c.mutationLoadRate < 0) problems.push("mutationLoadRate cannot be negative");
   if (c.mutationLoadRate > 0) {
+    if (![0, 1].includes(c.mutationLoadModel)) problems.push("mutationLoadModel must be 0 (a fixed number of spots) or 1 (unlimited)");
     if (!Number.isInteger(c.mutationLoadLoci) || c.mutationLoadLoci < 1 || c.mutationLoadLoci > 30) problems.push("mutationLoadLoci must be a whole number from 1 to 30");
     if (c.mutationLoadBack < 0 || c.mutationLoadBack > 1 || c.mutationLoadCost < 0) problems.push("mutationLoadBack must be between 0 and 1 and mutationLoadCost cannot be negative");
-    if (c.mutationLoadRate > c.mutationLoadLoci) problems.push("mutationLoadRate cannot be more than mutationLoadLoci");
+    if (c.mutationLoadModel === 0 && c.mutationLoadRate > c.mutationLoadLoci) problems.push("mutationLoadRate cannot be more than mutationLoadLoci");
     if (c.mutationLoadSynergy < 0 || c.mutationLoadFertility < 0) problems.push("mutationLoadSynergy and mutationLoadFertility cannot be negative");
-    if (c.mutationLoadStart < 0 || c.mutationLoadStart > c.mutationLoadLoci) problems.push("mutationLoadStart must be between 0 and mutationLoadLoci");
+    if (c.mutationLoadStart < 0 || (c.mutationLoadModel === 0 && c.mutationLoadStart > c.mutationLoadLoci)) problems.push("mutationLoadStart must be between 0 and mutationLoadLoci");
   }
   if (c.luckSpread < 0 || c.luckSpread * c.luckLimit >= 1) problems.push("luckSpread cannot be negative, and luckSpread x luckLimit must stay under 1 (or an organism could have zero upkeep)");
   if (c.luckLimit <= 0) problems.push("luckLimit must be positive");
