@@ -4,7 +4,7 @@ import type { FrameMessage } from "./protocol";
 export type ColorBy = "diet" | "speed" | "size" | "hue" | "energy" | "sense" | "health" | "colony" | "cell" | "palate";
 
 /** What the map background shows. */
-export type Overlay = "plants" | "nutrients" | "corpses" | "detritus" | "trails" | "terrain" | "temperature" | "light" | "background" | "plantKinds";
+export type Overlay = "plants" | "nutrients" | "corpses" | "detritus" | "trails" | "terrain" | "temperature" | "light" | "background" | "plantKinds" | "grazing";
 
 export const OVERLAYS: readonly { id: Overlay; label: string }[] = [
   { id: "plants", label: "Plants" },
@@ -17,6 +17,7 @@ export const OVERLAYS: readonly { id: Overlay; label: string }[] = [
   { id: "light", label: "Plant growth (worlds with a climate)" },
   { id: "background", label: "Background color (worlds with camouflage)" },
   { id: "plantKinds", label: "Kinds of plant (worlds with several kinds)" },
+  { id: "grazing", label: "Grazing damage (worlds with overgrazing)" },
 ];
 
 export const COLOR_MODES: readonly { id: ColorBy; label: string; legendLow: string; legendHigh: string }[] = [
@@ -365,6 +366,11 @@ export class WorldRenderer {
         const amount = Math.min(Math.sqrt(frame.corpse[cell]! / overlayScale.corpse), 1);
         r += amount * 200;
         g += amount * 20;
+      } else if (overlay === "grazing") {
+        // Healthy ground stays dark; damaged ground turns orange (brighter = slower to regrow).
+        const damage = frame.grazing ? frame.grazing[cell]! : 0;
+        r += damage * 190;
+        g += damage * 90;
       } else {
         const amount = Math.min(frame.detritus[cell]! / overlayScale.detritus, 1);
         r += amount * 90;

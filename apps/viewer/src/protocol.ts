@@ -139,6 +139,8 @@ export interface FrameMessage {
   nutrient: Float64Array;
   corpse: Float64Array;
   detritus: Float64Array;
+  /** How much damage overgrazing has done to each cell, 0 to 1 (null in worlds without overgrazing). */
+  grazing: Float32Array | null;
   /** Plant-eater and meat-eater scent in each square of the scent grid (empty when brains are off). */
   preyScent: Float32Array;
   hunterScent: Float32Array;

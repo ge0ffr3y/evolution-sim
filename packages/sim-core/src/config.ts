@@ -509,6 +509,25 @@ export interface SimConfig {
   luckSpread: number;
   luckLimit: number;
 
+  // --- Overgrazing (off by default) ---
+  /**
+   * A patch of ground that is eaten bare keeps suffering: while the plants standing in a cell are below
+   * overgrazeBelow of what it can hold, the cell gains damage (overgrazeDamage per tick, up to 1), and it
+   * heals by overgrazeHeal per tick otherwise. With the defaults (bare = under 1% of capacity, damage
+   * three times as fast as healing) a cell that is bare more than about a quarter of the time builds
+   * up damage and a normally grazed one stays healthy. That is calibrated for worlds with some spatial
+   * variety, such as the grand world, where how often a cell is bare ranges from never to over a quarter
+   * of the time. In a uniformly food-limited world (the standard one) every cell is bare about half the
+   * time, so all of it ends up damaged and the effect is just a blanket growth penalty. Plants grow more slowly where there is damage: their growth
+   * is multiplied by 1 minus overgrazePenalty x damage. So a crowd that strips a place leaves it slow to
+   * recover, which rewards moving on. It only changes how fast plants grow (the sunlight they capture), so
+   * the energy books are unaffected. 0 = off (overgrazeDamage).
+   */
+  overgrazeDamage: number;
+  overgrazeBelow: number;
+  overgrazeHeal: number;
+  overgrazePenalty: number;
+
   // --- Catastrophes (off by default) ---
   /**
    * 0 = none. 1 = an ice age (the whole world gets colder, then recovers). 2 = a drought
@@ -980,6 +999,10 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   mutationLoadFertility: 0,
   luckSpread: 0,
   luckLimit: 2.5,
+  overgrazeDamage: 0,
+  overgrazeBelow: 0.01,
+  overgrazeHeal: 0.001,
+  overgrazePenalty: 0.7,
   weatherAmplitude: 0,
   weatherScale: 8,
   weatherDriftTicks: 400,
@@ -1274,6 +1297,12 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   }
   if (c.luckSpread < 0 || c.luckSpread * c.luckLimit >= 1) problems.push("luckSpread cannot be negative, and luckSpread x luckLimit must stay under 1 (or an organism could have zero upkeep)");
   if (c.luckLimit <= 0) problems.push("luckLimit must be positive");
+  if (c.overgrazeDamage < 0 || c.overgrazeDamage > 1) problems.push("overgrazeDamage must be between 0 and 1");
+  if (c.overgrazeDamage > 0) {
+    if (c.overgrazeBelow <= 0 || c.overgrazeBelow >= 1) problems.push("overgrazeBelow must be above 0 and under 1");
+    if (c.overgrazeHeal < 0 || c.overgrazeHeal > 1) problems.push("overgrazeHeal must be between 0 and 1");
+    if (c.overgrazePenalty < 0 || c.overgrazePenalty > 1) problems.push("overgrazePenalty must be between 0 and 1");
+  }
   if (c.yearVariability < 0 || c.yearVariability > 1) problems.push("yearVariability must be between 0 and 1");
   if (c.yearVariability > 0 && (c.climateMode !== 1 || c.yearLength <= 0)) problems.push("yearVariability needs a climate with seasons (climateMode 1 and a yearLength)");
   if (c.fatDepositRate < 0 || c.fatDepositRate > 1 || c.fatDrawRate < 0 || c.fatCap < 0 || c.fatMoveCost < 0 || c.fatUpkeep < 0) problems.push("the fat settings cannot be negative (and fatDepositRate is at most 1)");

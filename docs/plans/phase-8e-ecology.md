@@ -46,7 +46,7 @@ Written after the owner's notes from a 5-million-tick grand-world run. The grand
 
 **What the split showed (grand world, `configs/grand-world.json`):**
 - Over the first 50,000 ticks blocked births are negligible (5 to 100 against 77,000 to 88,000 births).
-- **Over a long run, soil blocking grows steadily and energy blocking never does.** Seed 3: blocked attempts per 100,000 ticks went 1,945, 16,646, 33,226, 56,137, 71,820, against births falling from 154,367 to 50,125, so by 500,000 ticks more attempts are blocked than succeed. Seed 2 has the same shape (764 up to 43,542). Over the whole run 99.98% of blocks were soil, and energy blocked at most 22.
+- **Over a long run, soil blocking grows steadily and energy blocking never does (confirmed in all 4 worlds run to 500,000 ticks; the last 100,000 ticks blocked 21,447 to 71,820 soil attempts per world, against at most 99 energy-blocked births over the whole of any run).** Seed 3: blocked attempts per 100,000 ticks went 1,945, 16,646, 33,226, 56,137, 71,820, against births falling from 154,367 to 50,125, so by 500,000 ticks more attempts are blocked than succeed. Seed 2 has the same shape (764 up to 43,542). Over the whole run 99.98% of blocks were soil, and energy blocked at most 22.
 - **The soil is not gone; it is in the wrong places.** Total matter stays constant and about 100,000 of it sits in the soil throughout. But the number of cells with under 1 unit of nutrient grows from 1,077 to 1,736 of 4,096 (about 1,024 of those are empty water from the start), and the richest single cell grows from 83 to 243. On land, nutrient-poor cells go from about 2% to about 23%. Matter flows from where animals eat and breed to where they die, and nothing carries it back.
 - **Implication for O1:** moving to "babies are built from the parent's food store" removes the blocked-birth freeze directly. A small separate fix, soil nutrient slowly mixing between neighboring cells (like leaching or wind), would stop the permanent hotspots and deserts in the meantime. Proposed as S2b below.
 
@@ -67,6 +67,14 @@ Written after the owner's notes from a 5-million-tick grand-world run. The grand
   - It only changes how fast plants grow, so the energy ledger is unaffected (sunlight in is what actually grows).
 - **Viewer:** a "Grazing damage" map layer.
 - **Evidence:** compare plant cover and how far animals travel (mean distance from birthplace, or the home distance input if brains are on) with and without, 6 seeds.
+
+**S3 result (done).** Overgrazing built as specified (`overgrazeDamage` > 0 turns it on; saved with the land only when on, so older saved worlds still load; a "Grazing damage" map layer; preset "The grand world with overgrazing", a full copy of the grand world plus overgrazing because presets cannot extend one another).
+
+**Two things the evidence changed:**
+- **The planned defaults were wrong.** "Bare" was set to under 15% of capacity, but in the standard world cells are below that 94% of the time (below 1% about half the time, with no difference between cells), so every cell was damaged and the effect was a blanket growth penalty (population 651 down to 275). Defaults are now: bare = under 1% of capacity, damage 0.003 per tick (set by the preset), healing 0.001, penalty 0.7. In the grand world, how often a cell is bare ranges from never to over a quarter of the time, so damage is patchy there.
+- **It only makes sense in a varied world.** In terrain plus seasons alone, 74% of the ground was damaged; in the grand world about 24%. The config comment says so.
+
+**Effect in the grand world (6 worlds, 150,000 ticks):** off 1,124 animals; moderate (0.003) 735 animals (35% fewer), 24% of ground damaged, 1 of 6 worlds nearly died out; strong (0.01, penalty 0.9) 325 animals. Mean speed rose about 9% but animals were not more spread out (density spread 0.84 to 0.88), so the push toward moving on is weak. A brain sense of ground health would be the natural follow-up. Not yet turned on in the plain grand world, because of the population cost.
 
 ### S4. Fouling (owner's note 1b)
 - Every animal adds `fouling × its body size` per tick to a per-cell fouling index. The index decays by `foulDecay` per tick (default 0.01).

@@ -544,6 +544,9 @@ export class Simulation {
   private readonly weatherA: Float32Array;
   private readonly weatherB: Float32Array;
   private readonly fatOn: boolean;
+  /** Overgrazing: how much damage each patch of ground carries (0 to 1). Saved with the land. */
+  private readonly grazeOn: boolean;
+  readonly grazing: Float32Array;
   /** Harmful mutations: which of the genome's spots have gone bad, one bit each (model 0), or simply how many harmful mutations it carries (model 1). */
   private readonly loadOn: boolean;
   /** Luck: multipliers (around 1) on each organism's upkeep and on its reproduction threshold, rolled at birth. */
@@ -865,6 +868,8 @@ export class Simulation {
     this.fertilityLuck = new Float32Array(this.luckOn ? n : 0);
     this.loadOn = c.mutationLoadRate > 0;
     this.loadMask = new Uint32Array(this.loadOn ? n : 0);
+    this.grazeOn = c.overgrazeDamage > 0;
+    this.grazing = new Float32Array(this.grazeOn ? cells : 0);
     this.fatOn = c.fatDepositRate > 0;
     this.fatStore = new Float64Array(this.fatOn ? n : 0);
     this.torporOn = this.climateOn && c.torporSaving > 0;
@@ -3105,6 +3110,18 @@ export class Simulation {
       const room = this.foodCapacity[cell]! - food[cell]!;
       let potential = (this.foodRegrow[cell]! * soil) / (soil + halfSat);
       if (climateOn) potential *= this.growthFactor[cell]!;
+      if (this.grazeOn) {
+        // Overgrazing: a cell eaten bare gains damage, and damaged ground regrows slowly.
+        const capacity = this.foodCapacity[cell]!;
+        if (capacity > 0) {
+          let damage = this.grazing[cell]!;
+          if (food[cell]! < c.overgrazeBelow * capacity) damage += c.overgrazeDamage;
+          else damage -= c.overgrazeHeal;
+          damage = damage < 0 ? 0 : damage > 1 ? 1 : damage;
+          this.grazing[cell] = damage;
+          potential *= 1 - c.overgrazePenalty * damage;
+        }
+      }
       let growth = potential < soil ? potential : soil;
       if (growth > room) growth = room > 0 ? room : 0;
       food[cell] = food[cell]! + growth;
@@ -3468,6 +3485,8 @@ export class Simulation {
       ["food", this.food],
       ["foodCapacity", this.foodCapacity],
       ["foodRegrow", this.foodRegrow],
+      // (Only in worlds with overgrazing, so worlds saved before it existed still load.)
+      ...(this.grazeOn ? ([["grazing", this.grazing]] as [string, SnapshotArray][]) : []),
       ["nutrient", this.nutrient],
       ["corpseMatter", this.corpseMatter],
       ["corpseEnergy", this.corpseEnergy],
