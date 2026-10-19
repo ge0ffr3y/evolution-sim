@@ -188,8 +188,12 @@ export interface SimStats {
   /** Deaths caused by another organism, and total deaths from starvation. */
   totalKills: number;
   totalStarved: number;
-  /** Births that could not happen because the soil had no nutrients for the baby. */
+  /** Births that could not happen: the soil had no nutrients for the baby's body, the parents' share of energy could not pay for it, or both. */
   blockedBirths: number;
+  /** The same blocked births split by cause (the three always add up to blockedBirths). */
+  blockedBirthsSoil: number;
+  blockedBirthsEnergy: number;
+  blockedBirthsBoth: number;
   /** Attacks tried, and how many killed (so kills / attacks is the success rate). */
   totalAttacks: number;
   brain: BrainStats;
@@ -339,6 +343,9 @@ export class Simulation {
   totalKills = 0;
   totalStarved = 0;
   blockedBirths = 0;
+  blockedBirthsSoil = 0;
+  blockedBirthsEnergy = 0;
+  blockedBirthsBoth = 0;
   totalAttacks = 0;
   readonly events: SimEvent[] = [];
   /** Catastrophes and their ends (a separate list, so it never disturbs the notable firsts). */
@@ -1489,6 +1496,14 @@ export class Simulation {
     let sum = 0;
     for (let i = 0; i < this.count; i++) sum += this.badSpots(i);
     return sum / this.count;
+  }
+
+  /** Count one blocked birth, by what blocked it. (One attempt can be short of both soil and energy at once.) */
+  private noteBlockedBirth(soilShort: boolean, energyShort: boolean): void {
+    this.blockedBirths++;
+    if (soilShort && energyShort) this.blockedBirthsBoth++;
+    else if (soilShort) this.blockedBirthsSoil++;
+    else this.blockedBirthsEnergy++;
   }
 
   /** Hand down the harmful mutations: all of one parent's, or a mix of two parents' (each spot from one or the other), then new ones. */
@@ -3172,7 +3187,7 @@ export class Simulation {
           if (nutrient[cell]! < this.bodyMatter[child]! || store < 0) {
             this.count--;
             this.nextId = savedNextId;
-            this.blockedBirths++;
+            this.noteBlockedBirth(nutrient[cell]! < this.bodyMatter[child]!, store < 0);
             continue;
           }
           nutrient[cell] = nutrient[cell]! - this.bodyMatter[child]!;
@@ -3216,7 +3231,7 @@ export class Simulation {
             // Cannot afford this baby right now: undo it. The parent keeps its energy and tries again later.
             this.count--;
             this.nextId = savedNextId;
-            this.blockedBirths++;
+            this.noteBlockedBirth(nutrient[cell]! < this.bodyMatter[child]!, store < 0);
             continue;
           }
           nutrient[cell] = nutrient[cell]! - this.bodyMatter[child]!;
@@ -3419,6 +3434,9 @@ export class Simulation {
       totalKills: this.totalKills,
       totalStarved: this.totalStarved,
       blockedBirths: this.blockedBirths,
+      blockedBirthsSoil: this.blockedBirthsSoil,
+      blockedBirthsEnergy: this.blockedBirthsEnergy,
+      blockedBirthsBoth: this.blockedBirthsBoth,
       totalAttacks: this.totalAttacks,
       seen: [this.seenScavenger, this.seenKill, this.seenPredator, this.seenCarnivore],
       events: this.events,
@@ -3484,6 +3502,9 @@ export class Simulation {
       totalKills: number;
       totalStarved: number;
       blockedBirths: number;
+      blockedBirthsSoil?: number;
+      blockedBirthsEnergy?: number;
+      blockedBirthsBoth?: number;
       totalAttacks: number;
       seen: boolean[];
       events: SimEvent[];
@@ -3523,6 +3544,10 @@ export class Simulation {
     this.totalKills = s.totalKills;
     this.totalStarved = s.totalStarved;
     this.blockedBirths = s.blockedBirths;
+    // (A world saved before the split was added has no breakdown: it starts at zero and counts from here.)
+    this.blockedBirthsSoil = s.blockedBirthsSoil ?? 0;
+    this.blockedBirthsEnergy = s.blockedBirthsEnergy ?? 0;
+    this.blockedBirthsBoth = s.blockedBirthsBoth ?? 0;
     this.totalAttacks = s.totalAttacks;
     [this.seenScavenger, this.seenKill, this.seenPredator, this.seenCarnivore] = s.seen as [boolean, boolean, boolean, boolean];
     this.events.length = 0;
@@ -3665,6 +3690,9 @@ export class Simulation {
       totalKills: this.totalKills,
       totalStarved: this.totalStarved,
       blockedBirths: this.blockedBirths,
+      blockedBirthsSoil: this.blockedBirthsSoil,
+      blockedBirthsEnergy: this.blockedBirthsEnergy,
+      blockedBirthsBoth: this.blockedBirthsBoth,
       totalAttacks: this.totalAttacks,
       brain: {
         all: { hidden: mean(allHidden, n), connections: mean(allConnections, n) },

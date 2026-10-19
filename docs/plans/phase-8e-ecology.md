@@ -42,6 +42,20 @@ Written after the owner's notes from a 5-million-tick grand-world run. The grand
 - **Runner:** add CSV columns for both.
 - **Evidence:** report the split for the grand world (3 seeds, 50,000 ticks). This tells O1 how big the soil problem really is.
 
+**S2 result (done).** Three counters: `blockedBirthsSoil`, `blockedBirthsEnergy` and `blockedBirthsBoth` (one blocked attempt can be short of both soil and energy), and they always add up to `blockedBirths`. Shown in the viewer ("Births blocked: soil / energy / both") and as CSV columns. Brains-off golden fingerprints are unchanged.
+
+**What the split showed (grand world, `configs/grand-world.json`):**
+- Over the first 50,000 ticks blocked births are negligible (5 to 100 against 77,000 to 88,000 births).
+- **Over a long run, soil blocking grows steadily and energy blocking never does.** Seed 3: blocked attempts per 100,000 ticks went 1,945, 16,646, 33,226, 56,137, 71,820, against births falling from 154,367 to 50,125, so by 500,000 ticks more attempts are blocked than succeed. Seed 2 has the same shape (764 up to 43,542). Over the whole run 99.98% of blocks were soil, and energy blocked at most 22.
+- **The soil is not gone; it is in the wrong places.** Total matter stays constant and about 100,000 of it sits in the soil throughout. But the number of cells with under 1 unit of nutrient grows from 1,077 to 1,736 of 4,096 (about 1,024 of those are empty water from the start), and the richest single cell grows from 83 to 243. On land, nutrient-poor cells go from about 2% to about 23%. Matter flows from where animals eat and breed to where they die, and nothing carries it back.
+- **Implication for O1:** moving to "babies are built from the parent's food store" removes the blocked-birth freeze directly. A small separate fix, soil nutrient slowly mixing between neighboring cells (like leaching or wind), would stop the permanent hotspots and deserts in the meantime. Proposed as S2b below.
+
+### S2b (proposed, not built): soil nutrient mixing
+- `nutrientDiffusion` (default 0 = off): each tick every pair of neighboring land cells exchanges `nutrientDiffusion × (difference) / 4` of soil nutrient. The flow is symmetric, so total soil nutrient is exactly conserved. Water cells act as walls.
+- Also a viewer "Soil nutrient" map layer already exists, so no new layer is needed.
+- Tests: conservation to 1e-9, a point of nutrient spreads out and the total stays the same, water blocks flow, determinism, save and load.
+- Evidence: the same long grand-world runs, counting soil-blocked births per window and poor-land cells with and without it.
+
 ### S3. Overgrazing (owner's note 1a)
 - A plant cell grazed down to below `overgrazeBelow` of its capacity (default 0.15) gains damage. Damage rises by `overgrazeDamage` per tick while that low (default 0.002, capped at 1) and heals by `overgrazeHeal` per tick otherwise (default 0.0005).
 - Plant growth in the cell is multiplied by `1 - overgrazePenalty × damage` (penalty default 0.7).

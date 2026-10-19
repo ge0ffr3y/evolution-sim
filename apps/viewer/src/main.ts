@@ -649,7 +649,7 @@ function updateStats(frame: FrameMessage): void {
     setText("stat-climate", parts.join(", "));
   }
   setText("stat-kills", format.int.format(s.totalKills));
-  setText("stat-blocked", format.int.format(s.blockedBirths));
+  setText("stat-blocked", `${format.int.format(s.blockedBirthsSoil)} / ${format.int.format(s.blockedBirthsEnergy)} / ${format.int.format(s.blockedBirthsBoth)}`);
   const b = frame.behavior;
   setText("stat-chase", b.chaseSamples >= 10 ? `${Math.round(b.chase * 100)}% (random = 50%)` : "-");
   setText("stat-flee", b.fleeSamples >= 10 ? `${Math.round(b.flee * 100)}% (random = 50%)` : "-");
