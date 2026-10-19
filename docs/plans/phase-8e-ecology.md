@@ -95,7 +95,7 @@ Written after the owner's notes from a 5-million-tick grand-world run. The grand
 
 **Finding shared with S3:** both ground-damage mechanics only cut the population (about 25 to 45%) and barely move animals, because animals cannot sense damaged ground. **Recommendation: add one "how healthy is the ground here" brain input (grazing damage and fouling) as part of O2, the Opus water and moisture work, since both change the brain layout.** Not yet turned on in the plain grand world, because of the population cost.
 
-**Clean-up note for the end of the batch:** `configs/grand-world-overgrazing.json` and `configs/grand-world-fouling.json` are copies made only so the layers could be seen. Delete them once the finished mechanics are switched on in `grand-world.json`.
+**Clean-up note for the end of the batch:** `configs/grand-world-overgrazing.json`, `configs/grand-world-fouling.json` and `configs/grand-world-erosion.json` are copies made only so the layers could be seen. Delete them once the finished mechanics are switched on in `grand-world.json`.
 
 ### S5. Erosion (owner's note 1c)
 - A per-cell fertility factor (start 1, range `erosionMin` default 0.4 to 1).
@@ -105,6 +105,18 @@ Written after the owner's notes from a 5-million-tick grand-world run. The grand
 - **Matter:** erosion changes how much plant a cell can hold, never moves or deletes matter, so the matter audit is unaffected.
 - **Viewer:** a "Soil fertility" map layer.
 - **Evidence:** long-grazed areas thin out and recover after the population moves on.
+
+**S5 result (done).** Erosion built (`erosionRate` > 0 turns it on; a per-cell soil health, saved with the land only when on; a "Worn-away soil" map layer scaled to the most worn cell; preset "The grand world with erosion", a copy of the grand world plus erosion).
+
+**Two deviations from the plan, both from measuring:**
+- **Fertility lowers the regrowth speed as well as the ceiling.** The plan said only the ceiling (capacity). But ground that erodes is by definition bare, nowhere near any ceiling, so a lower ceiling there would do nothing. Soil health now multiplies both. Plants already standing are never deleted when the ceiling falls (so no matter vanishes); the cell just stops growing until it is back under it.
+- **The trigger lines were recalibrated.** "Below 10% / above 50% of capacity" would have eroded everything in the standard world. Now: erode while bare (under 1% of capacity, the same line as overgrazing), recover above 10%.
+
+**What the long runs showed (grand world, 4 worlds per arm):**
+- The first defaults (0.00006 / 0.00002) were too harsh: 42% of the ground at the floor by 200,000 ticks, 56% by 600,000, plant cover 37% down to 9%. A trap: eroded ground regrows slowly, stays bare, keeps eroding, and never reaches the 10% cover needed to recover.
+- **No setting tried reaches a stable balance within 300,000 ticks.** Worn ground keeps creeping up even at the gentlest (0.00001 / 0.00004): 5%, 11% and 15% worn at 100k, 200k and 300k ticks, 7% at the floor at 300k. The preset uses that. A million-tick check was started to see whether it levels off.
+- **Population is hardly affected** (689 with default erosion against 466 without at 600,000 ticks), even though plant cover fell a lot, because other limits (soil nutrient, see S2) bind first.
+- **Standard world:** 98% of the ground at the floor (all cells are bare about half the time), as the config comment warns. Not meaningful there.
 
 ### S6. Warning colors: a toxicity gene (owner's note 4)
 - **New gene `toxicity`** (the 27th; add it to `genome.ts`), active when `toxinStrength` > 0. Default 0, so it is off.

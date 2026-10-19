@@ -509,6 +509,27 @@ export interface SimConfig {
   luckSpread: number;
   luckLimit: number;
 
+  // --- Erosion (off by default) ---
+  /**
+   * Ground that stays bare slowly loses fertility, and ground that is covered slowly regains it. Every cell
+   * has a soil health between erosionMin and 1. It falls by erosionRate per tick while the plants standing
+   * in the cell are below erosionBelow of what it could hold, and rises by erosionRecovery per tick while
+   * they are above erosionRecoverAbove. Soil health multiplies how fast plants regrow and how much the
+   * cell can hold. Plants already standing are never deleted when the ceiling drops, so no matter
+   * disappears; the cell just stops growing until it is back under the new ceiling. The recovery default
+   * is calibrated for the grand world, where how often a cell is bare ranges from never to over a quarter
+   * of the time, so only the persistently bare cells wear away. Try erosionRate 0.00001: about 15% of the
+   * ground is worn after 300,000 ticks. It does NOT settle into a balance in that time: eroded ground
+   * regrows slowly, so it tends to stay bare and keep eroding, and the worn share keeps creeping up. In a
+   * uniformly food-limited world (the standard one) every cell is bare about half the time, so all of it
+   * wears down to the floor. 0 = off (erosionRate).
+   */
+  erosionRate: number;
+  erosionBelow: number;
+  erosionRecoverAbove: number;
+  erosionRecovery: number;
+  erosionMin: number;
+
   // --- Fouling (off by default) ---
   /**
    * Crowds foul their ground. Every animal adds fouling x its body size to a per-cell fouling index each
@@ -1017,6 +1038,11 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   mutationLoadFertility: 0,
   luckSpread: 0,
   luckLimit: 2.5,
+  erosionRate: 0,
+  erosionBelow: 0.01,
+  erosionRecoverAbove: 0.1,
+  erosionRecovery: 0.00004,
+  erosionMin: 0.4,
   fouling: 0,
   foulDecay: 0.01,
   foulFree: 2,
@@ -1320,6 +1346,12 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   }
   if (c.luckSpread < 0 || c.luckSpread * c.luckLimit >= 1) problems.push("luckSpread cannot be negative, and luckSpread x luckLimit must stay under 1 (or an organism could have zero upkeep)");
   if (c.luckLimit <= 0) problems.push("luckLimit must be positive");
+  if (c.erosionRate < 0 || c.erosionRate > 1) problems.push("erosionRate must be between 0 and 1");
+  if (c.erosionRate > 0) {
+    if (c.erosionBelow <= 0 || c.erosionBelow >= 1 || c.erosionRecoverAbove <= c.erosionBelow || c.erosionRecoverAbove > 1) problems.push("erosionBelow must be above 0 and under erosionRecoverAbove, which must be at most 1");
+    if (c.erosionRecovery < 0 || c.erosionRecovery > 1) problems.push("erosionRecovery must be between 0 and 1");
+    if (c.erosionMin <= 0 || c.erosionMin > 1) problems.push("erosionMin must be above 0 and at most 1");
+  }
   if (c.fouling < 0) problems.push("fouling cannot be negative");
   if (c.fouling > 0) {
     if (!(c.foulDecay > 0) || c.foulDecay > 1) problems.push("foulDecay must be above 0 and at most 1");

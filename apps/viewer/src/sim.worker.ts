@@ -210,6 +210,7 @@ function postFrame(s: Simulation): void {
   const detritus = s.detritus.slice();
   const grazing = s.grazing.length > 0 ? s.grazing.slice() : null;
   const foul = s.foul.length > 0 ? s.foul.slice() : null;
+  const soilHealth = s.soilHealth.length > 0 ? s.soilHealth.slice() : null;
   const preyScent = Float32Array.from(s.preyScent);
   const hunterScent = Float32Array.from(s.hunterScent);
   const capacity = sendCapacity ? s.foodCapacity.slice() : null;
@@ -262,6 +263,7 @@ function postFrame(s: Simulation): void {
     detritus,
     grazing,
     foul,
+    soilHealth,
     preyScent,
     hunterScent,
     capacity,
@@ -295,6 +297,7 @@ function postFrame(s: Simulation): void {
   ];
   if (grazing) transfer.push(grazing.buffer);
   if (foul) transfer.push(foul.buffer);
+  if (soilHealth) transfer.push(soilHealth.buffer);
   if (capacity) transfer.push(capacity.buffer);
   if (terrain) transfer.push(terrain.buffer);
   if (background) transfer.push(background.buffer);

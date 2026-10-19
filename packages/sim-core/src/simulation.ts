@@ -545,6 +545,9 @@ export class Simulation {
   private readonly weatherB: Float32Array;
   private readonly fatOn: boolean;
   /** Overgrazing: how much damage each patch of ground carries (0 to 1). Saved with the land. */
+  private readonly erodeOn: boolean;
+  /** Erosion: how healthy each cell's soil is (erosionMin to 1). Saved with the land only when on. */
+  readonly soilHealth: Float32Array;
   private readonly foulOn: boolean;
   /** Fouling: how fouled each cell's ground is (an index of crowding, not matter). Saved with the land only when on. */
   readonly foul: Float32Array;
@@ -872,6 +875,8 @@ export class Simulation {
     this.fertilityLuck = new Float32Array(this.luckOn ? n : 0);
     this.loadOn = c.mutationLoadRate > 0;
     this.loadMask = new Uint32Array(this.loadOn ? n : 0);
+    this.erodeOn = c.erosionRate > 0;
+    this.soilHealth = new Float32Array(this.erodeOn ? cells : 0).fill(1);
     this.foulOn = c.fouling > 0;
     this.foul = new Float32Array(this.foulOn ? cells : 0);
     this.grazeOn = c.overgrazeDamage > 0;
@@ -3134,10 +3139,23 @@ export class Simulation {
       detritus[cell] = detritusHere - mineralized;
       let soil = nutrient[cell]! + mineralized;
 
+      // Erosion: ground that stays bare wears away (and recovers when covered). Soil health scales regrowth and the ceiling.
+      let health = 1;
+      let ceiling = this.foodCapacity[cell]!;
+      if (this.erodeOn && ceiling > 0) {
+        const ratio = food[cell]! / ceiling;
+        health = this.soilHealth[cell]!;
+        if (ratio < c.erosionBelow) health -= c.erosionRate;
+        else if (ratio > c.erosionRecoverAbove) health += c.erosionRecovery;
+        health = health < c.erosionMin ? c.erosionMin : health > 1 ? 1 : health;
+        this.soilHealth[cell] = health;
+        ceiling *= health;
+      }
       // Plants grow, limited by sunlight (the rate), nutrient, and room.
-      const room = this.foodCapacity[cell]! - food[cell]!;
+      const room = ceiling - food[cell]!;
       let potential = (this.foodRegrow[cell]! * soil) / (soil + halfSat);
       if (climateOn) potential *= this.growthFactor[cell]!;
+      potential *= health;
       if (this.foulOn) {
         // Fouling: ground that is much more crowded than average grows plants more slowly. Then the fouling fades a little.
         const excess = foulMean > 0 ? this.foul[cell]! / foulMean - c.foulFree : 0;
@@ -3520,6 +3538,7 @@ export class Simulation {
       ["foodCapacity", this.foodCapacity],
       ["foodRegrow", this.foodRegrow],
       // (Only in worlds with overgrazing, so worlds saved before it existed still load.)
+      ...(this.erodeOn ? ([["soilHealth", this.soilHealth]] as [string, SnapshotArray][]) : []),
       ...(this.foulOn ? ([["foul", this.foul]] as [string, SnapshotArray][]) : []),
       ...(this.grazeOn ? ([["grazing", this.grazing]] as [string, SnapshotArray][]) : []),
       ["nutrient", this.nutrient],

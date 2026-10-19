@@ -143,6 +143,8 @@ export interface FrameMessage {
   grazing: Float32Array | null;
   /** How fouled each cell's ground is (an index of crowding; null in worlds without fouling). */
   foul: Float32Array | null;
+  /** How healthy each cell's soil is, erosion's floor to 1 (null in worlds without erosion). */
+  soilHealth: Float32Array | null;
   /** Plant-eater and meat-eater scent in each square of the scent grid (empty when brains are off). */
   preyScent: Float32Array;
   hunterScent: Float32Array;
