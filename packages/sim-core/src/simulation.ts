@@ -545,6 +545,10 @@ export class Simulation {
   private readonly weatherB: Float32Array;
   private readonly fatOn: boolean;
   /** Overgrazing: how much damage each patch of ground carries (0 to 1). Saved with the land. */
+  private readonly foulOn: boolean;
+  /** Fouling: how fouled each cell's ground is (an index of crowding, not matter). Saved with the land only when on. */
+  readonly foul: Float32Array;
+  private foulMeanNow = 0;
   private readonly grazeOn: boolean;
   readonly grazing: Float32Array;
   /** Harmful mutations: which of the genome's spots have gone bad, one bit each (model 0), or simply how many harmful mutations it carries (model 1). */
@@ -868,6 +872,8 @@ export class Simulation {
     this.fertilityLuck = new Float32Array(this.luckOn ? n : 0);
     this.loadOn = c.mutationLoadRate > 0;
     this.loadMask = new Uint32Array(this.loadOn ? n : 0);
+    this.foulOn = c.fouling > 0;
+    this.foul = new Float32Array(this.foulOn ? cells : 0);
     this.grazeOn = c.overgrazeDamage > 0;
     this.grazing = new Float32Array(this.grazeOn ? cells : 0);
     this.fatOn = c.fatDepositRate > 0;
@@ -2546,7 +2552,14 @@ export class Simulation {
     const c = this.config;
     const strainId = this.infection[this.diseaseHost]!;
     const antigen = this.strains[strainId - 1]!;
-    if (this.rng.next() >= c.diseaseTransmission * this.susceptibility(index, antigen)) return;
+    let chance = c.diseaseTransmission * this.susceptibility(index, antigen);
+    if (this.foulOn) {
+      // Disease passes on more easily on fouled ground (where the sick animal is standing).
+      const mean = this.foulMeanNow;
+      const excess = mean > 0 ? this.foul[this.cellOf[this.diseaseHost]!]! / mean - c.foulFree : 0;
+      if (excess > 0) chance *= 1 + c.foulDiseaseEffect * excess;
+    }
+    if (this.rng.next() >= chance) return;
     let carried = strainId;
     // Now and then the strain changes: its target moves toward the genes of its new host (it adapts to whoever is common).
     if (c.diseaseMutationProb > 0 && this.rng.next() < c.diseaseMutationProb && this.strains.length < 65000) {
@@ -2561,9 +2574,22 @@ export class Simulation {
     this.pending[index] = carried;
   };
 
+  /** The average fouling over all the land (worked out fresh from the index, so a saved world needs nothing extra). */
+  private meanFoul(): number {
+    let sum = 0;
+    let land = 0;
+    for (let cell = 0; cell < this.foul.length; cell++) {
+      if (this.foodCapacity[cell]! <= 0) continue;
+      sum += this.foul[cell]!;
+      land++;
+    }
+    return land > 0 ? sum / land : 0;
+  }
+
   /** One tick of disease: new strains arrive, sick organisms infect their neighbors, sickness and immunity run down. */
   private diseaseStep(n: number): void {
     const c = this.config;
+    if (this.foulOn) this.foulMeanNow = this.meanFoul(); // once a tick, for tryInfect to use
     if (n > 0 && this.rng.next() < 1 / c.diseaseIntroEvery) {
       const j = this.rng.int(n);
       if (this.sickFor[j] === 0 && this.immuneFor[j] === 0) this.newStrainIn(j);
@@ -2932,6 +2958,7 @@ export class Simulation {
     for (let i = 0; i < n; i++) {
       if (this.killed[i] === 1) continue;
       const cell = this.cellOf[i]!;
+      if (this.foulOn) this.foul[cell] = this.foul[cell]! + c.fouling * this.size[i]!; // every animal fouls the ground it stands on
 
       // Standing still lets an organism with a brain eat faster (it must decide: roam or graze).
       const eatBonus = brainMode > 0 ? 1 + c.brainStillEatBonus * (1 - Math.min(this.moveScale[i]!, 1)) : 1;
@@ -3069,6 +3096,7 @@ export class Simulation {
     const corpseEnergy = this.corpseEnergy;
     const detritus = this.detritus;
     const meatDecay = c.meatDecayRate;
+    const foulMean = this.foulOn ? this.meanFoul() : 0;
     const mineralize = c.detritusMineralizeRate;
     const halfSat = c.nutrientHalfSaturation;
     for (let cell = 0; cell < food.length; cell++) {
@@ -3110,6 +3138,12 @@ export class Simulation {
       const room = this.foodCapacity[cell]! - food[cell]!;
       let potential = (this.foodRegrow[cell]! * soil) / (soil + halfSat);
       if (climateOn) potential *= this.growthFactor[cell]!;
+      if (this.foulOn) {
+        // Fouling: ground that is much more crowded than average grows plants more slowly. Then the fouling fades a little.
+        const excess = foulMean > 0 ? this.foul[cell]! / foulMean - c.foulFree : 0;
+        if (excess > 0) potential /= 1 + c.foulGrowthEffect * excess;
+        this.foul[cell] = this.foul[cell]! * (1 - c.foulDecay);
+      }
       if (this.grazeOn) {
         // Overgrazing: a cell eaten bare gains damage, and damaged ground regrows slowly.
         const capacity = this.foodCapacity[cell]!;
@@ -3486,6 +3520,7 @@ export class Simulation {
       ["foodCapacity", this.foodCapacity],
       ["foodRegrow", this.foodRegrow],
       // (Only in worlds with overgrazing, so worlds saved before it existed still load.)
+      ...(this.foulOn ? ([["foul", this.foul]] as [string, SnapshotArray][]) : []),
       ...(this.grazeOn ? ([["grazing", this.grazing]] as [string, SnapshotArray][]) : []),
       ["nutrient", this.nutrient],
       ["corpseMatter", this.corpseMatter],

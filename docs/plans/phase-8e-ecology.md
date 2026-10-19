@@ -84,6 +84,19 @@ Written after the owner's notes from a 5-million-tick grand-world run. The grand
 - **Viewer:** a "Fouling" map layer.
 - **Evidence:** crowded worlds should see animals spread out more and disease rise where they cluster.
 
+**S4 result (done).** Fouling built (`fouling` > 0 turns it on; saved with the land only when on; a "Fouled ground" map layer scaled to the busiest cell; preset "The grand world with fouling", a copy of the grand world plus fouling).
+
+**Design changed after measuring.** The plan's absolute index did nothing in the standard world (every cell sits near 0.8, so no cell passed any fixed line) and was meaningless in the grand world (typical 0.05, busiest 1.3). It is now relative: a cell is crowded when its fouling is more than `foulFree` (default 2) times the average over all land, and the effects scale with how many times the average it is beyond that (`foulGrowthEffect` 0.2, `foulDiseaseEffect` 0.3). The index is still not matter (documented in the config).
+
+**Effect (6 worlds each, 150,000 ticks):**
+- Grand world: 16% of land crowded; population 1,124 down to 644 (43% fewer); animals slightly MORE clumped (density spread 0.84 to 0.90), not less.
+- Standard world with disease: 4% crowded; population 634 down to 487 (23% fewer); infected share 21% to 19%.
+- Disease did not spread at all in the grand world's second half, so the disease effect is untested there.
+
+**Finding shared with S3:** both ground-damage mechanics only cut the population (about 25 to 45%) and barely move animals, because animals cannot sense damaged ground. **Recommendation: add one "how healthy is the ground here" brain input (grazing damage and fouling) as part of O2, the Opus water and moisture work, since both change the brain layout.** Not yet turned on in the plain grand world, because of the population cost.
+
+**Clean-up note for the end of the batch:** `configs/grand-world-overgrazing.json` and `configs/grand-world-fouling.json` are copies made only so the layers could be seen. Delete them once the finished mechanics are switched on in `grand-world.json`.
+
 ### S5. Erosion (owner's note 1c)
 - A per-cell fertility factor (start 1, range `erosionMin` default 0.4 to 1).
 - It falls by `erosionRate` per tick (default 0.00005) while the cell's standing plants are below 10% of capacity, and recovers by `erosionRecovery` per tick (default 0.00002) while above 50%.

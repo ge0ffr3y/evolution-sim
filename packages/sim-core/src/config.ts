@@ -509,6 +509,24 @@ export interface SimConfig {
   luckSpread: number;
   luckLimit: number;
 
+  // --- Fouling (off by default) ---
+  /**
+   * Crowds foul their ground. Every animal adds fouling x its body size to a per-cell fouling index each
+   * tick, and the index fades by foulDecay per tick. A cell is crowded when its index is more than
+   * foulFree times the average over all the land (so the rule fits any world: in one where animals are
+   * everywhere alike nothing is crowded, and where they clump the clumps are). The excess is how many
+   * times the average, beyond foulFree, a cell's index is. Plants there grow at 1 / (1 + foulGrowthEffect
+   * x the excess) of their normal speed, and disease passes on more easily (the chance is multiplied by
+   * 1 + foulDiseaseEffect x the excess, using the ground the sick animal stands on). So staying crowded in
+   * one place is slowly punished, and animals that spread out or move on do better. This is an index of crowding and contamination, not matter: the nutrient cycle is
+   * not touched (dung as real matter comes with the nutrient redesign). 0 = off (fouling).
+   */
+  fouling: number;
+  foulDecay: number;
+  foulFree: number;
+  foulGrowthEffect: number;
+  foulDiseaseEffect: number;
+
   // --- Overgrazing (off by default) ---
   /**
    * A patch of ground that is eaten bare keeps suffering: while the plants standing in a cell are below
@@ -999,6 +1017,11 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   mutationLoadFertility: 0,
   luckSpread: 0,
   luckLimit: 2.5,
+  fouling: 0,
+  foulDecay: 0.01,
+  foulFree: 2,
+  foulGrowthEffect: 0.2,
+  foulDiseaseEffect: 0.3,
   overgrazeDamage: 0,
   overgrazeBelow: 0.01,
   overgrazeHeal: 0.001,
@@ -1297,6 +1320,11 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   }
   if (c.luckSpread < 0 || c.luckSpread * c.luckLimit >= 1) problems.push("luckSpread cannot be negative, and luckSpread x luckLimit must stay under 1 (or an organism could have zero upkeep)");
   if (c.luckLimit <= 0) problems.push("luckLimit must be positive");
+  if (c.fouling < 0) problems.push("fouling cannot be negative");
+  if (c.fouling > 0) {
+    if (!(c.foulDecay > 0) || c.foulDecay > 1) problems.push("foulDecay must be above 0 and at most 1");
+    if (c.foulFree < 0 || c.foulGrowthEffect < 0 || c.foulDiseaseEffect < 0) problems.push("foulFree, foulGrowthEffect and foulDiseaseEffect cannot be negative");
+  }
   if (c.overgrazeDamage < 0 || c.overgrazeDamage > 1) problems.push("overgrazeDamage must be between 0 and 1");
   if (c.overgrazeDamage > 0) {
     if (c.overgrazeBelow <= 0 || c.overgrazeBelow >= 1) problems.push("overgrazeBelow must be above 0 and under 1");
