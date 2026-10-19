@@ -276,6 +276,7 @@ const GENE_LABELS: Record<GeneName, string> = {
   palate: "Palate (which kind of plant it digests best)",
   stressResponse: "Stress response (how strongly stress acts on the body)",
   calmResponse: "Calm response (how strongly calm acts on the body)",
+  generosity: "Generosity (share of spare energy given to hungry neighbors)",
 };
 
 function traitText(gene: GeneName, value: number): string {

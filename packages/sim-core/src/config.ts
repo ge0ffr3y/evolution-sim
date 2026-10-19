@@ -437,6 +437,28 @@ export interface SimConfig {
    */
   founderSpread: number;
 
+  // --- Sharing food (off by default) ---
+  /**
+   * The generosity gene (the 26th; shareRate above 0 turns it on). Each tick an organism gives
+   * (gene x shareRate) of its energy above shareAbove of what it needs to reproduce to up to
+   * shareRecipients hungry neighbors within shareRange, split equally. Only neighbors below
+   * shareAcceptBelow of their reproduction energy get any. shareTarget picks who is served first:
+   * 0 = the hungriest, 1 = the youngest. With shareKinOnly 1 only genetic relatives (within
+   * kinDistance, which must be above 0) count; with 0 anyone does, which lets stingy animals
+   * live off generous ones. shareEfficiency of a gift arrives and the rest is lost as heat. Gifts
+   * are worked out from everyone's energy at the start of the tick, so the order animals are
+   * processed in changes nothing.
+   */
+  shareRate: number;
+  shareAbove: number;
+  shareAcceptBelow: number;
+  shareRange: number;
+  shareRecipients: number;
+  shareTarget: number;
+  shareKinOnly: number;
+  shareEfficiency: number;
+  initialShare: number;
+
   // --- Harmful mutations (off by default) ---
   /**
    * Most real mutations do harm, and a line that never mixes its genes cannot get rid of them
@@ -902,6 +924,15 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   plantPalateFloor: 0.1,
   initialPalate: 0.5,
   founderSpread: 0,
+  shareRate: 0,
+  shareAbove: 0.6,
+  shareAcceptBelow: 0.9,
+  shareRange: 6,
+  shareRecipients: 2,
+  shareTarget: 0,
+  shareKinOnly: 1,
+  shareEfficiency: 0.9,
+  initialShare: 0,
   mutationLoadRate: 0,
   mutationLoadLoci: 24,
   mutationLoadBack: 0.01,
@@ -1179,6 +1210,15 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     if (c.initialPalate < 0 || c.initialPalate > 1) problems.push("initialPalate must be between 0 and 1");
   }
   if (c.founderSpread < 0 || c.founderSpread > 1) problems.push("founderSpread must be between 0 and 1");
+  if (c.shareRate < 0 || c.shareRate > 1) problems.push("shareRate must be between 0 and 1");
+  if (c.shareRate > 0) {
+    if (!Number.isInteger(c.shareRecipients) || c.shareRecipients < 1 || c.shareRecipients > 4) problems.push("shareRecipients must be a whole number from 1 to 4");
+    if (![0, 1].includes(c.shareTarget) || ![0, 1].includes(c.shareKinOnly)) problems.push("shareTarget and shareKinOnly must be 0 or 1");
+    if (c.shareKinOnly === 1 && c.kinDistance <= 0) problems.push("shareKinOnly needs kinDistance above 0 (who counts as a relative)");
+    if (!(c.shareRange > 0) || c.shareEfficiency <= 0 || c.shareEfficiency > 1) problems.push("shareRange must be positive and shareEfficiency above 0 and at most 1");
+    if (c.shareAbove < 0 || c.shareAbove > 1 || c.shareAcceptBelow <= 0 || c.shareAcceptBelow > 1) problems.push("shareAbove and shareAcceptBelow must be between 0 and 1");
+    if (c.initialShare < 0 || c.initialShare > 1) problems.push("initialShare must be between 0 and 1");
+  }
   if (c.mutationLoadRate < 0) problems.push("mutationLoadRate cannot be negative");
   if (c.mutationLoadRate > 0) {
     if (!Number.isInteger(c.mutationLoadLoci) || c.mutationLoadLoci < 1 || c.mutationLoadLoci > 30) problems.push("mutationLoadLoci must be a whole number from 1 to 30");

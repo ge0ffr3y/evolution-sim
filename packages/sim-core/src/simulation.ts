@@ -537,6 +537,15 @@ export class Simulation {
   /** Harmful mutations: which of the genome's spots have gone bad, one bit each (see mutationLoadRate). */
   private readonly loadOn: boolean;
   /** Luck: multipliers (around 1) on each organism's upkeep and on its reproduction threshold, rolled at birth. */
+  private readonly giveOn: boolean;
+  /** Sharing food: the energy each animal gains or gives this tick, and the few neediest neighbors found for the animal being looked at. */
+  private readonly giftDelta: Float64Array;
+  private readonly giftPick = new Int32Array(4);
+  private readonly giftKey = new Float64Array(4);
+  private giftCount = 0;
+  private giftGiver = 0;
+  /** Energy handed from one animal to another since the world began (before the share lost as heat). */
+  totalShared = 0;
   private readonly luckOn: boolean;
   private readonly upkeepLuck: Float32Array;
   private readonly fertilityLuck: Float32Array;
@@ -835,9 +844,12 @@ export class Simulation {
         (k === GENE.fat && c.fatDepositRate > 0) ||
         (k === GENE.torpor && this.climateOn && c.torporSaving > 0) ||
         (k === GENE.palate && c.plantTypes > 1) ||
+        (k === GENE.generosity && c.shareRate > 0) ||
         ((k === GENE.stressResponse || k === GENE.calmResponse) && c.brainMode > 0 && c.chemicals === 1 && c.chemBodyEffects === 1),
     );
     this.kinLimitSq = c.kinDistance * c.kinDistance;
+    this.giveOn = c.shareRate > 0;
+    this.giftDelta = new Float64Array(this.giveOn ? n : 0);
     this.luckOn = c.luckSpread > 0;
     this.upkeepLuck = new Float32Array(this.luckOn ? n : 0);
     this.fertilityLuck = new Float32Array(this.luckOn ? n : 0);
@@ -876,12 +888,12 @@ export class Simulation {
       // The bonding and body-plan genes describe how a body is built, not what kind of organism it is.
       if (name === "bond" || name === "plan1" || name === "plan2" || name === "plan3" || name === "stick") continue;
       // How tolerant an organism is of relatives is a behavior setting, not part of what kind of organism it is.
-      if (name === "tolerance" || name === "sex" || name === "stressResponse" || name === "calmResponse") continue;
+      if (name === "tolerance" || name === "sex" || name === "stressResponse" || name === "calmResponse" || name === "generosity") continue;
       this.mateMask.push(GENE[name]);
     }
     this.species = new Uint32Array(c.speciesEvery > 0 ? n : 0);
     // Species, like compatibility, ignore tolerance of relatives: it is a behavior setting, not a kind of body.
-    const speciesGenes = this.activeGene.map((on, k) => on && k !== GENE.tolerance && k !== GENE.sex && k !== GENE.stressResponse && k !== GENE.calmResponse);
+    const speciesGenes = this.activeGene.map((on, k) => on && k !== GENE.tolerance && k !== GENE.sex && k !== GENE.stressResponse && k !== GENE.calmResponse && k !== GENE.generosity);
     this.tracker = c.speciesEvery > 0 ? new SpeciesTracker(c, this.ranges, speciesGenes) : null;
     const staminaOrganisms = this.staminaOn ? n : 0;
     this.stamina = new Float32Array(staminaOrganisms);
@@ -959,6 +971,7 @@ export class Simulation {
     founder[GENE.palate] = c.initialPalate;
     founder[GENE.stressResponse] = c.initialStressResponse;
     founder[GENE.calmResponse] = c.initialCalmResponse;
+    founder[GENE.generosity] = c.initialShare;
     for (let i = 0; i < c.initialOrganisms; i++) {
       let fx = this.rng.range(0, c.worldWidth);
       let fy = this.rng.range(0, c.worldHeight);
@@ -972,7 +985,7 @@ export class Simulation {
       this.genes[index * GENE_COUNT + GENE.hue] = this.rng.next();
       if (c.founderSpread > 0) {
         // Standing variety: the newer genes that are switched on start a random amount above their starting value.
-        for (const gene of [GENE.tolerance, GENE.sex, GENE.fat, GENE.torpor, GENE.palate, GENE.stressResponse, GENE.calmResponse]) {
+        for (const gene of [GENE.tolerance, GENE.sex, GENE.fat, GENE.torpor, GENE.palate, GENE.stressResponse, GENE.calmResponse, GENE.generosity]) {
           if (this.activeGene[gene]) this.genes[index * GENE_COUNT + gene] = clamp01(this.genes[index * GENE_COUNT + gene]! + c.founderSpread * this.rng.next());
         }
       }
@@ -2056,6 +2069,63 @@ export class Simulation {
     this.cellOf[child] = cell;
   }
 
+  /** Used while a generous animal looks for hungry neighbors: keep the few neediest (or youngest) in order. */
+  private readonly considerGift = (index: number): void => {
+    const c = this.config;
+    if (index === this.giftGiver) return;
+    const fraction = this.energy[index]! / this.threshold[index]!;
+    if (fraction >= c.shareAcceptBelow) return;
+    if (c.shareKinOnly === 1 && this.geneDistanceSq(this.giftGiver, index) > this.kinLimitSq) return;
+    const key = c.shareTarget === 1 ? this.age[index]! : fraction;
+    const room = c.shareRecipients;
+    const keys = this.giftKey;
+    const picks = this.giftPick;
+    let slot: number;
+    if (this.giftCount < room) slot = this.giftCount++;
+    else if (key < keys[room - 1]! || (key === keys[room - 1]! && index < picks[room - 1]!)) slot = room - 1;
+    else return;
+    keys[slot] = key;
+    picks[slot] = index;
+    while (slot > 0 && (keys[slot]! < keys[slot - 1]! || (keys[slot] === keys[slot - 1] && picks[slot]! < picks[slot - 1]!))) {
+      const k = keys[slot]!;
+      const p = picks[slot]!;
+      keys[slot] = keys[slot - 1]!;
+      picks[slot] = picks[slot - 1]!;
+      keys[slot - 1] = k;
+      picks[slot - 1] = p;
+      slot--;
+    }
+  };
+
+  /** Generous animals give part of their spare energy to the neediest neighbors (all gifts worked out from the energy at the start of the tick). */
+  private giveFood(n: number): void {
+    const c = this.config;
+    const delta = this.giftDelta;
+    delta.fill(0, 0, n);
+    this.hash.rebuild(this.x, this.y, n);
+    let lost = 0;
+    let given = 0;
+    for (let i = 0; i < n; i++) {
+      const gene = this.genes[i * GENE_COUNT + GENE.generosity]!;
+      if (gene <= 0) continue;
+      const excess = this.energy[i]! - c.shareAbove * this.threshold[i]!;
+      if (excess <= 0) continue;
+      this.giftGiver = i;
+      this.giftCount = 0;
+      this.hash.forEachNear(this.x[i]!, this.y[i]!, c.shareRange, this.considerGift);
+      if (this.giftCount === 0) continue;
+      const gift = gene * c.shareRate * excess;
+      const each = gift / this.giftCount;
+      for (let r = 0; r < this.giftCount; r++) delta[this.giftPick[r]!] = delta[this.giftPick[r]!]! + each * c.shareEfficiency;
+      delta[i] = delta[i]! - gift;
+      lost += gift * (1 - c.shareEfficiency);
+      given += gift;
+    }
+    for (let i = 0; i < n; i++) this.energy[i] = this.energy[i]! + delta[i]!;
+    this.ledger.digestionLoss += lost;
+    this.totalShared += given;
+  }
+
   /** Bonded cells move part of the way toward equal energy (the total never changes). */
   private shareEnergy(n: number): void {
     const share = this.config.bondShare;
@@ -2580,6 +2650,7 @@ export class Simulation {
       this.shareEnergy(n);
       this.alignHeadings(n);
     }
+    if (this.giveOn) this.giveFood(n);
 
     // Pass 0 (brains only): everyone who is due to think looks, smells and decides, before
     // anyone moves, so all brains see the same world whatever order they are processed in.
@@ -3282,6 +3353,7 @@ export class Simulation {
       nextId: this.nextId,
       totalBirths: this.totalBirths,
       sexualBirths: this.sexualBirths,
+      totalShared: this.totalShared,
       totalDeaths: this.totalDeaths,
       totalKills: this.totalKills,
       totalStarved: this.totalStarved,
@@ -3346,6 +3418,7 @@ export class Simulation {
       nextId: number;
       totalBirths: number;
       sexualBirths?: number;
+      totalShared?: number;
       totalDeaths: number;
       totalKills: number;
       totalStarved: number;
@@ -3384,6 +3457,7 @@ export class Simulation {
     this.nextId = s.nextId;
     this.totalBirths = s.totalBirths;
     this.sexualBirths = s.sexualBirths ?? 0;
+    this.totalShared = s.totalShared ?? 0;
     this.totalDeaths = s.totalDeaths;
     this.totalKills = s.totalKills;
     this.totalStarved = s.totalStarved;
@@ -3450,6 +3524,7 @@ export class Simulation {
       case "palate":
       case "stressResponse":
       case "calmResponse":
+      case "generosity":
         return this.genes[i * GENE_COUNT + GENE[name]]!;
       case "lifespan": {
         const range = this.ranges.lifespan;
