@@ -229,6 +229,8 @@ export interface SimStats {
   colonies: ColonyStats;
   /** Disease: organisms sick now, strains alive in them, and infections so far (all 0 without disease). */
   disease: { infected: number; strains: number; totalInfections: number };
+  /** Nutrient mode: the average store as a multiple of body matter, and the share of animals short of nutrient (both 0 when off). */
+  nutrientStore: { mean: number; deficient: number };
   traits: Record<GeneName, TraitSummary>;
   classes: DietClasses;
   /** Matter in the soil, as rotting meat, and as detritus. */
@@ -3308,6 +3310,18 @@ export class Simulation {
     this.strains = kept;
   }
 
+  private nutrientStats(): { mean: number; deficient: number } {
+    if (!this.nutrientOn || this.count === 0) return { mean: 0, deficient: 0 };
+    let sum = 0;
+    let short = 0;
+    for (let i = 0; i < this.count; i++) {
+      const ratio = this.nutrientStore[i]! / this.bodyMatter[i]!;
+      sum += ratio;
+      if (ratio < this.config.deficiencyBelow) short++;
+    }
+    return { mean: sum / this.count, deficient: short / this.count };
+  }
+
   private diseaseStats(): { infected: number; strains: number; totalInfections: number } {
     if (!this.diseaseOn) return { infected: 0, strains: 0, totalInfections: 0 };
     const seen = new Set<number>();
@@ -4527,6 +4541,7 @@ export class Simulation {
       species: { alive: this.tracker?.aliveCount ?? 0, ever: this.tracker?.records.length ?? 0 },
       colonies: this.colonyStats(),
       disease: this.diseaseStats(),
+      nutrientStore: this.nutrientStats(),
       totalBirths: this.totalBirths,
       sexualBirths: this.sexualBirths,
       totalDeaths: this.totalDeaths,

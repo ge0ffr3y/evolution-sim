@@ -105,6 +105,8 @@ export interface WorldInfo {
   /** Whether the world has disease and camouflage. */
   diseaseOn: boolean;
   camouflageOn: boolean;
+  /** Whether animals carry nutrient (nutrientMode 1). */
+  nutrientOn: boolean;
   /** How many kinds of plant there are (1 = one kind), and whether sex is a gene. */
   plantKinds: number;
   sexGeneOn: boolean;
@@ -162,6 +164,8 @@ export interface FrameMessage {
   palate: Float32Array | null;
   /** Each animal's toxicity gene (0 to 1), only in worlds with toxicity. */
   toxicity: Float32Array | null;
+  /** Each animal's nutrient store as a share of the most it can hold (0 to 1), only in worlds with nutrient mode. */
+  nutrientStore: Float32Array | null;
   /** Bonds between cells as pairs of organism indices (a, b, a, b, ...), and the size of each organism's colony (null without multicellularity). */
   bonds: Uint32Array | null;
   colonySize: Uint16Array | null;
