@@ -7,7 +7,8 @@
         "ec2:Describe*",
         "ec2:GetConsoleOutput",
         "ssm:GetParameters",
-        "ssm:GetParameter"
+        "ssm:GetParameter",
+        "pricing:GetProducts"
       ],
       "Resource": "*"
     },
@@ -20,8 +21,7 @@
         "arn:aws:ec2:*:*:network-interface/*",
         "arn:aws:ec2:*:*:security-group/*",
         "arn:aws:ec2:*:*:key-pair/*",
-        "arn:aws:ec2:*:*:volume/*",
-        "arn:aws:ec2:*:*:spot-instances-request/*"
+        "arn:aws:ec2:*:*:volume/*"
       ]
     },
     {
@@ -111,7 +111,8 @@
       "Action": [
         "s3:CreateBucket",
         "s3:ListBucket",
-        "s3:GetBucketLocation"
+        "s3:GetBucketLocation",
+        "s3:PutLifecycleConfiguration"
       ],
       "Resource": "arn:aws:s3:::evolution-sim-results-*"
     },
