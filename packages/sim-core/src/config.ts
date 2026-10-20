@@ -861,6 +861,11 @@ export interface SimConfig {
    * to nothing when it has no energy left. A well-fed animal spares relatives as before.
    */
   kinHungerBelow: number;
+  /**
+   * Gorging: meat bites are this many times bigger than plant bites would be (1 = the same). A hunter eats
+   * most of its kill before it rots or others share it. Energy only changes hands faster; none is made.
+   */
+  meatGorge: number;
   /** Tolerance of the first generation (0 to 1). */
   initialTolerance: number;
   /** Energy per tick per unit of tolerance: recognizing relatives is a kind of sensing, so it is counted on the sensing line. */
@@ -1543,6 +1548,7 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   mateDistance: 0.25,
   matePreference: 0,
   kinHungerBelow: 0,
+  meatGorge: 1,
   mateDietLimit: 1,
   macroMutationProb: 0,
   macroMutationStd: 0.3,
@@ -1900,6 +1906,7 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (!(c.mateRange > 0)) problems.push("mateRange must be positive");
   if (![0, 1, 2, 3].includes(c.matePreference)) problems.push("matePreference must be 0 (nearest), 1 (most similar genes), 2 (most similar color) or 3 (most similar diet)");
   if (!(c.mateDietLimit > 0 && c.mateDietLimit <= 1)) problems.push("mateDietLimit must be above 0 and at most 1");
+  if (!(c.meatGorge >= 1)) problems.push("meatGorge must be at least 1");
   if (c.kinHungerBelow < 0 || c.kinHungerBelow > 1 || c.camoHunterEye < 0 || c.camoHunterEye > 1) problems.push("kinHungerBelow and camoHunterEye must be between 0 and 1");
   if (![0, 1].includes(c.camouflageMode)) problems.push("camouflageMode must be 0 or 1");
   if (c.camouflageMode === 1) {

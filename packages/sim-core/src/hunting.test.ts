@@ -94,3 +94,32 @@ describe("a committed hunter's eye", () => {
     expect(() => new Simulation(1, { camoHunterEye: -0.1 })).toThrow(/camoHunterEye/);
   });
 });
+
+describe("gorging (bigger meat bites)", () => {
+  it("is off by default, and multiplies only the meat bite", () => {
+    const plain = new Simulation(1, { worldWidth: 64, worldHeight: 64, initialOrganisms: 2, speciesEvery: 0 });
+    const gorge = new Simulation(1, { worldWidth: 64, worldHeight: 64, initialOrganisms: 2, speciesEvery: 0, meatGorge: 3 });
+    for (const sim of [plain, gorge]) {
+      sim.genes[GENE.diet] = 0.5;
+      sim.express(0);
+    }
+    const bites = (sim: Simulation): { plantBite: Float32Array; meatBite: Float32Array } => sim as unknown as { plantBite: Float32Array; meatBite: Float32Array };
+    expect(bites(gorge).meatBite[0]! / bites(plain).meatBite[0]!).toBeCloseTo(3, 5);
+    expect(bites(gorge).plantBite[0]).toBe(bites(plain).plantBite[0]);
+    expect(() => new Simulation(1, { meatGorge: 0.5 })).toThrow(/meatGorge/);
+  });
+
+  it("the books still balance exactly with gorging and richer bodies", () => {
+    const sim = new Simulation(3, { worldWidth: 128, worldHeight: 128, initialOrganisms: 300, speciesEvery: 0, meatGorge: 4, bodyEnergyPerSize: 8 });
+    sim.run(20);
+    const e0 = sim.energyAudit().total;
+    const m0 = sim.matterAudit().total;
+    const L0 = { ...sim.ledger };
+    sim.run(3000);
+    const L = sim.ledger;
+    const burned = (x: typeof L): number => x.basalBurned + x.movementBurned + x.sensingBurned + x.attackBurned + x.armorBurned + x.brainBurned;
+    const expected = e0 + (L.sunlightIn - L0.sunlightIn) - (burned(L) - burned(L0)) - (L.digestionLoss - L0.digestionLoss) - (L.decayLoss - L0.decayLoss);
+    expect(Math.abs(sim.energyAudit().total - expected) / expected).toBeLessThan(1e-9);
+    expect(Math.abs(sim.matterAudit().total - m0) / m0).toBeLessThan(1e-9);
+  }, 60_000);
+});

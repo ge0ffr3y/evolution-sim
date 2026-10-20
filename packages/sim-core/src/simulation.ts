@@ -2308,7 +2308,7 @@ export class Simulation {
     const k = c.contestStrength;
     const weight = k <= 1 ? bite * (1 - k + k * bite) : bite * bite * (2 - k + (k - 1) * bite);
     this.plantBite[i] = bite * (1 - diet);
-    this.meatBite[i] = bite * diet;
+    this.meatBite[i] = bite * diet * c.meatGorge; // (gorging: meat can be wolfed down in bigger bites)
     this.plantWeight[i] = weight * (1 - diet);
     this.meatWeight[i] = weight * diet;
     this.plantEff[i] = 1 - c.dietSpecialization * diet;
