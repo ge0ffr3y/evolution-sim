@@ -358,6 +358,22 @@ Built (both off by default, 7 tests):
 - **The pattern across every test:** the whole population drifts toward a little meat. No lineage passes a diet of about 0.46, and the planted specialists starved. A specialist needs about five times the kills an animal gets in the grand world, and the available kills are spread thinly over a population of armed omnivores all taking a little.
 - **Remaining lever:** the payoff per kill, so that fewer kills can sustain a specialist (option 3: gorging, or bigger meals). Or accept that the grand world favors armed omnivores and treat that as a valid outcome.
 
+### O4 bigger and richer meals (grand world with 15% mending, nutrient-rich meat and hunger overriding kin restraint; 4 worlds each, 100,000 ticks)
+
+Built: `meatGorge` (meat bites this many times bigger, so a hunter eats most of its kill before it rots or is shared; off by default, 2 tests). "Richer" means more energy locked in every body (`bodyEnergyPerSize` 4 to 8). That is the only way a kill can carry more energy without energy being made, and it makes every baby cost more to build, plant eaters' too.
+
+| | Meat eaters | Armed | Meat in the diet | Highest diet in the world | Population |
+|---|---|---|---|---|---|
+| Hunger overriding kin restraint only | 0 | 98 to 100% | 11 to 14% | 0.19 to 0.29 | 490 to 786 |
+| + bites x3 | 0 | 98 to 100% | 12 to 18% | 0.20 to 0.28 | 514 to 870 |
+| + richer bodies (x2) | 0 | 35 to 100% | 10 to 16% | 0.24 to 0.34 | 550 to 856 |
+| + bites x3 and richer bodies | 0 | 100% | 13 to 18% | 0.19 to 0.27 | **168 to 411** |
+| + bites x5 and richer bodies | 0 | 100% | **19 to 25%** | 0.24 to 0.34 | 360 to 561 |
+
+- **Bigger and richer meals raise meat eating steadily,** up to a fifth to a quarter of everything eaten, with every animal armed.
+- **They still do not produce a specialist.** No animal in any world passed a diet of 0.34, and no world had anyone above 0.5. The richer bodies also cost population (down to 168 to 411 with bites x3).
+- **Across every O4 test so far, the grand world settles on armed omnivores:** everybody hunts a little, nobody hunts for a living. In 100,000 ticks the diet gene never climbs past about a third, whatever we change. Possible reasons not yet tested: specialization needs far longer than 100,000 ticks in a world this size (the standard world needed 30,000 to 60,000 ticks with fewer animals), or a specialist cannot live among prey that are all armed and as big as it is.
+
 ## Deferred long runs (do these later, on the cloud or when the laptop is free)
 
 - **Erosion, 1,000,000 ticks.** Question: does worn ground level off at a stable share, or keep climbing, with the gentlest default (`erosionRate` 0.00001, recovery 0.00004) in the grand world? So far about 15% is worn at 300,000 ticks and still rising. If it levels off at 20 to 30% the default is fine; if it keeps climbing toward most of the land, add a better recovery before turning erosion on in the grand world. Run `erodeexp` (3 seeds). The sampling script was fixed to record every tenth of the run (an earlier attempt recorded nothing because 1,000,000 does not divide evenly by 6).
