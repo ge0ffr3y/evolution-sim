@@ -203,6 +203,25 @@ Where destroyed things go (all checked by the conservation test to 1e-9 with all
 
 ---
 
+### O4 diagnosis (in progress)
+
+**Step 1: switch the suspects off one at a time in the grand world** (4 worlds each, 100,000 ticks, measured over the second half; "meat eaters" means diet above 0.75):
+
+| | Meat eaters | Kills per 1,000 ticks | Meat in the diet | Armed (attack above the threshold) | Diet gene |
+|---|---|---|---|---|---|
+| Standard world (control) | 33 to 80 in 3 of 4 worlds (up to 125) | 2,700 to 4,900 | 32 to 42% | 39 to 63% | 0.20 to 0.31 |
+| Grand world | 0 | 250 to 410 | 1.5 to 2.9% | 14 to 50% | 0.02 |
+| ...without herd bonus, camouflage, colonies, kin tolerance, food sharing, disease, torpor, plant kinds, or the Phase 8e ecology (one at a time) | 0 in every world | 50 to 520 | 0.5 to 3.2% | 2 to 99% | 0.01 to 0.04 |
+| ...without all of those | 0 | 12 to 30 | 0.8 to 1.2% | 11 to 18% | 0.01 |
+| ...without kin restraint (kinDistance 0) | 0 | 105 to 158 | 1.0 to 1.3% | 3 to 6% | 0.01 to 0.02 |
+| ...without all of those and kin restraint | 0 | 44 to 80 | 0.8 to 1.2% | 1% | 0.01 |
+
+- **Grand-world animals do kill, and plenty of them arm themselves, but they never become meat eaters:** the diet gene stays near 0.02, so they cannot digest what they kill. The missing step is the shift in diet, not the arming.
+- **Prey are hidden by kin restraint and camouflage.** In the grand world only 5 to 21% of prey within reach are eligible: 38 to 49% go unnoticed and 23 to 53% count as relatives. With every suspect off, 97% count as relatives, because the fixed rule "never attack anyone within kinDistance" covers almost everyone in a uniform population.
+- **But that is not the cause.** With kin restraint off too, 97% of prey within reach become eligible, and still no meat eaters appear; fewer animals even bother to arm (1%). None of the suspects listed in the plan is the reason.
+
+**Step 2 (running): add one grand-world group at a time to the standard world,** where meat eaters do appear: world size and food, climate and terrain, plant kinds, brains, social traits, sex, disease, life history, colonies, the Phase 8e ecology.
+
 ## Deferred long runs (do these later, on the cloud or when the laptop is free)
 
 - **Erosion, 1,000,000 ticks.** Question: does worn ground level off at a stable share, or keep climbing, with the gentlest default (`erosionRate` 0.00001, recovery 0.00004) in the grand world? So far about 15% is worn at 300,000 ticks and still rising. If it levels off at 20 to 30% the default is fine; if it keeps climbing toward most of the land, add a better recovery before turning erosion on in the grand world. Run `erodeexp` (3 seeds). The sampling script was fixed to record every tenth of the run (an earlier attempt recorded nothing because 1,000,000 does not divide evenly by 6).
