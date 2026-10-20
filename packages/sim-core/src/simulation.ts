@@ -597,6 +597,8 @@ export class Simulation {
   readonly ash: Float32Array;
   /** Scratch: 1 where a fire is burning now / where a storm is blowing now. */
   private readonly burning: Uint8Array;
+  /** Fire scars: the tick until which each cell cannot burn again (its fuel is growing back). Saved with the land when fires are on. */
+  readonly fireScar: Uint32Array;
   private readonly stormCell: Uint8Array;
   private readonly stormDelta: Float64Array;
   private evCooling = 0;
@@ -949,6 +951,7 @@ export class Simulation {
     this.eventsOn = [c.evIceAgeEvery, c.evDroughtEvery, c.evMeteorEvery, c.evFireEvery, c.evStormEvery, c.evFloodEvery, c.evVolcanoEvery, c.evBlightEvery, c.evOutbreakEvery, c.evGoodYearEvery].some((every) => every > 0);
     this.ash = new Float32Array(this.ashOn ? cells : 0);
     this.burning = new Uint8Array(this.fireOn ? cells : 0);
+    this.fireScar = new Uint32Array(this.fireOn ? cells : 0);
     this.stormCell = new Uint8Array(this.stormOn ? cells : 0);
     this.stormDelta = new Float64Array(this.stormOn ? cells : 0);
     this.fatOn = c.fatDepositRate > 0;
@@ -1504,8 +1507,9 @@ export class Simulation {
   }
 
   private igniteCell(ev: ActiveEvent, cell: number): void {
-    if (this.burning[cell] === 1) return;
+    if (this.burning[cell] === 1 || this.fireScar[cell]! > this.tick) return;
     this.burning[cell] = 1;
+    this.fireScar[cell] = this.tick + this.config.evFireCellBurn + this.config.evFireRecover;
     ev.cells.push(cell);
     ev.left.push(this.config.evFireCellBurn);
     ev.count++;
@@ -1529,7 +1533,7 @@ export class Simulation {
         const nx = side === 0 ? wrapCell(cx + 1, gw) : side === 1 ? wrapCell(cx - 1, gw) : cx;
         const ny = side === 2 ? wrapCell(cy + 1, gh) : side === 3 ? wrapCell(cy - 1, gh) : cy;
         const nb = ny * gw + nx;
-        if (this.burning[nb] === 1 || (this.terrainOn && this.passable[nb] === 0)) continue;
+        if (this.burning[nb] === 1 || this.fireScar[nb]! > this.tick || (this.terrainOn && this.passable[nb] === 0)) continue;
         if (!(this.foodCapacity[nb]! > 0) || !(this.food[nb]! > 0) || !(this.fuelRef > 0)) continue;
         // (How much there is to burn is judged against the average cell, so a fire behaves alike in rich and poor worlds.)
         const share = Math.min(1, this.food[nb]! / this.fuelRef);
@@ -1555,6 +1559,7 @@ export class Simulation {
     ev.cells.length = kept;
     ev.left.length = kept;
     for (const cell of lit) {
+      this.fireScar[cell] = this.tick + c.evFireCellBurn + c.evFireRecover;
       ev.cells.push(cell);
       ev.left.push(c.evFireCellBurn);
       ev.count++;
@@ -4204,6 +4209,7 @@ export class Simulation {
       ...(this.toxOn ? ([["corpseToxin", this.corpseToxin]] as [string, SnapshotArray][]) : []),
       ...(this.erodeOn ? ([["soilHealth", this.soilHealth]] as [string, SnapshotArray][]) : []),
       ...(this.ashOn ? ([["ash", this.ash]] as [string, SnapshotArray][]) : []),
+      ...(this.fireOn ? ([["fireScar", this.fireScar]] as [string, SnapshotArray][]) : []),
       ...(this.foulOn ? ([["foul", this.foul]] as [string, SnapshotArray][]) : []),
       ...(this.grazeOn ? ([["grazing", this.grazing]] as [string, SnapshotArray][]) : []),
       ["nutrient", this.nutrient],
@@ -4283,7 +4289,8 @@ export class Simulation {
     take("brainWeight", this.brainWeight);
     if (this.memoryOn) take("memState", this.memState);
     if (this.chemOn) take("chem", this.chem);
-    for (const [name, array] of this.landArrays()) take(name, array);
+    // (Fire scars came a little after fires did; a world saved in between simply has none.)
+    for (const [name, array] of this.landArrays()) if (name !== "fireScar" || snapshot.arrays[name]) take(name, array);
     this.tick = s.tick;
     this.count = s.count;
     this.nextId = s.nextId;
@@ -4740,6 +4747,7 @@ export class Simulation {
       for (const word of this.eventRng.getState()) mix(word);
       mix(this.activeEvents.length);
       if (this.ashOn) mixBits(this.ash, this.ash.length);
+      if (this.fireOn) for (let cell = 0; cell < this.fireScar.length; cell++) mix(this.fireScar[cell]!);
     }
     if (this.diseaseOn) {
       for (let i = 0; i < n; i++) mix(this.infection[i]! | (this.sickFor[i]! << 16));

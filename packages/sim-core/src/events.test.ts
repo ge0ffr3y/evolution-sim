@@ -28,6 +28,7 @@ type Hidden = {
   activeEvents: ActiveEvent[];
   burning: Uint8Array;
   eventsStep(): void;
+  meteorAt(x: number, y: number, radius: number): void;
 };
 const hidden = (sim: Simulation): Hidden => sim as unknown as Hidden;
 
@@ -143,6 +144,22 @@ describe("disaster events", () => {
     expectBooksBalance(sim, books);
   });
 
+  it("burnt ground cannot burn again until its fuel has had time to grow back", () => {
+    const sim = new Simulation(5, { ...WORLD, terrainMode: 0, initialFoodFraction: 1, evFireEvery: 1000000000, evFireSpreadMin: 1, evFireSpreadMax: 1, evFireLengthMin: 400, evFireLengthMax: 400, evFireRecover: 3000 });
+    const h = hidden(sim);
+    sim.run(20);
+    h.beginFire();
+    const ev = h.activeEvents[0]!;
+    const seen = new Map<number, number>();
+    for (let t = 0; t < 400 && sim.currentEvents.length > 0; t++) {
+      for (const cell of ev.cells) if (!seen.has(cell)) seen.set(cell, sim.tick);
+      sim.step();
+    }
+    // Each cell was lit at most once in this fire: the count of lightings equals the number of different cells lit.
+    expect(ev.count).toBe(seen.size);
+    for (const [cell] of seen) expect(sim.fireScar[cell]!).toBeGreaterThan(sim.tick);
+  });
+
   it("a fire cannot jump to bare ground or across water", () => {
     const sim = new Simulation(2, { ...WORLD, initialFoodFraction: 0, initialNutrientPerCell: 0, evFireEvery: 1000000000, evFireSpreadMin: 1, evFireSpreadMax: 1, evFireLengthMin: 50, evFireLengthMax: 50 });
     const h = hidden(sim);
@@ -181,8 +198,8 @@ describe("disaster events", () => {
   });
 
   it("moving costs more inside a storm", () => {
-    const quiet = new Simulation(7, { ...WORLD, terrainMode: 0, initialOrganisms: 300, evStormEvery: 1000000000, evStormRadiusMin: 200, evStormRadiusMax: 200, evStormPushMin: 0, evStormPushMax: 0, evStormSoilShare: 0 });
-    const windy = new Simulation(7, { ...WORLD, terrainMode: 0, initialOrganisms: 300, evStormEvery: 1000000000, evStormRadiusMin: 200, evStormRadiusMax: 200, evStormPushMin: 0, evStormPushMax: 0, evStormSoilShare: 0 });
+    const quiet = new Simulation(7, { ...WORLD, terrainMode: 0, initialOrganisms: 300, evStormEvery: 1000000000, evStormRadiusMin: 200, evStormRadiusMax: 200, evStormPushMin: 0, evStormPushMax: 0, evStormSoilShare: 0, evStormMoveCost: 2 });
+    const windy = new Simulation(7, { ...WORLD, terrainMode: 0, initialOrganisms: 300, evStormEvery: 1000000000, evStormRadiusMin: 200, evStormRadiusMax: 200, evStormPushMin: 0, evStormPushMax: 0, evStormSoilShare: 0, evStormMoveCost: 2 });
     quiet.run(10);
     windy.run(10);
     hidden(windy).beginStorm();
@@ -316,6 +333,18 @@ describe("disaster events", () => {
       const sim = new Simulation(21, config);
       sim.run(40);
       const books = bookmark(sim);
+      // Start one of every kind straight away (so all are sure to overlap), then let the dice bring more.
+      const h = hidden(sim);
+      h.beginClimateEvent("iceAge", 0.1, 0.1, 500, 500);
+      h.beginClimateEvent("drought", 0.5, 0.5, 500, 500);
+      h.meteorAt(60, 60, 20);
+      h.beginFire();
+      h.beginStorm();
+      h.beginFlood();
+      h.beginVolcano();
+      h.beginBlight();
+      h.beginOutbreak();
+      h.beginGoodYear();
       let mostAtOnce = 0;
       for (let t = 0; t < 6000; t++) {
         sim.step();
@@ -326,7 +355,7 @@ describe("disaster events", () => {
     const { sim, books, mostAtOnce } = run();
     const kinds = new Set(sim.worldEvents.map((e) => e.kind));
     for (const k of ["iceAge", "drought", "meteor", "wildfire", "storm", "flood", "volcano", "blight", "outbreak", "goodYear"] as const) expect(kinds.has(k)).toBe(true);
-    expect(mostAtOnce).toBeGreaterThanOrEqual(3);
+    expect(mostAtOnce).toBeGreaterThanOrEqual(6);
     expect(sim.count).toBeGreaterThan(0); // (still a living world, so the animal side of every event was exercised)
     expectBooksBalance(sim, books);
     // The same seed gives the same history, event for event.

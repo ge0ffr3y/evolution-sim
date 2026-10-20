@@ -641,6 +641,8 @@ export interface SimConfig {
   evFireLengthMin: number;
   evFireLengthMax: number;
   evFireCellBurn: number;
+  /** Ground that has burned cannot burn again for this many ticks (its fuel has to grow back), so a fire sweeps through once instead of circling round. */
+  evFireRecover: number;
   /** How much dryness matters for spreading (0 = not at all, 1 = bone-dry ground only). */
   evFireDryWeight: number;
   /** Storm: pushes animals downwind (world units per tick), makes moving cost more, and blows soil nutrient downwind. */
@@ -1207,21 +1209,22 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   evFireEvery: 0,
   evFireRadiusMin: 6,
   evFireRadiusMax: 14,
-  evFireSpreadMin: 0.15,
-  evFireSpreadMax: 0.5,
+  evFireSpreadMin: 0.05,
+  evFireSpreadMax: 0.4,
   evFireLengthMin: 200,
   evFireLengthMax: 800,
   evFireCellBurn: 3,
+  evFireRecover: 3000,
   evFireDryWeight: 0.5,
   evStormEvery: 0,
   evStormRadiusMin: 30,
   evStormRadiusMax: 80,
-  evStormPushMin: 0.2,
-  evStormPushMax: 0.8,
+  evStormPushMin: 0.02,
+  evStormPushMax: 0.1,
   evStormLengthMin: 100,
   evStormLengthMax: 400,
-  evStormMoveCost: 2,
-  evStormSoilShare: 0.02,
+  evStormMoveCost: 1.5,
+  evStormSoilShare: 0.001,
   evFloodEvery: 0,
   evFloodRadiusMin: 20,
   evFloodRadiusMax: 60,
@@ -1230,8 +1233,8 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   evVolcanoEvery: 0,
   evVolcanoRadiusMin: 6,
   evVolcanoRadiusMax: 14,
-  evVolcanoCoolingMin: 0.1,
-  evVolcanoCoolingMax: 0.3,
+  evVolcanoCoolingMin: 0.03,
+  evVolcanoCoolingMax: 0.1,
   evVolcanoLengthMin: 1500,
   evVolcanoLengthMax: 4000,
   evVolcanoBoost: 0.5,
@@ -1502,6 +1505,7 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (c.evBlightEvery > 0 && c.evBlightGrowthMax > 1) problems.push("evBlightGrowthMax cannot be above 1 (it is the fraction of normal growth that is left)");
   if (c.evGoodYearEvery > 0 && c.evGoodYearBoostMin < 1) problems.push("evGoodYearBoostMin must be at least 1");
   if (c.evFireEvery > 0 && (c.evFireSpreadMax > 1 || !Number.isInteger(c.evFireCellBurn) || c.evFireCellBurn < 1 || c.evFireDryWeight < 0 || c.evFireDryWeight > 1)) problems.push("fire: evFireSpreadMax at most 1, evFireCellBurn a whole number from 1, evFireDryWeight between 0 and 1");
+  if (c.evFireEvery > 0 && (!Number.isInteger(c.evFireRecover) || c.evFireRecover < 0)) problems.push("evFireRecover must be a whole number of ticks (0 or more)");
   if (c.evStormEvery > 0 && (c.evStormMoveCost < 1 || c.evStormSoilShare < 0 || c.evStormSoilShare > 1)) problems.push("storm: evStormMoveCost at least 1, evStormSoilShare between 0 and 1");
   if (c.evVolcanoEvery > 0 && (c.evVolcanoBoost < 0 || c.evVolcanoBoostReach < 1 || c.evVolcanoBoostFade < 0 || c.evVolcanoBoostFade > 1)) problems.push("volcano: evVolcanoBoost at least 0, evVolcanoBoostReach at least 1, evVolcanoBoostFade between 0 and 1");
   if (c.evOutbreakEvery > 0 && (c.evOutbreakRadius <= 0 || c.evOutbreakHosts < 1 || c.evOutbreakDurationMult < 1)) problems.push("outbreak: evOutbreakRadius above 0, evOutbreakHosts at least 1, evOutbreakDurationMult at least 1");
