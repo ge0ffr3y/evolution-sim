@@ -509,6 +509,26 @@ export interface SimConfig {
   luckSpread: number;
   luckLimit: number;
 
+  // --- Toxicity and warning colors (off by default) ---
+  /**
+   * The toxicity gene (the 27th; toxinStrength above 0 turns it on): how poisonous an animal's body is to
+   * whoever eats it. When an animal dies its toxicity mixes into the corpse where it fell (weighted by
+   * matter), and an animal that eats meat there loses toxinStrength x that toxicity x the meat's energy
+   * (counted as heat on its upkeep line, so the energy books balance). Being toxic costs toxinUpkeep x the
+   * gene extra upkeep all the time. A hunter that is poisoned within a few ticks of its own kill
+   * remembers the color (the color gene) of what it killed and then passes up prey of that color, with a
+   * chance equal to how strongly it remembers (avoidLearn x toxicity per poisoning, fading by avoidFade per
+   * tick). Prey within avoidWidth of the remembered color on the color wheel are avoided, so toxic prey
+   * that share a color are protected together, and harmless look-alikes are too. Nobody is told to
+   * advertise. 0 = off (toxinStrength).
+   */
+  toxinStrength: number;
+  toxinUpkeep: number;
+  initialToxicity: number;
+  avoidLearn: number;
+  avoidFade: number;
+  avoidWidth: number;
+
   // --- Erosion (off by default) ---
   /**
    * Ground that stays bare slowly loses fertility, and ground that is covered slowly regains it. Every cell
@@ -1038,6 +1058,12 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   mutationLoadFertility: 0,
   luckSpread: 0,
   luckLimit: 2.5,
+  toxinStrength: 0,
+  toxinUpkeep: 0.15,
+  initialToxicity: 0,
+  avoidLearn: 0.5,
+  avoidFade: 0.0005,
+  avoidWidth: 0.08,
   erosionRate: 0,
   erosionBelow: 0.01,
   erosionRecoverAbove: 0.1,
@@ -1346,6 +1372,13 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   }
   if (c.luckSpread < 0 || c.luckSpread * c.luckLimit >= 1) problems.push("luckSpread cannot be negative, and luckSpread x luckLimit must stay under 1 (or an organism could have zero upkeep)");
   if (c.luckLimit <= 0) problems.push("luckLimit must be positive");
+  if (c.toxinStrength < 0) problems.push("toxinStrength cannot be negative");
+  if (c.toxinStrength > 0) {
+    if (c.toxinUpkeep < 0 || c.avoidLearn < 0) problems.push("toxinUpkeep and avoidLearn cannot be negative");
+    if (c.initialToxicity < 0 || c.initialToxicity > 1) problems.push("initialToxicity must be between 0 and 1");
+    if (c.avoidFade < 0 || c.avoidFade > 1) problems.push("avoidFade must be between 0 and 1");
+    if (c.avoidWidth <= 0 || c.avoidWidth > 0.5) problems.push("avoidWidth must be above 0 and at most 0.5 (it is a distance round the color wheel)");
+  }
   if (c.erosionRate < 0 || c.erosionRate > 1) problems.push("erosionRate must be between 0 and 1");
   if (c.erosionRate > 0) {
     if (c.erosionBelow <= 0 || c.erosionBelow >= 1 || c.erosionRecoverAbove <= c.erosionBelow || c.erosionRecoverAbove > 1) problems.push("erosionBelow must be above 0 and under erosionRecoverAbove, which must be at most 1");

@@ -217,6 +217,11 @@ function postFrame(s: Simulation): void {
   const terrain = sendCapacity && s.biome.length > 0 ? s.biome.slice() : null;
   const background = sendCapacity && s.background.length > 0 ? s.background.slice() : null;
   const plantKindMap = sendCapacity && s.config.plantTypes > 1 ? s.plantKindMap().slice() : null;
+  let toxicity: Float32Array | null = null;
+  if (s.config.toxinStrength > 0) {
+    toxicity = new Float32Array(n);
+    for (let i = 0; i < n; i++) toxicity[i] = s.traitOf("toxicity", i);
+  }
   let palate: Float32Array | null = null;
   if (s.config.plantTypes > 1) {
     palate = new Float32Array(n);
@@ -274,6 +279,7 @@ function postFrame(s: Simulation): void {
     background,
     plantKindMap,
     palate,
+    toxicity,
     health,
     climate,
     points,
@@ -303,6 +309,7 @@ function postFrame(s: Simulation): void {
   if (background) transfer.push(background.buffer);
   if (plantKindMap) transfer.push(plantKindMap.buffer);
   if (palate) transfer.push(palate.buffer);
+  if (toxicity) transfer.push(toxicity.buffer);
   if (bonds) transfer.push(bonds.buffer);
   if (colonySize) transfer.push(colonySize.buffer);
   if (message.cellType) transfer.push(message.cellType.buffer);

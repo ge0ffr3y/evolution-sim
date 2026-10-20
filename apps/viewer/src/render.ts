@@ -1,7 +1,7 @@
 import type { FrameMessage } from "./protocol";
 
 /** What the dot colors mean. */
-export type ColorBy = "diet" | "speed" | "size" | "hue" | "energy" | "sense" | "health" | "colony" | "cell" | "palate";
+export type ColorBy = "diet" | "speed" | "size" | "hue" | "energy" | "sense" | "health" | "colony" | "cell" | "palate" | "toxicity";
 
 /** What the map background shows. */
 export type Overlay = "plants" | "nutrients" | "corpses" | "detritus" | "trails" | "terrain" | "temperature" | "light" | "background" | "plantKinds" | "grazing" | "fouling" | "erosion";
@@ -33,6 +33,7 @@ export const COLOR_MODES: readonly { id: ColorBy; label: string; legendLow: stri
   { id: "colony", label: "Colony size (worlds with bonding)", legendLow: "alone (gray)", legendHigh: "colony of 16" },
   { id: "cell", label: "Cell type (worlds with cell types)", legendLow: "generalist (gray)", legendHigh: "feeder, mover, sun, armor, sensor" },
   { id: "palate", label: "Palate (worlds with several kinds of plant)", legendLow: "first kind of plant", legendHigh: "last kind of plant" },
+  { id: "toxicity", label: "Toxicity (worlds with toxicity)", legendLow: "safe to eat", legendHigh: "poisonous" },
 ];
 
 const PALETTE_SIZE = 48;
@@ -83,6 +84,8 @@ export function organismColor(mode: ColorBy, frame: FrameMessage, i: number): st
       return pick(RAINBOW, frame.sense[i]! / 8);
     case "palate":
       return pick(RAINBOW, frame.palate ? frame.palate[i]! : 0.5);
+    case "toxicity":
+      return pick(RAINBOW, frame.toxicity ? frame.toxicity[i]! : 0);
     case "cell": {
       const type = frame.cellType ? frame.cellType[i]! : 0;
       return CELL_COLORS[type] ?? "#6b7480";

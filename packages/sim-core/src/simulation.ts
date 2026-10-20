@@ -545,6 +545,13 @@ export class Simulation {
   private readonly weatherB: Float32Array;
   private readonly fatOn: boolean;
   /** Overgrazing: how much damage each patch of ground carries (0 to 1). Saved with the land. */
+  /** Toxicity: how poisonous the corpse in each cell is (0 to 1, by matter), and what each hunter remembers about poisonous prey. */
+  private readonly toxOn: boolean;
+  private readonly corpseToxin: Float32Array;
+  private readonly avoidStrength: Float32Array;
+  private readonly avoidHue: Float32Array;
+  private readonly lastKillHue: Float32Array;
+  private readonly lastKillTick: Uint32Array;
   private readonly erodeOn: boolean;
   /** Erosion: how healthy each cell's soil is (erosionMin to 1). Saved with the land only when on. */
   readonly soilHealth: Float32Array;
@@ -688,6 +695,7 @@ export class Simulation {
   private readonly considerPrey = (index: number, distSq: number): void => {
     if (index === this.pickAttacker || this.killed[index] === 1 || this.size[index]! > this.pickSizeLimit) return;
     if (this.camoOn && !this.detects(this.pickAttacker, index)) return; // never noticed it
+    if (this.toxOn && this.avoidStrength[this.pickAttacker]! > 0 && this.avoids(this.pickAttacker, index)) return; // it remembers that this color was poison
     // Nobody attacks a relative (or, with kinTolerance, nobody tolerant enough to count the target as one).
     const limitSq = this.kinToleranceOn ? this.toleranceSq[this.pickAttacker]! : this.kinLimitSq;
     if (limitSq > 0 && this.geneDistanceSq(this.pickAttacker, index) <= limitSq) return;
@@ -865,6 +873,7 @@ export class Simulation {
         (k === GENE.torpor && this.climateOn && c.torporSaving > 0) ||
         (k === GENE.palate && c.plantTypes > 1) ||
         (k === GENE.generosity && c.shareRate > 0) ||
+        (k === GENE.toxicity && c.toxinStrength > 0) ||
         ((k === GENE.stressResponse || k === GENE.calmResponse) && c.brainMode > 0 && c.chemicals === 1 && c.chemBodyEffects === 1),
     );
     this.kinLimitSq = c.kinDistance * c.kinDistance;
@@ -875,6 +884,12 @@ export class Simulation {
     this.fertilityLuck = new Float32Array(this.luckOn ? n : 0);
     this.loadOn = c.mutationLoadRate > 0;
     this.loadMask = new Uint32Array(this.loadOn ? n : 0);
+    this.toxOn = c.toxinStrength > 0;
+    this.corpseToxin = new Float32Array(this.toxOn ? cells : 0);
+    this.avoidStrength = new Float32Array(this.toxOn ? n : 0);
+    this.avoidHue = new Float32Array(this.toxOn ? n : 0);
+    this.lastKillHue = new Float32Array(this.toxOn ? n : 0);
+    this.lastKillTick = new Uint32Array(this.toxOn ? n : 0);
     this.erodeOn = c.erosionRate > 0;
     this.soilHealth = new Float32Array(this.erodeOn ? cells : 0).fill(1);
     this.foulOn = c.fouling > 0;
@@ -967,6 +982,10 @@ export class Simulation {
     }
     if (this.sexGeneOn) this.uint8Fields.push(this.sexMode);
     if (this.loadOn) this.uint32Fields.push(this.loadMask);
+    if (this.toxOn) {
+      this.float32Fields.push(this.avoidStrength, this.avoidHue, this.lastKillHue);
+      this.uint32Fields.push(this.lastKillTick);
+    }
     if (this.luckOn) this.float32Fields.push(this.upkeepLuck, this.fertilityLuck);
     if (this.sexGeneOn) this.uint32Fields.push(this.mateSince);
     if (this.chemOn) this.uint8Fields.push(this.chemHit);
@@ -1000,6 +1019,7 @@ export class Simulation {
     founder[GENE.palate] = c.initialPalate;
     founder[GENE.stressResponse] = c.initialStressResponse;
     founder[GENE.calmResponse] = c.initialCalmResponse;
+    founder[GENE.toxicity] = c.initialToxicity;
     founder[GENE.generosity] = c.initialShare;
     for (let i = 0; i < c.initialOrganisms; i++) {
       let fx = this.rng.range(0, c.worldWidth);
@@ -1015,7 +1035,7 @@ export class Simulation {
       if (c.founderSpread > 0 || c.sexFounderSpread > 0) {
         // Standing variety: the newer genes that are switched on start a random amount above their starting value.
         // (The mate-seeking gene can have its own amount, sexFounderSpread; -1 means it follows founderSpread.)
-        for (const gene of [GENE.tolerance, GENE.sex, GENE.fat, GENE.torpor, GENE.palate, GENE.stressResponse, GENE.calmResponse, GENE.generosity]) {
+        for (const gene of [GENE.tolerance, GENE.sex, GENE.fat, GENE.torpor, GENE.palate, GENE.stressResponse, GENE.calmResponse, GENE.generosity, GENE.toxicity]) {
           const spread = gene === GENE.sex && c.sexFounderSpread >= 0 ? c.sexFounderSpread : c.founderSpread;
           if (this.activeGene[gene] && spread > 0) this.genes[index * GENE_COUNT + gene] = clamp01(this.genes[index * GENE_COUNT + gene]! + spread * this.rng.next());
         }
@@ -1176,6 +1196,7 @@ export class Simulation {
       if (this.killed[i] === 1 || !near(this.x[i]!, this.y[i]!)) continue;
       const cell = Math.floor(this.y[i]! / cs) * this.gridWidth + Math.floor(this.x[i]! / cs);
       this.corpseEnergy[cell] = this.corpseEnergy[cell]! + this.bodyEnergy[i]! + this.energy[i]! + (this.fatOn ? this.fatStore[i]! : 0);
+      if (this.toxOn) this.foldToxin(cell, this.corpseMatter[cell]!, this.bodyMatter[i]!, this.genes[i * GENE_COUNT + GENE.toxicity]!);
       this.corpseMatter[cell] = this.corpseMatter[cell]! + this.bodyMatter[i]!;
       this.energy[i] = 0;
       this.killed[i] = 1;
@@ -1257,6 +1278,13 @@ export class Simulation {
     if (this.sexOn) this.parent2Id[i] = 0;
     if (this.sexGeneOn) this.sexMode[i] = 0;
     if (this.fatOn) this.fatStore[i] = 0;
+    if (this.toxOn) {
+      // A newborn remembers nothing (every field is cleared, so a reused slot never carries an old animal's memory).
+      this.avoidStrength[i] = 0;
+      this.avoidHue[i] = 0;
+      this.lastKillHue[i] = 0;
+      this.lastKillTick[i] = 0;
+    }
     if (this.loadOn) this.loadMask[i] = 0;
     if (this.luckOn) {
       this.upkeepLuck[i] = this.rollLuck();
@@ -1446,6 +1474,7 @@ export class Simulation {
       this.basalCost[i] = this.basalCost[i]! * (1 + c.mutationLoadCost * spots + c.mutationLoadSynergy * spots * spots);
     }
     if (this.luckOn) this.basalCost[i] = this.basalCost[i]! * this.upkeepLuck[i]!;
+    if (this.toxOn) this.basalCost[i] = this.basalCost[i]! * (1 + c.toxinUpkeep * genes[g + GENE.toxicity]!);
   }
 
   /** Give a new organism (at index `child`) a mutated copy of its parent's genes. */
@@ -1473,6 +1502,24 @@ export class Simulation {
       sum += d * d;
     }
     return sum / this.mateMask.length;
+  }
+
+  /** Does this hunter pass up this prey because of its color? (A fixed scramble of the glance period and the pair, so no random draw.) */
+  private avoids(viewer: number, target: number): boolean {
+    const c = this.config;
+    let d = this.genes[target * GENE_COUNT + GENE.hue]! - this.avoidHue[viewer]!;
+    if (d < 0) d = -d;
+    if (d > 0.5) d = 1 - d;
+    if (d >= c.avoidWidth) return false;
+    const glance = Math.floor(this.tick / c.camoGlance);
+    const u = ((Math.imul(glance + 1, 0x7feb352d) ^ Math.imul(this.id[viewer]! + 1, 0x846ca68b) ^ Math.imul(this.id[target]! + 1, 0xa5a5a5a5)) >>> 0) / 4294967296;
+    return u < this.avoidStrength[viewer]!;
+  }
+
+  /** A new body joins the corpse in a cell: mix its toxicity in, weighted by matter. */
+  private foldToxin(cell: number, matterBefore: number, matterAdded: number, toxin: number): void {
+    const total = matterBefore + matterAdded;
+    this.corpseToxin[cell] = total > 0 ? (this.corpseToxin[cell]! * matterBefore + toxin * matterAdded) / total : 0;
   }
 
   /** One roll of luck: a bell curve around 1, cut off a set number of spreads either way. */
@@ -2974,6 +3021,36 @@ export class Simulation {
       meatClaim[cell] = meatClaim[cell]! + meatMass;
       const plantRaw = plantMass * energyPerFood;
       const meatRaw = meatMass * meatDensity[cell]!;
+      let toxinLoss = 0;
+      if (this.toxOn) {
+        const conc = this.corpseToxin[cell]!;
+        if (meatRaw > 0 && conc > 0) {
+          // Poisoned: the meal costs extra energy (lost as heat, on the upkeep line).
+          toxinLoss = c.toxinStrength * conc * meatRaw;
+          // A hunter poisoned soon after its own kill remembers the color of what it killed.
+          if (this.lastKillTick[i]! > 0 && this.tick - this.lastKillTick[i]! <= 3) {
+            const have = this.avoidStrength[i]!;
+            const add = c.avoidLearn * conc;
+            const now = have + add > 1 ? 1 : have + add;
+            if (have <= 0) this.avoidHue[i] = this.lastKillHue[i]!;
+            else {
+              // Blend the new color in, weighted by how strong the new lesson is against the old memory (the short way round the wheel).
+              let diff = this.lastKillHue[i]! - this.avoidHue[i]!;
+              if (diff > 0.5) diff -= 1;
+              else if (diff < -0.5) diff += 1;
+              let hue = this.avoidHue[i]! + (diff * add) / (have + add);
+              if (hue < 0) hue += 1;
+              else if (hue >= 1) hue -= 1;
+              this.avoidHue[i] = hue;
+            }
+            this.avoidStrength[i] = now;
+          }
+        }
+        if (this.avoidStrength[i]! > 0) {
+          const faded = this.avoidStrength[i]! * (1 - c.avoidFade);
+          this.avoidStrength[i] = faded < 1e-4 ? 0 : faded;
+        }
+      }
       const plantGain = plantRaw * this.plantEff[i]! * (this.plantKinds > 1 ? this.palateMatch(i, cell) : 1);
       const meatGain = meatRaw * this.meatEff[i]!;
       plantEnergyTaken += plantRaw;
@@ -3030,7 +3107,7 @@ export class Simulation {
         this.logEvent("firstScavenger", this.id[i]!, `Organism #${this.id[i]!} lived mostly off a corpse: the first scavenger`);
       }
 
-      let basal = this.basalCost[i]!;
+      let basal = this.basalCost[i]! + toxinLoss;
       if (this.agingOn) {
         // Past its prime, a body wears out faster and faster.
         const lifespan = this.lifespan[i]!;
@@ -3333,6 +3410,7 @@ export class Simulation {
       } else if (this.energy[i]! <= 0) {
         const cell = this.cellOf[i]!;
         corpseEnergy[cell] = corpseEnergy[cell]! + this.bodyEnergy[i]! + (this.fatOn ? this.fatStore[i]! : 0);
+        if (this.toxOn) this.foldToxin(cell, corpseMatter[cell]!, this.bodyMatter[i]!, this.genes[i * GENE_COUNT + GENE.toxicity]!);
         corpseMatter[cell] = corpseMatter[cell]! + this.bodyMatter[i]!;
         starved++;
         if (this.bondsOn) this.breakBonds(i);
@@ -3375,6 +3453,11 @@ export class Simulation {
 
   private kill(attacker: number, prey: number): void {
     const cell = this.cellOf[prey]!;
+    if (this.toxOn) {
+      // Remember what was killed and when, in case the meal turns out to be poisonous.
+      this.lastKillHue[attacker] = this.genes[prey * GENE_COUNT + GENE.hue]!;
+      this.lastKillTick[attacker] = this.tick + 1;
+    }
     if (this.camoOn) {
       // The hunter remembers the color of its meal: its search image moves toward it (the short way round the color wheel).
       const preyHue = this.genes[prey * GENE_COUNT + GENE.hue]!;
@@ -3396,6 +3479,7 @@ export class Simulation {
       this.corpseOwnerUntil[cell] = this.tick + this.config.killOwnershipTicks;
     }
     this.corpseEnergy[cell] = this.corpseEnergy[cell]! + this.bodyEnergy[prey]! + this.energy[prey]! + (this.fatOn ? this.fatStore[prey]! : 0);
+    if (this.toxOn) this.foldToxin(cell, this.corpseMatter[cell]!, this.bodyMatter[prey]!, this.genes[prey * GENE_COUNT + GENE.toxicity]!);
     this.corpseMatter[cell] = this.corpseMatter[cell]! + this.bodyMatter[prey]!;
     this.energy[prey] = 0;
     this.killed[prey] = 1;
@@ -3538,6 +3622,7 @@ export class Simulation {
       ["foodCapacity", this.foodCapacity],
       ["foodRegrow", this.foodRegrow],
       // (Only in worlds with overgrazing, so worlds saved before it existed still load.)
+      ...(this.toxOn ? ([["corpseToxin", this.corpseToxin]] as [string, SnapshotArray][]) : []),
       ...(this.erodeOn ? ([["soilHealth", this.soilHealth]] as [string, SnapshotArray][]) : []),
       ...(this.foulOn ? ([["foul", this.foul]] as [string, SnapshotArray][]) : []),
       ...(this.grazeOn ? ([["grazing", this.grazing]] as [string, SnapshotArray][]) : []),
@@ -3684,6 +3769,7 @@ export class Simulation {
       case "stressResponse":
       case "calmResponse":
       case "generosity":
+      case "toxicity":
         return this.genes[i * GENE_COUNT + GENE[name]]!;
       case "lifespan": {
         const range = this.ranges.lifespan;
@@ -4051,6 +4137,10 @@ export class Simulation {
     if (this.camoOn) {
       mixBits(this.searchHue, n);
       for (let i = 0; i < n; i++) mix(this.hasImage[i]!);
+    }
+    if (this.toxOn) {
+      mixBits(this.avoidStrength, n);
+      mixBits(this.avoidHue, n);
     }
     if (this.diseaseOn) {
       for (let i = 0; i < n; i++) mix(this.infection[i]! | (this.sickFor[i]! << 16));

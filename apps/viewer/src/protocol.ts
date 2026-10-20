@@ -158,6 +158,8 @@ export interface FrameMessage {
   plantKindMap: Uint8Array | null;
   /** Each animal's palate gene (0 to 1), only in worlds with several kinds of plant. */
   palate: Float32Array | null;
+  /** Each animal's toxicity gene (0 to 1), only in worlds with toxicity. */
+  toxicity: Float32Array | null;
   /** Bonds between cells as pairs of organism indices (a, b, a, b, ...), and the size of each organism's colony (null without multicellularity). */
   bonds: Uint32Array | null;
   colonySize: Uint16Array | null;

@@ -1,0 +1,8 @@
+{
+  "name": "Poison and learned avoidance",
+  "description": "Prey can evolve to be poisonous to eat (at an upkeep cost), and hunters that get poisoned soon after a kill remember the color of what they killed and then pass up prey of that color. Color the dots by Toxicity to see it. In our tests learned avoidance cuts predation sharply (meat eaters down from about 108 to 50, and prey nearly three times as many) because one poisoning teaches a hunter to avoid every prey of the shared color, so a few toxic animals protect the rest. Prey colors converge on one hue over time, so distinct warning colors do not appear here.",
+  "config": {
+    "toxinStrength": 0.8,
+    "founderSpread": 0.5
+  }
+}

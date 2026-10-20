@@ -137,6 +137,16 @@ Written after the owner's notes from a 5-million-tick grand-world run. The grand
   - Do harmless mimics with the same colors appear?
   - Do species with signature colors appear?
 
+**S6 result (done).** Toxicity built as specified (the 27th gene, `toxinStrength` > 0 turns it on; corpse toxicity per cell weighted by matter; poisoning costs energy as heat on the upkeep line; hunters poisoned within 3 ticks of their own kill remember the killed animal's color and avoid prey within `avoidWidth` of it, with a deterministic hash instead of a random draw; a Toxicity color mode, heatmap trait and inspector label; preset "Poison and learned avoidance", which is a short change to the standard world so it needs no grand-world copy). 10 new tests. A test caught a real bug: a newborn in a reused animal slot kept the old animal's color memory, so a reloaded world drifted; every memory field is now cleared at birth.
+
+**What the evidence showed (standard world with predators, 8 worlds per arm, 300,000 ticks):**
+- **Learned avoidance cuts predation sharply:** meat eaters 108 down to 85 (toxicity arising by mutation), 50 (a spread of toxicity in the first generation) and 15 (strong toxin); prey population 389 up to 800, 1,154 and 1,861.
+- **Toxicity itself stays low** (mean 0.09 to 0.12; only 0 to 3% of prey strongly toxic) because it is a public good: prey mostly share one color, so one poisoning teaches hunters to avoid all of them, and non-toxic prey get the protection for free.
+- **Distinct warning colors did NOT emerge.** The color gene is neutral and prey converge on almost one hue (concentration 0.89 to 0.99, for toxic and non-toxic prey alike), so there is no variety to signal with. Camouflage did not keep colors varied over a long run (0.91 to 0.98), and it weakened toxicity (prey toxicity 0.06 against 0.12) and its effect on predators (122 against 50 meat eaters), because hunters meet fewer poisonous meals.
+- **Caution for O4 (meat eating in the grand world): toxicity is a powerful predator suppressor. Do not turn it on in the grand world until O4's diagnosis is done; if it is wanted, use a mild strength.**
+
+**Deferred long run:** does sexual reproduction with color-based mate choice (`matePreference` 2) plus toxicity produce lineages with distinct colors and different toxicity? (Sex plus color choice is the one existing force that can split a population into color groups.)
+
 ### S7. Disaster framework (owner's note 8)
 Replace the one-catastrophe-at-a-time system with an event engine. Keep the old settings working: `catastropheKind`, `catastropheAt` and so on map onto the new engine, so old presets behave as before. Test the ice-age, drought and meteor presets against their old fingerprints. If they can't stay identical, say so and re-record with the owner's OK.
 
@@ -178,6 +188,7 @@ Replace the one-catastrophe-at-a-time system with an event engine. Keep the old 
 ## Deferred long runs (do these later, on the cloud or when the laptop is free)
 
 - **Erosion, 1,000,000 ticks.** Question: does worn ground level off at a stable share, or keep climbing, with the gentlest default (`erosionRate` 0.00001, recovery 0.00004) in the grand world? So far about 15% is worn at 300,000 ticks and still rising. If it levels off at 20 to 30% the default is fine; if it keeps climbing toward most of the land, add a better recovery before turning erosion on in the grand world. Run `erodeexp` (3 seeds). The sampling script was fixed to record every tenth of the run (an earlier attempt recorded nothing because 1,000,000 does not divide evenly by 6).
+- **Warning colors with sex and color mate choice** (see S6 result): sexual reproduction (`sexualReproduction` 2 with the sex-gene settings from devlog 12), `matePreference` 2, `toxinStrength` 0.8, `founderSpread` 0.5; look for lineages with distinct hue and different toxicity. 8 seeds, 300,000 ticks.
 - (Add other long checks here as they come up, for example overgrazing and fouling over millions of ticks, to see whether their population cost keeps growing or settles.)
 
 ---
