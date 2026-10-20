@@ -291,6 +291,22 @@ Built: `mutationLoadMend` (model 1 only, default 0): each inherited harmful muta
 - **Removing the social traits makes meat eating rarer, not commoner** (2 to 4% of the diet), so they are not a brake here. Births with two parents rise to 53 to 58% at the same time.
 - **Likely reason for no split: gene mixing.** Would-be hunters mate with plant-eating neighbors (they count as compatible while their diets are still close), so hunting genes are blended back into the prey before a separate hunting lineage can form. This fits step 2: sex alone allowed meat eaters in only 1 of 4 standard worlds, against 3 of 4 without it. It is a hypothesis; the test would be mate choice that favors a similar diet (assortative mating, which is how new species usually split), or compatibility judged more strictly on the diet gene.
 
+### O4 test of the gene-mixing hypothesis: mating by diet (grand world with 15% mending and nutrient-rich meat; 4 worlds each, 100,000 ticks)
+
+Built: `matePreference: 3` (pick the most similar diet) and `mateDietLimit` (refuse mates whose diet gene differs by more than this). Both off by default; 4 tests.
+
+| | Meat eaters | Animals with diet above 0.5 | Highest diet in the world | Average diet | Meat in the diet | Births with two parents |
+|---|---|---|---|---|---|---|
+| Baseline | 0 | - | - | 0.02 to 0.21 | 1.7 to 16.9% | 14 to 47% |
+| Prefer a similar diet | 0 | 0 | 0.25 to 0.31 | 0.12 to 0.17 | 6.6 to 13.6% | 16 to 34% |
+| + refuse mates more than 0.3 apart | 0 | 0 | 0.23 to 0.34 | 0.12 to 0.18 | 8.1 to 14.0% | 13 to 22% |
+| + refuse mates more than 0.15 apart | 0 | 0 to 0.1% | 0.14 to 0.36 | 0.02 to 0.17 | 2.2 to 13.2% | 14 to 41% |
+
+- **The hypothesis is not supported.** Even when hunters may only mate with similar eaters, nobody in any world gets past a diet of 0.36. Only about a fifth to a third of births have two parents anyway, so most lineages are already free of mixing, and they do not specialize either.
+- **What this points to instead: hunting income per animal is too low for a specialist to pay.** The grand world makes about 1 to 3 kills per animal per 1,000 ticks, against about 7 in the standard world. So the best diet sits at an omnivore's 0.2 to 0.3: a little meat on top of plants. Going further means giving up plant food for meat there is not enough of.
+- **Why the catch rate is low:** many small things that each lower it, and that add up (camouflage hides 38 to 49% of prey within reach, kin restraint and the herd protect others, brains have to learn to attack, climate and terrain scatter animals). Removing one at a time was never enough.
+- **Next options:** (1) remove several of these together (no camouflage, no kin restraint or herd, no brains), to learn whether specialists can appear at all in a world this size; (2) make each kill worth more (bigger meals or a reserve for meat), so a specialist can live on fewer kills.
+
 ## Deferred long runs (do these later, on the cloud or when the laptop is free)
 
 - **Erosion, 1,000,000 ticks.** Question: does worn ground level off at a stable share, or keep climbing, with the gentlest default (`erosionRate` 0.00001, recovery 0.00004) in the grand world? So far about 15% is worn at 300,000 ticks and still rising. If it levels off at 20 to 30% the default is fine; if it keeps climbing toward most of the land, add a better recovery before turning erosion on in the grand world. Run `erodeexp` (3 seeds). The sampling script was fixed to record every tenth of the run (an earlier attempt recorded nothing because 1,000,000 does not divide evenly by 6).
