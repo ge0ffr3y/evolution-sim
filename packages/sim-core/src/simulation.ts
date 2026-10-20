@@ -17,6 +17,9 @@ import { SNAPSHOT_FORMAT, type SimSnapshot, type SnapshotArray } from "./snapsho
 import { SpeciesTracker, type SpeciesEvent, type SpeciesRecord } from "./species";
 import {
   CONN_MAX,
+  INSERTED_INPUTS_AT,
+  OLD_CONN_MAX,
+  OLD_INPUT_COUNT,
   HIDDEN_MAX,
   HIDDEN_START,
   INPUT,
@@ -635,6 +638,8 @@ export class Simulation {
   private readonly assimClaim: Float64Array;
   /** Mode 2: how much nutrient each cell's plants hold per unit of plant (worked out from the soil they grew from). Saved with the land when on. */
   private readonly qualityOn: boolean;
+  /** For every cell, the nearest water cell (-1 if there is none): fixed with the terrain, for the brains' water sense. */
+  private nearestWater: Int32Array = new Int32Array(0);
   readonly plantQ: Float64Array;
   private readonly torporOn: boolean;
   /** Who is dormant this tick (worked out fresh every tick; not saved). */
@@ -792,6 +797,7 @@ export class Simulation {
     this.passable = new Uint8Array(this.terrainOn ? cells : 0);
     this.terrainMove = new Float64Array(this.terrainOn ? cells : 0);
     if (this.terrainOn) this.applyTerrain(generateBiomes(c, seed, this.gridWidth, this.gridHeight));
+    if (this.terrainOn && c.brainMode > 0) this.nearestWater = this.findNearestWater();
     this.climateOn = c.climateMode === 1;
     const climateCells = this.climateOn ? cells : 0;
     this.temperature = new Float64Array(climateCells);
@@ -1304,6 +1310,52 @@ export class Simulation {
     const gift = left * this.config.provisionShare * share;
     this.nutrientStore[parent] = left - gift;
     return gift;
+  }
+
+  /**
+   * For every cell, the nearest water cell, found by spreading outward from all water at once
+   * (one step at a time to the four neighbors, so "nearest" is counted in steps). -1 if there is no water.
+   */
+  private findNearestWater(): Int32Array {
+    const gw = this.gridWidth;
+    const gh = this.gridHeight;
+    const out = new Int32Array(gw * gh).fill(-1);
+    const queue = new Int32Array(gw * gh);
+    let head = 0;
+    let tail = 0;
+    for (let cell = 0; cell < out.length; cell++) {
+      if (this.biome[cell] === BIOME.water) {
+        out[cell] = cell;
+        queue[tail++] = cell;
+      }
+    }
+    while (head < tail) {
+      const cell = queue[head++]!;
+      const cx = cell % gw;
+      const cy = (cell - cx) / gw;
+      for (let side = 0; side < 4; side++) {
+        const nx = side === 0 ? wrapCell(cx + 1, gw) : side === 1 ? wrapCell(cx - 1, gw) : cx;
+        const ny = side === 2 ? wrapCell(cy + 1, gh) : side === 3 ? wrapCell(cy - 1, gh) : cy;
+        const nb = ny * gw + nx;
+        if (out[nb] !== -1) continue;
+        out[nb] = out[cell]!;
+        queue[tail++] = nb;
+      }
+    }
+    return out;
+  }
+
+  /** How damaged a cell's ground is, from overgrazing, fouling and erosion together: 0 healthy, up to 1 ruined. */
+  private groundDamage(cell: number): number {
+    const c = this.config;
+    let health = 1;
+    if (this.erodeOn) health *= this.soilHealth[cell]!;
+    if (this.grazeOn) health *= 1 - c.overgrazePenalty * this.grazing[cell]!;
+    if (this.foulOn && this.foulMeanNow > 0) {
+      const excess = this.foul[cell]! / this.foulMeanNow - c.foulFree;
+      if (excess > 0) health /= 1 + c.foulGrowthEffect * excess;
+    }
+    return 1 - health;
   }
 
   /** Mode 2: the nutrient per unit of plant that grows from this much soil. */
@@ -2661,6 +2713,52 @@ export class Simulation {
       for (let k = 0; k < MEMORY_COUNT; k++) inputs[INPUT.memory0 + k] = this.memState[i * MEMORY_COUNT + k]!;
     }
 
+    // The ground and the body's needs (Phase 8e): nutrient store, how rich the plants are, damaged ground, water, thirst.
+    {
+      const cx = Math.floor(x / cs);
+      const cy = Math.floor(y / cs);
+      const here = cy * gw + cx;
+      const east = cy * gw + ((cx + 1) % gw);
+      const west = cy * gw + ((cx + gw - 1) % gw);
+      const south = ((cy + 1) % gh) * gw + cx;
+      const north = ((cy + gh - 1) % gh) * gw + cx;
+      if (this.nutrientOn) inputs[INPUT.nutrientStore] = Math.min(1, this.nutrientStore[i]! / (c.nutrientStoreCap * this.bodyMatter[i]!)) * 2 - 1;
+      if (this.qualityOn) {
+        const q = this.plantQ;
+        const scale = 1 / c.plantQualityMax;
+        inputs[INPUT.plantRichHere] = Math.min(1, q[here]! * scale);
+        const gx = (q[east]! - q[west]!) * scale;
+        const gy = (q[south]! - q[north]!) * scale;
+        inputs[INPUT.plantRichAhead] = clampUnit(gx * hx + gy * hy);
+        inputs[INPUT.plantRichSide] = clampUnit(hx * gy - hy * gx);
+      }
+      if (this.erodeOn || this.grazeOn || this.foulOn) {
+        inputs[INPUT.damageHere] = this.groundDamage(here);
+        const gx = this.groundDamage(east) - this.groundDamage(west);
+        const gy = this.groundDamage(south) - this.groundDamage(north);
+        inputs[INPUT.damageAhead] = clampUnit(gx * hx + gy * hy);
+        inputs[INPUT.damageSide] = clampUnit(hx * gy - hy * gx);
+      }
+      const water = this.nearestWater.length > 0 ? this.nearestWater[here]! : -1;
+      if (water >= 0) {
+        const W = c.worldWidth;
+        const H = c.worldHeight;
+        const wx = water % gw;
+        let dx = (wx + 0.5) * cs - x;
+        let dy = ((water - wx) / gw + 0.5) * cs - y;
+        if (dx > W / 2) dx -= W;
+        else if (dx < -W / 2) dx += W;
+        if (dy > H / 2) dy -= H;
+        else if (dy < -H / 2) dy += H;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance > 0) {
+          inputs[INPUT.waterAhead] = (dx * hx + dy * hy) / distance;
+          inputs[INPUT.waterSide] = (hx * dy - hy * dx) / distance;
+        }
+        inputs[INPUT.waterDistance] = Math.min(1, distance / c.brainWaterRange);
+      }
+    }
+
     // The body: hunger, age, its own diet, a constant, and a little noise (a deterministic scramble of the tick and the organism).
     inputs[INPUT.energy] = Math.min(this.energy[i]! / this.threshold[i]!, 1) * 2 - 1;
     inputs[INPUT.age] = Math.min(this.age[i]! / AGE_FULL, 1) * 2 - 1;
@@ -3434,6 +3532,8 @@ export class Simulation {
     const brainMode = c.brainMode;
     let attackers = 0;
     if (c.catastropheKind !== 0) this.catastropheCheck();
+    // (Brains sense fouled ground compared with the average, so work the average out before anyone thinks.)
+    if (this.foulOn && brainMode > 0) this.foulMeanNow = this.meanFoul();
     if (this.eventsOn) this.eventsStep();
     if (this.climateOn) this.updateClimate();
     // Bonded cells even out their energy and turn toward their neighbors' heading.
@@ -4302,6 +4402,7 @@ export class Simulation {
       events: this.events,
       worldEvents: this.worldEvents,
       catastrophe: [this.catKind, this.catStart, this.catEnd],
+      brainLayout: [INPUT_COUNT, CONN_MAX],
       // (Only in worlds with disaster events, so older saved worlds still load.)
       ...(this.eventsOn ? { activeEvents: this.activeEvents, eventRng: Array.from(this.eventRng.getState()) } : {}),
       strains: this.strains.map((a) => Array.from(a)),
@@ -4379,6 +4480,7 @@ export class Simulation {
       seen: boolean[];
       events: SimEvent[];
       worldEvents: WorldEvent[];
+      brainLayout?: [number, number];
       activeEvents?: ActiveEvent[];
       eventRng?: number[];
       catastrophe: [number, number, number];
@@ -4410,9 +4512,29 @@ export class Simulation {
       // take() clears with zeros; an empty bond slot is -1, so mark every slot past the saved cells empty.
       this.bondTo.fill(-1, s.count * BOND_SLOTS);
     }
-    take("brainFrom", this.brainFrom);
-    take("brainTo", this.brainTo);
-    take("brainWeight", this.brainWeight);
+    // A world saved before Phase 8e has the older brain layout (fewer inputs, fewer connection slots): renumber it.
+    const [savedInputs, savedSlots] = s.brainLayout ?? [OLD_INPUT_COUNT, OLD_CONN_MAX];
+    if (this.config.brainMode > 0 && (savedInputs !== INPUT_COUNT || savedSlots !== CONN_MAX)) {
+      const from = snapshot.arrays.brainFrom as Uint8Array;
+      const to = snapshot.arrays.brainTo as Uint8Array;
+      const weight = snapshot.arrays.brainWeight as Float32Array;
+      const shift = INPUT_COUNT - savedInputs;
+      const renumber = (node: number): number => (node < INSERTED_INPUTS_AT ? node : node + shift);
+      this.brainFrom.fill(0);
+      this.brainTo.fill(0);
+      this.brainWeight.fill(0);
+      for (let i = 0; i < s.count; i++) {
+        for (let k = 0; k < this.brainCount[i]!; k++) {
+          this.brainFrom[i * CONN_MAX + k] = renumber(from[i * savedSlots + k]!);
+          this.brainTo[i * CONN_MAX + k] = renumber(to[i * savedSlots + k]!);
+          this.brainWeight[i * CONN_MAX + k] = weight[i * savedSlots + k]!;
+        }
+      }
+    } else {
+      take("brainFrom", this.brainFrom);
+      take("brainTo", this.brainTo);
+      take("brainWeight", this.brainWeight);
+    }
     if (this.memoryOn) take("memState", this.memState);
     if (this.chemOn) take("chem", this.chem);
     // (Fire scars came a little after fires did; a world saved in between simply has none.)

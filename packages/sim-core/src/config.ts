@@ -183,6 +183,8 @@ export interface SimConfig {
   brainMode: number;
   /** Hidden units in the fixed-layout brain (mode 1). */
   brainHidden: number;
+  /** Brains sense the nearest water up to this far away (world units): the "water: how far" sense reads 1 at this distance or more. */
+  brainWaterRange: number;
   /**
    * How far every organism with a brain can see, as a baseline. The sense-range gene adds
    * extra reach on top (at an energy cost). Without a baseline, vision would be selected
@@ -1080,6 +1082,7 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
 
   brainMode: 0,
   brainHidden: 8,
+  brainWaterRange: 64,
   brainVisionRange: 6,
   brainEvery: 2,
   brainTurnMax: 0.5,

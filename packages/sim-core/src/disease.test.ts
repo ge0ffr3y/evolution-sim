@@ -179,8 +179,9 @@ describe("disease", () => {
 
   it("energy and matter are conserved, the run is deterministic, and a world saved mid-epidemic carries on exactly", () => {
     const config = { worldWidth: 128, worldHeight: 128, initialOrganisms: 200, diseaseTransmission: 0.3, diseaseIntroEvery: 500, diseaseMutationProb: 0.1, brainMode: 2, brainAddConnectionProb: 0.3 } as Partial<SimConfig>;
-    const a = new Simulation(5, config);
-    const b = new Simulation(5, config);
+    // (Seed 6: a world where the disease does arrive in time. With seed 5 under the Phase 8e brain layout, no strain happened to arrive in 2,000 ticks.)
+    const a = new Simulation(6, config);
+    const b = new Simulation(6, config);
     const energy0 = a.energyAudit().total;
     const matter0 = a.matterAudit().total;
     for (let block = 0; block < 4; block++) {
