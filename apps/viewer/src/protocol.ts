@@ -139,6 +139,14 @@ export interface FrameMessage {
   nutrient: Float64Array;
   corpse: Float64Array;
   detritus: Float64Array;
+  /** How much damage overgrazing has done to each cell, 0 to 1 (null in worlds without overgrazing). */
+  grazing: Float32Array | null;
+  /** How fouled each cell's ground is (an index of crowding; null in worlds without fouling). */
+  foul: Float32Array | null;
+  /** How healthy each cell's soil is, erosion's floor to 1 (null in worlds without erosion). */
+  soilHealth: Float32Array | null;
+  /** Where disasters are going on now: 1 fire, 2 flood, 3 storm, 4 volcanic ground, 0 nothing (null in worlds without events). */
+  eventMap: Uint8Array | null;
   /** Plant-eater and meat-eater scent in each square of the scent grid (empty when brains are off). */
   preyScent: Float32Array;
   hunterScent: Float32Array;
@@ -152,6 +160,8 @@ export interface FrameMessage {
   plantKindMap: Uint8Array | null;
   /** Each animal's palate gene (0 to 1), only in worlds with several kinds of plant. */
   palate: Float32Array | null;
+  /** Each animal's toxicity gene (0 to 1), only in worlds with toxicity. */
+  toxicity: Float32Array | null;
   /** Bonds between cells as pairs of organism indices (a, b, a, b, ...), and the size of each organism's colony (null without multicellularity). */
   bonds: Uint32Array | null;
   colonySize: Uint16Array | null;

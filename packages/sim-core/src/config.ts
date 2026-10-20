@@ -509,6 +509,84 @@ export interface SimConfig {
   luckSpread: number;
   luckLimit: number;
 
+  // --- Toxicity and warning colors (off by default) ---
+  /**
+   * The toxicity gene (the 27th; toxinStrength above 0 turns it on): how poisonous an animal's body is to
+   * whoever eats it. When an animal dies its toxicity mixes into the corpse where it fell (weighted by
+   * matter), and an animal that eats meat there loses toxinStrength x that toxicity x the meat's energy
+   * (counted as heat on its upkeep line, so the energy books balance). Being toxic costs toxinUpkeep x the
+   * gene extra upkeep all the time. A hunter that is poisoned within a few ticks of its own kill
+   * remembers the color (the color gene) of what it killed and then passes up prey of that color, with a
+   * chance equal to how strongly it remembers (avoidLearn x toxicity per poisoning, fading by avoidFade per
+   * tick). Prey within avoidWidth of the remembered color on the color wheel are avoided, so toxic prey
+   * that share a color are protected together, and harmless look-alikes are too. Nobody is told to
+   * advertise. 0 = off (toxinStrength).
+   */
+  toxinStrength: number;
+  toxinUpkeep: number;
+  initialToxicity: number;
+  avoidLearn: number;
+  avoidFade: number;
+  avoidWidth: number;
+
+  // --- Erosion (off by default) ---
+  /**
+   * Ground that stays bare slowly loses fertility, and ground that is covered slowly regains it. Every cell
+   * has a soil health between erosionMin and 1. It falls by erosionRate per tick while the plants standing
+   * in the cell are below erosionBelow of what it could hold, and rises by erosionRecovery per tick while
+   * they are above erosionRecoverAbove. Soil health multiplies how fast plants regrow and how much the
+   * cell can hold. Plants already standing are never deleted when the ceiling drops, so no matter
+   * disappears; the cell just stops growing until it is back under the new ceiling. The recovery default
+   * is calibrated for the grand world, where how often a cell is bare ranges from never to over a quarter
+   * of the time, so only the persistently bare cells wear away. Try erosionRate 0.00001: about 15% of the
+   * ground is worn after 300,000 ticks. It does NOT settle into a balance in that time: eroded ground
+   * regrows slowly, so it tends to stay bare and keep eroding, and the worn share keeps creeping up. In a
+   * uniformly food-limited world (the standard one) every cell is bare about half the time, so all of it
+   * wears down to the floor. 0 = off (erosionRate).
+   */
+  erosionRate: number;
+  erosionBelow: number;
+  erosionRecoverAbove: number;
+  erosionRecovery: number;
+  erosionMin: number;
+
+  // --- Fouling (off by default) ---
+  /**
+   * Crowds foul their ground. Every animal adds fouling x its body size to a per-cell fouling index each
+   * tick, and the index fades by foulDecay per tick. A cell is crowded when its index is more than
+   * foulFree times the average over all the land (so the rule fits any world: in one where animals are
+   * everywhere alike nothing is crowded, and where they clump the clumps are). The excess is how many
+   * times the average, beyond foulFree, a cell's index is. Plants there grow at 1 / (1 + foulGrowthEffect
+   * x the excess) of their normal speed, and disease passes on more easily (the chance is multiplied by
+   * 1 + foulDiseaseEffect x the excess, using the ground the sick animal stands on). So staying crowded in
+   * one place is slowly punished, and animals that spread out or move on do better. This is an index of crowding and contamination, not matter: the nutrient cycle is
+   * not touched (dung as real matter comes with the nutrient redesign). 0 = off (fouling).
+   */
+  fouling: number;
+  foulDecay: number;
+  foulFree: number;
+  foulGrowthEffect: number;
+  foulDiseaseEffect: number;
+
+  // --- Overgrazing (off by default) ---
+  /**
+   * A patch of ground that is eaten bare keeps suffering: while the plants standing in a cell are below
+   * overgrazeBelow of what it can hold, the cell gains damage (overgrazeDamage per tick, up to 1), and it
+   * heals by overgrazeHeal per tick otherwise. With the defaults (bare = under 1% of capacity, damage
+   * three times as fast as healing) a cell that is bare more than about a quarter of the time builds
+   * up damage and a normally grazed one stays healthy. That is calibrated for worlds with some spatial
+   * variety, such as the grand world, where how often a cell is bare ranges from never to over a quarter
+   * of the time. In a uniformly food-limited world (the standard one) every cell is bare about half the
+   * time, so all of it ends up damaged and the effect is just a blanket growth penalty. Plants grow more slowly where there is damage: their growth
+   * is multiplied by 1 minus overgrazePenalty x damage. So a crowd that strips a place leaves it slow to
+   * recover, which rewards moving on. It only changes how fast plants grow (the sunlight they capture), so
+   * the energy books are unaffected. 0 = off (overgrazeDamage).
+   */
+  overgrazeDamage: number;
+  overgrazeBelow: number;
+  overgrazeHeal: number;
+  overgrazePenalty: number;
+
   // --- Catastrophes (off by default) ---
   /**
    * 0 = none. 1 = an ice age (the whole world gets colder, then recovers). 2 = a drought
@@ -528,6 +606,90 @@ export interface SimConfig {
   droughtSeverity: number;
   /** The radius of a meteor strike, in world units. */
   meteorRadius: number;
+
+  // --- Disaster events (Phase 8e, all off by default) ---
+  // Each kind has a mean interval (on average one every this many ticks; 0 = never) and ranges
+  // (min, max) for how big, how wide and how long. The numbers for each event are drawn when it
+  // starts, from a random stream of their own, so switching events on never reshuffles anything else.
+  // Several can be going at once. They work alongside the older catastrophe settings above.
+  /** Ice age: the whole world cools by up to this much for this many ticks (needs a climate). */
+  evIceAgeEvery: number;
+  evIceAgeCoolingMin: number;
+  evIceAgeCoolingMax: number;
+  evIceAgeLengthMin: number;
+  evIceAgeLengthMax: number;
+  /** Drought: plant growth falls by up to this share (needs a climate). */
+  evDroughtEvery: number;
+  evDroughtSeverityMin: number;
+  evDroughtSeverityMax: number;
+  evDroughtLengthMin: number;
+  evDroughtLengthMax: number;
+  /** Meteor: everything in a circle (radius in world units) dies. */
+  evMeteorEvery: number;
+  evMeteorRadiusMin: number;
+  evMeteorRadiusMax: number;
+  /**
+   * Wildfire: starts as a small patch (radius in world units) on land and spreads to neighboring cells
+   * with a chance (spread) that grows with the plants standing there (compared with the average cell) and how dry the ground is.
+   * A cell burns for evFireCellBurn ticks; the whole fire stops after its length.
+   */
+  evFireEvery: number;
+  evFireRadiusMin: number;
+  evFireRadiusMax: number;
+  evFireSpreadMin: number;
+  evFireSpreadMax: number;
+  evFireLengthMin: number;
+  evFireLengthMax: number;
+  evFireCellBurn: number;
+  /** How much dryness matters for spreading (0 = not at all, 1 = bone-dry ground only). */
+  evFireDryWeight: number;
+  /** Storm: pushes animals downwind (world units per tick), makes moving cost more, and blows soil nutrient downwind. */
+  evStormEvery: number;
+  evStormRadiusMin: number;
+  evStormRadiusMax: number;
+  evStormPushMin: number;
+  evStormPushMax: number;
+  evStormLengthMin: number;
+  evStormLengthMax: number;
+  evStormMoveCost: number;
+  evStormSoilShare: number;
+  /** Flood: land in a circle becomes impassable water for a while (needs terrain). */
+  evFloodEvery: number;
+  evFloodRadiusMin: number;
+  evFloodRadiusMax: number;
+  evFloodLengthMin: number;
+  evFloodLengthMax: number;
+  /**
+   * Volcano: kills and burns in a small circle (the burnt plants become soil nutrient), cools the whole
+   * world for a while, and leaves richer ground around it (it holds more plants, fading slowly).
+   */
+  evVolcanoEvery: number;
+  evVolcanoRadiusMin: number;
+  evVolcanoRadiusMax: number;
+  evVolcanoCoolingMin: number;
+  evVolcanoCoolingMax: number;
+  evVolcanoLengthMin: number;
+  evVolcanoLengthMax: number;
+  evVolcanoBoost: number;
+  evVolcanoBoostReach: number;
+  evVolcanoBoostFade: number;
+  /** Plant blight: one kind of plant (all of them if there is only one) grows at a fraction of normal. */
+  evBlightEvery: number;
+  evBlightGrowthMin: number;
+  evBlightGrowthMax: number;
+  evBlightLengthMin: number;
+  evBlightLengthMax: number;
+  /** Outbreak: a new strain starts in several animals close together and keeps them sick longer (needs disease). */
+  evOutbreakEvery: number;
+  evOutbreakRadius: number;
+  evOutbreakHosts: number;
+  evOutbreakDurationMult: number;
+  /** Good year: plants grow faster (more sunlight, a real energy source). */
+  evGoodYearEvery: number;
+  evGoodYearBoostMin: number;
+  evGoodYearBoostMax: number;
+  evGoodYearLengthMin: number;
+  evGoodYearLengthMax: number;
 
   // --- Aging and litter size (off by default) ---
   /**
@@ -980,6 +1142,26 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   mutationLoadFertility: 0,
   luckSpread: 0,
   luckLimit: 2.5,
+  toxinStrength: 0,
+  toxinUpkeep: 0.15,
+  initialToxicity: 0,
+  avoidLearn: 0.5,
+  avoidFade: 0.0005,
+  avoidWidth: 0.08,
+  erosionRate: 0,
+  erosionBelow: 0.01,
+  erosionRecoverAbove: 0.1,
+  erosionRecovery: 0.00004,
+  erosionMin: 0.4,
+  fouling: 0,
+  foulDecay: 0.01,
+  foulFree: 2,
+  foulGrowthEffect: 0.2,
+  foulDiseaseEffect: 0.3,
+  overgrazeDamage: 0,
+  overgrazeBelow: 0.01,
+  overgrazeHeal: 0.001,
+  overgrazePenalty: 0.7,
   weatherAmplitude: 0,
   weatherScale: 8,
   weatherDriftTicks: 400,
@@ -1009,6 +1191,66 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   iceAgeCooling: 0.3,
   droughtSeverity: 0.8,
   meteorRadius: 40,
+  evIceAgeEvery: 0,
+  evIceAgeCoolingMin: 0.05,
+  evIceAgeCoolingMax: 0.15,
+  evIceAgeLengthMin: 1500,
+  evIceAgeLengthMax: 4000,
+  evDroughtEvery: 0,
+  evDroughtSeverityMin: 0.3,
+  evDroughtSeverityMax: 0.7,
+  evDroughtLengthMin: 1500,
+  evDroughtLengthMax: 5000,
+  evMeteorEvery: 0,
+  evMeteorRadiusMin: 15,
+  evMeteorRadiusMax: 50,
+  evFireEvery: 0,
+  evFireRadiusMin: 6,
+  evFireRadiusMax: 14,
+  evFireSpreadMin: 0.15,
+  evFireSpreadMax: 0.5,
+  evFireLengthMin: 200,
+  evFireLengthMax: 800,
+  evFireCellBurn: 3,
+  evFireDryWeight: 0.5,
+  evStormEvery: 0,
+  evStormRadiusMin: 30,
+  evStormRadiusMax: 80,
+  evStormPushMin: 0.2,
+  evStormPushMax: 0.8,
+  evStormLengthMin: 100,
+  evStormLengthMax: 400,
+  evStormMoveCost: 2,
+  evStormSoilShare: 0.02,
+  evFloodEvery: 0,
+  evFloodRadiusMin: 20,
+  evFloodRadiusMax: 60,
+  evFloodLengthMin: 500,
+  evFloodLengthMax: 2500,
+  evVolcanoEvery: 0,
+  evVolcanoRadiusMin: 6,
+  evVolcanoRadiusMax: 14,
+  evVolcanoCoolingMin: 0.1,
+  evVolcanoCoolingMax: 0.3,
+  evVolcanoLengthMin: 1500,
+  evVolcanoLengthMax: 4000,
+  evVolcanoBoost: 0.5,
+  evVolcanoBoostReach: 4,
+  evVolcanoBoostFade: 0.0001,
+  evBlightEvery: 0,
+  evBlightGrowthMin: 0.3,
+  evBlightGrowthMax: 0.7,
+  evBlightLengthMin: 1000,
+  evBlightLengthMax: 4000,
+  evOutbreakEvery: 0,
+  evOutbreakRadius: 25,
+  evOutbreakHosts: 20,
+  evOutbreakDurationMult: 2,
+  evGoodYearEvery: 0,
+  evGoodYearBoostMin: 1.3,
+  evGoodYearBoostMax: 1.8,
+  evGoodYearLengthMin: 2000,
+  evGoodYearLengthMax: 4000,
   agingCoeff: 0,
   agingPrimeFraction: 0.5,
   agingRepairCoeff: 0.3,
@@ -1230,6 +1472,39 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     if (c.droughtSeverity < 0 || c.droughtSeverity > 1) problems.push("droughtSeverity must be between 0 and 1");
     if (!(c.meteorRadius > 0)) problems.push("meteorRadius must be positive");
   }
+  // Disaster events: each kind with a non-zero interval needs its ranges to make sense (and the world features it works on).
+  const eventKinds: [string, number, [string, number, number][]][] = [
+    ["evIceAge", c.evIceAgeEvery, [["Cooling", c.evIceAgeCoolingMin, c.evIceAgeCoolingMax], ["Length", c.evIceAgeLengthMin, c.evIceAgeLengthMax]]],
+    ["evDrought", c.evDroughtEvery, [["Severity", c.evDroughtSeverityMin, c.evDroughtSeverityMax], ["Length", c.evDroughtLengthMin, c.evDroughtLengthMax]]],
+    ["evMeteor", c.evMeteorEvery, [["Radius", c.evMeteorRadiusMin, c.evMeteorRadiusMax]]],
+    ["evFire", c.evFireEvery, [["Radius", c.evFireRadiusMin, c.evFireRadiusMax], ["Spread", c.evFireSpreadMin, c.evFireSpreadMax], ["Length", c.evFireLengthMin, c.evFireLengthMax]]],
+    ["evStorm", c.evStormEvery, [["Radius", c.evStormRadiusMin, c.evStormRadiusMax], ["Push", c.evStormPushMin, c.evStormPushMax], ["Length", c.evStormLengthMin, c.evStormLengthMax]]],
+    ["evFlood", c.evFloodEvery, [["Radius", c.evFloodRadiusMin, c.evFloodRadiusMax], ["Length", c.evFloodLengthMin, c.evFloodLengthMax]]],
+    ["evVolcano", c.evVolcanoEvery, [["Radius", c.evVolcanoRadiusMin, c.evVolcanoRadiusMax], ["Cooling", c.evVolcanoCoolingMin, c.evVolcanoCoolingMax], ["Length", c.evVolcanoLengthMin, c.evVolcanoLengthMax]]],
+    ["evBlight", c.evBlightEvery, [["Growth", c.evBlightGrowthMin, c.evBlightGrowthMax], ["Length", c.evBlightLengthMin, c.evBlightLengthMax]]],
+    ["evGoodYear", c.evGoodYearEvery, [["Boost", c.evGoodYearBoostMin, c.evGoodYearBoostMax], ["Length", c.evGoodYearLengthMin, c.evGoodYearLengthMax]]],
+  ];
+  for (const [name, every, ranges] of eventKinds) {
+    if (!Number.isInteger(every) || every < 0) problems.push(`${name}Every must be a whole number of ticks (0 = never)`);
+    if (every > 0) {
+      for (const [what, lo, hi] of ranges) {
+        if (!(lo >= 0) || hi < lo) problems.push(`${name}${what}Min must be at least 0 and not above ${name}${what}Max`);
+        if (what === "Length" && lo < 2) problems.push(`${name}LengthMin must be at least 2 ticks`);
+      }
+    }
+  }
+  if (c.evIceAgeEvery > 0 || c.evDroughtEvery > 0 || c.evVolcanoEvery > 0) {
+    if (c.climateMode !== 1) problems.push("ice ages, droughts and volcanoes need a climate (set climateMode to 1)");
+  }
+  if (c.evFloodEvery > 0 && c.terrainMode !== 1) problems.push("floods need terrain (set terrainMode to 1)");
+  if (c.evOutbreakEvery > 0 && !(c.diseaseTransmission > 0)) problems.push("outbreaks need disease (set diseaseTransmission above 0)");
+  if (c.evDroughtEvery > 0 && c.evDroughtSeverityMax > 1) problems.push("evDroughtSeverityMax cannot be above 1");
+  if (c.evBlightEvery > 0 && c.evBlightGrowthMax > 1) problems.push("evBlightGrowthMax cannot be above 1 (it is the fraction of normal growth that is left)");
+  if (c.evGoodYearEvery > 0 && c.evGoodYearBoostMin < 1) problems.push("evGoodYearBoostMin must be at least 1");
+  if (c.evFireEvery > 0 && (c.evFireSpreadMax > 1 || !Number.isInteger(c.evFireCellBurn) || c.evFireCellBurn < 1 || c.evFireDryWeight < 0 || c.evFireDryWeight > 1)) problems.push("fire: evFireSpreadMax at most 1, evFireCellBurn a whole number from 1, evFireDryWeight between 0 and 1");
+  if (c.evStormEvery > 0 && (c.evStormMoveCost < 1 || c.evStormSoilShare < 0 || c.evStormSoilShare > 1)) problems.push("storm: evStormMoveCost at least 1, evStormSoilShare between 0 and 1");
+  if (c.evVolcanoEvery > 0 && (c.evVolcanoBoost < 0 || c.evVolcanoBoostReach < 1 || c.evVolcanoBoostFade < 0 || c.evVolcanoBoostFade > 1)) problems.push("volcano: evVolcanoBoost at least 0, evVolcanoBoostReach at least 1, evVolcanoBoostFade between 0 and 1");
+  if (c.evOutbreakEvery > 0 && (c.evOutbreakRadius <= 0 || c.evOutbreakHosts < 1 || c.evOutbreakDurationMult < 1)) problems.push("outbreak: evOutbreakRadius above 0, evOutbreakHosts at least 1, evOutbreakDurationMult at least 1");
   if (![0, 1].includes(c.climateMode)) problems.push("climateMode must be 0 (no climate) or 1 (climate)");
   if (c.weatherAmplitude < 0) problems.push("weatherAmplitude cannot be negative");
   if (c.weatherAmplitude > 0) {
@@ -1274,6 +1549,30 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   }
   if (c.luckSpread < 0 || c.luckSpread * c.luckLimit >= 1) problems.push("luckSpread cannot be negative, and luckSpread x luckLimit must stay under 1 (or an organism could have zero upkeep)");
   if (c.luckLimit <= 0) problems.push("luckLimit must be positive");
+  if (c.toxinStrength < 0) problems.push("toxinStrength cannot be negative");
+  if (c.toxinStrength > 0) {
+    if (c.toxinUpkeep < 0 || c.avoidLearn < 0) problems.push("toxinUpkeep and avoidLearn cannot be negative");
+    if (c.initialToxicity < 0 || c.initialToxicity > 1) problems.push("initialToxicity must be between 0 and 1");
+    if (c.avoidFade < 0 || c.avoidFade > 1) problems.push("avoidFade must be between 0 and 1");
+    if (c.avoidWidth <= 0 || c.avoidWidth > 0.5) problems.push("avoidWidth must be above 0 and at most 0.5 (it is a distance round the color wheel)");
+  }
+  if (c.erosionRate < 0 || c.erosionRate > 1) problems.push("erosionRate must be between 0 and 1");
+  if (c.erosionRate > 0) {
+    if (c.erosionBelow <= 0 || c.erosionBelow >= 1 || c.erosionRecoverAbove <= c.erosionBelow || c.erosionRecoverAbove > 1) problems.push("erosionBelow must be above 0 and under erosionRecoverAbove, which must be at most 1");
+    if (c.erosionRecovery < 0 || c.erosionRecovery > 1) problems.push("erosionRecovery must be between 0 and 1");
+    if (c.erosionMin <= 0 || c.erosionMin > 1) problems.push("erosionMin must be above 0 and at most 1");
+  }
+  if (c.fouling < 0) problems.push("fouling cannot be negative");
+  if (c.fouling > 0) {
+    if (!(c.foulDecay > 0) || c.foulDecay > 1) problems.push("foulDecay must be above 0 and at most 1");
+    if (c.foulFree < 0 || c.foulGrowthEffect < 0 || c.foulDiseaseEffect < 0) problems.push("foulFree, foulGrowthEffect and foulDiseaseEffect cannot be negative");
+  }
+  if (c.overgrazeDamage < 0 || c.overgrazeDamage > 1) problems.push("overgrazeDamage must be between 0 and 1");
+  if (c.overgrazeDamage > 0) {
+    if (c.overgrazeBelow <= 0 || c.overgrazeBelow >= 1) problems.push("overgrazeBelow must be above 0 and under 1");
+    if (c.overgrazeHeal < 0 || c.overgrazeHeal > 1) problems.push("overgrazeHeal must be between 0 and 1");
+    if (c.overgrazePenalty < 0 || c.overgrazePenalty > 1) problems.push("overgrazePenalty must be between 0 and 1");
+  }
   if (c.yearVariability < 0 || c.yearVariability > 1) problems.push("yearVariability must be between 0 and 1");
   if (c.yearVariability > 0 && (c.climateMode !== 1 || c.yearLength <= 0)) problems.push("yearVariability needs a climate with seasons (climateMode 1 and a yearLength)");
   if (c.fatDepositRate < 0 || c.fatDepositRate > 1 || c.fatDrawRate < 0 || c.fatCap < 0 || c.fatMoveCost < 0 || c.fatUpkeep < 0) problems.push("the fat settings cannot be negative (and fatDepositRate is at most 1)");

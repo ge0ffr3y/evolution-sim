@@ -139,16 +139,19 @@ export class Charts {
           { label: "tick" },
           { label: "plant eaters: connections", stroke: "#7bd88f", width: 2, scale: "y" },
           { label: "meat eaters: connections", stroke: "#ff5d73", width: 2, scale: "y" },
-          { label: "plant eaters: thinking units", stroke: "#7bd88f", width: 1.5, dash: [5, 4], scale: "hidden" },
-          { label: "meat eaters: thinking units", stroke: "#ff5d73", width: 1.5, dash: [5, 4], scale: "hidden" },
+          // Blue and orange (not the green and red of the connection lines) so the four lines can be told apart.
+          { label: "plant eaters: thinking units", stroke: "#5aa9ff", width: 1.5, dash: [5, 4], scale: "hidden" },
+          { label: "meat eaters: thinking units", stroke: "#ffa94d", width: 1.5, dash: [5, 4], scale: "hidden" },
         ],
       },
       [[], [], [], [], []],
       brainContainer,
     );
 
+    // Watch every chart's own box, not just the first one. The brain chart starts out hidden (zero width),
+    // so it must be re-measured the moment it is shown, or it stays squeezed at its minimum width.
     const observer = new ResizeObserver(() => this.resize(popContainer, traitContainer, webContainer, brainContainer));
-    observer.observe(popContainer);
+    for (const container of [popContainer, traitContainer, webContainer, brainContainer]) observer.observe(container);
   }
 
   private resize(popContainer: HTMLElement, traitContainer: HTMLElement, webContainer: HTMLElement, brainContainer: HTMLElement): void {

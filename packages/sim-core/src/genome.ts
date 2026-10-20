@@ -6,7 +6,7 @@ import type { SimConfig } from "./config";
  * worked out from the genes ("phenotype mapping") by stretching each gene
  * across that trait's allowed range from the config.
  */
-export const GENES = ["size", "speed", "senseRange", "metabolism", "hue", "mutationRate", "diet", "attack", "armor", "stamina", "thermal", "lifespan", "litter", "bond", "plan1", "plan2", "plan3", "stick", "tolerance", "sex", "fat", "torpor", "palate", "stressResponse", "calmResponse", "generosity"] as const;
+export const GENES = ["size", "speed", "senseRange", "metabolism", "hue", "mutationRate", "diet", "attack", "armor", "stamina", "thermal", "lifespan", "litter", "bond", "plan1", "plan2", "plan3", "stick", "tolerance", "sex", "fat", "torpor", "palate", "stressResponse", "calmResponse", "generosity", "toxicity"] as const;
 export type GeneName = (typeof GENES)[number];
 export const GENE_COUNT = GENES.length;
 
@@ -47,6 +47,7 @@ export const GENE = {
   stressResponse: 23,
   calmResponse: 24,
   generosity: 25,
+  toxicity: 26,
 } as const satisfies Record<GeneName, number>;
 
 /** Real-world values for every gene, e.g. { size: 1.2, speed: 0.8, ... }. */
@@ -95,6 +96,8 @@ export function traitRanges(c: SimConfig): Record<GeneName, TraitRange> {
     calmResponse: { min: 0, max: 1 },
     // How much of its spare energy it gives to hungry neighbors: plain 0 to 1.
     generosity: { min: 0, max: 1 },
+    // How poisonous the body is to whoever eats it: plain 0 to 1.
+    toxicity: { min: 0, max: 1 },
   };
 }
 

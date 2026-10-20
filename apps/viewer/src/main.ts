@@ -277,6 +277,7 @@ const GENE_LABELS: Record<GeneName, string> = {
   stressResponse: "Stress response (how strongly stress acts on the body)",
   calmResponse: "Calm response (how strongly calm acts on the body)",
   generosity: "Generosity (share of spare energy given to hungry neighbors)",
+  toxicity: "Toxicity (how poisonous the body is to eat)",
 };
 
 function traitText(gene: GeneName, value: number): string {
@@ -649,7 +650,7 @@ function updateStats(frame: FrameMessage): void {
     setText("stat-climate", parts.join(", "));
   }
   setText("stat-kills", format.int.format(s.totalKills));
-  setText("stat-blocked", format.int.format(s.blockedBirths));
+  setText("stat-blocked", `${format.int.format(s.blockedBirthsSoil)} / ${format.int.format(s.blockedBirthsEnergy)} / ${format.int.format(s.blockedBirthsBoth)}`);
   const b = frame.behavior;
   setText("stat-chase", b.chaseSamples >= 10 ? `${Math.round(b.chase * 100)}% (random = 50%)` : "-");
   setText("stat-flee", b.fleeSamples >= 10 ? `${Math.round(b.flee * 100)}% (random = 50%)` : "-");

@@ -1,10 +1,10 @@
 import type { FrameMessage } from "./protocol";
 
 /** What the dot colors mean. */
-export type ColorBy = "diet" | "speed" | "size" | "hue" | "energy" | "sense" | "health" | "colony" | "cell" | "palate";
+export type ColorBy = "diet" | "speed" | "size" | "hue" | "energy" | "sense" | "health" | "colony" | "cell" | "palate" | "toxicity";
 
 /** What the map background shows. */
-export type Overlay = "plants" | "nutrients" | "corpses" | "detritus" | "trails" | "terrain" | "temperature" | "light" | "background" | "plantKinds";
+export type Overlay = "plants" | "nutrients" | "corpses" | "detritus" | "trails" | "terrain" | "temperature" | "light" | "background" | "plantKinds" | "grazing" | "fouling" | "erosion" | "events";
 
 export const OVERLAYS: readonly { id: Overlay; label: string }[] = [
   { id: "plants", label: "Plants" },
@@ -17,6 +17,10 @@ export const OVERLAYS: readonly { id: Overlay; label: string }[] = [
   { id: "light", label: "Plant growth (worlds with a climate)" },
   { id: "background", label: "Background color (worlds with camouflage)" },
   { id: "plantKinds", label: "Kinds of plant (worlds with several kinds)" },
+  { id: "grazing", label: "Grazing damage (worlds with overgrazing)" },
+  { id: "fouling", label: "Fouled ground (worlds with fouling)" },
+  { id: "erosion", label: "Worn-away soil (worlds with erosion)" },
+  { id: "events", label: "Disasters (worlds with events): fire red, flood blue, storm white, volcano purple" },
 ];
 
 export const COLOR_MODES: readonly { id: ColorBy; label: string; legendLow: string; legendHigh: string }[] = [
@@ -30,6 +34,7 @@ export const COLOR_MODES: readonly { id: ColorBy; label: string; legendLow: stri
   { id: "colony", label: "Colony size (worlds with bonding)", legendLow: "alone (gray)", legendHigh: "colony of 16" },
   { id: "cell", label: "Cell type (worlds with cell types)", legendLow: "generalist (gray)", legendHigh: "feeder, mover, sun, armor, sensor" },
   { id: "palate", label: "Palate (worlds with several kinds of plant)", legendLow: "first kind of plant", legendHigh: "last kind of plant" },
+  { id: "toxicity", label: "Toxicity (worlds with toxicity)", legendLow: "safe to eat", legendHigh: "poisonous" },
 ];
 
 const PALETTE_SIZE = 48;
@@ -80,6 +85,8 @@ export function organismColor(mode: ColorBy, frame: FrameMessage, i: number): st
       return pick(RAINBOW, frame.sense[i]! / 8);
     case "palate":
       return pick(RAINBOW, frame.palate ? frame.palate[i]! : 0.5);
+    case "toxicity":
+      return pick(RAINBOW, frame.toxicity ? frame.toxicity[i]! : 0);
     case "cell": {
       const type = frame.cellType ? frame.cellType[i]! : 0;
       return CELL_COLORS[type] ?? "#6b7480";
@@ -289,6 +296,10 @@ export class WorldRenderer {
     const data = this.foodImage!.data;
     const capacity = this.capacity;
     const overlay = this.overlay;
+    let wearMax = 0;
+    if (overlay === "erosion" && frame.soilHealth) for (let cell = 0; cell < frame.soilHealth.length; cell++) if (1 - frame.soilHealth[cell]! > wearMax) wearMax = 1 - frame.soilHealth[cell]!;
+    let foulMax = 0;
+    if (overlay === "fouling" && frame.foul) for (let cell = 0; cell < frame.foul.length; cell++) if (frame.foul[cell]! > foulMax) foulMax = frame.foul[cell]!;
     for (let cell = 0; cell < frame.food.length; cell++) {
       // A faint base tint shows how fertile the land underneath is.
       const fertility = capacity ? capacity[cell]! / this.maxCapacity : 1;
@@ -365,6 +376,40 @@ export class WorldRenderer {
         const amount = Math.min(Math.sqrt(frame.corpse[cell]! / overlayScale.corpse), 1);
         r += amount * 200;
         g += amount * 20;
+      } else if (overlay === "grazing") {
+        // Healthy ground stays dark; damaged ground turns orange (brighter = slower to regrow).
+        const damage = frame.grazing ? frame.grazing[cell]! : 0;
+        r += damage * 190;
+        g += damage * 90;
+      } else if (overlay === "events") {
+        // Quiet ground stays dark. Fire is red-orange, flood blue, storm pale grey, volcanic ground purple.
+        const what = frame.eventMap ? frame.eventMap[cell]! : 0;
+        if (what === 1) {
+          r += 230;
+          g += 90;
+        } else if (what === 2) {
+          g += 80;
+          b += 200;
+        } else if (what === 3) {
+          r += 150;
+          g += 150;
+          b += 160;
+        } else if (what === 4) {
+          r += 110;
+          b += 130;
+        }
+      } else if (overlay === "erosion") {
+        // Healthy soil stays dark; worn-away soil turns brown. Brightness is relative to the most worn cell right now.
+        const wear = frame.soilHealth && wearMax > 0 ? Math.min((1 - frame.soilHealth[cell]!) / wearMax, 1) : 0;
+        r += wear * 170;
+        g += wear * 105;
+        b += wear * 40;
+      } else if (overlay === "fouling") {
+        // Clean ground stays dark; fouled ground turns a murky purple. Brightness is relative to the most fouled cell in the world right now (square-rooted so the milder patches show too).
+        const amount = frame.foul && foulMax > 0 ? Math.sqrt(Math.min(frame.foul[cell]! / foulMax, 1)) : 0;
+        r += amount * 150;
+        g += amount * 40;
+        b += amount * 150;
       } else {
         const amount = Math.min(frame.detritus[cell]! / overlayScale.detritus, 1);
         r += amount * 90;

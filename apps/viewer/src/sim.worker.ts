@@ -208,12 +208,21 @@ function postFrame(s: Simulation): void {
   const nutrient = s.nutrient.slice();
   const corpse = s.corpseEnergy.slice();
   const detritus = s.detritus.slice();
+  const grazing = s.grazing.length > 0 ? s.grazing.slice() : null;
+  const foul = s.foul.length > 0 ? s.foul.slice() : null;
+  const soilHealth = s.soilHealth.length > 0 ? s.soilHealth.slice() : null;
+  const eventMap = s.eventsEnabled ? s.eventMap() : null;
   const preyScent = Float32Array.from(s.preyScent);
   const hunterScent = Float32Array.from(s.hunterScent);
   const capacity = sendCapacity ? s.foodCapacity.slice() : null;
   const terrain = sendCapacity && s.biome.length > 0 ? s.biome.slice() : null;
   const background = sendCapacity && s.background.length > 0 ? s.background.slice() : null;
   const plantKindMap = sendCapacity && s.config.plantTypes > 1 ? s.plantKindMap().slice() : null;
+  let toxicity: Float32Array | null = null;
+  if (s.config.toxinStrength > 0) {
+    toxicity = new Float32Array(n);
+    for (let i = 0; i < n; i++) toxicity[i] = s.traitOf("toxicity", i);
+  }
   let palate: Float32Array | null = null;
   if (s.config.plantTypes > 1) {
     palate = new Float32Array(n);
@@ -258,6 +267,10 @@ function postFrame(s: Simulation): void {
     nutrient,
     corpse,
     detritus,
+    grazing,
+    foul,
+    soilHealth,
+    eventMap,
     preyScent,
     hunterScent,
     capacity,
@@ -268,6 +281,7 @@ function postFrame(s: Simulation): void {
     background,
     plantKindMap,
     palate,
+    toxicity,
     health,
     climate,
     points,
@@ -289,11 +303,16 @@ function postFrame(s: Simulation): void {
     x.buffer, y.buffer, speed.buffer, size.buffer, sense.buffer, hue.buffer, diet.buffer, energyFraction.buffer,
     food.buffer, nutrient.buffer, corpse.buffer, detritus.buffer, preyScent.buffer, hunterScent.buffer,
   ];
+  if (grazing) transfer.push(grazing.buffer);
+  if (foul) transfer.push(foul.buffer);
+  if (soilHealth) transfer.push(soilHealth.buffer);
+  if (eventMap) transfer.push(eventMap.buffer);
   if (capacity) transfer.push(capacity.buffer);
   if (terrain) transfer.push(terrain.buffer);
   if (background) transfer.push(background.buffer);
   if (plantKindMap) transfer.push(plantKindMap.buffer);
   if (palate) transfer.push(palate.buffer);
+  if (toxicity) transfer.push(toxicity.buffer);
   if (bonds) transfer.push(bonds.buffer);
   if (colonySize) transfer.push(colonySize.buffer);
   if (message.cellType) transfer.push(message.cellType.buffer);

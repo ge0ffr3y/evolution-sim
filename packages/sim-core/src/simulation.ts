@@ -136,8 +136,32 @@ export interface ColonyStats {
 /** Things that happen to the whole world: catastrophes and their ends. */
 export interface WorldEvent {
   tick: number;
-  kind: "iceAge" | "drought" | "meteor" | "recovery";
+  kind: "iceAge" | "drought" | "meteor" | "recovery" | "wildfire" | "storm" | "flood" | "volcano" | "blight" | "outbreak" | "goodYear";
   text: string;
+}
+
+/** The kinds of disaster the event engine can start (see the ev* settings in the config). */
+export type DisasterKind = "iceAge" | "drought" | "wildfire" | "storm" | "flood" | "volcano" | "blight" | "goodYear";
+
+/**
+ * A disaster that is going on now. Meteors and outbreaks happen in one instant, so they never
+ * appear here. For a fire, `cells` are the cells burning now and `left` the ticks each has left;
+ * for a flood, `cells` are the cells under water. `count` is a running tally for the log line.
+ */
+export interface ActiveEvent {
+  kind: DisasterKind;
+  start: number;
+  end: number;
+  x: number;
+  y: number;
+  radius: number;
+  /** Cooling, severity, spread chance, push, growth fraction or boost, depending on the kind. */
+  intensity: number;
+  /** A storm's wind direction (0 to 7), or the plant kind a blight hits (-1 = all of them). */
+  target: number;
+  cells: number[];
+  left: number[];
+  count: number;
 }
 
 /** Notable firsts in the history of a run. */
@@ -188,8 +212,12 @@ export interface SimStats {
   /** Deaths caused by another organism, and total deaths from starvation. */
   totalKills: number;
   totalStarved: number;
-  /** Births that could not happen because the soil had no nutrients for the baby. */
+  /** Births that could not happen: the soil had no nutrients for the baby's body, the parents' share of energy could not pay for it, or both. */
   blockedBirths: number;
+  /** The same blocked births split by cause (the three always add up to blockedBirths). */
+  blockedBirthsSoil: number;
+  blockedBirthsEnergy: number;
+  blockedBirthsBoth: number;
   /** Attacks tried, and how many killed (so kills / attacks is the success rate). */
   totalAttacks: number;
   brain: BrainStats;
@@ -339,6 +367,9 @@ export class Simulation {
   totalKills = 0;
   totalStarved = 0;
   blockedBirths = 0;
+  blockedBirthsSoil = 0;
+  blockedBirthsEnergy = 0;
+  blockedBirthsBoth = 0;
   totalAttacks = 0;
   readonly events: SimEvent[] = [];
   /** Catastrophes and their ends (a separate list, so it never disturbs the notable firsts). */
@@ -537,6 +568,43 @@ export class Simulation {
   private readonly weatherA: Float32Array;
   private readonly weatherB: Float32Array;
   private readonly fatOn: boolean;
+  /** Overgrazing: how much damage each patch of ground carries (0 to 1). Saved with the land. */
+  /** Toxicity: how poisonous the corpse in each cell is (0 to 1, by matter), and what each hunter remembers about poisonous prey. */
+  private readonly toxOn: boolean;
+  private readonly corpseToxin: Float32Array;
+  private readonly avoidStrength: Float32Array;
+  private readonly avoidHue: Float32Array;
+  private readonly lastKillHue: Float32Array;
+  private readonly lastKillTick: Uint32Array;
+  private readonly erodeOn: boolean;
+  /** Erosion: how healthy each cell's soil is (erosionMin to 1). Saved with the land only when on. */
+  readonly soilHealth: Float32Array;
+  private readonly foulOn: boolean;
+  /** Fouling: how fouled each cell's ground is (an index of crowding, not matter). Saved with the land only when on. */
+  readonly foul: Float32Array;
+  private foulMeanNow = 0;
+  private readonly grazeOn: boolean;
+  readonly grazing: Float32Array;
+  // Disaster events (Phase 8e). The list and the random stream are saved; the rest is worked out again every tick.
+  private activeEvents: ActiveEvent[] = [];
+  private readonly eventRng: Rng;
+  private readonly eventsOn: boolean;
+  private readonly ashOn: boolean;
+  private readonly floodOn: boolean;
+  private readonly stormOn: boolean;
+  private readonly fireOn: boolean;
+  /** Volcanic ash: extra room and growth around a volcano, fading slowly. Saved with the land only when volcanoes are on. */
+  readonly ash: Float32Array;
+  /** Scratch: 1 where a fire is burning now / where a storm is blowing now. */
+  private readonly burning: Uint8Array;
+  private readonly stormCell: Uint8Array;
+  private readonly stormDelta: Float64Array;
+  private evCooling = 0;
+  private evDryness = 1;
+  private evGrowthMult = 1;
+  private evKindMult: number[] = [1];
+  /** The average amount of plant on a land cell this tick (worked out while a fire burns): fire spreads through plants at least that thick. */
+  private fuelRef = 0;
   /** Harmful mutations: which of the genome's spots have gone bad, one bit each (model 0), or simply how many harmful mutations it carries (model 1). */
   private readonly loadOn: boolean;
   /** Luck: multipliers (around 1) on each organism's upkeep and on its reproduction threshold, rolled at birth. */
@@ -671,6 +739,7 @@ export class Simulation {
   private readonly considerPrey = (index: number, distSq: number): void => {
     if (index === this.pickAttacker || this.killed[index] === 1 || this.size[index]! > this.pickSizeLimit) return;
     if (this.camoOn && !this.detects(this.pickAttacker, index)) return; // never noticed it
+    if (this.toxOn && this.avoidStrength[this.pickAttacker]! > 0 && this.avoids(this.pickAttacker, index)) return; // it remembers that this color was poison
     // Nobody attacks a relative (or, with kinTolerance, nobody tolerant enough to count the target as one).
     const limitSq = this.kinToleranceOn ? this.toleranceSq[this.pickAttacker]! : this.kinLimitSq;
     if (limitSq > 0 && this.geneDistanceSq(this.pickAttacker, index) <= limitSq) return;
@@ -848,6 +917,7 @@ export class Simulation {
         (k === GENE.torpor && this.climateOn && c.torporSaving > 0) ||
         (k === GENE.palate && c.plantTypes > 1) ||
         (k === GENE.generosity && c.shareRate > 0) ||
+        (k === GENE.toxicity && c.toxinStrength > 0) ||
         ((k === GENE.stressResponse || k === GENE.calmResponse) && c.brainMode > 0 && c.chemicals === 1 && c.chemBodyEffects === 1),
     );
     this.kinLimitSq = c.kinDistance * c.kinDistance;
@@ -858,6 +928,29 @@ export class Simulation {
     this.fertilityLuck = new Float32Array(this.luckOn ? n : 0);
     this.loadOn = c.mutationLoadRate > 0;
     this.loadMask = new Uint32Array(this.loadOn ? n : 0);
+    this.toxOn = c.toxinStrength > 0;
+    this.corpseToxin = new Float32Array(this.toxOn ? cells : 0);
+    this.avoidStrength = new Float32Array(this.toxOn ? n : 0);
+    this.avoidHue = new Float32Array(this.toxOn ? n : 0);
+    this.lastKillHue = new Float32Array(this.toxOn ? n : 0);
+    this.lastKillTick = new Uint32Array(this.toxOn ? n : 0);
+    this.erodeOn = c.erosionRate > 0;
+    this.soilHealth = new Float32Array(this.erodeOn ? cells : 0).fill(1);
+    this.foulOn = c.fouling > 0;
+    this.foul = new Float32Array(this.foulOn ? cells : 0);
+    this.grazeOn = c.overgrazeDamage > 0;
+    this.grazing = new Float32Array(this.grazeOn ? cells : 0);
+    // (Its own random stream, derived from the seed like the terrain's, so events never disturb anything else.)
+    this.eventRng = new Rng((seed ^ 0x5bd1e995) >>> 0);
+    this.fireOn = c.evFireEvery > 0;
+    this.stormOn = c.evStormEvery > 0;
+    this.floodOn = c.evFloodEvery > 0;
+    this.ashOn = c.evVolcanoEvery > 0;
+    this.eventsOn = [c.evIceAgeEvery, c.evDroughtEvery, c.evMeteorEvery, c.evFireEvery, c.evStormEvery, c.evFloodEvery, c.evVolcanoEvery, c.evBlightEvery, c.evOutbreakEvery, c.evGoodYearEvery].some((every) => every > 0);
+    this.ash = new Float32Array(this.ashOn ? cells : 0);
+    this.burning = new Uint8Array(this.fireOn ? cells : 0);
+    this.stormCell = new Uint8Array(this.stormOn ? cells : 0);
+    this.stormDelta = new Float64Array(this.stormOn ? cells : 0);
     this.fatOn = c.fatDepositRate > 0;
     this.fatStore = new Float64Array(this.fatOn ? n : 0);
     this.torporOn = this.climateOn && c.torporSaving > 0;
@@ -944,6 +1037,10 @@ export class Simulation {
     }
     if (this.sexGeneOn) this.uint8Fields.push(this.sexMode);
     if (this.loadOn) this.uint32Fields.push(this.loadMask);
+    if (this.toxOn) {
+      this.float32Fields.push(this.avoidStrength, this.avoidHue, this.lastKillHue);
+      this.uint32Fields.push(this.lastKillTick);
+    }
     if (this.luckOn) this.float32Fields.push(this.upkeepLuck, this.fertilityLuck);
     if (this.sexGeneOn) this.uint32Fields.push(this.mateSince);
     if (this.chemOn) this.uint8Fields.push(this.chemHit);
@@ -977,6 +1074,7 @@ export class Simulation {
     founder[GENE.palate] = c.initialPalate;
     founder[GENE.stressResponse] = c.initialStressResponse;
     founder[GENE.calmResponse] = c.initialCalmResponse;
+    founder[GENE.toxicity] = c.initialToxicity;
     founder[GENE.generosity] = c.initialShare;
     for (let i = 0; i < c.initialOrganisms; i++) {
       let fx = this.rng.range(0, c.worldWidth);
@@ -992,7 +1090,7 @@ export class Simulation {
       if (c.founderSpread > 0 || c.sexFounderSpread > 0) {
         // Standing variety: the newer genes that are switched on start a random amount above their starting value.
         // (The mate-seeking gene can have its own amount, sexFounderSpread; -1 means it follows founderSpread.)
-        for (const gene of [GENE.tolerance, GENE.sex, GENE.fat, GENE.torpor, GENE.palate, GENE.stressResponse, GENE.calmResponse, GENE.generosity]) {
+        for (const gene of [GENE.tolerance, GENE.sex, GENE.fat, GENE.torpor, GENE.palate, GENE.stressResponse, GENE.calmResponse, GENE.generosity, GENE.toxicity]) {
           const spread = gene === GENE.sex && c.sexFounderSpread >= 0 ? c.sexFounderSpread : c.founderSpread;
           if (this.activeGene[gene] && spread > 0) this.genes[index * GENE_COUNT + gene] = clamp01(this.genes[index * GENE_COUNT + gene]! + spread * this.rng.next());
         }
@@ -1055,6 +1153,10 @@ export class Simulation {
       const hump = 4 * p * (1 - p);
       if (this.catKind === 1) cooling = c.iceAgeCooling * hump;
       else dryness = 1 - c.droughtSeverity * hump;
+    }
+    if (this.eventsOn) {
+      cooling += this.evCooling;
+      dryness *= this.evDryness;
     }
     // (A harsh year can push the swing past what plants can take: growth stops, it never goes negative.)
     const swungGrowth = 1 + c.seasonGrowthSwing * season;
@@ -1133,41 +1235,551 @@ export class Simulation {
    */
   private meteorStrike(): void {
     const c = this.config;
-    const W = c.worldWidth;
-    const H = c.worldHeight;
-    const x0 = this.rng.range(0, W);
-    const y0 = this.rng.range(0, H);
-    const r2 = c.meteorRadius * c.meteorRadius;
-    const near = (x: number, y: number): boolean => {
-      let dx = x - x0;
-      let dy = y - y0;
-      if (dx > W / 2) dx -= W;
-      else if (dx < -W / 2) dx += W;
-      if (dy > H / 2) dy -= H;
-      else if (dy < -H / 2) dy += H;
-      return dx * dx + dy * dy <= r2;
-    };
+    const x0 = this.rng.range(0, c.worldWidth);
+    const y0 = this.rng.range(0, c.worldHeight);
+    this.meteorAt(x0, y0, c.meteorRadius);
+  }
+
+  /** Is the point (x, y) within r2 (a squared distance) of (x0, y0)? The world wraps round, so distances go the short way. */
+  private nearPoint(x: number, y: number, x0: number, y0: number, r2: number): boolean {
+    const W = this.config.worldWidth;
+    const H = this.config.worldHeight;
+    let dx = x - x0;
+    let dy = y - y0;
+    if (dx > W / 2) dx -= W;
+    else if (dx < -W / 2) dx += W;
+    if (dy > H / 2) dy -= H;
+    else if (dy < -H / 2) dy += H;
+    return dx * dx + dy * dy <= r2;
+  }
+
+  /** Organism i dies on the spot: its body and its energy become a corpse where it lay. */
+  private killToCorpse(i: number): void {
+    const cs = this.config.foodCellSize;
+    const cell = Math.floor(this.y[i]! / cs) * this.gridWidth + Math.floor(this.x[i]! / cs);
+    this.corpseEnergy[cell] = this.corpseEnergy[cell]! + this.bodyEnergy[i]! + this.energy[i]! + (this.fatOn ? this.fatStore[i]! : 0);
+    if (this.toxOn) this.foldToxin(cell, this.corpseMatter[cell]!, this.bodyMatter[i]!, this.genes[i * GENE_COUNT + GENE.toxicity]!);
+    this.corpseMatter[cell] = this.corpseMatter[cell]! + this.bodyMatter[i]!;
+    this.energy[i] = 0;
+    this.killed[i] = 1;
+  }
+
+  /** Plants in a cell are crushed: the matter becomes detritus, the energy is lost as heat. */
+  private crushPlants(cell: number): void {
+    this.detritus[cell] = this.detritus[cell]! + this.food[cell]!;
+    this.ledger.decayLoss += this.food[cell]! * this.config.energyPerFood;
+    this.food[cell] = 0;
+  }
+
+  /** Plants in a cell burn: the energy is lost as heat and the matter goes straight into the soil as ash. */
+  private burnPlants(cell: number): void {
+    this.nutrient[cell] = this.nutrient[cell]! + this.food[cell]!;
+    this.ledger.decayLoss += this.food[cell]! * this.config.energyPerFood;
+    this.food[cell] = 0;
+  }
+
+  private meteorAt(x0: number, y0: number, radius: number): void {
+    const c = this.config;
+    const r2 = radius * radius;
     const cs = c.foodCellSize;
     let killed = 0;
     for (let i = 0; i < this.count; i++) {
-      if (this.killed[i] === 1 || !near(this.x[i]!, this.y[i]!)) continue;
-      const cell = Math.floor(this.y[i]! / cs) * this.gridWidth + Math.floor(this.x[i]! / cs);
-      this.corpseEnergy[cell] = this.corpseEnergy[cell]! + this.bodyEnergy[i]! + this.energy[i]! + (this.fatOn ? this.fatStore[i]! : 0);
-      this.corpseMatter[cell] = this.corpseMatter[cell]! + this.bodyMatter[i]!;
-      this.energy[i] = 0;
-      this.killed[i] = 1;
+      if (this.killed[i] === 1 || !this.nearPoint(this.x[i]!, this.y[i]!, x0, y0, r2)) continue;
+      this.killToCorpse(i);
       killed++;
     }
     for (let cy = 0; cy < this.gridHeight; cy++) {
       for (let cx = 0; cx < this.gridWidth; cx++) {
-        if (!near((cx + 0.5) * cs, (cy + 0.5) * cs)) continue;
-        const cell = cy * this.gridWidth + cx;
-        this.detritus[cell] = this.detritus[cell]! + this.food[cell]!;
-        this.ledger.decayLoss += this.food[cell]! * c.energyPerFood;
-        this.food[cell] = 0;
+        if (!this.nearPoint((cx + 0.5) * cs, (cy + 0.5) * cs, x0, y0, r2)) continue;
+        this.crushPlants(cy * this.gridWidth + cx);
       }
     }
     this.worldEvents.push({ tick: this.tick, kind: "meteor", text: `A meteor strikes near (${Math.round(x0)}, ${Math.round(y0)}): ${killed} organisms killed` });
+  }
+
+  // --- Disaster events (Phase 8e) ---
+
+  /** A number drawn from the event stream, between lo and hi. */
+  private evDraw(lo: number, hi: number): number {
+    return lo + this.eventRng.next() * (hi - lo);
+  }
+
+  /** A random spot on land (or anywhere, if the world has no water), from the event stream. */
+  private randomLandPoint(): [number, number] {
+    const c = this.config;
+    let x = 0;
+    let y = 0;
+    for (let tries = 0; tries < 50; tries++) {
+      x = this.eventRng.range(0, c.worldWidth);
+      y = this.eventRng.range(0, c.worldHeight);
+      if (!this.terrainOn || this.passable[Math.floor(y / c.foodCellSize) * this.gridWidth + Math.floor(x / c.foodCellSize)] === 1) break;
+    }
+    return [x, y];
+  }
+
+  /** The cells whose middle lies within radius of (x0, y0), land only if the world has water. */
+  private cellsWithin(x0: number, y0: number, radius: number): number[] {
+    const cs = this.config.foodCellSize;
+    const r2 = radius * radius;
+    const out: number[] = [];
+    for (let cy = 0; cy < this.gridHeight; cy++) {
+      for (let cx = 0; cx < this.gridWidth; cx++) {
+        const cell = cy * this.gridWidth + cx;
+        if (this.terrainOn && this.passable[cell] === 0) continue;
+        if (this.nearPoint((cx + 0.5) * cs, (cy + 0.5) * cs, x0, y0, r2)) out.push(cell);
+      }
+    }
+    return out;
+  }
+
+  /** Roll the dice for each kind of disaster (in a fixed order), then run the ones going on. */
+  private eventsStep(): void {
+    const c = this.config;
+    const t = this.tick;
+    // Finished events end.
+    for (let k = this.activeEvents.length - 1; k >= 0; k--) {
+      const ev = this.activeEvents[k]!;
+      if (t >= ev.end || ((ev.kind === "wildfire") && ev.cells.length === 0)) this.endEvent(ev, k);
+    }
+    // Which cells are on fire now (worked out fresh, so a loaded world needs nothing extra).
+    if (this.fireOn) {
+      this.burning.fill(0);
+      for (const ev of this.activeEvents) if (ev.kind === "wildfire") for (const cell of ev.cells) this.burning[cell] = 1;
+    }
+    // New events begin. (One random number per kind per tick, only for kinds that are switched on.)
+    const roll = (every: number): boolean => every > 0 && this.eventRng.next() < 1 / every;
+    if (this.activeEvents.length < 64) {
+      if (roll(c.evIceAgeEvery)) this.beginClimateEvent("iceAge", c.evIceAgeCoolingMin, c.evIceAgeCoolingMax, c.evIceAgeLengthMin, c.evIceAgeLengthMax);
+      if (roll(c.evDroughtEvery)) this.beginClimateEvent("drought", c.evDroughtSeverityMin, c.evDroughtSeverityMax, c.evDroughtLengthMin, c.evDroughtLengthMax);
+      if (roll(c.evMeteorEvery)) {
+        const [x, y] = this.randomLandPoint();
+        this.meteorAt(x, y, this.evDraw(c.evMeteorRadiusMin, c.evMeteorRadiusMax));
+      }
+      if (roll(c.evFireEvery)) this.beginFire();
+      if (roll(c.evStormEvery)) this.beginStorm();
+      if (roll(c.evFloodEvery)) this.beginFlood();
+      if (roll(c.evVolcanoEvery)) this.beginVolcano();
+      if (roll(c.evBlightEvery)) this.beginBlight();
+      if (roll(c.evOutbreakEvery)) this.beginOutbreak();
+      if (roll(c.evGoodYearEvery)) this.beginGoodYear();
+    }
+    // The ones going on act, and the numbers the rest of the tick needs are worked out fresh (so a loaded world needs nothing extra).
+    this.evCooling = 0;
+    this.evDryness = 1;
+    this.evGrowthMult = 1;
+    const kinds = this.plantKinds > 1 ? this.plantKinds : 1;
+    if (this.evKindMult.length !== kinds) this.evKindMult = new Array<number>(kinds).fill(1);
+    else this.evKindMult.fill(1);
+    if (this.stormOn) this.stormCell.fill(0);
+    if (this.fireOn && this.activeEvents.some((ev) => ev.kind === "wildfire")) {
+      let sum = 0;
+      let land = 0;
+      for (let cell = 0; cell < this.food.length; cell++) {
+        if (this.foodCapacity[cell]! <= 0) continue;
+        sum += this.food[cell]!;
+        land++;
+      }
+      this.fuelRef = land > 0 ? sum / land : 0;
+    }
+    for (const ev of this.activeEvents) {
+      const span = ev.end - ev.start;
+      const p = (t - ev.start) / span;
+      const hump = 4 * p * (1 - p);
+      switch (ev.kind) {
+        case "iceAge":
+        case "volcano":
+          this.evCooling += ev.intensity * hump;
+          break;
+        case "drought":
+          this.evDryness *= 1 - ev.intensity * hump;
+          break;
+        case "goodYear":
+          this.evGrowthMult *= ev.intensity;
+          break;
+        case "blight":
+          if (ev.target < 0) for (let j = 0; j < kinds; j++) this.evKindMult[j] = this.evKindMult[j]! * ev.intensity;
+          else this.evKindMult[ev.target] = this.evKindMult[ev.target]! * ev.intensity;
+          break;
+        case "wildfire":
+          this.fireSpread(ev);
+          break;
+        case "storm":
+          this.stormBlow(ev);
+          break;
+        default:
+          break;
+      }
+    }
+    // Animals standing in flames die.
+    if (this.fireOn && this.activeEvents.some((ev) => ev.kind === "wildfire")) {
+      const cs = c.foodCellSize;
+      for (let i = 0; i < this.count; i++) {
+        if (this.killed[i] === 1) continue;
+        if (this.burning[Math.floor(this.y[i]! / cs) * this.gridWidth + Math.floor(this.x[i]! / cs)] === 1) this.killToCorpse(i);
+      }
+    }
+    // Ash left by volcanoes fades slowly.
+    if (this.ashOn) {
+      const keep = 1 - c.evVolcanoBoostFade;
+      for (let cell = 0; cell < this.ash.length; cell++) if (this.ash[cell]! > 0) this.ash[cell] = this.ash[cell]! * keep;
+    }
+  }
+
+  private endEvent(ev: ActiveEvent, index: number): void {
+    const t = this.tick;
+    this.activeEvents.splice(index, 1);
+    switch (ev.kind) {
+      case "iceAge":
+        this.worldEvents.push({ tick: t, kind: "recovery", text: "An ice age ends" });
+        break;
+      case "drought":
+        this.worldEvents.push({ tick: t, kind: "recovery", text: "A drought ends" });
+        break;
+      case "wildfire":
+        this.worldEvents.push({ tick: t, kind: "recovery", text: `The fire near (${Math.round(ev.x)}, ${Math.round(ev.y)}) burns out: ${ev.count} patches of ground burned` });
+        break;
+      case "storm":
+        this.worldEvents.push({ tick: t, kind: "recovery", text: `The storm near (${Math.round(ev.x)}, ${Math.round(ev.y)}) blows itself out` });
+        break;
+      case "flood": {
+        // The water goes down (cells that are water for good were never in the list).
+        for (const cell of ev.cells) this.passable[cell] = 1;
+        this.worldEvents.push({ tick: t, kind: "recovery", text: `The flood near (${Math.round(ev.x)}, ${Math.round(ev.y)}) drains away` });
+        break;
+      }
+      case "volcano":
+        this.worldEvents.push({ tick: t, kind: "recovery", text: "The volcano's ash cloud clears" });
+        break;
+      case "blight":
+        this.worldEvents.push({ tick: t, kind: "recovery", text: "The plant blight ends" });
+        break;
+      case "goodYear":
+        this.worldEvents.push({ tick: t, kind: "recovery", text: "The good year ends" });
+        break;
+    }
+  }
+
+  private newEvent(kind: DisasterKind, length: number, x: number, y: number, radius: number, intensity: number, target = 0): ActiveEvent {
+    const ev: ActiveEvent = { kind, start: this.tick, end: this.tick + length, x, y, radius, intensity, target, cells: [], left: [], count: 0 };
+    this.activeEvents.push(ev);
+    return ev;
+  }
+
+  /** An ice age or a drought: the same shape as the older catastrophes (builds up, worst in the middle, fades). */
+  private beginClimateEvent(kind: "iceAge" | "drought", loValue: number, hiValue: number, loLength: number, hiLength: number): void {
+    const intensity = this.evDraw(loValue, hiValue);
+    const length = Math.max(2, Math.round(this.evDraw(loLength, hiLength)));
+    this.newEvent(kind, length, 0, 0, 0, intensity);
+    this.worldEvents.push({
+      tick: this.tick,
+      kind,
+      text: kind === "iceAge" ? `An ice age begins: up to ${Math.round(intensity * 100) / 100} colder everywhere for ${length} ticks` : `A drought begins: plant growth falls by up to ${Math.round(intensity * 100)}% for ${length} ticks`,
+    });
+  }
+
+  /** Light a fire on a patch of land, preferring dry ground with a lot of plants standing on it. */
+  private beginFire(): void {
+    const c = this.config;
+    const cs = c.foodCellSize;
+    // Fire starts where it can: of a few random spots, the one with most to burn.
+    let bestX = 0;
+    let bestY = 0;
+    let bestScore = -1;
+    for (let tries = 0; tries < 8; tries++) {
+      const [x, y] = this.randomLandPoint();
+      const cell = Math.floor(y / cs) * this.gridWidth + Math.floor(x / cs);
+      const score = this.food[cell]! * (this.climateOn ? 2 - Math.min(1, this.growthFactor[cell]!) : 1.5);
+      if (score > bestScore) {
+        bestScore = score;
+        bestX = x;
+        bestY = y;
+      }
+    }
+    const radius = this.evDraw(c.evFireRadiusMin, c.evFireRadiusMax);
+    const spread = this.evDraw(c.evFireSpreadMin, c.evFireSpreadMax);
+    const length = Math.max(2, Math.round(this.evDraw(c.evFireLengthMin, c.evFireLengthMax)));
+    const ev = this.newEvent("wildfire", length, bestX, bestY, radius, spread);
+    for (const cell of this.cellsWithin(bestX, bestY, radius)) this.igniteCell(ev, cell);
+    this.worldEvents.push({ tick: this.tick, kind: "wildfire", text: `A wildfire starts near (${Math.round(bestX)}, ${Math.round(bestY)}): spread chance ${Math.round(spread * 100) / 100}, up to ${length} ticks` });
+  }
+
+  private igniteCell(ev: ActiveEvent, cell: number): void {
+    if (this.burning[cell] === 1) return;
+    this.burning[cell] = 1;
+    ev.cells.push(cell);
+    ev.left.push(this.config.evFireCellBurn);
+    ev.count++;
+    this.burnPlants(cell);
+  }
+
+  /** One tick of a fire: burning ground may light its four neighbors (more likely where plants are thick and the ground is dry), then burns down. */
+  private fireSpread(ev: ActiveEvent): void {
+    const c = this.config;
+    const gw = this.gridWidth;
+    const gh = this.gridHeight;
+    const weight = c.evFireDryWeight;
+    const burningNow = ev.cells.length;
+    const lit: number[] = [];
+    for (let k = 0; k < burningNow; k++) {
+      const cell = ev.cells[k]!;
+      this.burnPlants(cell); // anything that grew back while it was burning goes too
+      const cx = cell % gw;
+      const cy = (cell - cx) / gw;
+      for (let side = 0; side < 4; side++) {
+        const nx = side === 0 ? wrapCell(cx + 1, gw) : side === 1 ? wrapCell(cx - 1, gw) : cx;
+        const ny = side === 2 ? wrapCell(cy + 1, gh) : side === 3 ? wrapCell(cy - 1, gh) : cy;
+        const nb = ny * gw + nx;
+        if (this.burning[nb] === 1 || (this.terrainOn && this.passable[nb] === 0)) continue;
+        if (!(this.foodCapacity[nb]! > 0) || !(this.food[nb]! > 0) || !(this.fuelRef > 0)) continue;
+        // (How much there is to burn is judged against the average cell, so a fire behaves alike in rich and poor worlds.)
+        const share = Math.min(1, this.food[nb]! / this.fuelRef);
+        const dry = this.climateOn ? Math.max(0, 1 - this.growthFactor[nb]!) : 0.5;
+        if (this.eventRng.next() < ev.intensity * share * (1 - weight + weight * dry)) {
+          this.burning[nb] = 1; // (so no one else lights it again this tick)
+          lit.push(nb);
+        }
+      }
+    }
+    // Cells burn for a few ticks, then go out.
+    let kept = 0;
+    for (let k = 0; k < burningNow; k++) {
+      const left = ev.left[k]! - 1;
+      if (left > 0) {
+        ev.cells[kept] = ev.cells[k]!;
+        ev.left[kept] = left;
+        kept++;
+      } else {
+        this.burning[ev.cells[k]!] = 0;
+      }
+    }
+    ev.cells.length = kept;
+    ev.left.length = kept;
+    for (const cell of lit) {
+      ev.cells.push(cell);
+      ev.left.push(c.evFireCellBurn);
+      ev.count++;
+      this.burnPlants(cell);
+    }
+  }
+
+  private beginStorm(): void {
+    const c = this.config;
+    const [x, y] = this.randomLandPoint();
+    const radius = this.evDraw(c.evStormRadiusMin, c.evStormRadiusMax);
+    const push = this.evDraw(c.evStormPushMin, c.evStormPushMax);
+    const length = Math.max(2, Math.round(this.evDraw(c.evStormLengthMin, c.evStormLengthMax)));
+    const wind = this.eventRng.int(8);
+    this.newEvent("storm", length, x, y, radius, push, wind);
+    this.worldEvents.push({ tick: this.tick, kind: "storm", text: `A storm blows up near (${Math.round(x)}, ${Math.round(y)}), radius ${Math.round(radius)}, for ${length} ticks` });
+  }
+
+  /** One tick of a storm: animals are shoved downwind, moving costs more, and some soil is blown to the next cell downwind. */
+  private stormBlow(ev: ActiveEvent): void {
+    const c = this.config;
+    const W = c.worldWidth;
+    const H = c.worldHeight;
+    const cs = c.foodCellSize;
+    const gw = this.gridWidth;
+    const gh = this.gridHeight;
+    const r2 = ev.radius * ev.radius;
+    const gust = ev.intensity * (0.5 + unitHash(this.tick, ev.start)); // the same shove for everyone, so colonies stay together
+    const wx = DIR_X[ev.target]! * gust;
+    const wy = DIR_Y[ev.target]! * gust;
+    for (let i = 0; i < this.count; i++) {
+      if (this.killed[i] === 1 || !this.nearPoint(this.x[i]!, this.y[i]!, ev.x, ev.y, r2)) continue;
+      let nx = this.x[i]! + wx;
+      let ny = this.y[i]! + wy;
+      nx -= Math.floor(nx / W) * W;
+      ny -= Math.floor(ny / H) * H;
+      nx = Math.fround(nx);
+      ny = Math.fround(ny);
+      if (nx >= W) nx = 0;
+      if (ny >= H) ny = 0;
+      if (this.terrainOn && this.passable[Math.floor(ny / cs) * gw + Math.floor(nx / cs)] === 0) continue; // no blowing into water
+      this.x[i] = nx;
+      this.y[i] = ny;
+    }
+    // Soil: a share of each cell's nutrient moves one cell downwind (taken from all cells first, then added, so order does not matter).
+    const stepX = DIR_X[ev.target]! > 0.5 ? 1 : DIR_X[ev.target]! < -0.5 ? -1 : 0;
+    const stepY = DIR_Y[ev.target]! > 0.5 ? 1 : DIR_Y[ev.target]! < -0.5 ? -1 : 0;
+    const delta = this.stormDelta;
+    delta.fill(0);
+    const share = c.evStormSoilShare;
+    for (let cy = 0; cy < gh; cy++) {
+      for (let cx = 0; cx < gw; cx++) {
+        if (!this.nearPoint((cx + 0.5) * cs, (cy + 0.5) * cs, ev.x, ev.y, r2)) continue;
+        const cell = cy * gw + cx;
+        this.stormCell[cell] = 1;
+        const to = wrapCell(cy + stepY, gh) * gw + wrapCell(cx + stepX, gw);
+        if (to === cell || (this.terrainOn && this.passable[to] === 0)) continue;
+        const moved = this.nutrient[cell]! * share;
+        delta[cell] = delta[cell]! - moved;
+        delta[to] = delta[to]! + moved;
+      }
+    }
+    for (let cell = 0; cell < delta.length; cell++) if (delta[cell] !== 0) this.nutrient[cell] = this.nutrient[cell]! + delta[cell]!;
+  }
+
+  private beginFlood(): void {
+    const c = this.config;
+    const [x, y] = this.randomLandPoint();
+    const radius = this.evDraw(c.evFloodRadiusMin, c.evFloodRadiusMax);
+    const length = Math.max(2, Math.round(this.evDraw(c.evFloodLengthMin, c.evFloodLengthMax)));
+    const ev = this.newEvent("flood", length, x, y, radius, 0);
+    ev.cells = this.cellsWithin(x, y, radius); // (only cells that are dry land now)
+    for (const cell of ev.cells) {
+      this.passable[cell] = 0;
+      this.crushPlants(cell);
+    }
+    // Animals caught in the water are carried to the nearest dry ground.
+    let moved = 0;
+    const cs = c.foodCellSize;
+    for (let i = 0; i < this.count; i++) {
+      if (this.killed[i] === 1) continue;
+      const cell = Math.floor(this.y[i]! / cs) * this.gridWidth + Math.floor(this.x[i]! / cs);
+      if (this.passable[cell] !== 0) continue;
+      if (this.moveToDryGround(i, cell)) moved++;
+    }
+    this.worldEvents.push({ tick: this.tick, kind: "flood", text: `A flood covers ${ev.cells.length} patches of ground near (${Math.round(x)}, ${Math.round(y)}) for ${length} ticks; ${moved} animals washed to dry land` });
+  }
+
+  /** Put organism i on the nearest dry cell (looking outward ring by ring); false if there is none. */
+  private moveToDryGround(i: number, from: number): boolean {
+    const gw = this.gridWidth;
+    const gh = this.gridHeight;
+    const cs = this.config.foodCellSize;
+    const fx = from % gw;
+    const fy = (from - fx) / gw;
+    const reach = Math.max(gw, gh) >> 1;
+    for (let ring = 1; ring <= reach; ring++) {
+      let best = -1;
+      let bestDist = Infinity;
+      for (let dy = -ring; dy <= ring; dy++) {
+        for (let dx = -ring; dx <= ring; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue;
+          const cell = wrapCell(fy + dy, gh) * gw + wrapCell(fx + dx, gw);
+          if (this.passable[cell] === 0) continue;
+          const d = dx * dx + dy * dy;
+          if (d < bestDist) {
+            bestDist = d;
+            best = cell;
+          }
+        }
+      }
+      if (best >= 0) {
+        const bx = best % gw;
+        const by = (best - bx) / gw;
+        // A little scatter so the washed-up animals do not all sit on one point.
+        this.x[i] = Math.fround((bx + 0.1 + 0.8 * unitHash(this.id[i]!, this.tick)) * cs);
+        this.y[i] = Math.fround((by + 0.1 + 0.8 * unitHash(this.id[i]!, this.tick + 7919)) * cs);
+        this.cellOf[i] = best;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private beginVolcano(): void {
+    const c = this.config;
+    const [x, y] = this.randomLandPoint();
+    const radius = this.evDraw(c.evVolcanoRadiusMin, c.evVolcanoRadiusMax);
+    const cooling = this.evDraw(c.evVolcanoCoolingMin, c.evVolcanoCoolingMax);
+    const length = Math.max(2, Math.round(this.evDraw(c.evVolcanoLengthMin, c.evVolcanoLengthMax)));
+    this.newEvent("volcano", length, x, y, radius, cooling);
+    const r2 = radius * radius;
+    let killed = 0;
+    for (let i = 0; i < this.count; i++) {
+      if (this.killed[i] === 1 || !this.nearPoint(this.x[i]!, this.y[i]!, x, y, r2)) continue;
+      this.killToCorpse(i);
+      killed++;
+    }
+    for (const cell of this.cellsWithin(x, y, radius)) this.burnPlants(cell);
+    // Richer ground around it: biggest at the crater, thinning to nothing at reach times the radius.
+    const reach = radius * c.evVolcanoBoostReach;
+    const cs = c.foodCellSize;
+    for (const cell of this.cellsWithin(x, y, reach)) {
+      const cx = cell % this.gridWidth;
+      const cy = (cell - cx) / this.gridWidth;
+      let dx = (cx + 0.5) * cs - x;
+      let dy = (cy + 0.5) * cs - y;
+      if (dx > c.worldWidth / 2) dx -= c.worldWidth;
+      else if (dx < -c.worldWidth / 2) dx += c.worldWidth;
+      if (dy > c.worldHeight / 2) dy -= c.worldHeight;
+      else if (dy < -c.worldHeight / 2) dy += c.worldHeight;
+      const boost = c.evVolcanoBoost * (1 - Math.sqrt(dx * dx + dy * dy) / reach);
+      if (boost > this.ash[cell]!) this.ash[cell] = boost;
+    }
+    this.worldEvents.push({ tick: this.tick, kind: "volcano", text: `A volcano erupts near (${Math.round(x)}, ${Math.round(y)}): ${killed} organisms killed, the world cools by up to ${Math.round(cooling * 100) / 100} for ${length} ticks` });
+  }
+
+  private beginBlight(): void {
+    const c = this.config;
+    const left = this.evDraw(c.evBlightGrowthMin, c.evBlightGrowthMax);
+    const length = Math.max(2, Math.round(this.evDraw(c.evBlightLengthMin, c.evBlightLengthMax)));
+    const kind = this.plantKinds > 1 ? this.eventRng.int(this.plantKinds) : -1;
+    this.newEvent("blight", length, 0, 0, 0, left, kind);
+    this.worldEvents.push({
+      tick: this.tick,
+      kind: "blight",
+      text: `A plant blight hits ${kind < 0 ? "all plants" : `plant kind ${kind + 1}`}: they grow at ${Math.round(left * 100)}% of normal for ${length} ticks`,
+    });
+  }
+
+  /** A new strain starts in a cluster of animals and keeps them sick longer than usual. */
+  private beginOutbreak(): void {
+    const c = this.config;
+    const [x, y] = this.randomLandPoint();
+    const r2 = c.evOutbreakRadius * c.evOutbreakRadius;
+    const hosts: number[] = [];
+    for (let i = 0; i < this.count && hosts.length < c.evOutbreakHosts; i++) {
+      if (this.killed[i] === 1 || this.sickFor[i]! > 0 || this.immuneFor[i]! > 0 || !this.nearPoint(this.x[i]!, this.y[i]!, x, y, r2)) continue;
+      hosts.push(i);
+    }
+    if (hosts.length === 0) {
+      this.worldEvents.push({ tick: this.tick, kind: "outbreak", text: `An outbreak near (${Math.round(x)}, ${Math.round(y)}) fizzles: nobody there to catch it` });
+      return;
+    }
+    this.newStrainIn(hosts[0]!);
+    const strain = this.strains.length;
+    const sickness = Math.round(c.diseaseDuration * c.evOutbreakDurationMult);
+    this.sickFor[hosts[0]!] = sickness;
+    for (let k = 1; k < hosts.length; k++) {
+      this.infection[hosts[k]!] = strain;
+      this.sickFor[hosts[k]!] = sickness;
+      this.totalInfections++;
+    }
+    this.worldEvents.push({ tick: this.tick, kind: "outbreak", text: `A new, nastier disease breaks out near (${Math.round(x)}, ${Math.round(y)}): ${hosts.length} animals sick` });
+  }
+
+  private beginGoodYear(): void {
+    const c = this.config;
+    const boost = this.evDraw(c.evGoodYearBoostMin, c.evGoodYearBoostMax);
+    const length = Math.max(2, Math.round(this.evDraw(c.evGoodYearLengthMin, c.evGoodYearLengthMax)));
+    this.newEvent("goodYear", length, 0, 0, 0, boost);
+    this.worldEvents.push({ tick: this.tick, kind: "goodYear", text: `A good year begins: plants grow ${Math.round((boost - 1) * 100)}% faster for ${length} ticks` });
+  }
+
+  /** What the Events map layer shows: 1 burning, 2 flooded, 3 storm, 4 volcanic ground (0 nothing). */
+  eventMap(): Uint8Array {
+    const out = new Uint8Array(this.food.length);
+    if (!this.eventsOn) return out;
+    if (this.ashOn) for (let cell = 0; cell < out.length; cell++) if (this.ash[cell]! > 0.02) out[cell] = 4;
+    for (const ev of this.activeEvents) {
+      if (ev.kind === "wildfire") for (const cell of ev.cells) out[cell] = 1;
+      else if (ev.kind === "flood") for (const cell of ev.cells) out[cell] = 2;
+    }
+    if (this.stormOn) for (let cell = 0; cell < out.length; cell++) if (this.stormCell[cell] === 1 && out[cell] === 0) out[cell] = 3;
+    return out;
+  }
+
+  /** Are any disaster events switched on in this world? */
+  get eventsEnabled(): boolean {
+    return this.eventsOn;
+  }
+
+  /** The disasters going on now, for the viewer. */
+  get currentEvents(): readonly ActiveEvent[] {
+    return this.activeEvents;
   }
 
   /** Fill in the terrain arrays from a biome map, and scale plant growth by biome. */
@@ -1234,6 +1846,13 @@ export class Simulation {
     if (this.sexOn) this.parent2Id[i] = 0;
     if (this.sexGeneOn) this.sexMode[i] = 0;
     if (this.fatOn) this.fatStore[i] = 0;
+    if (this.toxOn) {
+      // A newborn remembers nothing (every field is cleared, so a reused slot never carries an old animal's memory).
+      this.avoidStrength[i] = 0;
+      this.avoidHue[i] = 0;
+      this.lastKillHue[i] = 0;
+      this.lastKillTick[i] = 0;
+    }
     if (this.loadOn) this.loadMask[i] = 0;
     if (this.luckOn) {
       this.upkeepLuck[i] = this.rollLuck();
@@ -1423,6 +2042,7 @@ export class Simulation {
       this.basalCost[i] = this.basalCost[i]! * (1 + c.mutationLoadCost * spots + c.mutationLoadSynergy * spots * spots);
     }
     if (this.luckOn) this.basalCost[i] = this.basalCost[i]! * this.upkeepLuck[i]!;
+    if (this.toxOn) this.basalCost[i] = this.basalCost[i]! * (1 + c.toxinUpkeep * genes[g + GENE.toxicity]!);
   }
 
   /** Give a new organism (at index `child`) a mutated copy of its parent's genes. */
@@ -1450,6 +2070,24 @@ export class Simulation {
       sum += d * d;
     }
     return sum / this.mateMask.length;
+  }
+
+  /** Does this hunter pass up this prey because of its color? (A fixed scramble of the glance period and the pair, so no random draw.) */
+  private avoids(viewer: number, target: number): boolean {
+    const c = this.config;
+    let d = this.genes[target * GENE_COUNT + GENE.hue]! - this.avoidHue[viewer]!;
+    if (d < 0) d = -d;
+    if (d > 0.5) d = 1 - d;
+    if (d >= c.avoidWidth) return false;
+    const glance = Math.floor(this.tick / c.camoGlance);
+    const u = ((Math.imul(glance + 1, 0x7feb352d) ^ Math.imul(this.id[viewer]! + 1, 0x846ca68b) ^ Math.imul(this.id[target]! + 1, 0xa5a5a5a5)) >>> 0) / 4294967296;
+    return u < this.avoidStrength[viewer]!;
+  }
+
+  /** A new body joins the corpse in a cell: mix its toxicity in, weighted by matter. */
+  private foldToxin(cell: number, matterBefore: number, matterAdded: number, toxin: number): void {
+    const total = matterBefore + matterAdded;
+    this.corpseToxin[cell] = total > 0 ? (this.corpseToxin[cell]! * matterBefore + toxin * matterAdded) / total : 0;
   }
 
   /** One roll of luck: a bell curve around 1, cut off a set number of spreads either way. */
@@ -1489,6 +2127,14 @@ export class Simulation {
     let sum = 0;
     for (let i = 0; i < this.count; i++) sum += this.badSpots(i);
     return sum / this.count;
+  }
+
+  /** Count one blocked birth, by what blocked it. (One attempt can be short of both soil and energy at once.) */
+  private noteBlockedBirth(soilShort: boolean, energyShort: boolean): void {
+    this.blockedBirths++;
+    if (soilShort && energyShort) this.blockedBirthsBoth++;
+    else if (soilShort) this.blockedBirthsSoil++;
+    else this.blockedBirthsEnergy++;
   }
 
   /** Hand down the harmful mutations: all of one parent's, or a mix of two parents' (each spot from one or the other), then new ones. */
@@ -2526,7 +3172,14 @@ export class Simulation {
     const c = this.config;
     const strainId = this.infection[this.diseaseHost]!;
     const antigen = this.strains[strainId - 1]!;
-    if (this.rng.next() >= c.diseaseTransmission * this.susceptibility(index, antigen)) return;
+    let chance = c.diseaseTransmission * this.susceptibility(index, antigen);
+    if (this.foulOn) {
+      // Disease passes on more easily on fouled ground (where the sick animal is standing).
+      const mean = this.foulMeanNow;
+      const excess = mean > 0 ? this.foul[this.cellOf[this.diseaseHost]!]! / mean - c.foulFree : 0;
+      if (excess > 0) chance *= 1 + c.foulDiseaseEffect * excess;
+    }
+    if (this.rng.next() >= chance) return;
     let carried = strainId;
     // Now and then the strain changes: its target moves toward the genes of its new host (it adapts to whoever is common).
     if (c.diseaseMutationProb > 0 && this.rng.next() < c.diseaseMutationProb && this.strains.length < 65000) {
@@ -2541,9 +3194,22 @@ export class Simulation {
     this.pending[index] = carried;
   };
 
+  /** The average fouling over all the land (worked out fresh from the index, so a saved world needs nothing extra). */
+  private meanFoul(): number {
+    let sum = 0;
+    let land = 0;
+    for (let cell = 0; cell < this.foul.length; cell++) {
+      if (this.foodCapacity[cell]! <= 0) continue;
+      sum += this.foul[cell]!;
+      land++;
+    }
+    return land > 0 ? sum / land : 0;
+  }
+
   /** One tick of disease: new strains arrive, sick organisms infect their neighbors, sickness and immunity run down. */
   private diseaseStep(n: number): void {
     const c = this.config;
+    if (this.foulOn) this.foulMeanNow = this.meanFoul(); // once a tick, for tryInfect to use
     if (n > 0 && this.rng.next() < 1 / c.diseaseIntroEvery) {
       const j = this.rng.int(n);
       if (this.sickFor[j] === 0 && this.immuneFor[j] === 0) this.newStrainIn(j);
@@ -2690,6 +3356,7 @@ export class Simulation {
     const brainMode = c.brainMode;
     let attackers = 0;
     if (c.catastropheKind !== 0) this.catastropheCheck();
+    if (this.eventsOn) this.eventsStep();
     if (this.climateOn) this.updateClimate();
     // Bonded cells even out their energy and turn toward their neighbors' heading.
     if (this.bondsOn) {
@@ -2912,6 +3579,7 @@ export class Simulation {
     for (let i = 0; i < n; i++) {
       if (this.killed[i] === 1) continue;
       const cell = this.cellOf[i]!;
+      if (this.foulOn) this.foul[cell] = this.foul[cell]! + c.fouling * this.size[i]!; // every animal fouls the ground it stands on
 
       // Standing still lets an organism with a brain eat faster (it must decide: roam or graze).
       const eatBonus = brainMode > 0 ? 1 + c.brainStillEatBonus * (1 - Math.min(this.moveScale[i]!, 1)) : 1;
@@ -2922,6 +3590,36 @@ export class Simulation {
       meatClaim[cell] = meatClaim[cell]! + meatMass;
       const plantRaw = plantMass * energyPerFood;
       const meatRaw = meatMass * meatDensity[cell]!;
+      let toxinLoss = 0;
+      if (this.toxOn) {
+        const conc = this.corpseToxin[cell]!;
+        if (meatRaw > 0 && conc > 0) {
+          // Poisoned: the meal costs extra energy (lost as heat, on the upkeep line).
+          toxinLoss = c.toxinStrength * conc * meatRaw;
+          // A hunter poisoned soon after its own kill remembers the color of what it killed.
+          if (this.lastKillTick[i]! > 0 && this.tick - this.lastKillTick[i]! <= 3) {
+            const have = this.avoidStrength[i]!;
+            const add = c.avoidLearn * conc;
+            const now = have + add > 1 ? 1 : have + add;
+            if (have <= 0) this.avoidHue[i] = this.lastKillHue[i]!;
+            else {
+              // Blend the new color in, weighted by how strong the new lesson is against the old memory (the short way round the wheel).
+              let diff = this.lastKillHue[i]! - this.avoidHue[i]!;
+              if (diff > 0.5) diff -= 1;
+              else if (diff < -0.5) diff += 1;
+              let hue = this.avoidHue[i]! + (diff * add) / (have + add);
+              if (hue < 0) hue += 1;
+              else if (hue >= 1) hue -= 1;
+              this.avoidHue[i] = hue;
+            }
+            this.avoidStrength[i] = now;
+          }
+        }
+        if (this.avoidStrength[i]! > 0) {
+          const faded = this.avoidStrength[i]! * (1 - c.avoidFade);
+          this.avoidStrength[i] = faded < 1e-4 ? 0 : faded;
+        }
+      }
       const plantGain = plantRaw * this.plantEff[i]! * (this.plantKinds > 1 ? this.palateMatch(i, cell) : 1);
       const meatGain = meatRaw * this.meatEff[i]!;
       plantEnergyTaken += plantRaw;
@@ -2978,7 +3676,7 @@ export class Simulation {
         this.logEvent("firstScavenger", this.id[i]!, `Organism #${this.id[i]!} lived mostly off a corpse: the first scavenger`);
       }
 
-      let basal = this.basalCost[i]!;
+      let basal = this.basalCost[i]! + toxinLoss;
       if (this.agingOn) {
         // Past its prime, a body wears out faster and faster.
         const lifespan = this.lifespan[i]!;
@@ -3006,6 +3704,7 @@ export class Simulation {
       // Moving costs more the faster the brain drives the body (cost grows with speed squared).
       let move = brainMode > 0 ? this.moveCost[i]! * this.moveScale[i]! * this.moveScale[i]! : this.moveCost[i]!;
       if (this.terrainOn) move *= this.terrainMove[cell]!; // mountains and forest cost more to cross
+      if (this.stormOn && this.stormCell[cell] === 1) move *= c.evStormMoveCost; // fighting the wind
       if (this.fatOn) move *= 1 + c.fatMoveCost * (this.fatStore[i]! / this.threshold[i]!);
       if (this.torporOn) move *= (1 - this.torpid[i]!) * (1 - this.torpid[i]!); // slower costs less (cost goes with speed squared)
       if (this.staminaOn) move += this.staminaCost[i]!; // the upkeep of the sprint reserve counts as movement
@@ -3049,6 +3748,7 @@ export class Simulation {
     const corpseEnergy = this.corpseEnergy;
     const detritus = this.detritus;
     const meatDecay = c.meatDecayRate;
+    const foulMean = this.foulOn ? this.meanFoul() : 0;
     const mineralize = c.detritusMineralizeRate;
     const halfSat = c.nutrientHalfSaturation;
     for (let cell = 0; cell < food.length; cell++) {
@@ -3086,10 +3786,48 @@ export class Simulation {
       detritus[cell] = detritusHere - mineralized;
       let soil = nutrient[cell]! + mineralized;
 
+      // Erosion: ground that stays bare wears away (and recovers when covered). Soil health scales regrowth and the ceiling.
+      let health = 1;
+      let ceiling = this.foodCapacity[cell]!;
+      if (this.erodeOn && ceiling > 0) {
+        const ratio = food[cell]! / ceiling;
+        health = this.soilHealth[cell]!;
+        if (ratio < c.erosionBelow) health -= c.erosionRate;
+        else if (ratio > c.erosionRecoverAbove) health += c.erosionRecovery;
+        health = health < c.erosionMin ? c.erosionMin : health > 1 ? 1 : health;
+        this.soilHealth[cell] = health;
+        ceiling *= health;
+      }
+      if (this.ashOn) ceiling *= 1 + this.ash[cell]!; // ground enriched by a volcano holds more plants
       // Plants grow, limited by sunlight (the rate), nutrient, and room.
-      const room = this.foodCapacity[cell]! - food[cell]!;
+      const room = ceiling - food[cell]!;
       let potential = (this.foodRegrow[cell]! * soil) / (soil + halfSat);
       if (climateOn) potential *= this.growthFactor[cell]!;
+      potential *= health;
+      if (this.eventsOn) {
+        // Disasters: a blight or a good year changes the growth rate, volcanic ash raises it (and the ceiling), and flooded ground grows nothing.
+        potential *= this.evGrowthMult * this.evKindMult[this.plantKinds > 1 ? this.plantTypeOf[cell]! : 0]!;
+        if (this.ashOn) potential *= 1 + this.ash[cell]!;
+        if (this.floodOn && this.passable[cell] === 0) potential = 0;
+      }
+      if (this.foulOn) {
+        // Fouling: ground that is much more crowded than average grows plants more slowly. Then the fouling fades a little.
+        const excess = foulMean > 0 ? this.foul[cell]! / foulMean - c.foulFree : 0;
+        if (excess > 0) potential /= 1 + c.foulGrowthEffect * excess;
+        this.foul[cell] = this.foul[cell]! * (1 - c.foulDecay);
+      }
+      if (this.grazeOn) {
+        // Overgrazing: a cell eaten bare gains damage, and damaged ground regrows slowly.
+        const capacity = this.foodCapacity[cell]!;
+        if (capacity > 0) {
+          let damage = this.grazing[cell]!;
+          if (food[cell]! < c.overgrazeBelow * capacity) damage += c.overgrazeDamage;
+          else damage -= c.overgrazeHeal;
+          damage = damage < 0 ? 0 : damage > 1 ? 1 : damage;
+          this.grazing[cell] = damage;
+          potential *= 1 - c.overgrazePenalty * damage;
+        }
+      }
       let growth = potential < soil ? potential : soil;
       if (growth > room) growth = room > 0 ? room : 0;
       food[cell] = food[cell]! + growth;
@@ -3172,7 +3910,7 @@ export class Simulation {
           if (nutrient[cell]! < this.bodyMatter[child]! || store < 0) {
             this.count--;
             this.nextId = savedNextId;
-            this.blockedBirths++;
+            this.noteBlockedBirth(nutrient[cell]! < this.bodyMatter[child]!, store < 0);
             continue;
           }
           nutrient[cell] = nutrient[cell]! - this.bodyMatter[child]!;
@@ -3216,7 +3954,7 @@ export class Simulation {
             // Cannot afford this baby right now: undo it. The parent keeps its energy and tries again later.
             this.count--;
             this.nextId = savedNextId;
-            this.blockedBirths++;
+            this.noteBlockedBirth(nutrient[cell]! < this.bodyMatter[child]!, store < 0);
             continue;
           }
           nutrient[cell] = nutrient[cell]! - this.bodyMatter[child]!;
@@ -3249,6 +3987,7 @@ export class Simulation {
       } else if (this.energy[i]! <= 0) {
         const cell = this.cellOf[i]!;
         corpseEnergy[cell] = corpseEnergy[cell]! + this.bodyEnergy[i]! + (this.fatOn ? this.fatStore[i]! : 0);
+        if (this.toxOn) this.foldToxin(cell, corpseMatter[cell]!, this.bodyMatter[i]!, this.genes[i * GENE_COUNT + GENE.toxicity]!);
         corpseMatter[cell] = corpseMatter[cell]! + this.bodyMatter[i]!;
         starved++;
         if (this.bondsOn) this.breakBonds(i);
@@ -3291,6 +4030,11 @@ export class Simulation {
 
   private kill(attacker: number, prey: number): void {
     const cell = this.cellOf[prey]!;
+    if (this.toxOn) {
+      // Remember what was killed and when, in case the meal turns out to be poisonous.
+      this.lastKillHue[attacker] = this.genes[prey * GENE_COUNT + GENE.hue]!;
+      this.lastKillTick[attacker] = this.tick + 1;
+    }
     if (this.camoOn) {
       // The hunter remembers the color of its meal: its search image moves toward it (the short way round the color wheel).
       const preyHue = this.genes[prey * GENE_COUNT + GENE.hue]!;
@@ -3312,6 +4056,7 @@ export class Simulation {
       this.corpseOwnerUntil[cell] = this.tick + this.config.killOwnershipTicks;
     }
     this.corpseEnergy[cell] = this.corpseEnergy[cell]! + this.bodyEnergy[prey]! + this.energy[prey]! + (this.fatOn ? this.fatStore[prey]! : 0);
+    if (this.toxOn) this.foldToxin(cell, this.corpseMatter[cell]!, this.bodyMatter[prey]!, this.genes[prey * GENE_COUNT + GENE.toxicity]!);
     this.corpseMatter[cell] = this.corpseMatter[cell]! + this.bodyMatter[prey]!;
     this.energy[prey] = 0;
     this.killed[prey] = 1;
@@ -3419,11 +4164,16 @@ export class Simulation {
       totalKills: this.totalKills,
       totalStarved: this.totalStarved,
       blockedBirths: this.blockedBirths,
+      blockedBirthsSoil: this.blockedBirthsSoil,
+      blockedBirthsEnergy: this.blockedBirthsEnergy,
+      blockedBirthsBoth: this.blockedBirthsBoth,
       totalAttacks: this.totalAttacks,
       seen: [this.seenScavenger, this.seenKill, this.seenPredator, this.seenCarnivore],
       events: this.events,
       worldEvents: this.worldEvents,
       catastrophe: [this.catKind, this.catStart, this.catEnd],
+      // (Only in worlds with disaster events, so older saved worlds still load.)
+      ...(this.eventsOn ? { activeEvents: this.activeEvents, eventRng: Array.from(this.eventRng.getState()) } : {}),
       strains: this.strains.map((a) => Array.from(a)),
       totalInfections: this.totalInfections,
       ledger: this.ledger,
@@ -3450,6 +4200,12 @@ export class Simulation {
       ["food", this.food],
       ["foodCapacity", this.foodCapacity],
       ["foodRegrow", this.foodRegrow],
+      // (Each of these only in worlds where its feature is on, so worlds saved before it existed still load.)
+      ...(this.toxOn ? ([["corpseToxin", this.corpseToxin]] as [string, SnapshotArray][]) : []),
+      ...(this.erodeOn ? ([["soilHealth", this.soilHealth]] as [string, SnapshotArray][]) : []),
+      ...(this.ashOn ? ([["ash", this.ash]] as [string, SnapshotArray][]) : []),
+      ...(this.foulOn ? ([["foul", this.foul]] as [string, SnapshotArray][]) : []),
+      ...(this.grazeOn ? ([["grazing", this.grazing]] as [string, SnapshotArray][]) : []),
       ["nutrient", this.nutrient],
       ["corpseMatter", this.corpseMatter],
       ["corpseEnergy", this.corpseEnergy],
@@ -3484,10 +4240,15 @@ export class Simulation {
       totalKills: number;
       totalStarved: number;
       blockedBirths: number;
+      blockedBirthsSoil?: number;
+      blockedBirthsEnergy?: number;
+      blockedBirthsBoth?: number;
       totalAttacks: number;
       seen: boolean[];
       events: SimEvent[];
       worldEvents: WorldEvent[];
+      activeEvents?: ActiveEvent[];
+      eventRng?: number[];
       catastrophe: [number, number, number];
       strains?: number[][];
       totalInfections?: number;
@@ -3500,7 +4261,17 @@ export class Simulation {
     this.uint32Fields.forEach((array, k) => take(`u32.${k}`, array));
     this.uint16Fields.forEach((array, k) => take(`u16.${k}`, array));
     this.uint8Fields.forEach((array, k) => take(`u8.${k}`, array));
-    take("genes", this.genes);
+    // A world saved before a gene was added has fewer genes per animal. Copy each animal's genes
+    // across at its own spacing so they line up (genes it never had stay 0: they are not in use there).
+    const savedGenes = snapshot.arrays.genes;
+    const savedStride = savedGenes && s.count > 0 ? savedGenes.length / s.count : GENE_COUNT;
+    if (savedGenes && savedStride !== GENE_COUNT) {
+      if (!Number.isInteger(savedStride) || savedStride > GENE_COUNT) throw new Error(`The saved world's "genes" does not fit this world`);
+      this.genes.fill(0);
+      for (let i = 0; i < s.count; i++) for (let k = 0; k < savedStride; k++) this.genes[i * GENE_COUNT + k] = savedGenes[i * savedStride + k]!;
+    } else {
+      take("genes", this.genes);
+    }
     take("cellOf", this.cellOf);
     if (this.bondsOn) {
       take("bondTo", this.bondTo);
@@ -3523,6 +4294,10 @@ export class Simulation {
     this.totalKills = s.totalKills;
     this.totalStarved = s.totalStarved;
     this.blockedBirths = s.blockedBirths;
+    // (A world saved before the split was added has no breakdown: it starts at zero and counts from here.)
+    this.blockedBirthsSoil = s.blockedBirthsSoil ?? 0;
+    this.blockedBirthsEnergy = s.blockedBirthsEnergy ?? 0;
+    this.blockedBirthsBoth = s.blockedBirthsBoth ?? 0;
     this.totalAttacks = s.totalAttacks;
     [this.seenScavenger, this.seenKill, this.seenPredator, this.seenCarnivore] = s.seen as [boolean, boolean, boolean, boolean];
     this.events.length = 0;
@@ -3530,6 +4305,8 @@ export class Simulation {
     this.worldEvents.length = 0;
     this.worldEvents.push(...s.worldEvents);
     [this.catKind, this.catStart, this.catEnd] = s.catastrophe;
+    this.activeEvents = (s.activeEvents ?? []).map((e) => ({ ...e, cells: [...e.cells], left: [...e.left] }));
+    this.eventRng.setState(newFuture ? new Rng(((this.seed + this.tick) ^ 0x5bd1e995) >>> 0).getState() : ((s.eventRng ?? Array.from(this.eventRng.getState())) as unknown as [number, number, number, number]));
     this.strains = (s.strains ?? []).map((a) => Float64Array.from(a));
     this.totalInfections = s.totalInfections ?? 0;
     Object.assign(this.ledger, s.ledger);
@@ -3586,6 +4363,7 @@ export class Simulation {
       case "stressResponse":
       case "calmResponse":
       case "generosity":
+      case "toxicity":
         return this.genes[i * GENE_COUNT + GENE[name]]!;
       case "lifespan": {
         const range = this.ranges.lifespan;
@@ -3665,6 +4443,9 @@ export class Simulation {
       totalKills: this.totalKills,
       totalStarved: this.totalStarved,
       blockedBirths: this.blockedBirths,
+      blockedBirthsSoil: this.blockedBirthsSoil,
+      blockedBirthsEnergy: this.blockedBirthsEnergy,
+      blockedBirthsBoth: this.blockedBirthsBoth,
       totalAttacks: this.totalAttacks,
       brain: {
         all: { hidden: mean(allHidden, n), connections: mean(allConnections, n) },
@@ -3950,6 +4731,15 @@ export class Simulation {
     if (this.camoOn) {
       mixBits(this.searchHue, n);
       for (let i = 0; i < n; i++) mix(this.hasImage[i]!);
+    }
+    if (this.toxOn) {
+      mixBits(this.avoidStrength, n);
+      mixBits(this.avoidHue, n);
+    }
+    if (this.eventsOn) {
+      for (const word of this.eventRng.getState()) mix(word);
+      mix(this.activeEvents.length);
+      if (this.ashOn) mixBits(this.ash, this.ash.length);
     }
     if (this.diseaseOn) {
       for (let i = 0; i < n; i++) mix(this.infection[i]! | (this.sickFor[i]! << 16));

@@ -1,0 +1,23 @@
+{
+  "name": "Disasters",
+  "description": "A world with continents, seas, seasons and disease where every kind of disaster strikes now and then, several at once if it happens that way: ice ages, droughts, meteors, wildfires that spread through thick plants, storms that shove animals and blow soil downwind, floods that drown low ground for a while, volcanoes that burn a crater and leave rich ash, plant blights, outbreaks of a nastier disease and good years. Every one is written to the timeline. Switch the map to Disasters to see fires, floods, storms and volcanic ground as they happen.",
+  "config": {
+    "terrainMode": 1,
+    "climateMode": 1,
+    "yearLength": 2000,
+    "dayLength": 200,
+    "diseaseTransmission": 0.3,
+    "diseaseWidth": 0.06,
+    "plantTypes": 3,
+    "evIceAgeEvery": 50000,
+    "evDroughtEvery": 25000,
+    "evMeteorEvery": 40000,
+    "evFireEvery": 8000,
+    "evStormEvery": 8000,
+    "evFloodEvery": 20000,
+    "evVolcanoEvery": 30000,
+    "evBlightEvery": 15000,
+    "evOutbreakEvery": 15000,
+    "evGoodYearEvery": 15000
+  }
+}
