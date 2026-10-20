@@ -335,6 +335,39 @@ Plants hold `plantQualityMax * soil / (soil + plantQualityHalf)` nutrient per un
 - **Viewer:** biome and moisture map layers, and a hydration readout.
 - **Evidence:** do lineages specialize by biome (traits and palates differ between biomes)? Does the ice edge move with the climate?
 
+### O2 result (built)
+
+**What was built (all off by default; older worlds unchanged):**
+- **One brain-layout change for O1 and O2:** eleven new senses (own nutrient store; plant richness here, ahead and to the side; ground damage here, ahead and to the side from overgrazing, fouling and erosion together; nearest water ahead, to the side and how far; thirst). 63 inputs and 576 connection slots. Brain-world golden fingerprints were re-recorded once; brains-off goldens are unchanged. A world saved with the older layout is renumbered when it loads.
+- **Climate biomes, `terrainMode: 2`:**
+  - The same seas and highlands as the five-biome terrain.
+  - A lasting moisture per cell, from nearness to water, latitude rain belts (wet equator, dry subtropics, wet temperate lands, dry poles) and patchy noise.
+  - A Whittaker-style table from average temperature and moisture: tundra, boreal forest, grassland, temperate forest, desert, savanna, tropical forest, swamp, highlands. In a 512 world: grassland 22 to 27%, temperate forest 11 to 13%, desert 10 to 11%, highlands 13%, tundra 11 to 12%, boreal 7 to 12%, savanna 7 to 8%, tropical 6 to 10%, swamp 2 to 3%.
+  - Each biome has its own growth, movement cost, visibility to hunters and disease rate, with a real upside and downside. For example, tropical forest is the richest and best for hiding, but slow to cross and full of disease; desert is poor and exposed, but healthy.
+  - Plant growth follows moisture through the seasons, and plant kinds follow temperature.
+  - Polar and high ground freezes when its average temperature (no seasons, but with drift and ice-age or volcano cooling) falls below `iceBelow`: nothing grows there, and crossing costs three times as much.
+- **Drinking, `drinking: 1`:** animals carry water that runs down faster in the heat and when running. They refill beside water, in a flood or on soaked ground, and pay up to three times the upkeep when dry.
+- **Viewer:** climate-biome colors, white ice, a Moisture layer, a Water readout and dot color, and a "Climate biomes" preset.
+- 22 new tests (senses, the old-layout loader, climate biomes, drinking).
+
+**Evidence (grand world, 6 worlds each, 100,000 ticks, trait measures from the second half): the grand world as it is, against the same world with climate biomes, drinking and nutrient mode 2, and the same again with a forced ice age.**
+
+| | Grand world | + climate biomes, drinking, nutrients | + forced ice age |
+|---|---|---|---|
+| Worlds extinct | 0 of 6 | 0 of 6 | 0 of 6 |
+| Average population | 378 to 782 | 397 to 790 | 399 to 783 |
+| Share of temperature-preference variation lying between biomes | 0.02 to 0.09 | 0.03 to 0.48 (above 0.15 in 5 of 6) | 0.05 to 0.74 (above 0.4 in 5 of 6) |
+| Same for palate (which plant kind it digests) | 0.01 to 0.06 | 0.02 to 0.66 (above 0.18 in 5 of 6) | 0.03 to 0.80 (above 0.67 in 5 of 6) |
+| Same for body size | 0.01 to 0.09 | 0.02 to 0.26 | 0.03 to 0.05 |
+| Dehydrated | - | 4 to 15% | 7 to 11% |
+| Short of nutrient | - | 15 to 32% | 17 to 25% |
+| Plant richness where animals stand, against the land average | - | 0.83 to 0.97 | 0.82 to 0.96 |
+
+- **Lineages do specialize by biome.** With climate biomes, temperature preference and palate differ strongly between biomes in 5 of 6 worlds, and the ice age sharpens it. Body size hardly does. Few species exist at once (1 to 3), so this is mostly one lineage varying across the map, not separate species per biome.
+- **The ice edge moves with the climate.** Ice covers 282 to 464 cells normally, 1,018 to 1,490 at the depth of the ice age (about 3 to 4 times as much), and melts back to exactly where it was. A volcano's cooling also adds a short burst of ice (282 to 597 cells).
+- **The new senses are picked up only here and there.** In each world one or two of them end up wired into 15 to 63% of brains (for example "richer plants: ahead" in 63% of one world, "thirst" in 42% of another), but no sense is used consistently across worlds. Animals still stand on slightly poorer-than-average plants (0.82 to 0.97), so seeking out rich ground has not evolved in 50,000 ticks. Most likely the best plant amounts and the richest plants are in different places: the senses exist, and the reward for using them is small.
+- Populations are unchanged on average, and none went extinct, but the lowest points are deeper (down to 47 to 73 in some worlds).
+
 ### O3. Colony physics and evolvable shared senses (owner's note 11)
 - **(a) Size protects:** when a hunter decides whether prey is too big, use the prey's colony total size, not the single cell's.
 - **(c) Economies of scale:** per-cell upkeep falls mildly with colony size (for example `cells^-0.1` built from `sqrt`, capped), as for bigger bodies.
