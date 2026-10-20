@@ -338,6 +338,26 @@ Measured in 4 grand worlds (15% mending, nutrient-rich meat) and 4 standard worl
 
 **Suggested decisive test:** the grand world with 15% mending and nutrient-rich meat, and with camouflage, kin restraint and the herd bonus off. If specialists appear, the mechanism is confirmed (low catch rate plus load). Then the fix can be chosen to keep camouflage and kinship in the world but soften them for hunters. For example: hunters learn to see through camouflage faster, or kin restraint applies only to close relatives. Bigger meals would make each kill count more without discouraging omnivores.
 
+### O4 decisive test and the first two fixes (grand world, 15% mending and nutrient-rich meat, 4 worlds each, 100,000 ticks)
+
+Built (both off by default, 7 tests):
+- `kinHungerBelow`: hunger overrides kin restraint. Below this share of breeding energy, the closeness an animal respects shrinks in proportion to its hunger.
+- `camoHunterEye`: the chance of noticing camouflaged prey rises toward certainty by this much times the hunter's diet gene.
+
+| | Meat eaters | Armed | Meat in the diet | Highest diet in the world | Prey within reach that are eligible |
+|---|---|---|---|---|---|
+| Baseline | 0 | 3 to 100% | 1.7 to 16.9% | about 0.3 | 5 to 46% |
+| **Decisive test:** camouflage, kin restraint, herd bonus off | 0 | **2 to 3%** | **1.8 to 3.2%** | 0.12 to 0.19 | **94 to 97%** |
+| + hunger overrides kin restraint (0.5) | 0 | 98 to 100% (all 4) | 11 to 14% (all 4) | 0.19 to 0.29 | 3 to 10% |
+| + committed hunter's eye (0.8) | 0 | 8 to 100% | 4.6 to 16.3% | 0.22 to 0.46 | 3 to 42% |
+| + both | 0 | 3 to 100% | 1.7 to 17.6% | 0.10 to 0.25 | 5 to 53% |
+
+- **The decisive test refutes the catch-rate explanation as the whole story.** With nearly every nearby animal attackable, meat eating fell rather than rose, because almost nobody arms (2 to 3%). The social traits (kin restraint, herd, camouflage) somehow support aggression evolving; it is not that hunters eat their own family. Kills of own young are 8 to 10% with or without restraint, and strangers make up 59 to 66% of kills either way.
+- **Hunger overriding kin restraint makes arming universal and meat steady** (11 to 14% of the diet in every world, against 1.7 to 17% before): the most reliable effect of anything tried. But it makes everyone an armed omnivore, not a specialist.
+- **The hunter's eye** helps only somewhere: in one world the whole population became mixed eaters (diet 0.35), and that world crashed to 116 animals.
+- **The pattern across every test:** the whole population drifts toward a little meat. No lineage passes a diet of about 0.46, and the planted specialists starved. A specialist needs about five times the kills an animal gets in the grand world, and the available kills are spread thinly over a population of armed omnivores all taking a little.
+- **Remaining lever:** the payoff per kill, so that fewer kills can sustain a specialist (option 3: gorging, or bigger meals). Or accept that the grand world favors armed omnivores and treat that as a valid outcome.
+
 ## Deferred long runs (do these later, on the cloud or when the laptop is free)
 
 - **Erosion, 1,000,000 ticks.** Question: does worn ground level off at a stable share, or keep climbing, with the gentlest default (`erosionRate` 0.00001, recovery 0.00004) in the grand world? So far about 15% is worn at 300,000 ticks and still rising. If it levels off at 20 to 30% the default is fine; if it keeps climbing toward most of the land, add a better recovery before turning erosion on in the grand world. Run `erodeexp` (3 seeds). The sampling script was fixed to record every tenth of the run (an earlier attempt recorded nothing because 1,000,000 does not divide evenly by 6).
