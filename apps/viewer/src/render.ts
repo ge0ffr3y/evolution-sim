@@ -4,7 +4,7 @@ import type { FrameMessage } from "./protocol";
 export type ColorBy = "diet" | "speed" | "size" | "hue" | "energy" | "sense" | "health" | "colony" | "cell" | "palate" | "toxicity";
 
 /** What the map background shows. */
-export type Overlay = "plants" | "nutrients" | "corpses" | "detritus" | "trails" | "terrain" | "temperature" | "light" | "background" | "plantKinds" | "grazing" | "fouling" | "erosion";
+export type Overlay = "plants" | "nutrients" | "corpses" | "detritus" | "trails" | "terrain" | "temperature" | "light" | "background" | "plantKinds" | "grazing" | "fouling" | "erosion" | "events";
 
 export const OVERLAYS: readonly { id: Overlay; label: string }[] = [
   { id: "plants", label: "Plants" },
@@ -20,6 +20,7 @@ export const OVERLAYS: readonly { id: Overlay; label: string }[] = [
   { id: "grazing", label: "Grazing damage (worlds with overgrazing)" },
   { id: "fouling", label: "Fouled ground (worlds with fouling)" },
   { id: "erosion", label: "Worn-away soil (worlds with erosion)" },
+  { id: "events", label: "Disasters (worlds with events): fire red, flood blue, storm white, volcano purple" },
 ];
 
 export const COLOR_MODES: readonly { id: ColorBy; label: string; legendLow: string; legendHigh: string }[] = [
@@ -380,6 +381,23 @@ export class WorldRenderer {
         const damage = frame.grazing ? frame.grazing[cell]! : 0;
         r += damage * 190;
         g += damage * 90;
+      } else if (overlay === "events") {
+        // Quiet ground stays dark. Fire is red-orange, flood blue, storm pale grey, volcanic ground purple.
+        const what = frame.eventMap ? frame.eventMap[cell]! : 0;
+        if (what === 1) {
+          r += 230;
+          g += 90;
+        } else if (what === 2) {
+          g += 80;
+          b += 200;
+        } else if (what === 3) {
+          r += 150;
+          g += 150;
+          b += 160;
+        } else if (what === 4) {
+          r += 110;
+          b += 130;
+        }
       } else if (overlay === "erosion") {
         // Healthy soil stays dark; worn-away soil turns brown. Brightness is relative to the most worn cell right now.
         const wear = frame.soilHealth && wearMax > 0 ? Math.min((1 - frame.soilHealth[cell]!) / wearMax, 1) : 0;

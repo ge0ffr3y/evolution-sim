@@ -136,8 +136,32 @@ export interface ColonyStats {
 /** Things that happen to the whole world: catastrophes and their ends. */
 export interface WorldEvent {
   tick: number;
-  kind: "iceAge" | "drought" | "meteor" | "recovery";
+  kind: "iceAge" | "drought" | "meteor" | "recovery" | "wildfire" | "storm" | "flood" | "volcano" | "blight" | "outbreak" | "goodYear";
   text: string;
+}
+
+/** The kinds of disaster the event engine can start (see the ev* settings in the config). */
+export type DisasterKind = "iceAge" | "drought" | "wildfire" | "storm" | "flood" | "volcano" | "blight" | "goodYear";
+
+/**
+ * A disaster that is going on now. Meteors and outbreaks happen in one instant, so they never
+ * appear here. For a fire, `cells` are the cells burning now and `left` the ticks each has left;
+ * for a flood, `cells` are the cells under water. `count` is a running tally for the log line.
+ */
+export interface ActiveEvent {
+  kind: DisasterKind;
+  start: number;
+  end: number;
+  x: number;
+  y: number;
+  radius: number;
+  /** Cooling, severity, spread chance, push, growth fraction or boost, depending on the kind. */
+  intensity: number;
+  /** A storm's wind direction (0 to 7), or the plant kind a blight hits (-1 = all of them). */
+  target: number;
+  cells: number[];
+  left: number[];
+  count: number;
 }
 
 /** Notable firsts in the history of a run. */
@@ -561,6 +585,26 @@ export class Simulation {
   private foulMeanNow = 0;
   private readonly grazeOn: boolean;
   readonly grazing: Float32Array;
+  // Disaster events (Phase 8e). The list and the random stream are saved; the rest is worked out again every tick.
+  private activeEvents: ActiveEvent[] = [];
+  private readonly eventRng: Rng;
+  private readonly eventsOn: boolean;
+  private readonly ashOn: boolean;
+  private readonly floodOn: boolean;
+  private readonly stormOn: boolean;
+  private readonly fireOn: boolean;
+  /** Volcanic ash: extra room and growth around a volcano, fading slowly. Saved with the land only when volcanoes are on. */
+  readonly ash: Float32Array;
+  /** Scratch: 1 where a fire is burning now / where a storm is blowing now. */
+  private readonly burning: Uint8Array;
+  private readonly stormCell: Uint8Array;
+  private readonly stormDelta: Float64Array;
+  private evCooling = 0;
+  private evDryness = 1;
+  private evGrowthMult = 1;
+  private evKindMult: number[] = [1];
+  /** The average amount of plant on a land cell this tick (worked out while a fire burns): fire spreads through plants at least that thick. */
+  private fuelRef = 0;
   /** Harmful mutations: which of the genome's spots have gone bad, one bit each (model 0), or simply how many harmful mutations it carries (model 1). */
   private readonly loadOn: boolean;
   /** Luck: multipliers (around 1) on each organism's upkeep and on its reproduction threshold, rolled at birth. */
@@ -896,6 +940,17 @@ export class Simulation {
     this.foul = new Float32Array(this.foulOn ? cells : 0);
     this.grazeOn = c.overgrazeDamage > 0;
     this.grazing = new Float32Array(this.grazeOn ? cells : 0);
+    // (Its own random stream, derived from the seed like the terrain's, so events never disturb anything else.)
+    this.eventRng = new Rng((seed ^ 0x5bd1e995) >>> 0);
+    this.fireOn = c.evFireEvery > 0;
+    this.stormOn = c.evStormEvery > 0;
+    this.floodOn = c.evFloodEvery > 0;
+    this.ashOn = c.evVolcanoEvery > 0;
+    this.eventsOn = [c.evIceAgeEvery, c.evDroughtEvery, c.evMeteorEvery, c.evFireEvery, c.evStormEvery, c.evFloodEvery, c.evVolcanoEvery, c.evBlightEvery, c.evOutbreakEvery, c.evGoodYearEvery].some((every) => every > 0);
+    this.ash = new Float32Array(this.ashOn ? cells : 0);
+    this.burning = new Uint8Array(this.fireOn ? cells : 0);
+    this.stormCell = new Uint8Array(this.stormOn ? cells : 0);
+    this.stormDelta = new Float64Array(this.stormOn ? cells : 0);
     this.fatOn = c.fatDepositRate > 0;
     this.fatStore = new Float64Array(this.fatOn ? n : 0);
     this.torporOn = this.climateOn && c.torporSaving > 0;
@@ -1099,6 +1154,10 @@ export class Simulation {
       if (this.catKind === 1) cooling = c.iceAgeCooling * hump;
       else dryness = 1 - c.droughtSeverity * hump;
     }
+    if (this.eventsOn) {
+      cooling += this.evCooling;
+      dryness *= this.evDryness;
+    }
     // (A harsh year can push the swing past what plants can take: growth stops, it never goes negative.)
     const swungGrowth = 1 + c.seasonGrowthSwing * season;
     const seasonGrowth = (swungGrowth > 0 ? swungGrowth : 0) * dryness;
@@ -1176,42 +1235,551 @@ export class Simulation {
    */
   private meteorStrike(): void {
     const c = this.config;
-    const W = c.worldWidth;
-    const H = c.worldHeight;
-    const x0 = this.rng.range(0, W);
-    const y0 = this.rng.range(0, H);
-    const r2 = c.meteorRadius * c.meteorRadius;
-    const near = (x: number, y: number): boolean => {
-      let dx = x - x0;
-      let dy = y - y0;
-      if (dx > W / 2) dx -= W;
-      else if (dx < -W / 2) dx += W;
-      if (dy > H / 2) dy -= H;
-      else if (dy < -H / 2) dy += H;
-      return dx * dx + dy * dy <= r2;
-    };
+    const x0 = this.rng.range(0, c.worldWidth);
+    const y0 = this.rng.range(0, c.worldHeight);
+    this.meteorAt(x0, y0, c.meteorRadius);
+  }
+
+  /** Is the point (x, y) within r2 (a squared distance) of (x0, y0)? The world wraps round, so distances go the short way. */
+  private nearPoint(x: number, y: number, x0: number, y0: number, r2: number): boolean {
+    const W = this.config.worldWidth;
+    const H = this.config.worldHeight;
+    let dx = x - x0;
+    let dy = y - y0;
+    if (dx > W / 2) dx -= W;
+    else if (dx < -W / 2) dx += W;
+    if (dy > H / 2) dy -= H;
+    else if (dy < -H / 2) dy += H;
+    return dx * dx + dy * dy <= r2;
+  }
+
+  /** Organism i dies on the spot: its body and its energy become a corpse where it lay. */
+  private killToCorpse(i: number): void {
+    const cs = this.config.foodCellSize;
+    const cell = Math.floor(this.y[i]! / cs) * this.gridWidth + Math.floor(this.x[i]! / cs);
+    this.corpseEnergy[cell] = this.corpseEnergy[cell]! + this.bodyEnergy[i]! + this.energy[i]! + (this.fatOn ? this.fatStore[i]! : 0);
+    if (this.toxOn) this.foldToxin(cell, this.corpseMatter[cell]!, this.bodyMatter[i]!, this.genes[i * GENE_COUNT + GENE.toxicity]!);
+    this.corpseMatter[cell] = this.corpseMatter[cell]! + this.bodyMatter[i]!;
+    this.energy[i] = 0;
+    this.killed[i] = 1;
+  }
+
+  /** Plants in a cell are crushed: the matter becomes detritus, the energy is lost as heat. */
+  private crushPlants(cell: number): void {
+    this.detritus[cell] = this.detritus[cell]! + this.food[cell]!;
+    this.ledger.decayLoss += this.food[cell]! * this.config.energyPerFood;
+    this.food[cell] = 0;
+  }
+
+  /** Plants in a cell burn: the energy is lost as heat and the matter goes straight into the soil as ash. */
+  private burnPlants(cell: number): void {
+    this.nutrient[cell] = this.nutrient[cell]! + this.food[cell]!;
+    this.ledger.decayLoss += this.food[cell]! * this.config.energyPerFood;
+    this.food[cell] = 0;
+  }
+
+  private meteorAt(x0: number, y0: number, radius: number): void {
+    const c = this.config;
+    const r2 = radius * radius;
     const cs = c.foodCellSize;
     let killed = 0;
     for (let i = 0; i < this.count; i++) {
-      if (this.killed[i] === 1 || !near(this.x[i]!, this.y[i]!)) continue;
-      const cell = Math.floor(this.y[i]! / cs) * this.gridWidth + Math.floor(this.x[i]! / cs);
-      this.corpseEnergy[cell] = this.corpseEnergy[cell]! + this.bodyEnergy[i]! + this.energy[i]! + (this.fatOn ? this.fatStore[i]! : 0);
-      if (this.toxOn) this.foldToxin(cell, this.corpseMatter[cell]!, this.bodyMatter[i]!, this.genes[i * GENE_COUNT + GENE.toxicity]!);
-      this.corpseMatter[cell] = this.corpseMatter[cell]! + this.bodyMatter[i]!;
-      this.energy[i] = 0;
-      this.killed[i] = 1;
+      if (this.killed[i] === 1 || !this.nearPoint(this.x[i]!, this.y[i]!, x0, y0, r2)) continue;
+      this.killToCorpse(i);
       killed++;
     }
     for (let cy = 0; cy < this.gridHeight; cy++) {
       for (let cx = 0; cx < this.gridWidth; cx++) {
-        if (!near((cx + 0.5) * cs, (cy + 0.5) * cs)) continue;
-        const cell = cy * this.gridWidth + cx;
-        this.detritus[cell] = this.detritus[cell]! + this.food[cell]!;
-        this.ledger.decayLoss += this.food[cell]! * c.energyPerFood;
-        this.food[cell] = 0;
+        if (!this.nearPoint((cx + 0.5) * cs, (cy + 0.5) * cs, x0, y0, r2)) continue;
+        this.crushPlants(cy * this.gridWidth + cx);
       }
     }
     this.worldEvents.push({ tick: this.tick, kind: "meteor", text: `A meteor strikes near (${Math.round(x0)}, ${Math.round(y0)}): ${killed} organisms killed` });
+  }
+
+  // --- Disaster events (Phase 8e) ---
+
+  /** A number drawn from the event stream, between lo and hi. */
+  private evDraw(lo: number, hi: number): number {
+    return lo + this.eventRng.next() * (hi - lo);
+  }
+
+  /** A random spot on land (or anywhere, if the world has no water), from the event stream. */
+  private randomLandPoint(): [number, number] {
+    const c = this.config;
+    let x = 0;
+    let y = 0;
+    for (let tries = 0; tries < 50; tries++) {
+      x = this.eventRng.range(0, c.worldWidth);
+      y = this.eventRng.range(0, c.worldHeight);
+      if (!this.terrainOn || this.passable[Math.floor(y / c.foodCellSize) * this.gridWidth + Math.floor(x / c.foodCellSize)] === 1) break;
+    }
+    return [x, y];
+  }
+
+  /** The cells whose middle lies within radius of (x0, y0), land only if the world has water. */
+  private cellsWithin(x0: number, y0: number, radius: number): number[] {
+    const cs = this.config.foodCellSize;
+    const r2 = radius * radius;
+    const out: number[] = [];
+    for (let cy = 0; cy < this.gridHeight; cy++) {
+      for (let cx = 0; cx < this.gridWidth; cx++) {
+        const cell = cy * this.gridWidth + cx;
+        if (this.terrainOn && this.passable[cell] === 0) continue;
+        if (this.nearPoint((cx + 0.5) * cs, (cy + 0.5) * cs, x0, y0, r2)) out.push(cell);
+      }
+    }
+    return out;
+  }
+
+  /** Roll the dice for each kind of disaster (in a fixed order), then run the ones going on. */
+  private eventsStep(): void {
+    const c = this.config;
+    const t = this.tick;
+    // Finished events end.
+    for (let k = this.activeEvents.length - 1; k >= 0; k--) {
+      const ev = this.activeEvents[k]!;
+      if (t >= ev.end || ((ev.kind === "wildfire") && ev.cells.length === 0)) this.endEvent(ev, k);
+    }
+    // Which cells are on fire now (worked out fresh, so a loaded world needs nothing extra).
+    if (this.fireOn) {
+      this.burning.fill(0);
+      for (const ev of this.activeEvents) if (ev.kind === "wildfire") for (const cell of ev.cells) this.burning[cell] = 1;
+    }
+    // New events begin. (One random number per kind per tick, only for kinds that are switched on.)
+    const roll = (every: number): boolean => every > 0 && this.eventRng.next() < 1 / every;
+    if (this.activeEvents.length < 64) {
+      if (roll(c.evIceAgeEvery)) this.beginClimateEvent("iceAge", c.evIceAgeCoolingMin, c.evIceAgeCoolingMax, c.evIceAgeLengthMin, c.evIceAgeLengthMax);
+      if (roll(c.evDroughtEvery)) this.beginClimateEvent("drought", c.evDroughtSeverityMin, c.evDroughtSeverityMax, c.evDroughtLengthMin, c.evDroughtLengthMax);
+      if (roll(c.evMeteorEvery)) {
+        const [x, y] = this.randomLandPoint();
+        this.meteorAt(x, y, this.evDraw(c.evMeteorRadiusMin, c.evMeteorRadiusMax));
+      }
+      if (roll(c.evFireEvery)) this.beginFire();
+      if (roll(c.evStormEvery)) this.beginStorm();
+      if (roll(c.evFloodEvery)) this.beginFlood();
+      if (roll(c.evVolcanoEvery)) this.beginVolcano();
+      if (roll(c.evBlightEvery)) this.beginBlight();
+      if (roll(c.evOutbreakEvery)) this.beginOutbreak();
+      if (roll(c.evGoodYearEvery)) this.beginGoodYear();
+    }
+    // The ones going on act, and the numbers the rest of the tick needs are worked out fresh (so a loaded world needs nothing extra).
+    this.evCooling = 0;
+    this.evDryness = 1;
+    this.evGrowthMult = 1;
+    const kinds = this.plantKinds > 1 ? this.plantKinds : 1;
+    if (this.evKindMult.length !== kinds) this.evKindMult = new Array<number>(kinds).fill(1);
+    else this.evKindMult.fill(1);
+    if (this.stormOn) this.stormCell.fill(0);
+    if (this.fireOn && this.activeEvents.some((ev) => ev.kind === "wildfire")) {
+      let sum = 0;
+      let land = 0;
+      for (let cell = 0; cell < this.food.length; cell++) {
+        if (this.foodCapacity[cell]! <= 0) continue;
+        sum += this.food[cell]!;
+        land++;
+      }
+      this.fuelRef = land > 0 ? sum / land : 0;
+    }
+    for (const ev of this.activeEvents) {
+      const span = ev.end - ev.start;
+      const p = (t - ev.start) / span;
+      const hump = 4 * p * (1 - p);
+      switch (ev.kind) {
+        case "iceAge":
+        case "volcano":
+          this.evCooling += ev.intensity * hump;
+          break;
+        case "drought":
+          this.evDryness *= 1 - ev.intensity * hump;
+          break;
+        case "goodYear":
+          this.evGrowthMult *= ev.intensity;
+          break;
+        case "blight":
+          if (ev.target < 0) for (let j = 0; j < kinds; j++) this.evKindMult[j] = this.evKindMult[j]! * ev.intensity;
+          else this.evKindMult[ev.target] = this.evKindMult[ev.target]! * ev.intensity;
+          break;
+        case "wildfire":
+          this.fireSpread(ev);
+          break;
+        case "storm":
+          this.stormBlow(ev);
+          break;
+        default:
+          break;
+      }
+    }
+    // Animals standing in flames die.
+    if (this.fireOn && this.activeEvents.some((ev) => ev.kind === "wildfire")) {
+      const cs = c.foodCellSize;
+      for (let i = 0; i < this.count; i++) {
+        if (this.killed[i] === 1) continue;
+        if (this.burning[Math.floor(this.y[i]! / cs) * this.gridWidth + Math.floor(this.x[i]! / cs)] === 1) this.killToCorpse(i);
+      }
+    }
+    // Ash left by volcanoes fades slowly.
+    if (this.ashOn) {
+      const keep = 1 - c.evVolcanoBoostFade;
+      for (let cell = 0; cell < this.ash.length; cell++) if (this.ash[cell]! > 0) this.ash[cell] = this.ash[cell]! * keep;
+    }
+  }
+
+  private endEvent(ev: ActiveEvent, index: number): void {
+    const t = this.tick;
+    this.activeEvents.splice(index, 1);
+    switch (ev.kind) {
+      case "iceAge":
+        this.worldEvents.push({ tick: t, kind: "recovery", text: "An ice age ends" });
+        break;
+      case "drought":
+        this.worldEvents.push({ tick: t, kind: "recovery", text: "A drought ends" });
+        break;
+      case "wildfire":
+        this.worldEvents.push({ tick: t, kind: "recovery", text: `The fire near (${Math.round(ev.x)}, ${Math.round(ev.y)}) burns out: ${ev.count} patches of ground burned` });
+        break;
+      case "storm":
+        this.worldEvents.push({ tick: t, kind: "recovery", text: `The storm near (${Math.round(ev.x)}, ${Math.round(ev.y)}) blows itself out` });
+        break;
+      case "flood": {
+        // The water goes down (cells that are water for good were never in the list).
+        for (const cell of ev.cells) this.passable[cell] = 1;
+        this.worldEvents.push({ tick: t, kind: "recovery", text: `The flood near (${Math.round(ev.x)}, ${Math.round(ev.y)}) drains away` });
+        break;
+      }
+      case "volcano":
+        this.worldEvents.push({ tick: t, kind: "recovery", text: "The volcano's ash cloud clears" });
+        break;
+      case "blight":
+        this.worldEvents.push({ tick: t, kind: "recovery", text: "The plant blight ends" });
+        break;
+      case "goodYear":
+        this.worldEvents.push({ tick: t, kind: "recovery", text: "The good year ends" });
+        break;
+    }
+  }
+
+  private newEvent(kind: DisasterKind, length: number, x: number, y: number, radius: number, intensity: number, target = 0): ActiveEvent {
+    const ev: ActiveEvent = { kind, start: this.tick, end: this.tick + length, x, y, radius, intensity, target, cells: [], left: [], count: 0 };
+    this.activeEvents.push(ev);
+    return ev;
+  }
+
+  /** An ice age or a drought: the same shape as the older catastrophes (builds up, worst in the middle, fades). */
+  private beginClimateEvent(kind: "iceAge" | "drought", loValue: number, hiValue: number, loLength: number, hiLength: number): void {
+    const intensity = this.evDraw(loValue, hiValue);
+    const length = Math.max(2, Math.round(this.evDraw(loLength, hiLength)));
+    this.newEvent(kind, length, 0, 0, 0, intensity);
+    this.worldEvents.push({
+      tick: this.tick,
+      kind,
+      text: kind === "iceAge" ? `An ice age begins: up to ${Math.round(intensity * 100) / 100} colder everywhere for ${length} ticks` : `A drought begins: plant growth falls by up to ${Math.round(intensity * 100)}% for ${length} ticks`,
+    });
+  }
+
+  /** Light a fire on a patch of land, preferring dry ground with a lot of plants standing on it. */
+  private beginFire(): void {
+    const c = this.config;
+    const cs = c.foodCellSize;
+    // Fire starts where it can: of a few random spots, the one with most to burn.
+    let bestX = 0;
+    let bestY = 0;
+    let bestScore = -1;
+    for (let tries = 0; tries < 8; tries++) {
+      const [x, y] = this.randomLandPoint();
+      const cell = Math.floor(y / cs) * this.gridWidth + Math.floor(x / cs);
+      const score = this.food[cell]! * (this.climateOn ? 2 - Math.min(1, this.growthFactor[cell]!) : 1.5);
+      if (score > bestScore) {
+        bestScore = score;
+        bestX = x;
+        bestY = y;
+      }
+    }
+    const radius = this.evDraw(c.evFireRadiusMin, c.evFireRadiusMax);
+    const spread = this.evDraw(c.evFireSpreadMin, c.evFireSpreadMax);
+    const length = Math.max(2, Math.round(this.evDraw(c.evFireLengthMin, c.evFireLengthMax)));
+    const ev = this.newEvent("wildfire", length, bestX, bestY, radius, spread);
+    for (const cell of this.cellsWithin(bestX, bestY, radius)) this.igniteCell(ev, cell);
+    this.worldEvents.push({ tick: this.tick, kind: "wildfire", text: `A wildfire starts near (${Math.round(bestX)}, ${Math.round(bestY)}): spread chance ${Math.round(spread * 100) / 100}, up to ${length} ticks` });
+  }
+
+  private igniteCell(ev: ActiveEvent, cell: number): void {
+    if (this.burning[cell] === 1) return;
+    this.burning[cell] = 1;
+    ev.cells.push(cell);
+    ev.left.push(this.config.evFireCellBurn);
+    ev.count++;
+    this.burnPlants(cell);
+  }
+
+  /** One tick of a fire: burning ground may light its four neighbors (more likely where plants are thick and the ground is dry), then burns down. */
+  private fireSpread(ev: ActiveEvent): void {
+    const c = this.config;
+    const gw = this.gridWidth;
+    const gh = this.gridHeight;
+    const weight = c.evFireDryWeight;
+    const burningNow = ev.cells.length;
+    const lit: number[] = [];
+    for (let k = 0; k < burningNow; k++) {
+      const cell = ev.cells[k]!;
+      this.burnPlants(cell); // anything that grew back while it was burning goes too
+      const cx = cell % gw;
+      const cy = (cell - cx) / gw;
+      for (let side = 0; side < 4; side++) {
+        const nx = side === 0 ? wrapCell(cx + 1, gw) : side === 1 ? wrapCell(cx - 1, gw) : cx;
+        const ny = side === 2 ? wrapCell(cy + 1, gh) : side === 3 ? wrapCell(cy - 1, gh) : cy;
+        const nb = ny * gw + nx;
+        if (this.burning[nb] === 1 || (this.terrainOn && this.passable[nb] === 0)) continue;
+        if (!(this.foodCapacity[nb]! > 0) || !(this.food[nb]! > 0) || !(this.fuelRef > 0)) continue;
+        // (How much there is to burn is judged against the average cell, so a fire behaves alike in rich and poor worlds.)
+        const share = Math.min(1, this.food[nb]! / this.fuelRef);
+        const dry = this.climateOn ? Math.max(0, 1 - this.growthFactor[nb]!) : 0.5;
+        if (this.eventRng.next() < ev.intensity * share * (1 - weight + weight * dry)) {
+          this.burning[nb] = 1; // (so no one else lights it again this tick)
+          lit.push(nb);
+        }
+      }
+    }
+    // Cells burn for a few ticks, then go out.
+    let kept = 0;
+    for (let k = 0; k < burningNow; k++) {
+      const left = ev.left[k]! - 1;
+      if (left > 0) {
+        ev.cells[kept] = ev.cells[k]!;
+        ev.left[kept] = left;
+        kept++;
+      } else {
+        this.burning[ev.cells[k]!] = 0;
+      }
+    }
+    ev.cells.length = kept;
+    ev.left.length = kept;
+    for (const cell of lit) {
+      ev.cells.push(cell);
+      ev.left.push(c.evFireCellBurn);
+      ev.count++;
+      this.burnPlants(cell);
+    }
+  }
+
+  private beginStorm(): void {
+    const c = this.config;
+    const [x, y] = this.randomLandPoint();
+    const radius = this.evDraw(c.evStormRadiusMin, c.evStormRadiusMax);
+    const push = this.evDraw(c.evStormPushMin, c.evStormPushMax);
+    const length = Math.max(2, Math.round(this.evDraw(c.evStormLengthMin, c.evStormLengthMax)));
+    const wind = this.eventRng.int(8);
+    this.newEvent("storm", length, x, y, radius, push, wind);
+    this.worldEvents.push({ tick: this.tick, kind: "storm", text: `A storm blows up near (${Math.round(x)}, ${Math.round(y)}), radius ${Math.round(radius)}, for ${length} ticks` });
+  }
+
+  /** One tick of a storm: animals are shoved downwind, moving costs more, and some soil is blown to the next cell downwind. */
+  private stormBlow(ev: ActiveEvent): void {
+    const c = this.config;
+    const W = c.worldWidth;
+    const H = c.worldHeight;
+    const cs = c.foodCellSize;
+    const gw = this.gridWidth;
+    const gh = this.gridHeight;
+    const r2 = ev.radius * ev.radius;
+    const gust = ev.intensity * (0.5 + unitHash(this.tick, ev.start)); // the same shove for everyone, so colonies stay together
+    const wx = DIR_X[ev.target]! * gust;
+    const wy = DIR_Y[ev.target]! * gust;
+    for (let i = 0; i < this.count; i++) {
+      if (this.killed[i] === 1 || !this.nearPoint(this.x[i]!, this.y[i]!, ev.x, ev.y, r2)) continue;
+      let nx = this.x[i]! + wx;
+      let ny = this.y[i]! + wy;
+      nx -= Math.floor(nx / W) * W;
+      ny -= Math.floor(ny / H) * H;
+      nx = Math.fround(nx);
+      ny = Math.fround(ny);
+      if (nx >= W) nx = 0;
+      if (ny >= H) ny = 0;
+      if (this.terrainOn && this.passable[Math.floor(ny / cs) * gw + Math.floor(nx / cs)] === 0) continue; // no blowing into water
+      this.x[i] = nx;
+      this.y[i] = ny;
+    }
+    // Soil: a share of each cell's nutrient moves one cell downwind (taken from all cells first, then added, so order does not matter).
+    const stepX = DIR_X[ev.target]! > 0.5 ? 1 : DIR_X[ev.target]! < -0.5 ? -1 : 0;
+    const stepY = DIR_Y[ev.target]! > 0.5 ? 1 : DIR_Y[ev.target]! < -0.5 ? -1 : 0;
+    const delta = this.stormDelta;
+    delta.fill(0);
+    const share = c.evStormSoilShare;
+    for (let cy = 0; cy < gh; cy++) {
+      for (let cx = 0; cx < gw; cx++) {
+        if (!this.nearPoint((cx + 0.5) * cs, (cy + 0.5) * cs, ev.x, ev.y, r2)) continue;
+        const cell = cy * gw + cx;
+        this.stormCell[cell] = 1;
+        const to = wrapCell(cy + stepY, gh) * gw + wrapCell(cx + stepX, gw);
+        if (to === cell || (this.terrainOn && this.passable[to] === 0)) continue;
+        const moved = this.nutrient[cell]! * share;
+        delta[cell] = delta[cell]! - moved;
+        delta[to] = delta[to]! + moved;
+      }
+    }
+    for (let cell = 0; cell < delta.length; cell++) if (delta[cell] !== 0) this.nutrient[cell] = this.nutrient[cell]! + delta[cell]!;
+  }
+
+  private beginFlood(): void {
+    const c = this.config;
+    const [x, y] = this.randomLandPoint();
+    const radius = this.evDraw(c.evFloodRadiusMin, c.evFloodRadiusMax);
+    const length = Math.max(2, Math.round(this.evDraw(c.evFloodLengthMin, c.evFloodLengthMax)));
+    const ev = this.newEvent("flood", length, x, y, radius, 0);
+    ev.cells = this.cellsWithin(x, y, radius); // (only cells that are dry land now)
+    for (const cell of ev.cells) {
+      this.passable[cell] = 0;
+      this.crushPlants(cell);
+    }
+    // Animals caught in the water are carried to the nearest dry ground.
+    let moved = 0;
+    const cs = c.foodCellSize;
+    for (let i = 0; i < this.count; i++) {
+      if (this.killed[i] === 1) continue;
+      const cell = Math.floor(this.y[i]! / cs) * this.gridWidth + Math.floor(this.x[i]! / cs);
+      if (this.passable[cell] !== 0) continue;
+      if (this.moveToDryGround(i, cell)) moved++;
+    }
+    this.worldEvents.push({ tick: this.tick, kind: "flood", text: `A flood covers ${ev.cells.length} patches of ground near (${Math.round(x)}, ${Math.round(y)}) for ${length} ticks; ${moved} animals washed to dry land` });
+  }
+
+  /** Put organism i on the nearest dry cell (looking outward ring by ring); false if there is none. */
+  private moveToDryGround(i: number, from: number): boolean {
+    const gw = this.gridWidth;
+    const gh = this.gridHeight;
+    const cs = this.config.foodCellSize;
+    const fx = from % gw;
+    const fy = (from - fx) / gw;
+    const reach = Math.max(gw, gh) >> 1;
+    for (let ring = 1; ring <= reach; ring++) {
+      let best = -1;
+      let bestDist = Infinity;
+      for (let dy = -ring; dy <= ring; dy++) {
+        for (let dx = -ring; dx <= ring; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue;
+          const cell = wrapCell(fy + dy, gh) * gw + wrapCell(fx + dx, gw);
+          if (this.passable[cell] === 0) continue;
+          const d = dx * dx + dy * dy;
+          if (d < bestDist) {
+            bestDist = d;
+            best = cell;
+          }
+        }
+      }
+      if (best >= 0) {
+        const bx = best % gw;
+        const by = (best - bx) / gw;
+        // A little scatter so the washed-up animals do not all sit on one point.
+        this.x[i] = Math.fround((bx + 0.1 + 0.8 * unitHash(this.id[i]!, this.tick)) * cs);
+        this.y[i] = Math.fround((by + 0.1 + 0.8 * unitHash(this.id[i]!, this.tick + 7919)) * cs);
+        this.cellOf[i] = best;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private beginVolcano(): void {
+    const c = this.config;
+    const [x, y] = this.randomLandPoint();
+    const radius = this.evDraw(c.evVolcanoRadiusMin, c.evVolcanoRadiusMax);
+    const cooling = this.evDraw(c.evVolcanoCoolingMin, c.evVolcanoCoolingMax);
+    const length = Math.max(2, Math.round(this.evDraw(c.evVolcanoLengthMin, c.evVolcanoLengthMax)));
+    this.newEvent("volcano", length, x, y, radius, cooling);
+    const r2 = radius * radius;
+    let killed = 0;
+    for (let i = 0; i < this.count; i++) {
+      if (this.killed[i] === 1 || !this.nearPoint(this.x[i]!, this.y[i]!, x, y, r2)) continue;
+      this.killToCorpse(i);
+      killed++;
+    }
+    for (const cell of this.cellsWithin(x, y, radius)) this.burnPlants(cell);
+    // Richer ground around it: biggest at the crater, thinning to nothing at reach times the radius.
+    const reach = radius * c.evVolcanoBoostReach;
+    const cs = c.foodCellSize;
+    for (const cell of this.cellsWithin(x, y, reach)) {
+      const cx = cell % this.gridWidth;
+      const cy = (cell - cx) / this.gridWidth;
+      let dx = (cx + 0.5) * cs - x;
+      let dy = (cy + 0.5) * cs - y;
+      if (dx > c.worldWidth / 2) dx -= c.worldWidth;
+      else if (dx < -c.worldWidth / 2) dx += c.worldWidth;
+      if (dy > c.worldHeight / 2) dy -= c.worldHeight;
+      else if (dy < -c.worldHeight / 2) dy += c.worldHeight;
+      const boost = c.evVolcanoBoost * (1 - Math.sqrt(dx * dx + dy * dy) / reach);
+      if (boost > this.ash[cell]!) this.ash[cell] = boost;
+    }
+    this.worldEvents.push({ tick: this.tick, kind: "volcano", text: `A volcano erupts near (${Math.round(x)}, ${Math.round(y)}): ${killed} organisms killed, the world cools by up to ${Math.round(cooling * 100) / 100} for ${length} ticks` });
+  }
+
+  private beginBlight(): void {
+    const c = this.config;
+    const left = this.evDraw(c.evBlightGrowthMin, c.evBlightGrowthMax);
+    const length = Math.max(2, Math.round(this.evDraw(c.evBlightLengthMin, c.evBlightLengthMax)));
+    const kind = this.plantKinds > 1 ? this.eventRng.int(this.plantKinds) : -1;
+    this.newEvent("blight", length, 0, 0, 0, left, kind);
+    this.worldEvents.push({
+      tick: this.tick,
+      kind: "blight",
+      text: `A plant blight hits ${kind < 0 ? "all plants" : `plant kind ${kind + 1}`}: they grow at ${Math.round(left * 100)}% of normal for ${length} ticks`,
+    });
+  }
+
+  /** A new strain starts in a cluster of animals and keeps them sick longer than usual. */
+  private beginOutbreak(): void {
+    const c = this.config;
+    const [x, y] = this.randomLandPoint();
+    const r2 = c.evOutbreakRadius * c.evOutbreakRadius;
+    const hosts: number[] = [];
+    for (let i = 0; i < this.count && hosts.length < c.evOutbreakHosts; i++) {
+      if (this.killed[i] === 1 || this.sickFor[i]! > 0 || this.immuneFor[i]! > 0 || !this.nearPoint(this.x[i]!, this.y[i]!, x, y, r2)) continue;
+      hosts.push(i);
+    }
+    if (hosts.length === 0) {
+      this.worldEvents.push({ tick: this.tick, kind: "outbreak", text: `An outbreak near (${Math.round(x)}, ${Math.round(y)}) fizzles: nobody there to catch it` });
+      return;
+    }
+    this.newStrainIn(hosts[0]!);
+    const strain = this.strains.length;
+    const sickness = Math.round(c.diseaseDuration * c.evOutbreakDurationMult);
+    this.sickFor[hosts[0]!] = sickness;
+    for (let k = 1; k < hosts.length; k++) {
+      this.infection[hosts[k]!] = strain;
+      this.sickFor[hosts[k]!] = sickness;
+      this.totalInfections++;
+    }
+    this.worldEvents.push({ tick: this.tick, kind: "outbreak", text: `A new, nastier disease breaks out near (${Math.round(x)}, ${Math.round(y)}): ${hosts.length} animals sick` });
+  }
+
+  private beginGoodYear(): void {
+    const c = this.config;
+    const boost = this.evDraw(c.evGoodYearBoostMin, c.evGoodYearBoostMax);
+    const length = Math.max(2, Math.round(this.evDraw(c.evGoodYearLengthMin, c.evGoodYearLengthMax)));
+    this.newEvent("goodYear", length, 0, 0, 0, boost);
+    this.worldEvents.push({ tick: this.tick, kind: "goodYear", text: `A good year begins: plants grow ${Math.round((boost - 1) * 100)}% faster for ${length} ticks` });
+  }
+
+  /** What the Events map layer shows: 1 burning, 2 flooded, 3 storm, 4 volcanic ground (0 nothing). */
+  eventMap(): Uint8Array {
+    const out = new Uint8Array(this.food.length);
+    if (!this.eventsOn) return out;
+    if (this.ashOn) for (let cell = 0; cell < out.length; cell++) if (this.ash[cell]! > 0.02) out[cell] = 4;
+    for (const ev of this.activeEvents) {
+      if (ev.kind === "wildfire") for (const cell of ev.cells) out[cell] = 1;
+      else if (ev.kind === "flood") for (const cell of ev.cells) out[cell] = 2;
+    }
+    if (this.stormOn) for (let cell = 0; cell < out.length; cell++) if (this.stormCell[cell] === 1 && out[cell] === 0) out[cell] = 3;
+    return out;
+  }
+
+  /** Are any disaster events switched on in this world? */
+  get eventsEnabled(): boolean {
+    return this.eventsOn;
+  }
+
+  /** The disasters going on now, for the viewer. */
+  get currentEvents(): readonly ActiveEvent[] {
+    return this.activeEvents;
   }
 
   /** Fill in the terrain arrays from a biome map, and scale plant growth by biome. */
@@ -2788,6 +3356,7 @@ export class Simulation {
     const brainMode = c.brainMode;
     let attackers = 0;
     if (c.catastropheKind !== 0) this.catastropheCheck();
+    if (this.eventsOn) this.eventsStep();
     if (this.climateOn) this.updateClimate();
     // Bonded cells even out their energy and turn toward their neighbors' heading.
     if (this.bondsOn) {
@@ -3135,6 +3704,7 @@ export class Simulation {
       // Moving costs more the faster the brain drives the body (cost grows with speed squared).
       let move = brainMode > 0 ? this.moveCost[i]! * this.moveScale[i]! * this.moveScale[i]! : this.moveCost[i]!;
       if (this.terrainOn) move *= this.terrainMove[cell]!; // mountains and forest cost more to cross
+      if (this.stormOn && this.stormCell[cell] === 1) move *= c.evStormMoveCost; // fighting the wind
       if (this.fatOn) move *= 1 + c.fatMoveCost * (this.fatStore[i]! / this.threshold[i]!);
       if (this.torporOn) move *= (1 - this.torpid[i]!) * (1 - this.torpid[i]!); // slower costs less (cost goes with speed squared)
       if (this.staminaOn) move += this.staminaCost[i]!; // the upkeep of the sprint reserve counts as movement
@@ -3228,11 +3798,18 @@ export class Simulation {
         this.soilHealth[cell] = health;
         ceiling *= health;
       }
+      if (this.ashOn) ceiling *= 1 + this.ash[cell]!; // ground enriched by a volcano holds more plants
       // Plants grow, limited by sunlight (the rate), nutrient, and room.
       const room = ceiling - food[cell]!;
       let potential = (this.foodRegrow[cell]! * soil) / (soil + halfSat);
       if (climateOn) potential *= this.growthFactor[cell]!;
       potential *= health;
+      if (this.eventsOn) {
+        // Disasters: a blight or a good year changes the growth rate, volcanic ash raises it (and the ceiling), and flooded ground grows nothing.
+        potential *= this.evGrowthMult * this.evKindMult[this.plantKinds > 1 ? this.plantTypeOf[cell]! : 0]!;
+        if (this.ashOn) potential *= 1 + this.ash[cell]!;
+        if (this.floodOn && this.passable[cell] === 0) potential = 0;
+      }
       if (this.foulOn) {
         // Fouling: ground that is much more crowded than average grows plants more slowly. Then the fouling fades a little.
         const excess = foulMean > 0 ? this.foul[cell]! / foulMean - c.foulFree : 0;
@@ -3595,6 +4172,8 @@ export class Simulation {
       events: this.events,
       worldEvents: this.worldEvents,
       catastrophe: [this.catKind, this.catStart, this.catEnd],
+      // (Only in worlds with disaster events, so older saved worlds still load.)
+      ...(this.eventsOn ? { activeEvents: this.activeEvents, eventRng: Array.from(this.eventRng.getState()) } : {}),
       strains: this.strains.map((a) => Array.from(a)),
       totalInfections: this.totalInfections,
       ledger: this.ledger,
@@ -3624,6 +4203,7 @@ export class Simulation {
       // (Only in worlds with overgrazing, so worlds saved before it existed still load.)
       ...(this.toxOn ? ([["corpseToxin", this.corpseToxin]] as [string, SnapshotArray][]) : []),
       ...(this.erodeOn ? ([["soilHealth", this.soilHealth]] as [string, SnapshotArray][]) : []),
+      ...(this.ashOn ? ([["ash", this.ash]] as [string, SnapshotArray][]) : []),
       ...(this.foulOn ? ([["foul", this.foul]] as [string, SnapshotArray][]) : []),
       ...(this.grazeOn ? ([["grazing", this.grazing]] as [string, SnapshotArray][]) : []),
       ["nutrient", this.nutrient],
@@ -3667,6 +4247,8 @@ export class Simulation {
       seen: boolean[];
       events: SimEvent[];
       worldEvents: WorldEvent[];
+      activeEvents?: ActiveEvent[];
+      eventRng?: number[];
       catastrophe: [number, number, number];
       strains?: number[][];
       totalInfections?: number;
@@ -3713,6 +4295,8 @@ export class Simulation {
     this.worldEvents.length = 0;
     this.worldEvents.push(...s.worldEvents);
     [this.catKind, this.catStart, this.catEnd] = s.catastrophe;
+    this.activeEvents = (s.activeEvents ?? []).map((e) => ({ ...e, cells: [...e.cells], left: [...e.left] }));
+    this.eventRng.setState(newFuture ? new Rng(((this.seed + this.tick) ^ 0x5bd1e995) >>> 0).getState() : ((s.eventRng ?? Array.from(this.eventRng.getState())) as unknown as [number, number, number, number]));
     this.strains = (s.strains ?? []).map((a) => Float64Array.from(a));
     this.totalInfections = s.totalInfections ?? 0;
     Object.assign(this.ledger, s.ledger);
@@ -4141,6 +4725,11 @@ export class Simulation {
     if (this.toxOn) {
       mixBits(this.avoidStrength, n);
       mixBits(this.avoidHue, n);
+    }
+    if (this.eventsOn) {
+      for (const word of this.eventRng.getState()) mix(word);
+      mix(this.activeEvents.length);
+      if (this.ashOn) mixBits(this.ash, this.ash.length);
     }
     if (this.diseaseOn) {
       for (let i = 0; i < n; i++) mix(this.infection[i]! | (this.sickFor[i]! << 16));

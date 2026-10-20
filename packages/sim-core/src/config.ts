@@ -607,6 +607,90 @@ export interface SimConfig {
   /** The radius of a meteor strike, in world units. */
   meteorRadius: number;
 
+  // --- Disaster events (Phase 8e, all off by default) ---
+  // Each kind has a mean interval (on average one every this many ticks; 0 = never) and ranges
+  // (min, max) for how big, how wide and how long. The numbers for each event are drawn when it
+  // starts, from a random stream of their own, so switching events on never reshuffles anything else.
+  // Several can be going at once. They work alongside the older catastrophe settings above.
+  /** Ice age: the whole world cools by up to this much for this many ticks (needs a climate). */
+  evIceAgeEvery: number;
+  evIceAgeCoolingMin: number;
+  evIceAgeCoolingMax: number;
+  evIceAgeLengthMin: number;
+  evIceAgeLengthMax: number;
+  /** Drought: plant growth falls by up to this share (needs a climate). */
+  evDroughtEvery: number;
+  evDroughtSeverityMin: number;
+  evDroughtSeverityMax: number;
+  evDroughtLengthMin: number;
+  evDroughtLengthMax: number;
+  /** Meteor: everything in a circle (radius in world units) dies. */
+  evMeteorEvery: number;
+  evMeteorRadiusMin: number;
+  evMeteorRadiusMax: number;
+  /**
+   * Wildfire: starts as a small patch (radius in world units) on land and spreads to neighboring cells
+   * with a chance (spread) that grows with the plants standing there (compared with the average cell) and how dry the ground is.
+   * A cell burns for evFireCellBurn ticks; the whole fire stops after its length.
+   */
+  evFireEvery: number;
+  evFireRadiusMin: number;
+  evFireRadiusMax: number;
+  evFireSpreadMin: number;
+  evFireSpreadMax: number;
+  evFireLengthMin: number;
+  evFireLengthMax: number;
+  evFireCellBurn: number;
+  /** How much dryness matters for spreading (0 = not at all, 1 = bone-dry ground only). */
+  evFireDryWeight: number;
+  /** Storm: pushes animals downwind (world units per tick), makes moving cost more, and blows soil nutrient downwind. */
+  evStormEvery: number;
+  evStormRadiusMin: number;
+  evStormRadiusMax: number;
+  evStormPushMin: number;
+  evStormPushMax: number;
+  evStormLengthMin: number;
+  evStormLengthMax: number;
+  evStormMoveCost: number;
+  evStormSoilShare: number;
+  /** Flood: land in a circle becomes impassable water for a while (needs terrain). */
+  evFloodEvery: number;
+  evFloodRadiusMin: number;
+  evFloodRadiusMax: number;
+  evFloodLengthMin: number;
+  evFloodLengthMax: number;
+  /**
+   * Volcano: kills and burns in a small circle (the burnt plants become soil nutrient), cools the whole
+   * world for a while, and leaves richer ground around it (it holds more plants, fading slowly).
+   */
+  evVolcanoEvery: number;
+  evVolcanoRadiusMin: number;
+  evVolcanoRadiusMax: number;
+  evVolcanoCoolingMin: number;
+  evVolcanoCoolingMax: number;
+  evVolcanoLengthMin: number;
+  evVolcanoLengthMax: number;
+  evVolcanoBoost: number;
+  evVolcanoBoostReach: number;
+  evVolcanoBoostFade: number;
+  /** Plant blight: one kind of plant (all of them if there is only one) grows at a fraction of normal. */
+  evBlightEvery: number;
+  evBlightGrowthMin: number;
+  evBlightGrowthMax: number;
+  evBlightLengthMin: number;
+  evBlightLengthMax: number;
+  /** Outbreak: a new strain starts in several animals close together and keeps them sick longer (needs disease). */
+  evOutbreakEvery: number;
+  evOutbreakRadius: number;
+  evOutbreakHosts: number;
+  evOutbreakDurationMult: number;
+  /** Good year: plants grow faster (more sunlight, a real energy source). */
+  evGoodYearEvery: number;
+  evGoodYearBoostMin: number;
+  evGoodYearBoostMax: number;
+  evGoodYearLengthMin: number;
+  evGoodYearLengthMax: number;
+
   // --- Aging and litter size (off by default) ---
   /**
    * Aging (0 = off: organisms never grow old). With aging, an organism past its prime pays extra
@@ -1107,6 +1191,66 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   iceAgeCooling: 0.3,
   droughtSeverity: 0.8,
   meteorRadius: 40,
+  evIceAgeEvery: 0,
+  evIceAgeCoolingMin: 0.05,
+  evIceAgeCoolingMax: 0.15,
+  evIceAgeLengthMin: 1500,
+  evIceAgeLengthMax: 4000,
+  evDroughtEvery: 0,
+  evDroughtSeverityMin: 0.3,
+  evDroughtSeverityMax: 0.7,
+  evDroughtLengthMin: 1500,
+  evDroughtLengthMax: 5000,
+  evMeteorEvery: 0,
+  evMeteorRadiusMin: 15,
+  evMeteorRadiusMax: 50,
+  evFireEvery: 0,
+  evFireRadiusMin: 6,
+  evFireRadiusMax: 14,
+  evFireSpreadMin: 0.15,
+  evFireSpreadMax: 0.5,
+  evFireLengthMin: 200,
+  evFireLengthMax: 800,
+  evFireCellBurn: 3,
+  evFireDryWeight: 0.5,
+  evStormEvery: 0,
+  evStormRadiusMin: 30,
+  evStormRadiusMax: 80,
+  evStormPushMin: 0.2,
+  evStormPushMax: 0.8,
+  evStormLengthMin: 100,
+  evStormLengthMax: 400,
+  evStormMoveCost: 2,
+  evStormSoilShare: 0.02,
+  evFloodEvery: 0,
+  evFloodRadiusMin: 20,
+  evFloodRadiusMax: 60,
+  evFloodLengthMin: 500,
+  evFloodLengthMax: 2500,
+  evVolcanoEvery: 0,
+  evVolcanoRadiusMin: 6,
+  evVolcanoRadiusMax: 14,
+  evVolcanoCoolingMin: 0.1,
+  evVolcanoCoolingMax: 0.3,
+  evVolcanoLengthMin: 1500,
+  evVolcanoLengthMax: 4000,
+  evVolcanoBoost: 0.5,
+  evVolcanoBoostReach: 4,
+  evVolcanoBoostFade: 0.0001,
+  evBlightEvery: 0,
+  evBlightGrowthMin: 0.3,
+  evBlightGrowthMax: 0.7,
+  evBlightLengthMin: 1000,
+  evBlightLengthMax: 4000,
+  evOutbreakEvery: 0,
+  evOutbreakRadius: 25,
+  evOutbreakHosts: 20,
+  evOutbreakDurationMult: 2,
+  evGoodYearEvery: 0,
+  evGoodYearBoostMin: 1.3,
+  evGoodYearBoostMax: 1.8,
+  evGoodYearLengthMin: 2000,
+  evGoodYearLengthMax: 4000,
   agingCoeff: 0,
   agingPrimeFraction: 0.5,
   agingRepairCoeff: 0.3,
@@ -1328,6 +1472,39 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     if (c.droughtSeverity < 0 || c.droughtSeverity > 1) problems.push("droughtSeverity must be between 0 and 1");
     if (!(c.meteorRadius > 0)) problems.push("meteorRadius must be positive");
   }
+  // Disaster events: each kind with a non-zero interval needs its ranges to make sense (and the world features it works on).
+  const eventKinds: [string, number, [string, number, number][]][] = [
+    ["evIceAge", c.evIceAgeEvery, [["Cooling", c.evIceAgeCoolingMin, c.evIceAgeCoolingMax], ["Length", c.evIceAgeLengthMin, c.evIceAgeLengthMax]]],
+    ["evDrought", c.evDroughtEvery, [["Severity", c.evDroughtSeverityMin, c.evDroughtSeverityMax], ["Length", c.evDroughtLengthMin, c.evDroughtLengthMax]]],
+    ["evMeteor", c.evMeteorEvery, [["Radius", c.evMeteorRadiusMin, c.evMeteorRadiusMax]]],
+    ["evFire", c.evFireEvery, [["Radius", c.evFireRadiusMin, c.evFireRadiusMax], ["Spread", c.evFireSpreadMin, c.evFireSpreadMax], ["Length", c.evFireLengthMin, c.evFireLengthMax]]],
+    ["evStorm", c.evStormEvery, [["Radius", c.evStormRadiusMin, c.evStormRadiusMax], ["Push", c.evStormPushMin, c.evStormPushMax], ["Length", c.evStormLengthMin, c.evStormLengthMax]]],
+    ["evFlood", c.evFloodEvery, [["Radius", c.evFloodRadiusMin, c.evFloodRadiusMax], ["Length", c.evFloodLengthMin, c.evFloodLengthMax]]],
+    ["evVolcano", c.evVolcanoEvery, [["Radius", c.evVolcanoRadiusMin, c.evVolcanoRadiusMax], ["Cooling", c.evVolcanoCoolingMin, c.evVolcanoCoolingMax], ["Length", c.evVolcanoLengthMin, c.evVolcanoLengthMax]]],
+    ["evBlight", c.evBlightEvery, [["Growth", c.evBlightGrowthMin, c.evBlightGrowthMax], ["Length", c.evBlightLengthMin, c.evBlightLengthMax]]],
+    ["evGoodYear", c.evGoodYearEvery, [["Boost", c.evGoodYearBoostMin, c.evGoodYearBoostMax], ["Length", c.evGoodYearLengthMin, c.evGoodYearLengthMax]]],
+  ];
+  for (const [name, every, ranges] of eventKinds) {
+    if (!Number.isInteger(every) || every < 0) problems.push(`${name}Every must be a whole number of ticks (0 = never)`);
+    if (every > 0) {
+      for (const [what, lo, hi] of ranges) {
+        if (!(lo >= 0) || hi < lo) problems.push(`${name}${what}Min must be at least 0 and not above ${name}${what}Max`);
+        if (what === "Length" && lo < 2) problems.push(`${name}LengthMin must be at least 2 ticks`);
+      }
+    }
+  }
+  if (c.evIceAgeEvery > 0 || c.evDroughtEvery > 0 || c.evVolcanoEvery > 0) {
+    if (c.climateMode !== 1) problems.push("ice ages, droughts and volcanoes need a climate (set climateMode to 1)");
+  }
+  if (c.evFloodEvery > 0 && c.terrainMode !== 1) problems.push("floods need terrain (set terrainMode to 1)");
+  if (c.evOutbreakEvery > 0 && !(c.diseaseTransmission > 0)) problems.push("outbreaks need disease (set diseaseTransmission above 0)");
+  if (c.evDroughtEvery > 0 && c.evDroughtSeverityMax > 1) problems.push("evDroughtSeverityMax cannot be above 1");
+  if (c.evBlightEvery > 0 && c.evBlightGrowthMax > 1) problems.push("evBlightGrowthMax cannot be above 1 (it is the fraction of normal growth that is left)");
+  if (c.evGoodYearEvery > 0 && c.evGoodYearBoostMin < 1) problems.push("evGoodYearBoostMin must be at least 1");
+  if (c.evFireEvery > 0 && (c.evFireSpreadMax > 1 || !Number.isInteger(c.evFireCellBurn) || c.evFireCellBurn < 1 || c.evFireDryWeight < 0 || c.evFireDryWeight > 1)) problems.push("fire: evFireSpreadMax at most 1, evFireCellBurn a whole number from 1, evFireDryWeight between 0 and 1");
+  if (c.evStormEvery > 0 && (c.evStormMoveCost < 1 || c.evStormSoilShare < 0 || c.evStormSoilShare > 1)) problems.push("storm: evStormMoveCost at least 1, evStormSoilShare between 0 and 1");
+  if (c.evVolcanoEvery > 0 && (c.evVolcanoBoost < 0 || c.evVolcanoBoostReach < 1 || c.evVolcanoBoostFade < 0 || c.evVolcanoBoostFade > 1)) problems.push("volcano: evVolcanoBoost at least 0, evVolcanoBoostReach at least 1, evVolcanoBoostFade between 0 and 1");
+  if (c.evOutbreakEvery > 0 && (c.evOutbreakRadius <= 0 || c.evOutbreakHosts < 1 || c.evOutbreakDurationMult < 1)) problems.push("outbreak: evOutbreakRadius above 0, evOutbreakHosts at least 1, evOutbreakDurationMult at least 1");
   if (![0, 1].includes(c.climateMode)) problems.push("climateMode must be 0 (no climate) or 1 (climate)");
   if (c.weatherAmplitude < 0) problems.push("weatherAmplitude cannot be negative");
   if (c.weatherAmplitude > 0) {

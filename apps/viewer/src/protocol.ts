@@ -145,6 +145,8 @@ export interface FrameMessage {
   foul: Float32Array | null;
   /** How healthy each cell's soil is, erosion's floor to 1 (null in worlds without erosion). */
   soilHealth: Float32Array | null;
+  /** Where disasters are going on now: 1 fire, 2 flood, 3 storm, 4 volcanic ground, 0 nothing (null in worlds without events). */
+  eventMap: Uint8Array | null;
   /** Plant-eater and meat-eater scent in each square of the scent grid (empty when brains are off). */
   preyScent: Float32Array;
   hunterScent: Float32Array;
