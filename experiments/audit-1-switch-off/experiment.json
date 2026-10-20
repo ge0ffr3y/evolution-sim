@@ -1,6 +1,6 @@
 {
   "name": "audit-1-switch-off",
-  "question": "What does each mechanism of the grand world (with 15% mending) do there, and does any of them do nothing at all?",
+  "question": "What does each mechanism of the grand world (with 15% mending) do there, does any of them do nothing at all, and what does a disease that can actually spread do to the world?",
   "base": "grand-world",
   "ticks": 200000,
   "seeds": "1-8",
@@ -38,6 +38,9 @@
     "asexual": { "sexualReproduction": 0 },
     "no-harmful-mutations": { "mutationLoadRate": 0 },
     "no-disease": { "diseaseTransmission": 0, "evOutbreakEvery": 0 },
+    "disease-cost-5": { "diseaseCost": 5 },
+    "disease-cost-1": { "diseaseCost": 1 },
+    "disease-cost-1-wide": { "diseaseCost": 1, "diseaseWidth": 0.15 },
     "no-camouflage": { "camouflageMode": 0 },
     "no-aging": { "agingCoeff": 0 },
     "no-litters": { "litterMax": 1 },

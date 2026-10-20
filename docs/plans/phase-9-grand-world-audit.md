@@ -122,6 +122,17 @@ Stage 1 should therefore look hard at disease, erosion, overgrazing and the trai
 - finding a mate: the mate-finding settings are in stage 2;
 - compounding harm: `mutationLoadSynergy`, added to the stage 3 candidates.
 
+**Why disease is dead (laptop check, 2026-10-20; grand world, one new strain every 500 ticks, 30,000 ticks, 2 seeds per row):**
+
+| Sickness cost (times normal upkeep) | Sick animals survive | Infected per new strain | Share sick |
+|---|---|---|---|
+| 30 (the grand world) | 5 to 6 ticks, none recover | 1.3 to 1.6 | 0.002% |
+| 5 | 43 to 46 ticks, almost none recover | 7 to 11 | 0.1% |
+| 1 (the default) | 87 to 98 ticks, a third to a half recover | 134 to 167 | 5 to 7% |
+| 1, with strains matching a wider range of hosts (`diseaseWidth` 0.15) | about 90 ticks, nearly half recover | 1,400 to 1,900 | 27 to 29% |
+
+A sick animal starves within about 6 ticks, before it meets anyone, so every new strain dies with its first host. Halving and doubling (stage 2) cannot find this: at half the cost (15) the sick still die within about 10 ticks. Three disease arms were therefore added to stage 1 (cost 5, cost 1, and cost 1 with wider matching), to see what a disease that can spread does to population, diversity and sex.
+
 ### Stage 1: switch each mechanism off (8 seeds x 200,000 ticks, about 40 arms)
 
 From the baseline, one mechanism off at a time: terrain, climate, seasons, day and night, weather, harsh years, random catastrophes, each of the seven disaster events, plant kinds, brains (and separately memory, home, chemical signals, their body effects, appetite senses), kill ownership, scent trails, kin restraint, the tolerance gene, the herd bonus, sex (asexual only), harmful mutations, disease, camouflage, aging, litters, torpor, colonies, cell types, luck, sharing, founder variety, overgrazing, fouling, erosion, and thermal costs.
