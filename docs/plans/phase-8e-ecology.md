@@ -276,6 +276,21 @@ Built: `mutationLoadMend` (model 1 only, default 0): each inherited harmful muta
 - **Meat eating moves, but no true meat eaters appear.** With 15% mending and nutrient-rich meat, two of four worlds reach 14 to 17% meat in the diet, a diet gene of 0.15 to 0.21, and over 1,000 kills per 1,000 ticks: mixed eaters, not specialists. The done criterion (a lasting meat-eating lineage in most worlds) is **not met**.
 - **What is left:** the smaller brakes from step 2 (climate and terrain, brains, social traits), which compound in the grand world, and the cost of being half-way between diets (`dietSpecialization` makes a mixed diet worse at both foods, a valley a lineage has to cross).
 
+### O4 remaining brakes (grand world with 15% mending and nutrient-rich meat; one group removed at a time; 4 worlds each, 100,000 ticks)
+
+| | Meat eaters | Kills per 1,000 ticks | Meat in the diet | Diet gene | Mixed eaters (diet 0.25 to 0.75) | Births with two parents | Population |
+|---|---|---|---|---|---|---|---|
+| Baseline | 0 | 150 to 2,000 | 1.7 to 16.9% | 0.02 to 0.21 | 0 to 23% | 14 to 47% | 458 to 999 |
+| Without climate and terrain | 0 (one, once) | 75 to 4,350 (above 3,500 in 3 of 4) | 1.0 to 21.4% | 0.02 to 0.21 | 0 to 35% | 14 to 32% | 1,145 to 2,177 |
+| Without brains | 0 | 950 to 1,770 (all 4) | 10.6 to 14.1% (all 4) | 0.20 to 0.25 (all 4) | 19 to 46% | 17 to 26% | 432 to 576 |
+| Without social traits | 0 | 130 to 280 | 2.0 to 3.6% | 0.03 | 0% | 53 to 58% | 899 to 1,142 |
+| Mixed diet half as costly (`dietSpecialization` 0.25) | 0 | 770 to 1,650 | 7.8 to 20.4% | 0.13 to 0.32 | 3 to 82% | 12 to 27% | 179 to 625 |
+
+- **None of the remaining brakes, removed alone, produces true meat eaters.**
+- **Removing brains, climate or the diet cost makes the whole population lean toward meat** (up to a fifth of the diet, diet gene up to 0.3, up to 82% mixed eaters), but it shifts as one population of omnivores. It does not split into plant eaters and specialist hunters, which is what happens in the standard world (diet 0.2 to 0.3 on average, but made of two separate groups).
+- **Removing the social traits makes meat eating rarer, not commoner** (2 to 4% of the diet), so they are not a brake here. Births with two parents rise to 53 to 58% at the same time.
+- **Likely reason for no split: gene mixing.** Would-be hunters mate with plant-eating neighbors (they count as compatible while their diets are still close), so hunting genes are blended back into the prey before a separate hunting lineage can form. This fits step 2: sex alone allowed meat eaters in only 1 of 4 standard worlds, against 3 of 4 without it. It is a hypothesis; the test would be mate choice that favors a similar diet (assortative mating, which is how new species usually split), or compatibility judged more strictly on the diet gene.
+
 ## Deferred long runs (do these later, on the cloud or when the laptop is free)
 
 - **Erosion, 1,000,000 ticks.** Question: does worn ground level off at a stable share, or keep climbing, with the gentlest default (`erosionRate` 0.00001, recovery 0.00004) in the grand world? So far about 15% is worn at 300,000 ticks and still rising. If it levels off at 20 to 30% the default is fine; if it keeps climbing toward most of the land, add a better recovery before turning erosion on in the grand world. Run `erodeexp` (3 seeds). The sampling script was fixed to record every tenth of the run (an earlier attempt recorded nothing because 1,000,000 does not divide evenly by 6).
