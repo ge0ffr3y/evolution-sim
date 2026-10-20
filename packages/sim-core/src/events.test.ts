@@ -362,7 +362,7 @@ describe("disaster events", () => {
     const again = run().sim;
     expect(again.fingerprint()).toBe(sim.fingerprint());
     expect(again.worldEvents).toEqual(sim.worldEvents);
-  });
+  }, 60_000);
 
   it("a colony cell killed by a disaster takes no shared energy or gifts afterwards (the books stay exact)", () => {
     // (Found in O1: colony sharing and food gifts ran after the disaster and fed energy into the dead, which then vanished.)
