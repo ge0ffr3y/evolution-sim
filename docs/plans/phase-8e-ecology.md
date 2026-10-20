@@ -203,7 +203,7 @@ Where destroyed things go (all checked by the conservation test to 1e-9 with all
 
 ---
 
-### O4 diagnosis (done)
+### O4 diagnosis (done; O4 parked at "armed omnivores" by the owner, to revisit with long runs)
 
 **Step 1: switch the suspects off one at a time in the grand world** (4 worlds each, 100,000 ticks, measured over the second half; "meat eaters" means diet above 0.75):
 
@@ -378,6 +378,8 @@ Built: `meatGorge` (meat bites this many times bigger, so a hunter eats most of 
 
 - **Erosion, 1,000,000 ticks.** Question: does worn ground level off at a stable share, or keep climbing, with the gentlest default (`erosionRate` 0.00001, recovery 0.00004) in the grand world? So far about 15% is worn at 300,000 ticks and still rising. If it levels off at 20 to 30% the default is fine; if it keeps climbing toward most of the land, add a better recovery before turning erosion on in the grand world. Run `erodeexp` (3 seeds). The sampling script was fixed to record every tenth of the run (an earlier attempt recorded nothing because 1,000,000 does not divide evenly by 6).
 - **Warning colors with sex and color mate choice** (see S6 result): sexual reproduction (`sexualReproduction` 2 with the sex-gene settings from devlog 12), `matePreference` 2, `toxinStrength` 0.8, `founderSpread` 0.5; look for lineages with distinct hue and different toxicity. 8 seeds, 300,000 ticks.
+- **Meat eating, 500,000+ ticks (O4).** The best combination so far, in the grand world: `mutationLoadMend` 0.15, `nutrientMode` 2, `kinHungerBelow` 0.5, `meatGorge` 5, `bodyEnergyPerSize` 8. Question: do specialist meat eaters (diet above 0.75) appear given far more time, or does the world stay at armed omnivores (diet gene never above about 0.35 in 100,000 ticks)? 4 to 8 seeds; watch the highest diet in the world, the share above 0.5, and sex. Script: `o4diag`.
+- **Planted hunters with hunting brains (O4).** The planted-hunter test used plant eaters' brains. Redo it with brains taken from a world where hunting brains evolved (a brainy standard world), to separate "the body cannot pay" from "the brain cannot hunt".
 - (Add other long checks here as they come up, for example overgrazing and fouling over millions of ticks, to see whether their population cost keeps growing or settles.)
 
 ---
