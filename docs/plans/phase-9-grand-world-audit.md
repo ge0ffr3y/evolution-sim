@@ -84,6 +84,37 @@ The grand world as it is, and with 15% mending. All measures, sampled 200 times 
 
 It is not the 24-hour long-run lane (that stays on hold): each run is about half an hour to an hour.
 
+**Stage 0 result (run 2026-10-20 on one c8g.8xlarge, 21 minutes, about 46 cents; report in `experiments/audit-0-baseline/report.md`):**
+
+| | As committed | With 15% mending |
+|---|---|---|
+| Worlds that died out by tick 1,000,000 | **9 of 16** (at ticks 53,000 to 969,000) | 0 of 16 |
+| Population (second half) | 317 on average; lowest 52 | 641 (458 to 739); lowest 185 |
+| Harmful mutations per animal | 145, and 78% of all costs | 13.8, steady from tick 50,000 on, and 22% of costs |
+| Births with two parents | 31% | 14% |
+
+- **The meltdown is confirmed on 16 seeds.** Without mending, the grand world dies out in more than half the worlds within 1,000,000 ticks. **Recommendation: put `mutationLoadMend` 0.15 into the grand-world preset** (the owner's decision). It costs sex about half its share, as Phase 8d predicted.
+- **With mending the world settles:** no key measure is still changing by more than 10% over the last quarter. Population peaks near 870 at tick 100,000 and settles at 630 to 670.
+
+**Leads for stages 1 to 3 (all in the mended world):**
+1. **Disease is dead.** No animal is sick in any sample of any world. Each world logs only 113 to 281 infections in 1,000,000 ticks, despite about 50 introductions and 19 outbreaks (of 20 hosts each), so every introduction dies out almost at once. Likely suspects: too few animals per area for contact (650 in a 512 world), and the strict match between a strain and its hosts (`diseaseWidth` 0.05).
+2. **Erosion wears out most of the land, then levels off.** Worn ground (soil health under 0.5) rises from 2% at tick 100,000 to 57% at 500,000, then stays at about 61% (the deferred erosion question: it levels off, but far above the 20 to 30% we hoped for). Average soil health settles at 0.62.
+3. **The land is grazed bare.** Plants stand at 4% of what the ground could hold (2.6 to 29%), grazing damage averages 0.74, and 97% of all matter sits in the soil. Births blocked for lack of soil nutrient: about 6 per 100 births.
+4. **Animals shrink to the cheapest body allowed.** Over half the animals sit at the lower limit of 8 to 10 genes:
+   - size, metabolism and sense range;
+   - diet, attack and armor;
+   - bonding and generosity.
+
+   The trait ranges, not evolution, set their bodies. Small, slow-burning, unarmed plant eaters are what this world rewards.
+5. **Hunting fades.** Kills fall from about 660 per 1,000 ticks at tick 50,000 to about 70 by tick 1,000,000. The highest diet gene in a world falls from 0.14 to 0.09, and no meat eaters appear in any world.
+6. **Where the energy goes:**
+   - Upkeep is 66% of what animals spend, made up of body 37%, harmful mutations 22%, heat and cold 10%, and the rest small; movement takes 20% and brains 9.5%.
+   - Digestion loses 23% of what is eaten.
+   - Brains shrink slowly (connections 10 down to 7.6).
+7. **Diversity is low:** about 2 species, with a Shannon diversity of 0.63; colonies hold about 1 to 2% of cells.
+
+Stage 1 should therefore look hard at disease, erosion, overgrazing and the trait ranges (what holds size, metabolism and the weapons at their limits).
+
 ### Stage 1: switch each mechanism off (8 seeds x 200,000 ticks, about 40 arms)
 
 From the baseline, one mechanism off at a time: terrain, climate, seasons, day and night, weather, harsh years, random catastrophes, each of the seven disaster events, plant kinds, brains (and separately memory, home, chemical signals, their body effects, appetite senses), kill ownership, scent trails, kin restraint, the tolerance gene, the herd bonus, sex (asexual only), harmful mutations, disease, camouflage, aging, litters, torpor, colonies, cell types, luck, sharing, founder variety, overgrazing, fouling, erosion, and thermal costs.
