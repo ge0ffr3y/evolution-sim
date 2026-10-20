@@ -180,6 +180,46 @@ Control: population 764 (638 to 874), about 2 species, plants standing at 5% of 
 - decide with the owner whether overgrazing and climate are too strong, and what disease should be;
 - note that 100,000-tick runs see the world before erosion has settled.
 
+**Code review of the 14 mechanisms with no clear effect (2026-10-20).** For each one the code was read, its setting in the grand world checked, and its real strength measured in two saved control worlds (seeds 1 and 2 at tick 200,000) or in the Stage 1 data. **None of them is broken in the simulation.**
+
+| Mechanism | Verdict | Evidence |
+|---|---|---|
+| Climate drift | **Not switched on** | It needs a cycle length (`climateDriftPeriod`), which the grand world leaves at 0 (no drift). Switching off its strength therefore changed nothing. |
+| Day and night | Works; weak against the noise | Without it the world captures a third more sunlight (44,000 to 59,000 units per 1,000 ticks) and the population is 11% bigger. But sunlight varies 35,000 to 89,000 between seeds, so 8 seeds cannot confirm an 11% change. |
+| Weather | Works; weak | Fronts of up to ±0.12 on a 0 to 1 temperature scale, drifting east and south. Growth shifts by less than the spread between seeds. |
+| Old catastrophes | Works; big when it happens, but rare and random | A drought cutting growth by up to 80% for 15,000 ticks, an ice age 0.3 colder, a meteor that killed 23. Seed 2 had three droughts and an ice age in 200,000 ticks; seed 1 had none. With 8 seeds that luck hides the effect. |
+| Good years | Works; brief | Growth up 37 to 78% for 2,000 to 3,700 ticks, about 4 or 5 times per 200,000 ticks: two or three generations each. |
+| All disaster events together | Work; small next to the world | They cause about 0.02% of deaths (Stage 0). **Fires burn out within 3 to 70 ticks, after 4 to 200 patches (usually 5 to 30) of about 3,000, because overgrazing leaves no fuel.** Storms last 100 to 400 ticks. Floods cover 70 to 110 patches and move about 20 animals. Volcanoes kill 0 to 3 animals and cool the world by 0.07 to 0.09 for a few thousand ticks. Outbreaks start with 1 to 10 sick animals and die out at once (disease is dead). |
+| Brain memory | Works (wired, stored, moved, saved); **unused** | 88 to 98% of brains write to memory, but brains read it no more often than inputs that are always 0 in this world (0.04 connections per input, the same as the baseline). |
+| Sense of home | Works and is **used**, but **redundant** | 33 to 94% of brains connect to it, well above chance. Switching it off changes nothing, so it seems to duplicate what smelling plants already tells them (smell is used by every brain). |
+| Kill ownership | Works; **irrelevant without meat eaters** | For 30 ticks the killer's claim counts in full and others' at 10%. It only matters when two animals want the same carcass, and meat is about 4% of the diet. |
+| Tolerance gene | Works and evolves | It settles at 0.09 in one world (spare only the closest relatives) and 0.44 in another. Replacing it with the fixed rule changed kills on some seeds and not others, with no consistent direction. |
+| Herd bonus | Works; **rarely applies** | Prey are on average only 4% harder to kill; the typical animal has no relatives within 8 units, and none has the full 30%. The population is too spread out. |
+| Cell types | Works; **colonies too rare** | Within colonies, 41% of cells specialize (sensors 14%, feeders 10%, photosynthesizers 9%, armor 7%), but colonies hold 2.7% of cells, so specialists are about 1% of all animals. |
+| Disease, cost 5 | **Dead** (see the disease check) | Sick animals starve within about 45 ticks; no world had sick animals at the samples. |
+| Disease, cost 1 | Works, comes and goes | 0.1 to 10% sick depending on the world. It needs wider matching as well to take hold (the cost-1-wide arm). |
+
+**What this means:**
+- Most of the "no clear effect" mechanisms are real but small, and the grand world is noisy.
+- Many are held back by the same few things:
+  - a sparse population (herds, disease);
+  - bare, overgrazed land (fires);
+  - no meat eaters (kill ownership);
+  - few colonies (cell types).
+- Stage 2 with 4 seeds will detect only large effects. Effects as small as day and night (11%) need 16 or more seeds.
+
+**Found, not yet fixed:**
+- Tooling: the settings list counts `climateDriftAmplitude` as active although drift is off (2 wasted stage 2 arms).
+- Tooling: the colony makeup measure reports 0% generalists, instead of 100%, when cell types are off.
+- Open question: switching off kin restraint, together with the herd bonus and kin-only sharing, cut kills from about 330 to about 90 per 1,000 ticks on all 8 seeds. This matches the Phase 8e (O4) finding that the social traits somehow support aggression. Which part does it, and why?
+
+**Decisions for the owner before stage 2:**
+1. Switch on climate drift in the grand world, or leave it off?
+2. Should disasters matter more (bigger or more frequent), or stay as background?
+3. What should disease be (a cost near 1 with wider matching makes it spread)?
+4. Overgrazing halves what the world grows: leave it, or soften it?
+5. 4 seeds for stage 2 as planned (about $6, finds large effects only), or 8 (about $12)?
+
 ### Stage 2: turn every setting down and up (4 seeds x 100,000 ticks, about 640 arms)
 
 Each of the about 320 grand-world settings at half and at double (or halfway to each end), one at a time. 4 seeds is enough to spot big effects and cliffs, not small ones; anything flagged gets more seeds in stage 4. The output is a map of which settings the grand world is sensitive to, which barely matter, and where a small change causes a collapse.
