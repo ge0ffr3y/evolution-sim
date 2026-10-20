@@ -17,9 +17,8 @@ import { SNAPSHOT_FORMAT, type SimSnapshot, type SnapshotArray } from "./snapsho
 import { SpeciesTracker, type SpeciesEvent, type SpeciesRecord } from "./species";
 import {
   CONN_MAX,
-  INSERTED_INPUTS_AT,
-  OLD_CONN_MAX,
-  OLD_INPUT_COUNT,
+  BRAIN_LAYOUTS,
+  renumberOldNode,
   HIDDEN_MAX,
   HIDDEN_START,
   INPUT,
@@ -646,6 +645,19 @@ export class Simulation {
   readonly iced: Uint8Array;
   private biomeSeen: number[] = [];
   private biomeDisease: number[] = [];
+  /** Colony physics (O3): per cell this tick, how many cells its colony has and their total size (worked out at the start of each tick). */
+  private readonly colonyInfoOn: boolean;
+  private readonly colonyCount: Uint16Array;
+  private readonly colonyMass: Float32Array;
+  /** Signaling (O3): what each cell last shared (threat direction and nearness, food direction and strength, in world directions), saved; and a copy taken at the start of the tick that everyone reads, so the order cells think in cannot matter. */
+  private readonly signalOn: boolean;
+  private readonly sharedThreatX: Float32Array;
+  private readonly sharedThreatY: Float32Array;
+  private readonly sharedThreatNear: Float32Array;
+  private readonly sharedFoodX: Float32Array;
+  private readonly sharedFoodY: Float32Array;
+  private readonly sharedFoodNear: Float32Array;
+  private readonly heard: Float32Array;
   /** Drinking: how much water each animal has (0 to 1). Saved with the animals when on. */
   private readonly drinkOn: boolean;
   readonly hydration: Float32Array;
@@ -766,7 +778,7 @@ export class Simulation {
   private pickBestDistSq = Infinity;
   private pickSizeLimit = 0;
   private readonly considerPrey = (index: number, distSq: number): void => {
-    if (index === this.pickAttacker || this.killed[index] === 1 || this.size[index]! > this.pickSizeLimit) return;
+    if (index === this.pickAttacker || this.killed[index] === 1 || (this.colonyInfoOn && this.config.colonyProtect === 1 ? this.colonyMass[index]! : this.size[index]!) > this.pickSizeLimit) return;
     if (this.camoOn && !this.detects(this.pickAttacker, index)) return; // never noticed it
     if (this.toxOn && this.avoidStrength[this.pickAttacker]! > 0 && this.avoids(this.pickAttacker, index)) return; // it remembers that this color was poison
     // Nobody attacks a relative (or, with kinTolerance, nobody tolerant enough to count the target as one).
@@ -963,6 +975,7 @@ export class Simulation {
         (k === GENE.palate && c.plantTypes > 1) ||
         (k === GENE.generosity && c.shareRate > 0) ||
         (k === GENE.toxicity && c.toxinStrength > 0) ||
+        (k === GENE.signal && c.signaling === 1 && c.multicellular === 1 && c.brainMode > 0) ||
         ((k === GENE.stressResponse || k === GENE.calmResponse) && c.brainMode > 0 && c.chemicals === 1 && c.chemBodyEffects === 1),
     );
     this.kinLimitSq = c.kinDistance * c.kinDistance;
@@ -997,6 +1010,18 @@ export class Simulation {
     this.fireScar = new Uint32Array(this.fireOn ? cells : 0);
     this.stormCell = new Uint8Array(this.stormOn ? cells : 0);
     this.stormDelta = new Float64Array(this.stormOn ? cells : 0);
+    this.colonyInfoOn = this.bondsOn && (c.colonyProtect === 1 || c.colonyScaleSaving > 0);
+    this.colonyCount = new Uint16Array(this.colonyInfoOn ? n : 0);
+    this.colonyMass = new Float32Array(this.colonyInfoOn ? n : 0);
+    this.signalOn = this.bondsOn && c.signaling === 1 && c.brainMode > 0;
+    const signalSlots = this.signalOn ? n : 0;
+    this.sharedThreatX = new Float32Array(signalSlots);
+    this.sharedThreatY = new Float32Array(signalSlots);
+    this.sharedThreatNear = new Float32Array(signalSlots);
+    this.sharedFoodX = new Float32Array(signalSlots);
+    this.sharedFoodY = new Float32Array(signalSlots);
+    this.sharedFoodNear = new Float32Array(signalSlots);
+    this.heard = new Float32Array(signalSlots * 6);
     this.drinkOn = c.drinking === 1;
     this.hydration = new Float32Array(this.drinkOn ? n : 0);
     this.nutrientOn = c.nutrientMode >= 1;
@@ -1039,14 +1064,14 @@ export class Simulation {
       if (name === "hue" || name === "mutationRate") continue;
       if (!this.activeGene[GENE[name]]) continue;
       // The bonding and body-plan genes describe how a body is built, not what kind of organism it is.
-      if (name === "bond" || name === "plan1" || name === "plan2" || name === "plan3" || name === "stick") continue;
+      if (name === "bond" || name === "plan1" || name === "plan2" || name === "plan3" || name === "stick" || name === "signal") continue;
       // How tolerant an organism is of relatives is a behavior setting, not part of what kind of organism it is.
       if (name === "tolerance" || name === "sex" || name === "stressResponse" || name === "calmResponse" || name === "generosity") continue;
       this.mateMask.push(GENE[name]);
     }
     this.species = new Uint32Array(c.speciesEvery > 0 ? n : 0);
     // Species, like compatibility, ignore tolerance of relatives: it is a behavior setting, not a kind of body.
-    const speciesGenes = this.activeGene.map((on, k) => on && k !== GENE.tolerance && k !== GENE.sex && k !== GENE.stressResponse && k !== GENE.calmResponse && k !== GENE.generosity);
+    const speciesGenes = this.activeGene.map((on, k) => on && k !== GENE.tolerance && k !== GENE.sex && k !== GENE.stressResponse && k !== GENE.calmResponse && k !== GENE.generosity && k !== GENE.signal);
     this.tracker = c.speciesEvery > 0 ? new SpeciesTracker(c, this.ranges, speciesGenes) : null;
     const staminaOrganisms = this.staminaOn ? n : 0;
     this.stamina = new Float32Array(staminaOrganisms);
@@ -1080,6 +1105,7 @@ export class Simulation {
     if (this.fatOn) this.float64Fields.push(this.fatStore);
     if (this.nutrientOn) this.float64Fields.push(this.nutrientStore);
     if (this.drinkOn) this.float32Fields.push(this.hydration);
+    if (this.signalOn) this.float32Fields.push(this.sharedThreatX, this.sharedThreatY, this.sharedThreatNear, this.sharedFoodX, this.sharedFoodY, this.sharedFoodNear);
     this.uint32Fields = [this.id, this.parentId, this.age, this.kills];
     if (this.tracker) this.uint32Fields.push(this.species);
     if (this.sexOn) this.uint32Fields.push(this.parent2Id);
@@ -1132,6 +1158,7 @@ export class Simulation {
     founder[GENE.stressResponse] = c.initialStressResponse;
     founder[GENE.calmResponse] = c.initialCalmResponse;
     founder[GENE.toxicity] = c.initialToxicity;
+    founder[GENE.signal] = c.initialSignal;
     founder[GENE.generosity] = c.initialShare;
     for (let i = 0; i < c.initialOrganisms; i++) {
       let fx = this.rng.range(0, c.worldWidth);
@@ -1147,7 +1174,7 @@ export class Simulation {
       if (c.founderSpread > 0 || c.sexFounderSpread > 0) {
         // Standing variety: the newer genes that are switched on start a random amount above their starting value.
         // (The mate-seeking gene can have its own amount, sexFounderSpread; -1 means it follows founderSpread.)
-        for (const gene of [GENE.tolerance, GENE.sex, GENE.fat, GENE.torpor, GENE.palate, GENE.stressResponse, GENE.calmResponse, GENE.generosity, GENE.toxicity]) {
+        for (const gene of [GENE.tolerance, GENE.sex, GENE.fat, GENE.torpor, GENE.palate, GENE.stressResponse, GENE.calmResponse, GENE.generosity, GENE.toxicity, GENE.signal]) {
           const spread = gene === GENE.sex && c.sexFounderSpread >= 0 ? c.sexFounderSpread : c.founderSpread;
           if (this.activeGene[gene] && spread > 0) this.genes[index * GENE_COUNT + gene] = clamp01(this.genes[index * GENE_COUNT + gene]! + spread * this.rng.next());
         }
@@ -2095,6 +2122,10 @@ export class Simulation {
     if (this.fatOn) this.fatStore[i] = 0;
     if (this.nutrientOn) this.nutrientStore[i] = 0;
     if (this.drinkOn) this.hydration[i] = 1; // born with a full drink
+    if (this.signalOn) {
+      this.sharedThreatNear[i] = 0;
+      this.sharedFoodNear[i] = 0;
+    }
     if (this.toxOn) {
       // A newborn remembers nothing (every field is cleared, so a reused slot never carries an old animal's memory).
       this.avoidStrength[i] = 0;
@@ -2666,17 +2697,19 @@ export class Simulation {
     const inputs = this.thinkInputs;
     const senses = this.brainSenses[i]!;
     const traced = this.id[i] === this.traceId;
+    // A signaling cell with bonds looks and smells for its colony even if its own brain uses neither.
+    const publishing = this.signalOn && this.genes[i * GENE_COUNT + GENE.signal]! > 0 && this.bondCount(i) > 0;
     // A brain with no working connections decides nothing (every output is zero), and a
     // brain only needs the senses it is wired to. Skipping the rest changes no result,
     // only saves time. (An organism being watched in the viewer senses everything.)
-    if (senses === 0 && !traced) {
+    if (senses === 0 && !traced && !publishing) {
       this.outTurn[i] = 0;
       this.outSpeed[i] = 0;
       this.outAttack[i] = 0;
       return;
     }
-    const seeing = (senses & SENSE_VISION) !== 0 || traced;
-    const smelling = (senses & SENSE_SMELL) !== 0 || traced;
+    const seeing = (senses & SENSE_VISION) !== 0 || traced || publishing;
+    const smelling = (senses & SENSE_SMELL) !== 0 || traced || publishing;
     inputs.fill(0);
     const x = this.x[i]!;
     const y = this.y[i]!;
@@ -2761,6 +2794,51 @@ export class Simulation {
         const gyHunter = (hunter[sSouth]! - hunter[sNorth]!) * scentScale;
         inputs[INPUT.smellHunterAhead] = clampUnit(gxHunter * hx + gyHunter * hy);
         inputs[INPUT.smellHunterSide] = clampUnit(hx * gyHunter - hy * gxHunter);
+      }
+    }
+
+    if (publishing) {
+      // Share with the colony: the nearest bigger animal it can see (which way, how near) and which way plants smell stronger.
+      let nearest = -1;
+      let nearestDist = Infinity;
+      if (seeing && range > 0.25) {
+        for (let k = 0; k < RAY_COUNT; k++) {
+          if (this.rayTargetLarge[k]! >= 0 && this.rayDistLarge[k]! < nearestDist) {
+            nearestDist = this.rayDistLarge[k]!;
+            nearest = this.rayTargetLarge[k]!;
+          }
+        }
+      }
+      if (nearest >= 0) {
+        const W = c.worldWidth;
+        const H = c.worldHeight;
+        let dx = this.x[nearest]! - x;
+        let dy = this.y[nearest]! - y;
+        if (dx > W / 2) dx -= W;
+        else if (dx < -W / 2) dx += W;
+        if (dy > H / 2) dy -= H;
+        else if (dy < -H / 2) dy += H;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        this.sharedThreatX[i] = d > 0 ? dx / d : 0;
+        this.sharedThreatY[i] = d > 0 ? dy / d : 0;
+        this.sharedThreatNear[i] = 1 - Math.sqrt(nearestDist) / range;
+      } else {
+        this.sharedThreatNear[i] = 0;
+      }
+      const cx = Math.floor(x / cs);
+      const cy = Math.floor(y / cs);
+      const gxFood = (this.food[cy * gw + ((cx + 1) % gw)]! - this.food[cy * gw + ((cx + gw - 1) % gw)]!) / c.foodCap;
+      const gyFood = (this.food[((cy + 1) % gh) * gw + cx]! - this.food[((cy + gh - 1) % gh) * gw + cx]!) / c.foodCap;
+      const g = Math.sqrt(gxFood * gxFood + gyFood * gyFood);
+      this.sharedFoodX[i] = g > 0 ? gxFood / g : 0;
+      this.sharedFoodY[i] = g > 0 ? gyFood / g : 0;
+      this.sharedFoodNear[i] = g < 1 ? g : 1;
+      if (senses === 0 && !traced) {
+        // Its own brain does nothing with any of it.
+        this.outTurn[i] = 0;
+        this.outSpeed[i] = 0;
+        this.outAttack[i] = 0;
+        return;
       }
     }
 
@@ -2873,6 +2951,21 @@ export class Simulation {
         inputs[INPUT.damageSide] = clampUnit(hx * gy - hy * gx);
       }
       if (this.drinkOn) inputs[INPUT.thirst] = 1 - this.hydration[i]!;
+      if (this.signalOn) {
+        // What bonded neighbors shared (heard at the start of the tick): turned into ahead and left for this cell's heading.
+        const at = i * 6;
+        const h = this.heard;
+        if (h[at + 2]! > 0) {
+          inputs[INPUT.colonyThreatAhead] = h[at]! * hx + h[at + 1]! * hy;
+          inputs[INPUT.colonyThreatSide] = hx * h[at + 1]! - hy * h[at]!;
+          inputs[INPUT.colonyThreatNear] = h[at + 2]!;
+        }
+        if (h[at + 5]! > 0) {
+          inputs[INPUT.colonyFoodAhead] = h[at + 3]! * hx + h[at + 4]! * hy;
+          inputs[INPUT.colonyFoodSide] = hx * h[at + 4]! - hy * h[at + 3]!;
+          inputs[INPUT.colonyFoodNear] = h[at + 5]!;
+        }
+      }
       const water = this.nearestWater.length > 0 ? this.nearestWater[here]! : -1;
       if (water >= 0) {
         const W = c.worldWidth;
@@ -3211,6 +3304,75 @@ export class Simulation {
   }
 
   /** Pull every bonded pair toward its rest length (a few passes), then update where each cell stands. */
+  /** For every cell: how many cells its colony has and their total size (a cell on its own is a colony of one). */
+  private updateColonies(n: number): void {
+    this.visitStamp++;
+    const stamp = this.visitStamp;
+    const stack = this.colonyStack;
+    const members: number[] = [];
+    for (let start = 0; start < n; start++) {
+      if (this.visitMark[start] === stamp) continue;
+      members.length = 0;
+      let top = 0;
+      let mass = 0;
+      stack[top++] = start;
+      this.visitMark[start] = stamp;
+      while (top > 0) {
+        const cell = stack[--top]!;
+        members.push(cell);
+        mass += this.size[cell]!;
+        for (let k = 0; k < BOND_SLOTS; k++) {
+          const partner = this.bondTo[cell * BOND_SLOTS + k]!;
+          if (partner >= 0 && this.visitMark[partner] !== stamp) {
+            this.visitMark[partner] = stamp;
+            stack[top++] = partner;
+          }
+        }
+      }
+      for (const cell of members) {
+        this.colonyCount[cell] = members.length;
+        this.colonyMass[cell] = mass;
+      }
+    }
+  }
+
+  /**
+   * Signaling: before anyone thinks, each cell that carries the gene hears its bonded neighbors'
+   * last shared senses (how strongly: both cells' genes multiplied) and keeps the strongest threat
+   * and the strongest food signal. Done for everyone first, so thinking order cannot matter.
+   */
+  private listen(n: number): void {
+    const g = this.genes;
+    const heard = this.heard;
+    heard.fill(0, 0, n * 6);
+    for (let i = 0; i < n; i++) {
+      const mine = g[i * GENE_COUNT + GENE.signal]!;
+      if (mine <= 0) continue;
+      let bestThreat = 0;
+      let bestFood = 0;
+      for (let k = 0; k < BOND_SLOTS; k++) {
+        const p = this.bondTo[i * BOND_SLOTS + k]!;
+        if (p < 0) continue;
+        const strength = mine * g[p * GENE_COUNT + GENE.signal]!;
+        if (strength <= 0) continue;
+        const threat = strength * this.sharedThreatNear[p]!;
+        if (threat > bestThreat) {
+          bestThreat = threat;
+          heard[i * 6] = this.sharedThreatX[p]!;
+          heard[i * 6 + 1] = this.sharedThreatY[p]!;
+          heard[i * 6 + 2] = threat;
+        }
+        const food = strength * this.sharedFoodNear[p]!;
+        if (food > bestFood) {
+          bestFood = food;
+          heard[i * 6 + 3] = this.sharedFoodX[p]!;
+          heard[i * 6 + 4] = this.sharedFoodY[p]!;
+          heard[i * 6 + 5] = food;
+        }
+      }
+    }
+  }
+
   private holdBonds(n: number): void {
     const c = this.config;
     const W = c.worldWidth;
@@ -3689,6 +3851,8 @@ export class Simulation {
       this.alignHeadings(n);
     }
     if (this.giveOn) this.giveFood(n);
+    if (this.colonyInfoOn) this.updateColonies(n);
+    if (this.signalOn) this.listen(n);
 
     // Pass 0 (brains only): everyone who is due to think looks, smells and decides, before
     // anyone moves, so all brains see the same world whatever order they are processed in.
@@ -4025,6 +4189,15 @@ export class Simulation {
       }
 
       let basal = this.basalCost[i]! + toxinLoss;
+      if (this.colonyInfoOn && c.colonyScaleSaving > 0 && this.colonyCount[i]! > 1) {
+        // Economies of scale: a cell in a bigger colony costs a little less to keep (cells^-1/8, built from square roots).
+        const eighthRoot = Math.sqrt(Math.sqrt(Math.sqrt(this.colonyCount[i]!)));
+        basal -= this.basalCost[i]! * c.colonyScaleSaving * (1 - 1 / eighthRoot);
+      }
+      if (this.signalOn) {
+        const gene = this.genes[i * GENE_COUNT + GENE.signal]!;
+        if (gene > 0) basal += c.signalCost * gene * this.bondCount(i); // keeping each line of communication open costs energy
+      }
       if (this.drinkOn) {
         // Thirst: water is used up faster in the heat and when running; beside water (or on soaked ground) it drinks its fill.
         let water = this.hydration[i]!;
@@ -4678,13 +4851,12 @@ export class Simulation {
       this.bondTo.fill(-1, s.count * BOND_SLOTS);
     }
     // A world saved before Phase 8e has the older brain layout (fewer inputs, fewer connection slots): renumber it.
-    const [savedInputs, savedSlots] = s.brainLayout ?? [OLD_INPUT_COUNT, OLD_CONN_MAX];
+    const [savedInputs, savedSlots] = s.brainLayout ?? [BRAIN_LAYOUTS[0]!.inputs, BRAIN_LAYOUTS[0]!.slots];
     if (this.config.brainMode > 0 && (savedInputs !== INPUT_COUNT || savedSlots !== CONN_MAX)) {
       const from = snapshot.arrays.brainFrom as Uint8Array;
       const to = snapshot.arrays.brainTo as Uint8Array;
       const weight = snapshot.arrays.brainWeight as Float32Array;
-      const shift = INPUT_COUNT - savedInputs;
-      const renumber = (node: number): number => (node < INSERTED_INPUTS_AT ? node : node + shift);
+      const renumber = (node: number): number => renumberOldNode(node, savedInputs);
       this.brainFrom.fill(0);
       this.brainTo.fill(0);
       this.brainWeight.fill(0);
@@ -4784,6 +4956,7 @@ export class Simulation {
       case "calmResponse":
       case "generosity":
       case "toxicity":
+      case "signal":
         return this.genes[i * GENE_COUNT + GENE[name]]!;
       case "lifespan": {
         const range = this.ranges.lifespan;
@@ -5161,6 +5334,10 @@ export class Simulation {
     if (this.nutrientOn) mixBits(this.nutrientStore, n);
     if (this.qualityOn) mixBits(this.plantQ, this.plantQ.length);
     if (this.drinkOn) mixBits(this.hydration, n);
+    if (this.signalOn) {
+      mixBits(this.sharedThreatNear, n);
+      mixBits(this.sharedFoodNear, n);
+    }
     if (this.toxOn) {
       mixBits(this.avoidStrength, n);
       mixBits(this.avoidHue, n);

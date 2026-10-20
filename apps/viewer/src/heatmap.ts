@@ -29,6 +29,7 @@ export const HEATMAP_TRAITS: readonly { id: GeneName; label: string }[] = [
   { id: "calmResponse", label: "Calm response" },
   { id: "generosity", label: "Generosity" },
   { id: "toxicity", label: "Toxicity" },
+  { id: "signal", label: "Signaling" },
 ];
 
 /**

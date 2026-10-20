@@ -673,6 +673,20 @@ export interface SimConfig {
   biomeSeenSwamp: number;
   biomeDiseaseSwamp: number;
 
+  // --- Colony physics and shared senses (Phase 8e O3, off by default; need multicellular) ---
+  /** 1 = a hunter judges whether prey is too big by the whole colony's size, not one cell's (size protects). */
+  colonyProtect: number;
+  /** Economies of scale: each cell's upkeep falls by up to this share as its colony grows (saving times (1 - cells^-1/8)). */
+  colonyScaleSaving: number;
+  /**
+   * 1 = the signaling gene (the 28th) is on (needs brains): a bonded cell that carries it shares what it
+   * sees (the nearest bigger animal) and smells (which way plants are) with bonded neighbors that also carry it,
+   * as the "colony threat" and "colony food" senses, scaled by both genes. Each bond costs signalCost x gene per tick.
+   */
+  signaling: number;
+  signalCost: number;
+  initialSignal: number;
+
   // --- Drinking (Phase 8e O2, off by default; needs terrain) ---
   /** 0 = off. 1 = animals get thirsty and must drink: next to water, or (with climate biomes) on very wet ground. */
   drinking: number;
@@ -1360,6 +1374,11 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   biomeMoveSwamp: 2.2,
   biomeSeenSwamp: 0.7,
   biomeDiseaseSwamp: 1.8,
+  colonyProtect: 0,
+  colonyScaleSaving: 0,
+  signaling: 0,
+  signalCost: 0.002,
+  initialSignal: 0,
   drinking: 0,
   thirstRate: 0.002,
   thirstHeat: 2,
@@ -1669,6 +1688,10 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     if (c.droughtSeverity < 0 || c.droughtSeverity > 1) problems.push("droughtSeverity must be between 0 and 1");
     if (!(c.meteorRadius > 0)) problems.push("meteorRadius must be positive");
   }
+  if (![0, 1].includes(c.colonyProtect) || ![0, 1].includes(c.signaling)) problems.push("colonyProtect and signaling must be 0 or 1");
+  if ((c.colonyProtect === 1 || c.colonyScaleSaving > 0 || c.signaling === 1) && c.multicellular !== 1) problems.push("colony physics and signaling need colonies (set multicellular to 1)");
+  if (c.signaling === 1 && c.brainMode === 0) problems.push("signaling needs brains (set brainMode to 1 or 2)");
+  if (c.colonyScaleSaving < 0 || c.colonyScaleSaving > 1 || c.signalCost < 0 || c.initialSignal < 0 || c.initialSignal > 1) problems.push("colonyScaleSaving and initialSignal must be between 0 and 1, and signalCost cannot be negative");
   if (![0, 1].includes(c.drinking)) problems.push("drinking must be 0 (off) or 1 (on)");
   if (c.drinking === 1) {
     if (c.terrainMode === 0) problems.push("drinking needs terrain with water (set terrainMode to 1 or 2)");

@@ -89,18 +89,40 @@ export const INPUT = {
   waterDistance: VISION_INPUTS + 39,
   /** How thirsty it is (0 to 1; 0 in worlds without drinking). */
   thirst: VISION_INPUTS + 40,
-  bias: VISION_INPUTS + 41,
-  noise: VISION_INPUTS + 42,
+  /**
+   * Colony senses (shared along bonds by the signaling gene): the nearest threat a bonded
+   * neighbor sees (ahead, left, how near) and which way it smells food (ahead, left, how strong).
+   */
+  colonyThreatAhead: VISION_INPUTS + 41,
+  colonyThreatSide: VISION_INPUTS + 42,
+  colonyThreatNear: VISION_INPUTS + 43,
+  colonyFoodAhead: VISION_INPUTS + 44,
+  colonyFoodSide: VISION_INPUTS + 45,
+  colonyFoodNear: VISION_INPUTS + 46,
+  bias: VISION_INPUTS + 47,
+  noise: VISION_INPUTS + 48,
 } as const;
-export const INPUT_COUNT = VISION_INPUTS + 43;
+export const INPUT_COUNT = VISION_INPUTS + 49;
 /**
- * The layout before Phase 8e added eleven senses (52 inputs, 512 connection slots). The new senses
- * were inserted where the bias input used to be, so a brain saved with the old layout can be
- * renumbered: nodes below this point keep their number, the rest move up by the difference.
+ * Every brain layout so far, oldest first, so a saved world from any of them can be renumbered.
+ * Each step inserted its new inputs at `insertedAt` (where the bias input was), so nodes below
+ * that keep their number and the rest move up by the number of inputs added.
  */
-export const OLD_INPUT_COUNT = VISION_INPUTS + 32;
-export const OLD_CONN_MAX = 512;
-export const INSERTED_INPUTS_AT = VISION_INPUTS + 30;
+export const BRAIN_LAYOUTS: readonly { inputs: number; slots: number; insertedAt: number }[] = [
+  { inputs: VISION_INPUTS + 32, slots: 512, insertedAt: 0 }, // Phase 8b
+  { inputs: VISION_INPUTS + 43, slots: 576, insertedAt: VISION_INPUTS + 30 }, // Phase 8e O1/O2: nutrient, ground, water, thirst
+  { inputs: VISION_INPUTS + 49, slots: 640, insertedAt: VISION_INPUTS + 41 }, // Phase 8e O3: colony senses
+];
+/** The node number in today's layout of a node saved with an older layout (identified by its input count). */
+export function renumberOldNode(node: number, savedInputs: number): number {
+  let n = node;
+  for (let k = 1; k < BRAIN_LAYOUTS.length; k++) {
+    const step = BRAIN_LAYOUTS[k]!;
+    if (savedInputs >= step.inputs) continue;
+    if (n >= step.insertedAt) n += step.inputs - BRAIN_LAYOUTS[k - 1]!.inputs;
+  }
+  return n;
+}
 /** Memory cells: the brain's last four memory outputs come back as inputs next time it thinks. */
 export const MEMORY_COUNT = 4;
 
@@ -113,9 +135,9 @@ export const NODE_COUNT = OUTPUT_START + OUTPUT_COUNT;
 
 /**
  * Most connections one brain can hold. A fully wired fixed-layout brain needs
- * hidden x (INPUT_COUNT + OUTPUT_COUNT) of them (560 for 8 hidden units).
+ * hidden x (INPUT_COUNT + OUTPUT_COUNT) of them (608 for 8 hidden units).
  */
-export const CONN_MAX = 576;
+export const CONN_MAX = 640;
 /** Weights are kept within this range. */
 export const WEIGHT_LIMIT = 4;
 
@@ -170,6 +192,12 @@ export function inputLabel(index: number): string {
     [INPUT.waterSide]: "water: left",
     [INPUT.waterDistance]: "water: how far",
     [INPUT.thirst]: "thirst",
+    [INPUT.colonyThreatAhead]: "colony threat: ahead",
+    [INPUT.colonyThreatSide]: "colony threat: left",
+    [INPUT.colonyThreatNear]: "colony threat: how near",
+    [INPUT.colonyFoodAhead]: "colony food: ahead",
+    [INPUT.colonyFoodSide]: "colony food: left",
+    [INPUT.colonyFoodNear]: "colony food: how strong",
     [INPUT.bias]: "bias",
     [INPUT.noise]: "noise",
   };

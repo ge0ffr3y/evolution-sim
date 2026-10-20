@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Simulation } from "./simulation";
 import type { SimConfig } from "./config";
-import { CONN_MAX, INPUT, INPUT_COUNT, INSERTED_INPUTS_AT, OLD_CONN_MAX, OLD_INPUT_COUNT } from "./brain";
+import { BRAIN_LAYOUTS, CONN_MAX, HIDDEN_MAX, INPUT, INPUT_COUNT, OUTPUT_COUNT, renumberOldNode } from "./brain";
 
 /** One organism with a brain on a quiet patch (no breeding, no mutation), so its senses can be read tick by tick. */
 function stage(extra: Partial<SimConfig> = {}): Partial<SimConfig> {
@@ -31,10 +31,16 @@ function thought(sim: Simulation, index = 0): number[] {
 }
 
 describe("Phase 8e brain senses", () => {
-  it("the layout: eleven new senses before the constant and the noise", () => {
-    expect(INPUT.nutrientStore).toBe(INSERTED_INPUTS_AT);
+  it("the layout: the Phase 8e senses sit before the constant and the noise, and the layout history ends at today's", () => {
+    expect(INPUT.nutrientStore).toBe(BRAIN_LAYOUTS[1]!.insertedAt);
+    expect(INPUT.colonyThreatAhead).toBe(BRAIN_LAYOUTS[2]!.insertedAt);
     expect(INPUT.bias).toBe(INPUT_COUNT - 2);
-    expect(INPUT_COUNT - OLD_INPUT_COUNT).toBe(11);
+    expect(BRAIN_LAYOUTS.at(-1)!.inputs).toBe(INPUT_COUNT);
+    expect(BRAIN_LAYOUTS.at(-1)!.slots).toBe(CONN_MAX);
+    // The old bias input lands on today's bias, and the old first hidden unit on today's.
+    expect(renumberOldNode(BRAIN_LAYOUTS[0]!.inputs - 2, BRAIN_LAYOUTS[0]!.inputs)).toBe(INPUT.bias);
+    expect(renumberOldNode(BRAIN_LAYOUTS[1]!.inputs - 2, BRAIN_LAYOUTS[1]!.inputs)).toBe(INPUT.bias);
+    expect(renumberOldNode(BRAIN_LAYOUTS[0]!.inputs, BRAIN_LAYOUTS[0]!.inputs)).toBe(INPUT_COUNT);
   });
 
   it("are all zero in a world without the features they read", () => {
@@ -95,7 +101,7 @@ describe("Phase 8e brain senses", () => {
     expect(thought(sim)[INPUT.waterAhead]).toBeGreaterThan(0.95);
   });
 
-  it("a world saved with the older brain layout loads with every connection renumbered", () => {
+  it("a world saved with the oldest brain layout (Phase 8b) loads with every connection renumbered", () => {
     const sim = new Simulation(3, { worldWidth: 128, worldHeight: 128, initialOrganisms: 80, brainMode: 2, brainAddConnectionProb: 0.5, speciesEvery: 0 });
     sim.run(300);
     const snapshot = sim.save();
@@ -104,8 +110,10 @@ describe("Phase 8e brain senses", () => {
     const to = snapshot.arrays.brainTo as Uint8Array;
     const weight = snapshot.arrays.brainWeight as Float32Array;
     // Rebuild it the way an older save looked: old numbering, old slot count, no new senses in use.
-    const shift = INPUT_COUNT - OLD_INPUT_COUNT;
-    const back = (node: number): number => (node < INSERTED_INPUTS_AT ? node : node - shift);
+    const OLD = BRAIN_LAYOUTS[0]!;
+    const OLD_CONN_MAX = OLD.slots;
+    const toOld = new Map<number, number>();
+    for (let old = 0; old < OLD.inputs + HIDDEN_MAX + OUTPUT_COUNT; old++) toOld.set(renumberOldNode(old, OLD.inputs), old);
     const oldFrom = new Uint8Array(n * OLD_CONN_MAX);
     const oldTo = new Uint8Array(n * OLD_CONN_MAX);
     const oldWeight = new Float32Array(n * OLD_CONN_MAX);
@@ -115,10 +123,10 @@ describe("Phase 8e brain senses", () => {
       const list: string[] = [];
       for (let k = 0; k < sim.brainCount[i]!; k++) {
         const f = from[i * CONN_MAX + k]!;
-        if (f >= INSERTED_INPUTS_AT && f < INSERTED_INPUTS_AT + shift) continue; // reads a new sense: did not exist then
+        if (!toOld.has(f)) continue; // reads a new sense: did not exist then
         const slot = i * OLD_CONN_MAX + count[i]!;
-        oldFrom[slot] = back(f);
-        oldTo[slot] = back(to[i * CONN_MAX + k]!);
+        oldFrom[slot] = toOld.get(f)!;
+        oldTo[slot] = toOld.get(to[i * CONN_MAX + k]!)!;
         oldWeight[slot] = weight[i * CONN_MAX + k]!;
         list.push(`${f}>${to[i * CONN_MAX + k]}:${weight[i * CONN_MAX + k]}`);
         count[i]!++;
