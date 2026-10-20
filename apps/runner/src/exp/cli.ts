@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
 import { basename, join, relative, resolve } from "node:path";
 import { buildArms, jobsOf, loadExperiment, type Experiment, type Job } from "./experiment";
@@ -103,7 +103,10 @@ async function runHere(exp: Experiment, jobs: Job[], workers: number, ticks: str
   // A status file for anyone watching (it is uploaded with the results on a cloud machine).
   const writeStatus = (): void => {
     const lines = statusOf(exp, jobs);
-    writeFileSync(join(resultsDir(exp), "status.json"), JSON.stringify({ updatedAt: new Date().toISOString(), ticks: exp.ticks, jobs: lines.map((l) => ({ id: l.job.id, state: l.state, tick: l.tick, ticksPerSecond: l.ticksPerSecond })) }));
+    // Written to a temporary file and renamed, so an upload never catches it half-written.
+    const path = join(resultsDir(exp), "status.json");
+    writeFileSync(`${path}.tmp`, JSON.stringify({ updatedAt: new Date().toISOString(), ticks: exp.ticks, jobs: lines.map((l) => ({ id: l.job.id, state: l.state, tick: l.tick, ticksPerSecond: l.ticksPerSecond })) }));
+    renameSync(`${path}.tmp`, path);
   };
   mkdirSync(resultsDir(exp), { recursive: true });
   writeStatus();
