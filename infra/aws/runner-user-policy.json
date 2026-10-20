@@ -2,13 +2,16 @@
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "LookAround",
       "Effect": "Allow",
-      "Action": ["ec2:Describe*", "ec2:GetConsoleOutput", "ssm:GetParameters", "ssm:GetParameter"],
+      "Action": [
+        "ec2:Describe*",
+        "ec2:GetConsoleOutput",
+        "ssm:GetParameters",
+        "ssm:GetParameter"
+      ],
       "Resource": "*"
     },
     {
-      "Sid": "LaunchUsesTheseParts",
       "Effect": "Allow",
       "Action": "ec2:RunInstances",
       "Resource": [
@@ -22,66 +25,111 @@
       ]
     },
     {
-      "Sid": "LaunchOnlyTaggedComputeMachines",
       "Effect": "Allow",
       "Action": "ec2:RunInstances",
       "Resource": "arn:aws:ec2:*:*:instance/*",
       "Condition": {
-        "StringEquals": { "aws:RequestTag/Project": "evolution-sim" },
-        "StringLike": { "ec2:InstanceType": ["c7g.*", "c8g.*", "t4g.*"] }
+        "StringEquals": {
+          "aws:RequestTag/Project": "evolution-sim"
+        },
+        "StringLike": {
+          "ec2:InstanceType": [
+            "c7g.*",
+            "c8g.*",
+            "t4g.*"
+          ]
+        }
       }
     },
     {
-      "Sid": "TagOnlyWhileCreating",
       "Effect": "Allow",
       "Action": "ec2:CreateTags",
       "Resource": "*",
-      "Condition": { "StringEquals": { "ec2:CreateAction": ["RunInstances", "CreateSecurityGroup", "ImportKeyPair"] } }
+      "Condition": {
+        "StringEquals": {
+          "ec2:CreateAction": [
+            "RunInstances",
+            "CreateSecurityGroup",
+            "ImportKeyPair"
+          ]
+        }
+      }
     },
     {
-      "Sid": "StopOnlyOurMachines",
       "Effect": "Allow",
-      "Action": ["ec2:TerminateInstances", "ec2:StopInstances", "ec2:StartInstances", "ec2:RebootInstances"],
+      "Action": [
+        "ec2:TerminateInstances",
+        "ec2:StopInstances",
+        "ec2:StartInstances",
+        "ec2:RebootInstances"
+      ],
       "Resource": "arn:aws:ec2:*:*:instance/*",
-      "Condition": { "StringEquals": { "ec2:ResourceTag/Project": "evolution-sim" } }
+      "Condition": {
+        "StringEquals": {
+          "ec2:ResourceTag/Project": "evolution-sim"
+        }
+      }
     },
     {
-      "Sid": "OurSshKeyAndFirewall",
       "Effect": "Allow",
-      "Action": ["ec2:ImportKeyPair", "ec2:CreateSecurityGroup"],
+      "Action": [
+        "ec2:ImportKeyPair",
+        "ec2:CreateSecurityGroup"
+      ],
       "Resource": "*",
-      "Condition": { "StringEquals": { "aws:RequestTag/Project": "evolution-sim" } }
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestTag/Project": "evolution-sim"
+        }
+      }
     },
     {
-      "Sid": "EditOnlyOurFirewall",
       "Effect": "Allow",
-      "Action": ["ec2:AuthorizeSecurityGroupIngress", "ec2:RevokeSecurityGroupIngress"],
+      "Action": [
+        "ec2:AuthorizeSecurityGroupIngress",
+        "ec2:RevokeSecurityGroupIngress"
+      ],
       "Resource": "arn:aws:ec2:*:*:security-group/*",
-      "Condition": { "StringEquals": { "aws:ResourceTag/Project": "evolution-sim" } }
+      "Condition": {
+        "StringEquals": {
+          "aws:ResourceTag/Project": "evolution-sim"
+        }
+      }
     },
     {
-      "Sid": "HandTheMachinesTheirRole",
       "Effect": "Allow",
       "Action": "iam:PassRole",
       "Resource": "arn:aws:iam::*:role/evolution-sim-instance",
-      "Condition": { "StringEquals": { "iam:PassedToService": "ec2.amazonaws.com" } }
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": "ec2.amazonaws.com"
+        }
+      }
     },
     {
-      "Sid": "ResultsBucket",
       "Effect": "Allow",
-      "Action": ["s3:CreateBucket", "s3:ListBucket", "s3:GetBucketLocation"],
+      "Action": [
+        "s3:CreateBucket",
+        "s3:ListBucket",
+        "s3:GetBucketLocation"
+      ],
       "Resource": "arn:aws:s3:::evolution-sim-results-*"
     },
     {
-      "Sid": "ResultsFiles",
       "Effect": "Allow",
-      "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject"
+      ],
       "Resource": "arn:aws:s3:::evolution-sim-results-*/*"
     },
     {
-      "Sid": "SeeTheSpending",
       "Effect": "Allow",
-      "Action": ["ce:GetCostAndUsage", "budgets:ViewBudget"],
+      "Action": [
+        "ce:GetCostAndUsage",
+        "budgets:ViewBudget"
+      ],
       "Resource": "*"
     }
   ]
