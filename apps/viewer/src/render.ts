@@ -1,10 +1,10 @@
 import type { FrameMessage } from "./protocol";
 
 /** What the dot colors mean. */
-export type ColorBy = "diet" | "speed" | "size" | "hue" | "energy" | "sense" | "health" | "colony" | "cell" | "palate" | "toxicity" | "nutrient";
+export type ColorBy = "diet" | "speed" | "size" | "hue" | "energy" | "sense" | "health" | "colony" | "cell" | "palate" | "toxicity" | "nutrient" | "water";
 
 /** What the map background shows. */
-export type Overlay = "plants" | "nutrients" | "corpses" | "detritus" | "trails" | "terrain" | "temperature" | "light" | "background" | "plantKinds" | "grazing" | "fouling" | "erosion" | "events" | "plantQuality";
+export type Overlay = "plants" | "nutrients" | "corpses" | "detritus" | "trails" | "terrain" | "temperature" | "light" | "background" | "plantKinds" | "grazing" | "fouling" | "erosion" | "events" | "plantQuality" | "moisture";
 
 export const OVERLAYS: readonly { id: Overlay; label: string }[] = [
   { id: "plants", label: "Plants" },
@@ -12,7 +12,8 @@ export const OVERLAYS: readonly { id: Overlay; label: string }[] = [
   { id: "corpses", label: "Corpses" },
   { id: "detritus", label: "Detritus" },
   { id: "trails", label: "Scent trails (brains only)" },
-  { id: "terrain", label: "Terrain (worlds with terrain)" },
+  { id: "terrain", label: "Terrain (worlds with terrain; ice shows white)" },
+  { id: "moisture", label: "Moisture (worlds with climate biomes)" },
   { id: "temperature", label: "Temperature (worlds with a climate)" },
   { id: "light", label: "Plant growth (worlds with a climate)" },
   { id: "background", label: "Background color (worlds with camouflage)" },
@@ -37,6 +38,7 @@ export const COLOR_MODES: readonly { id: ColorBy; label: string; legendLow: stri
   { id: "palate", label: "Palate (worlds with several kinds of plant)", legendLow: "first kind of plant", legendHigh: "last kind of plant" },
   { id: "toxicity", label: "Toxicity (worlds with toxicity)", legendLow: "safe to eat", legendHigh: "poisonous" },
   { id: "nutrient", label: "Nutrient store (worlds with nutrient mode)", legendLow: "starved of nutrient", legendHigh: "store full" },
+  { id: "water", label: "Water (worlds with drinking)", legendLow: "parched", legendHigh: "just drank" },
 ];
 
 const PALETTE_SIZE = 48;
@@ -89,6 +91,8 @@ export function organismColor(mode: ColorBy, frame: FrameMessage, i: number): st
       return pick(RAINBOW, frame.palate ? frame.palate[i]! : 0.5);
     case "toxicity":
       return pick(RAINBOW, frame.toxicity ? frame.toxicity[i]! : 0);
+    case "water":
+      return pick(RAINBOW, frame.hydration ? frame.hydration[i]! : 0);
     case "nutrient":
       return pick(RAINBOW, frame.nutrientStore ? frame.nutrientStore[i]! : 0);
     case "cell": {
@@ -113,14 +117,20 @@ export function legendGradient(mode: ColorBy): string {
   return `linear-gradient(90deg, ${stops.join(", ")})`;
 }
 
-/** Map colors for each biome: water, plains, forest, desert, mountains. */
+/** Map colors for each biome: water, plains (grassland), forest (temperate), desert, mountains (highlands), then the climate biomes: tundra, boreal forest, savanna, tropical forest, swamp. */
 const BIOME_COLORS: readonly (readonly [number, number, number])[] = [
   [28, 70, 128],
   [96, 140, 70],
   [30, 92, 56],
   [196, 170, 100],
   [128, 128, 134],
+  [150, 160, 140],
+  [36, 72, 64],
+  [170, 160, 70],
+  [10, 110, 40],
+  [80, 90, 50],
 ];
+const ICE_COLOR = [225, 235, 245] as const;
 
 /** A color for a position (0 to 1) on the color wheel, matching the "Color gene" dot colors (hsl, 80% saturation, 62% lightness). */
 function hueToRgb(h: number): [number, number, number] {
@@ -163,6 +173,8 @@ export class WorldRenderer {
   private background: Float32Array | null = null;
   /** Which kind of plant grows in each cell (kept from the first frame after a restart). */
   private plantKinds: Float32Array | Uint8Array | null = null;
+  /** Each cell's lasting wetness, with climate biomes (kept from the first frame after a restart). */
+  private moisture: Float32Array | null = null;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext("2d");
@@ -194,6 +206,7 @@ export class WorldRenderer {
     this.terrain = frame.terrain;
     this.background = frame.background;
     this.plantKinds = frame.plantKindMap;
+    this.moisture = frame.moisture;
     this.capacity = frame.capacity;
     this.maxCapacity = Math.max(...frame.capacity, 1);
   }
@@ -361,7 +374,7 @@ export class WorldRenderer {
         continue;
       }
       if (overlay === "terrain" && biome >= 0) {
-        const [br, bg, bb] = BIOME_COLORS[biome]!;
+        const [br, bg, bb] = frame.ice && frame.ice[cell] === 1 ? ICE_COLOR : BIOME_COLORS[biome]!;
         // A little of the plant cover shows through so you can still see where food is.
         const cover = biome === 0 ? 0 : Math.min(frame.food[cell]! / Math.max(this.maxCapacity, foodCap), 1) * 0.35;
         data[o] = Math.round(br * (1 - cover) + 40 * cover);
@@ -396,6 +409,12 @@ export class WorldRenderer {
         const damage = frame.grazing ? frame.grazing[cell]! : 0;
         r += damage * 190;
         g += damage * 90;
+      } else if (overlay === "moisture") {
+        // Dry ground is pale sand, wet ground deep blue-green (from each cell's lasting wetness).
+        const m = this.moisture ? this.moisture[cell]! : 0;
+        r += 150 - 120 * m;
+        g += 120 - 20 * m;
+        b += 60 + 110 * m;
       } else if (overlay === "plantQuality") {
         // How much nutrient the plants on each piece of land hold (however many there are): poor is dark brown, rich bright yellow-green.
         const q = frame.plantQuality && qHigh > qLow ? (frame.plantQuality[cell]! - qLow) / (qHigh - qLow) : 0;

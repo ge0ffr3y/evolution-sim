@@ -107,6 +107,8 @@ export interface WorldInfo {
   camouflageOn: boolean;
   /** Whether animals carry nutrient (nutrientMode 1). */
   nutrientOn: boolean;
+  /** Whether animals must drink. */
+  drinkOn: boolean;
   /** How many kinds of plant there are (1 = one kind), and whether sex is a gene. */
   plantKinds: number;
   sexGeneOn: boolean;
@@ -177,6 +179,12 @@ export interface FrameMessage {
   health: Uint8Array | null;
   /** The biome of each cell (0 water, 1 plains, 2 forest, 3 desert, 4 mountains); null except in the first frame after a restart, and in worlds without terrain. */
   terrain: Uint8Array | null;
+  /** Climate biomes: each cell's lasting wetness, 0 to 1 (null except in the first frame after a restart, and in worlds without climate biomes). */
+  moisture: Float32Array | null;
+  /** Climate biomes: 1 where the land is under ice right now (null in worlds without climate biomes). */
+  ice: Uint8Array | null;
+  /** Drinking: how much water each animal carries, 0 to 1 (null in worlds without drinking). */
+  hydration: Float32Array | null;
   /** Chart samples recorded since the previous frame. */
   points: HistoryPoint[];
   /** Histogram snapshots taken since the previous frame. */

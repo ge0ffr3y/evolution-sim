@@ -1,0 +1,14 @@
+{
+  "name": "Climate biomes",
+  "description": "Biomes grow out of the climate: tundra and ice near the poles, boreal and temperate forests, grasslands, deserts in the dry subtropics, savanna and tropical forest at the equator, swamps where it is warm and soaked, and highlands. Each has its own plant growth, cost of moving, how well animals hide there and how easily disease spreads. Polar ice spreads in the cold and melts back. Animals must drink: they get thirsty away from water (faster in the heat), drink at the shore or on soaked ground, and suffer when dry. Brains can sense where the nearest water is and how thirsty they are. Switch the map to Terrain (ice shows white) or Moisture, and color the dots by Water.",
+  "config": {
+    "terrainMode": 2,
+    "climateMode": 1,
+    "yearLength": 2000,
+    "dayLength": 200,
+    "thermalCostCoeff": 1.5,
+    "plantTypes": 3,
+    "drinking": 1,
+    "brainMode": 2
+  }
+}

@@ -163,6 +163,7 @@ function worldInfo(s: Simulation): WorldInfo {
     diseaseOn: s.config.diseaseTransmission > 0,
     camouflageOn: s.config.camouflageMode === 1,
     nutrientOn: s.config.nutrientMode >= 1,
+    drinkOn: s.config.drinking === 1,
     plantKinds: s.config.plantTypes,
     sexGeneOn: s.config.sexualReproduction === 2,
     climateMode: s.config.climateMode,
@@ -222,6 +223,9 @@ function postFrame(s: Simulation): void {
   const hunterScent = Float32Array.from(s.hunterScent);
   const capacity = sendCapacity ? s.foodCapacity.slice() : null;
   const terrain = sendCapacity && s.biome.length > 0 ? s.biome.slice() : null;
+  const moisture = sendCapacity && s.moistureBase.length > 0 ? s.moistureBase.slice() : null;
+  const ice = s.iced.length > 0 ? s.iced.slice() : null;
+  const hydration = s.hydration.length > 0 ? s.hydration.slice(0, n) : null;
   const background = sendCapacity && s.background.length > 0 ? s.background.slice() : null;
   const plantKindMap = sendCapacity && s.config.plantTypes > 1 ? s.plantKindMap().slice() : null;
   let toxicity: Float32Array | null = null;
@@ -288,6 +292,9 @@ function postFrame(s: Simulation): void {
     hunterScent,
     capacity,
     terrain,
+    moisture,
+    ice,
+    hydration,
     bonds,
     colonySize,
     cellType: s.cellType.length > 0 ? s.cellType.slice(0, n) : null,
@@ -324,6 +331,9 @@ function postFrame(s: Simulation): void {
   if (plantQuality) transfer.push(plantQuality.buffer);
   if (capacity) transfer.push(capacity.buffer);
   if (terrain) transfer.push(terrain.buffer);
+  if (moisture) transfer.push(moisture.buffer);
+  if (ice) transfer.push(ice.buffer);
+  if (hydration) transfer.push(hydration.buffer);
   if (background) transfer.push(background.buffer);
   if (plantKindMap) transfer.push(plantKindMap.buffer);
   if (palate) transfer.push(palate.buffer);
