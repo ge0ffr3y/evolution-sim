@@ -365,7 +365,7 @@ Plants hold `plantQualityMax * soil / (soil + plantQualityHalf)` nutrient per un
 
 - **Lineages do specialize by biome.** With climate biomes, temperature preference and palate differ strongly between biomes in 5 of 6 worlds, and the ice age sharpens it. Body size hardly does. Few species exist at once (1 to 3), so this is mostly one lineage varying across the map, not separate species per biome.
 - **The ice edge moves with the climate.** Ice covers 282 to 464 cells normally, 1,018 to 1,490 at the depth of the ice age (about 3 to 4 times as much), and melts back to exactly where it was. A volcano's cooling also adds a short burst of ice (282 to 597 cells).
-- **The new senses are picked up only here and there.** In each world one or two of them end up wired into 15 to 63% of brains (for example "richer plants: ahead" in 63% of one world, "thirst" in 42% of another), but no sense is used consistently across worlds. Animals still stand on slightly poorer-than-average plants (0.82 to 0.97), so seeking out rich ground has not evolved in 50,000 ticks. Most likely the best plant amounts and the richest plants are in different places: the senses exist, and the reward for using them is small.
+- **The new senses are picked up only here and there, and maybe not at all.** In each world one or two of them end up wired into 15 to 63% of brains (for example "richer plants: ahead" in 63% of one world, "thirst" in 42% of another), but no sense is used consistently across worlds. **Correction (found in O3):** inputs that always read zero get wired at similar rates (4 to 78% of brains in the grand world, where the colony senses are always zero), because a connection from a silent input costs little and does nothing, so it drifts in. Wiring alone is therefore not evidence that evolution chose a sense; it has to beat that drift level. Animals still stand on slightly poorer-than-average plants (0.82 to 0.97), so seeking out rich ground has not evolved in 50,000 ticks. Most likely the best plant amounts and the richest plants are in different places: the senses exist, and the reward for using them is small.
 - Populations are unchanged on average, and none went extinct, but the lowest points are deeper (down to 47 to 73 in some worlds).
 
 ### O3. Colony physics and evolvable shared senses (owner's note 11)
@@ -384,6 +384,32 @@ Plants hold `plantQualityMax * soil / (soil + plantQualityHalf)` nutrient per un
   - whether the signaling gene rises;
   - whether brains wire to the colony senses;
   - survival against predators.
+
+### O3 result (built)
+
+**What was built (all off by default; older worlds unchanged):**
+- `colonyProtect`: a hunter judges whether prey is too big by the whole colony's size.
+- `colonyScaleSaving`: each cell's upkeep falls with colony size, by up to saving x (1 - cells^-1/8).
+- `signaling`: the 28th gene (needs brains). Bonded cells that carry it share the nearest bigger animal they see and which way plants smell stronger. Neighbors that also carry it hear this one tick later, scaled by both genes, so the order cells think in cannot matter. Six new colony senses carry it into the brain. Each bond costs `signalCost` x gene.
+- The brain layout grew to 69 inputs and 640 slots. Brain goldens were re-recorded. `BRAIN_LAYOUTS` and `renumberOldNode` in `brain.ts` now load a world saved with any earlier layout.
+- 9 new tests.
+
+**Evidence (6 worlds each, second half of the run):**
+
+| World | Share of cells in colonies | Average colony | Kills per 1,000 cell-ticks: colony / alone |
+|---|---|---|---|
+| Grand world (100,000 ticks), as it is | 1 to 4% | 2 cells | about the same |
+| Grand world + all three | 2 to 8% | 2 cells | 0.005 to 0.22 / 0.38 to 0.95 |
+| Colonies world (60,000 ticks), as it is | 2 to 16% | 2 cells | about the same (0.05 to 12.7 / 0.03 to 8.5) |
+| Colonies world + size protection | 50 to 94% | 5 to 12 cells (up to 16) | 0.2 to 1.0 / 4.8 to 17.5 |
+| Colonies world + economies of scale | 2 to 12% | 2 cells | about the same |
+| Sunlit colonies, as it is | 4 to 56% | 2 to 4 cells | |
+| Sunlit colonies + protection and scale | 19 to 85% | 3 to 4 cells | 0 to 0.04 / 0.04 to 0.9 |
+
+- **Size protection is the lever.** Where predators hunt, colony cells are killed 10 to 60 times less often than lone cells, and colonies take over: most cells end up in colonies of 5 to 12. Where predators are rare (the grand world, or worlds where none evolved), colonies stay rare pairs. So colonies win the niche "where there are hunters", not everywhere.
+- **Economies of scale does almost nothing** at the colony sizes that form by themselves: a 2-cell colony saves only about 2.5%.
+- **Signaling is not clearly chosen.** In the Colonies world with brains and size protection, the gene started at 0.3 and ended at 0.25 to 0.46. In the two worlds with big colonies, the colony senses were wired into 53% and 86% of brains, against 10 to 43% drift where the senses were silent. So there may be early use in those two worlds, but it is not conclusive.
+- **The grand world needs predators before colony physics matters there.** That is O4.
 
 ### O4. Why meat eating fails in the grand world, then rewards and trade-offs (owner's note 7)
 - **First, diagnose,** as was done for sex (`docs/devlog/0012`).
