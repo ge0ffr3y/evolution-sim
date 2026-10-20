@@ -97,6 +97,15 @@ export async function runJob(exp: Experiment, job: Job, options: RunJobOptions =
     sim = new Simulation(job.seed, exp.armConfigs[job.arm]!);
     rows = [sampleWorld(sim, measures)];
   }
+  // Results fetched from the cloud without their saved worlds can be further on than the world here.
+  // Carrying on from the older world would quietly redo (and overwrite) that work, so refuse instead.
+  const reached = Math.max(done?.tick ?? 0, readProgress(exp, job)?.tick ?? 0);
+  if (reached > sim.tick) {
+    throw new Error(
+      `${job.id}: its results reach tick ${reached} but the saved world here is at tick ${sim.tick}. ` +
+        "To carry it on, download the saved worlds too (npm run exp -- cloud fetch <folder> --with-checkpoints); to start it over, delete its files in results/.",
+    );
+  }
 
   const save = (): void => {
     // Rows first, then the world: if the world is saved, its rows are always there too.

@@ -268,7 +268,8 @@ export async function cloudCommand(positional: string[], options: Record<string,
       const exp = ctx.load(folder, undefined);
       const account = (aws(["sts", "get-caller-identity"]) as { Account: string }).Account;
       const args = ["s3", "sync", `s3://${bucketFor(account)}/${exp.name}/results`, join(exp.folder, "results")];
-      if (!options["with-checkpoints"]) args.push("--exclude", "*.evosnap");
+      // A saved world and its rows file are a pair (resuming needs both at the same tick), so they travel together.
+      if (!options["with-checkpoints"]) args.push("--exclude", "*.evosnap", "--exclude", "*.rows.json");
       aws(args, { region, json: false });
       console.log(`Downloaded ${exp.name}'s results to ${relative(ctx.here, join(exp.folder, "results"))}${options["with-checkpoints"] ? "" : " (without the saved worlds; add --with-checkpoints for those)"}.`);
       return;

@@ -110,6 +110,17 @@ describe("jobs: saving, resuming and extending", () => {
     expect(extended.fingerprint).toBe(long.fingerprint);
     expect(extended.rows).toEqual(long.rows);
   });
+
+  it("refuses to extend results whose saved world is missing, rather than quietly starting over", async () => {
+    const exp = tiny({ ticks: 300 });
+    const job = jobsOf(exp)[0]!;
+    await runJob(exp, job);
+    // As after a cloud fetch without --with-checkpoints: the result is here, the saved world is not.
+    rmSync(join(exp.folder, "results", `${job.id}.ckpt.evosnap`));
+    rmSync(join(exp.folder, "results", `${job.id}.rows.json`));
+    exp.ticks = 600;
+    await expect(runJob(exp, job)).rejects.toThrow(/reach tick 300 but the saved world here is at tick 0/);
+  });
 });
 
 describe("estimates", () => {
