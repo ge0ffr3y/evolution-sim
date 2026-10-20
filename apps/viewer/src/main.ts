@@ -278,6 +278,7 @@ const GENE_LABELS: Record<GeneName, string> = {
   calmResponse: "Calm response (how strongly calm acts on the body)",
   generosity: "Generosity (share of spare energy given to hungry neighbors)",
   toxicity: "Toxicity (how poisonous the body is to eat)",
+  signal: "Signaling (shares what it senses with bonded cells)",
 };
 
 function traitText(gene: GeneName, value: number): string {

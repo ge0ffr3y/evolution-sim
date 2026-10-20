@@ -53,7 +53,7 @@ describe("golden worlds (brains off)", () => {
 
 /**
  * The same idea for worlds with brains. Recorded when brains were first added (before
- * and after the "skip unused senses" speed-up, which must not change any result). Re-recorded in Phase 8b, when the brain layout grew (home, memory and chemical inputs, memory outputs, 16 hidden units), and in Phase 8e O2 (eleven new senses: nutrient store, plant richness, damaged ground, water, thirst; 576 connection slots).
+ * and after the "skip unused senses" speed-up, which must not change any result). Re-recorded in Phase 8b, when the brain layout grew (home, memory and chemical inputs, memory outputs, 16 hidden units), and in Phase 8e O2 (eleven new senses: nutrient store, plant richness, damaged ground, water, thirst; 576 connection slots), and in Phase 8e O3 (six colony senses; 640 connection slots).
  */
 const GOLDEN_BRAINS: { name: string; seed: number; ticks: number; config: object; fingerprint: number; population: number; kills: number }[] = [
   {
@@ -61,45 +61,45 @@ const GOLDEN_BRAINS: { name: string; seed: number; ticks: number; config: object
     seed: 3,
     ticks: 6000,
     config: { brainMode: 2, worldWidth: 192, worldHeight: 192, initialOrganisms: 150, foodRegrowPerTick: 0.04 },
-    fingerprint: 2059916134,
-    population: 333,
-    kills: 30,
+    fingerprint: 959145077,
+    population: 343,
+    kills: 8,
   },
   {
     name: "fixed-layout brains",
     seed: 5,
     ticks: 4000,
     config: { brainMode: 1, brainHidden: 4, brainWeightZeroProb: 0.7, worldWidth: 192, worldHeight: 192, initialOrganisms: 150, foodRegrowPerTick: 0.04 },
-    fingerprint: 2417891090,
-    population: 257,
-    kills: 6,
+    fingerprint: 2147763739,
+    population: 255,
+    kills: 12,
   },
   {
     name: "fast-growing brains",
     seed: 4,
     ticks: 4000,
     config: { brainMode: 2, brainAddConnectionProb: 0.8, brainAddNodeProb: 0.4, brainWeightMutationProb: 0.2, brainRemoveConnectionProb: 0.01, worldWidth: 128, worldHeight: 128, initialOrganisms: 100 },
-    fingerprint: 4221456500,
-    population: 310,
-    kills: 31,
+    fingerprint: 2611043799,
+    population: 305,
+    kills: 21,
   },
   {
     name: "brains that think every third tick",
     seed: 2,
     ticks: 5000,
     config: { brainMode: 2, brainEvery: 3, brainAddConnectionProb: 0.2, worldWidth: 192, worldHeight: 192, initialOrganisms: 120 },
-    fingerprint: 3229613968,
-    population: 699,
-    kills: 64,
+    fingerprint: 1779362454,
+    population: 691,
+    kills: 72,
   },
   {
     name: "appetite-shaped senses",
     seed: 6,
     ticks: 5000,
     config: { brainMode: 2, brainAppetiteSenses: 1, brainAddConnectionProb: 0.2, worldWidth: 192, worldHeight: 192, initialOrganisms: 120 },
-    fingerprint: 2276384609,
-    population: 682,
-    kills: 84,
+    fingerprint: 3267835214,
+    population: 675,
+    kills: 88,
   },
 ];
 
