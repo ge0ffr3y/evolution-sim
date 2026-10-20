@@ -203,10 +203,183 @@ Where destroyed things go (all checked by the conservation test to 1e-9 with all
 
 ---
 
+### O4 diagnosis (done; O4 parked at "armed omnivores" by the owner, to revisit with long runs)
+
+**Step 1: switch the suspects off one at a time in the grand world** (4 worlds each, 100,000 ticks, measured over the second half; "meat eaters" means diet above 0.75):
+
+| | Meat eaters | Kills per 1,000 ticks | Meat in the diet | Armed (attack above the threshold) | Diet gene |
+|---|---|---|---|---|---|
+| Standard world (control) | 33 to 80 in 3 of 4 worlds (up to 125) | 2,700 to 4,900 | 32 to 42% | 39 to 63% | 0.20 to 0.31 |
+| Grand world | 0 | 250 to 410 | 1.5 to 2.9% | 14 to 50% | 0.02 |
+| ...without herd bonus, camouflage, colonies, kin tolerance, food sharing, disease, torpor, plant kinds, or the Phase 8e ecology (one at a time) | 0 in every world | 50 to 520 | 0.5 to 3.2% | 2 to 99% | 0.01 to 0.04 |
+| ...without all of those | 0 | 12 to 30 | 0.8 to 1.2% | 11 to 18% | 0.01 |
+| ...without kin restraint (kinDistance 0) | 0 | 105 to 158 | 1.0 to 1.3% | 3 to 6% | 0.01 to 0.02 |
+| ...without all of those and kin restraint | 0 | 44 to 80 | 0.8 to 1.2% | 1% | 0.01 |
+
+- **Grand-world animals do kill, and plenty of them arm themselves, but they never become meat eaters:** the diet gene stays near 0.02, so they cannot digest what they kill. The missing step is the shift in diet, not the arming.
+- **Prey are hidden by kin restraint and camouflage.** In the grand world only 5 to 21% of prey within reach are eligible: 38 to 49% go unnoticed and 23 to 53% count as relatives. With every suspect off, 97% count as relatives, because the fixed rule "never attack anyone within kinDistance" covers almost everyone in a uniform population.
+- **But that is not the cause.** With kin restraint off too, 97% of prey within reach become eligible, and still no meat eaters appear; fewer animals even bother to arm (1%). None of the suspects listed in the plan is the reason.
+
+**Step 2: add one grand-world group at a time to the standard world,** where meat eaters do appear (4 worlds each, 100,000 ticks):
+
+| Standard world plus... | Worlds with meat eaters | Meat eaters (average) | Meat in the diet |
+|---|---|---|---|
+| nothing (control) | 3 of 4 | 33 to 80 | 32 to 42% |
+| bigger world and 1.5x food | 4 of 4 | 480 to 690 | 43 to 45% |
+| Phase 8e ecology | 4 of 4 | 29 to 89 | 29 to 45% |
+| disease | 4 of 4 | 16 to 99 | 17 to 38% |
+| life history (aging, litters, luck, starting variety) | 3 of 4 | 117 to 188 | 38 to 47% |
+| colonies | 3 of 4 | 3 to 129 | 11 to 43% |
+| plant kinds | 3 of 4 | 27 to 152 | 18 to 38% |
+| climate and terrain | 2 of 4 | 9 to 26 | 21 to 32% |
+| brains | 2 of 4 | 47 to 80 | 25 to 33% |
+| social traits (kin, herds, sharing, camouflage) | 1 of 4 | 43 | 34% |
+| **sex and harmful mutations** | **0 of 4** | 0 | about 1% |
+| sex only (as a gene, with the easier-mating settings) | 1 of 4 | 62 | 37% |
+| **harmful mutations only** (`mutationLoadRate` 3, the textbook ratchet) | **0 of 4** | 0 | about 1% |
+
+**Step 3: confirm.**
+- In the standard world with harmful mutations, armed animals carry about **twice as many harmful mutations** as everyone else, in all 4 worlds (5.6 to 17.2, against 2.9 to 7.2).
+- The grand world without harmful mutations:
+  - kills rise from 250 to 410 to 1,250 to 1,530 per 1,000 ticks;
+  - meat in the diet rises from 1.5 to 3% to 11 to 13%;
+  - the diet gene triples (0.02 to 0.05 to 0.07), and 26 to 93% of animals are armed;
+  - but true meat eaters still appeared only once, briefly (18 at most).
+
+**Diagnosis:**
+1. **The main cause is the harmful-mutation load (Muller's ratchet) added in Phase 8d to make sex pay.** It reliably stops meat eating from taking off. Would-be hunters are always a small group, and small groups pile up harmful mutations faster (the ratchet turns faster when there are fewer to choose from). Their upkeep climbs until hunting no longer pays. Sex is the cure for the ratchet, but rare hunters rarely meet a compatible mate, so they stay asexual and keep loading up.
+2. **Smaller brakes remain once the load is gone:** climate and terrain, brains, and the social traits each cut meat eating to 1 or 2 worlds in 4 in the standard world. Together they explain why the grand world without load reaches mixed diets but not true meat eaters.
+3. **Not the cause:** the herd bonus, camouflage, colonies, kin tolerance, food sharing, disease, torpor, plant kinds, the Phase 8e ecology, and kin restraint. Each hides or protects prey, but switching any of them off, or all of them, did not bring back meat eaters while the load was on.
+
+**Options for the next step (to decide with the owner):**
+- **(a) A small chance of mending** (back-mutation) in the textbook ratchet, so load in small asexual groups levels off instead of growing for ever. Real genomes do repair a little. This needs checking that sex still pays in the grand world.
+- **(b) Make hunting pay more,** so hunters out-breed their load. These are the O4 rewards: meat nutrient-rich (already in nutrient mode, which helped meat eaters in the standard world), meat filling a reserve, and fewer but bigger meals.
+- **(c) Hunters find mates more easily,** for example compatibility judged without the diet and attack genes, so rare hunters can get the benefit of sex. This risks mixing hunting genes back into the prey.
+- (d) A milder load rate in the grand world. Phase 8d found this removes the reason for sex, so it is a last resort.
+- Recommended order: (a) and (b) together in the grand world, measured on both meat eaters and sex; then (c) if hunters still cannot find mates.
+
+### O4 first fixes: mending plus nutrient-rich meat (grand world, 4 worlds each, 100,000 ticks)
+
+Built: `mutationLoadMend` (model 1 only, default 0): each inherited harmful mutation has this chance of being repaired at birth. The reward tried is the one that already exists, nutrient-rich meat (`nutrientMode: 2`). Fat is still off in the grand world, pending the owner's decision.
+
+| | Meat eaters | Meat in the diet | Diet gene | Harmful mutations per animal | Sex gene | Births with two parents | Population |
+|---|---|---|---|---|---|---|---|
+| Grand world | 0 | 1.5 to 2.9% | 0.02 | **93 to 202** | 0.13 to 0.48 | 11 to 44% | 366 to 623 |
+| + mending 5% | 0 | 1.6 to 5.5% | 0.02 to 0.03 | 28 to 40 | 0.06 to 0.35 | 4 to 32% | 709 to 884 |
+| + mending 15% | 0 | 3.0 to 5.1% | 0.03 | 15 to 16 | 0.04 to 0.14 | 4 to 13% | 769 to 944 |
+| + nutrient-rich meat | 0 | 0.7 to 2.6% | 0.02 to 0.05 | 77 to 147 | 0.24 to 0.31 | 35 to 47% | 489 to 1,033 |
+| + mending 5% + nutrient-rich meat | 0 | 1.1 to 8.9% | 0.02 to 0.10 | 28 to 45 | 0.03 to 0.40 | 18 to 53% | 682 to 840 |
+| + mending 15% + nutrient-rich meat | 0 | **1.7 to 16.9%** | **0.02 to 0.21** | 14 to 18 | 0.03 to 0.13 | 14 to 47% | 458 to 999 |
+
+- **The grand world is in a slow meltdown without mending.** By tick 100,000 every animal carries 93 to 202 harmful mutations, so its upkeep is about 5 to 9 times normal, and the number is still climbing. Mending holds it near 30 to 40 (5%) or 15 (15%), and populations rise by a third to a half.
+- **Mending weakens sex,** as Phase 8d predicted: the sex gene falls from 0.13 to 0.48 to 0.04 to 0.14 at 15% mending. Nutrient-rich meat pushes the other way (two-parent births 35 to 47%), probably because a baby is built from both parents' stores.
+- **Meat eating moves, but no true meat eaters appear.** With 15% mending and nutrient-rich meat, two of four worlds reach 14 to 17% meat in the diet, a diet gene of 0.15 to 0.21, and over 1,000 kills per 1,000 ticks: mixed eaters, not specialists. The done criterion (a lasting meat-eating lineage in most worlds) is **not met**.
+- **What is left:** the smaller brakes from step 2 (climate and terrain, brains, social traits), which compound in the grand world, and the cost of being half-way between diets (`dietSpecialization` makes a mixed diet worse at both foods, a valley a lineage has to cross).
+
+### O4 remaining brakes (grand world with 15% mending and nutrient-rich meat; one group removed at a time; 4 worlds each, 100,000 ticks)
+
+| | Meat eaters | Kills per 1,000 ticks | Meat in the diet | Diet gene | Mixed eaters (diet 0.25 to 0.75) | Births with two parents | Population |
+|---|---|---|---|---|---|---|---|
+| Baseline | 0 | 150 to 2,000 | 1.7 to 16.9% | 0.02 to 0.21 | 0 to 23% | 14 to 47% | 458 to 999 |
+| Without climate and terrain | 0 (one, once) | 75 to 4,350 (above 3,500 in 3 of 4) | 1.0 to 21.4% | 0.02 to 0.21 | 0 to 35% | 14 to 32% | 1,145 to 2,177 |
+| Without brains | 0 | 950 to 1,770 (all 4) | 10.6 to 14.1% (all 4) | 0.20 to 0.25 (all 4) | 19 to 46% | 17 to 26% | 432 to 576 |
+| Without social traits | 0 | 130 to 280 | 2.0 to 3.6% | 0.03 | 0% | 53 to 58% | 899 to 1,142 |
+| Mixed diet half as costly (`dietSpecialization` 0.25) | 0 | 770 to 1,650 | 7.8 to 20.4% | 0.13 to 0.32 | 3 to 82% | 12 to 27% | 179 to 625 |
+
+- **None of the remaining brakes, removed alone, produces true meat eaters.**
+- **Removing brains, climate or the diet cost makes the whole population lean toward meat** (up to a fifth of the diet, diet gene up to 0.3, up to 82% mixed eaters), but it shifts as one population of omnivores. It does not split into plant eaters and specialist hunters, which is what happens in the standard world (diet 0.2 to 0.3 on average, but made of two separate groups).
+- **Removing the social traits makes meat eating rarer, not commoner** (2 to 4% of the diet), so they are not a brake here. Births with two parents rise to 53 to 58% at the same time.
+- **Likely reason for no split: gene mixing.** Would-be hunters mate with plant-eating neighbors (they count as compatible while their diets are still close), so hunting genes are blended back into the prey before a separate hunting lineage can form. This fits step 2: sex alone allowed meat eaters in only 1 of 4 standard worlds, against 3 of 4 without it. It is a hypothesis; the test would be mate choice that favors a similar diet (assortative mating, which is how new species usually split), or compatibility judged more strictly on the diet gene.
+
+### O4 test of the gene-mixing hypothesis: mating by diet (grand world with 15% mending and nutrient-rich meat; 4 worlds each, 100,000 ticks)
+
+Built: `matePreference: 3` (pick the most similar diet) and `mateDietLimit` (refuse mates whose diet gene differs by more than this). Both off by default; 4 tests.
+
+| | Meat eaters | Animals with diet above 0.5 | Highest diet in the world | Average diet | Meat in the diet | Births with two parents |
+|---|---|---|---|---|---|---|
+| Baseline | 0 | - | - | 0.02 to 0.21 | 1.7 to 16.9% | 14 to 47% |
+| Prefer a similar diet | 0 | 0 | 0.25 to 0.31 | 0.12 to 0.17 | 6.6 to 13.6% | 16 to 34% |
+| + refuse mates more than 0.3 apart | 0 | 0 | 0.23 to 0.34 | 0.12 to 0.18 | 8.1 to 14.0% | 13 to 22% |
+| + refuse mates more than 0.15 apart | 0 | 0 to 0.1% | 0.14 to 0.36 | 0.02 to 0.17 | 2.2 to 13.2% | 14 to 41% |
+
+- **The hypothesis is not supported.** Even when hunters may only mate with similar eaters, nobody in any world gets past a diet of 0.36. Only about a fifth to a third of births have two parents anyway, so most lineages are already free of mixing, and they do not specialize either.
+- **What this points to instead: hunting income per animal is too low for a specialist to pay.** The grand world makes about 1 to 3 kills per animal per 1,000 ticks, against about 7 in the standard world. So the best diet sits at an omnivore's 0.2 to 0.3: a little meat on top of plants. Going further means giving up plant food for meat there is not enough of.
+- **Why the catch rate is low:** many small things that each lower it, and that add up (camouflage hides 38 to 49% of prey within reach, kin restraint and the herd protect others, brains have to learn to attack, climate and terrain scatter animals). Removing one at a time was never enough.
+- **Next options:** (1) remove several of these together (no camouflage, no kin restraint or herd, no brains), to learn whether specialists can appear at all in a world this size; (2) make each kill worth more (bigger meals or a reserve for meat), so a specialist can live on fewer kills.
+
+### O4 mechanism: energy budgets by diet and planted hunters
+
+Measured in 4 grand worlds (15% mending, nutrient-rich meat) and 4 standard worlds. Budgets by diet run from tick 30,000 to 50,000. At tick 50,000, 30 animals per world were turned into ready-made meat eaters, using the average genome of evolved meat eaters in a standard world (size 0.46, speed 0.36, sense 0.28, metabolism 0.51, diet 0.83, attack 0.34, armor 0.85), and followed to tick 90,000.
+
+**Would-be hunters at the same diet (diet gene 0.3 to 0.5), grand against standard:**
+
+| | Grand world | Standard world |
+|---|---|---|
+| Kills per animal per 1,000 ticks | 5.5 | 25.9 |
+| Meat energy per tick | 0.063 | 0.228 |
+| Upkeep per tick | 0.106 | 0.053 |
+| Body size | 1.14 | 0.80 |
+| Animals with diet above 0.5 | none | 4% of all animals |
+
+**The planted meat eaters:**
+- **Grand world:** all 30 were gone within 1,000 ticks in 3 of 4 worlds (29 of 30 starved rather than being killed), and in the 4th within 4,000. They made 0.1 to 4 kills per 1,000 ticks while paying 0.18 to 0.20 upkeep per tick.
+- **Standard world:** the same genome made 11 to 35 kills per 1,000 ticks. Its lineage grew to 250 to 550 in two worlds and held at 30 to 60 in a third.
+
+**Why kills are rare in the grand world (from the earlier runs):**
+- Of the prey within a hunter's reach, only 5 to 46% are eligible, against 81 to 84% in standard worlds with meat eaters. Camouflage hides 35 to 53%, and kin restraint spares 14 to 58%.
+- Attacks succeed 15 to 36% of the time, against 38 to 47%.
+- Brains never hold an attack back (the attack gate is never the limit), but grand-world brains steer toward plants, and the planted hunters carried plant eaters' brains. That is a limit of this test: there are no hunting brains in the grand world to give them.
+
+**The mechanism, put together:**
+1. **A hunter in the grand world gets about a quarter of the meat a hunter of the same diet gets in the standard world,** because it makes about a fifth as many kills. Most prey near it are hidden by camouflage or protected as relatives, and fewer attacks succeed.
+2. **It also pays about twice the upkeep,** because hunting there favors a much bigger body (and the grand world has extra costs: brains, aging, the remaining mutation load).
+3. **So the best strategy is a little meat on top of plants.** In the grand world, net growth (births minus deaths per 1,000 animal-ticks) rises slightly with diet up to 0.5 (from -0.02 to +0.06), so omnivores are favored, but nothing past 0.5 can pay. Planted specialists starve.
+4. **Why switching off camouflage or kin restraint alone failed earlier:** they compound, and the run that switched both off together (97% of prey eligible) still had the full, unmended mutation load. Catching enough prey and carrying a manageable load have never been tested together.
+
+**Suggested decisive test:** the grand world with 15% mending and nutrient-rich meat, and with camouflage, kin restraint and the herd bonus off. If specialists appear, the mechanism is confirmed (low catch rate plus load). Then the fix can be chosen to keep camouflage and kinship in the world but soften them for hunters. For example: hunters learn to see through camouflage faster, or kin restraint applies only to close relatives. Bigger meals would make each kill count more without discouraging omnivores.
+
+### O4 decisive test and the first two fixes (grand world, 15% mending and nutrient-rich meat, 4 worlds each, 100,000 ticks)
+
+Built (both off by default, 7 tests):
+- `kinHungerBelow`: hunger overrides kin restraint. Below this share of breeding energy, the closeness an animal respects shrinks in proportion to its hunger.
+- `camoHunterEye`: the chance of noticing camouflaged prey rises toward certainty by this much times the hunter's diet gene.
+
+| | Meat eaters | Armed | Meat in the diet | Highest diet in the world | Prey within reach that are eligible |
+|---|---|---|---|---|---|
+| Baseline | 0 | 3 to 100% | 1.7 to 16.9% | about 0.3 | 5 to 46% |
+| **Decisive test:** camouflage, kin restraint, herd bonus off | 0 | **2 to 3%** | **1.8 to 3.2%** | 0.12 to 0.19 | **94 to 97%** |
+| + hunger overrides kin restraint (0.5) | 0 | 98 to 100% (all 4) | 11 to 14% (all 4) | 0.19 to 0.29 | 3 to 10% |
+| + committed hunter's eye (0.8) | 0 | 8 to 100% | 4.6 to 16.3% | 0.22 to 0.46 | 3 to 42% |
+| + both | 0 | 3 to 100% | 1.7 to 17.6% | 0.10 to 0.25 | 5 to 53% |
+
+- **The decisive test refutes the catch-rate explanation as the whole story.** With nearly every nearby animal attackable, meat eating fell rather than rose, because almost nobody arms (2 to 3%). The social traits (kin restraint, herd, camouflage) somehow support aggression evolving; it is not that hunters eat their own family. Kills of own young are 8 to 10% with or without restraint, and strangers make up 59 to 66% of kills either way.
+- **Hunger overriding kin restraint makes arming universal and meat steady** (11 to 14% of the diet in every world, against 1.7 to 17% before): the most reliable effect of anything tried. But it makes everyone an armed omnivore, not a specialist.
+- **The hunter's eye** helps only somewhere: in one world the whole population became mixed eaters (diet 0.35), and that world crashed to 116 animals.
+- **The pattern across every test:** the whole population drifts toward a little meat. No lineage passes a diet of about 0.46, and the planted specialists starved. A specialist needs about five times the kills an animal gets in the grand world, and the available kills are spread thinly over a population of armed omnivores all taking a little.
+- **Remaining lever:** the payoff per kill, so that fewer kills can sustain a specialist (option 3: gorging, or bigger meals). Or accept that the grand world favors armed omnivores and treat that as a valid outcome.
+
+### O4 bigger and richer meals (grand world with 15% mending, nutrient-rich meat and hunger overriding kin restraint; 4 worlds each, 100,000 ticks)
+
+Built: `meatGorge` (meat bites this many times bigger, so a hunter eats most of its kill before it rots or is shared; off by default, 2 tests). "Richer" means more energy locked in every body (`bodyEnergyPerSize` 4 to 8). That is the only way a kill can carry more energy without energy being made, and it makes every baby cost more to build, plant eaters' too.
+
+| | Meat eaters | Armed | Meat in the diet | Highest diet in the world | Population |
+|---|---|---|---|---|---|
+| Hunger overriding kin restraint only | 0 | 98 to 100% | 11 to 14% | 0.19 to 0.29 | 490 to 786 |
+| + bites x3 | 0 | 98 to 100% | 12 to 18% | 0.20 to 0.28 | 514 to 870 |
+| + richer bodies (x2) | 0 | 35 to 100% | 10 to 16% | 0.24 to 0.34 | 550 to 856 |
+| + bites x3 and richer bodies | 0 | 100% | 13 to 18% | 0.19 to 0.27 | **168 to 411** |
+| + bites x5 and richer bodies | 0 | 100% | **19 to 25%** | 0.24 to 0.34 | 360 to 561 |
+
+- **Bigger and richer meals raise meat eating steadily,** up to a fifth to a quarter of everything eaten, with every animal armed.
+- **They still do not produce a specialist.** No animal in any world passed a diet of 0.34, and no world had anyone above 0.5. The richer bodies also cost population (down to 168 to 411 with bites x3).
+- **Across every O4 test so far, the grand world settles on armed omnivores:** everybody hunts a little, nobody hunts for a living. In 100,000 ticks the diet gene never climbs past about a third, whatever we change. Possible reasons not yet tested: specialization needs far longer than 100,000 ticks in a world this size (the standard world needed 30,000 to 60,000 ticks with fewer animals), or a specialist cannot live among prey that are all armed and as big as it is.
+
 ## Deferred long runs (do these later, on the cloud or when the laptop is free)
 
 - **Erosion, 1,000,000 ticks.** Question: does worn ground level off at a stable share, or keep climbing, with the gentlest default (`erosionRate` 0.00001, recovery 0.00004) in the grand world? So far about 15% is worn at 300,000 ticks and still rising. If it levels off at 20 to 30% the default is fine; if it keeps climbing toward most of the land, add a better recovery before turning erosion on in the grand world. Run `erodeexp` (3 seeds). The sampling script was fixed to record every tenth of the run (an earlier attempt recorded nothing because 1,000,000 does not divide evenly by 6).
 - **Warning colors with sex and color mate choice** (see S6 result): sexual reproduction (`sexualReproduction` 2 with the sex-gene settings from devlog 12), `matePreference` 2, `toxinStrength` 0.8, `founderSpread` 0.5; look for lineages with distinct hue and different toxicity. 8 seeds, 300,000 ticks.
+- **Meat eating, 500,000+ ticks (O4).** The best combination so far, in the grand world: `mutationLoadMend` 0.15, `nutrientMode` 2, `kinHungerBelow` 0.5, `meatGorge` 5, `bodyEnergyPerSize` 8. Question: do specialist meat eaters (diet above 0.75) appear given far more time, or does the world stay at armed omnivores (diet gene never above about 0.35 in 100,000 ticks)? 4 to 8 seeds; watch the highest diet in the world, the share above 0.5, and sex. Script: `o4diag`.
+- **Planted hunters with hunting brains (O4).** The planted-hunter test used plant eaters' brains. Redo it with brains taken from a world where hunting brains evolved (a brainy standard world), to separate "the body cannot pay" from "the brain cannot hunt".
 - (Add other long checks here as they come up, for example overgrazing and fouling over millions of ticks, to see whether their population cost keeps growing or settles.)
 
 ---

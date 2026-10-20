@@ -782,7 +782,16 @@ export class Simulation {
     if (this.camoOn && !this.detects(this.pickAttacker, index)) return; // never noticed it
     if (this.toxOn && this.avoidStrength[this.pickAttacker]! > 0 && this.avoids(this.pickAttacker, index)) return; // it remembers that this color was poison
     // Nobody attacks a relative (or, with kinTolerance, nobody tolerant enough to count the target as one).
-    const limitSq = this.kinToleranceOn ? this.toleranceSq[this.pickAttacker]! : this.kinLimitSq;
+    let limitSq = this.kinToleranceOn ? this.toleranceSq[this.pickAttacker]! : this.kinLimitSq;
+    const hungerBelow = this.config.kinHungerBelow;
+    if (limitSq > 0 && hungerBelow > 0) {
+      // Hunger overrides kin restraint: the hungrier it is, the closer a relative must be to be spared.
+      const fed = this.energy[this.pickAttacker]! / this.threshold[this.pickAttacker]!;
+      if (fed < hungerBelow) {
+        const keep = fed > 0 ? fed / hungerBelow : 0;
+        limitSq *= keep * keep;
+      }
+    }
     if (limitSq > 0 && this.geneDistanceSq(this.pickAttacker, index) <= limitSq) return;
     if (distSq < this.pickBestDistSq || (distSq === this.pickBestDistSq && index < this.pickBest)) {
       this.pickBest = index;
@@ -2299,7 +2308,7 @@ export class Simulation {
     const k = c.contestStrength;
     const weight = k <= 1 ? bite * (1 - k + k * bite) : bite * bite * (2 - k + (k - 1) * bite);
     this.plantBite[i] = bite * (1 - diet);
-    this.meatBite[i] = bite * diet;
+    this.meatBite[i] = bite * diet * c.meatGorge; // (gorging: meat can be wolfed down in bigger bites)
     this.plantWeight[i] = weight * (1 - diet);
     this.meatWeight[i] = weight * diet;
     this.plantEff[i] = 1 - c.dietSpecialization * diet;
@@ -2428,6 +2437,13 @@ export class Simulation {
         for (let k = this.loadMask[b]!; k > 0; k--) if (this.rng.next() < 0.5) count++;
       } else {
         count = this.loadMask[a]!;
+      }
+      // Mending (off unless set): each harmful mutation passed down has a small chance of being repaired, so the
+      // load of a small asexual group levels off instead of growing for ever.
+      if (c.mutationLoadMend > 0) {
+        let kept = 0;
+        for (let k = count; k > 0; k--) if (this.rng.next() >= c.mutationLoadMend) kept++;
+        count = kept;
       }
       this.loadMask[child] = count + this.newHarm(c.mutationLoadRate);
       return;
@@ -3061,6 +3077,8 @@ export class Simulation {
       p *= 1 + c.camoLearning * (1 - 2 * sd);
       if (p > 1) p = 1;
     }
+    // A committed hunter's eye: the more of a meat eater it is, the closer to certain it notices prey.
+    if (c.camoHunterEye > 0) p += (1 - p) * c.camoHunterEye * this.genes[viewer * GENE_COUNT + GENE.diet]!;
     const glance = Math.floor(this.tick / c.camoGlance);
     const u = ((Math.imul(glance + 1, 0x9e3779b1) ^ Math.imul(this.id[viewer]! + 1, 0x85ebca6b) ^ Math.imul(this.id[target]! + 1, 0xc2b2ae35)) >>> 0) / 4294967296;
     return u < p;
@@ -3775,6 +3793,9 @@ export class Simulation {
     const limit = this.config.mateDistance;
     const geneSq = this.geneDistanceSq(this.mateSelf, index);
     if (geneSq > limit * limit) return;
+    let dietGap = this.genes[this.mateSelf * GENE_COUNT + GENE.diet]! - this.genes[index * GENE_COUNT + GENE.diet]!;
+    if (dietGap < 0) dietGap = -dietGap;
+    if (dietGap > this.config.mateDietLimit) return; // too different an eater to pair with
     // The score to beat: how near (default) or how genetically similar (matePreference 1, nearer wins a tie).
     let score = distSq;
     if (this.config.matePreference === 1) score = geneSq;
@@ -3782,7 +3803,7 @@ export class Simulation {
       let hd = this.genes[this.mateSelf * GENE_COUNT + GENE.hue]! - this.genes[index * GENE_COUNT + GENE.hue]!;
       if (hd < 0) hd = -hd;
       score = hd > 0.5 ? 1 - hd : hd; // how far apart the colors are, round the color wheel
-    }
+    } else if (this.config.matePreference === 3) score = dietGap; // the most similar eater
     if (score > this.mateBestScore || (score === this.mateBestScore && distSq >= this.mateBestDistSq)) return;
     this.mateBest = index;
     this.mateBestScore = score;

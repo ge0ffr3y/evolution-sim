@@ -482,6 +482,8 @@ export interface SimConfig {
    * selection is weak, which is the situation sex is thought to solve.
    */
   mutationLoadModel: number;
+  /** Model 1 only: the chance that each harmful mutation a baby inherits is repaired (0 = never, the textbook ratchet). */
+  mutationLoadMend: number;
   mutationLoadLoci: number;
   mutationLoadBack: number;
   mutationLoadCost: number;
@@ -853,6 +855,17 @@ export interface SimConfig {
    * kinDistance above 0. 0 = everybody follows kinDistance.
    */
   kinTolerance: number;
+  /**
+   * Hunger overrides kin restraint (0 = off). An animal whose energy is below this share of what it needs to
+   * breed spares only closer relatives the hungrier it gets: the closeness it respects shrinks in proportion,
+   * to nothing when it has no energy left. A well-fed animal spares relatives as before.
+   */
+  kinHungerBelow: number;
+  /**
+   * Gorging: meat bites are this many times bigger than plant bites would be (1 = the same). A hunter eats
+   * most of its kill before it rots or others share it. Energy only changes hands faster; none is made.
+   */
+  meatGorge: number;
   /** Tolerance of the first generation (0 to 1). */
   initialTolerance: number;
   /** Energy per tick per unit of tolerance: recognizing relatives is a kind of sensing, so it is counted on the sensing line. */
@@ -904,6 +917,12 @@ export interface SimConfig {
   camoDetectMin: number;
   camoGlance: number;
   camoLearning: number;
+  /**
+   * A committed hunter's eye (0 = off): the chance of noticing camouflaged prey is raised toward certainty
+   * by this much times the hunter's diet gene, so an occasional meat eater stays easy to fool and a
+   * specialist sees through camouflage far better.
+   */
+  camoHunterEye: number;
   /** How far a hunter's remembered color moves toward the color of each new kill (0 to 1). */
   camoLearnRate: number;
 
@@ -1012,9 +1031,15 @@ export interface SimConfig {
   /**
    * Who an organism picks out of the compatible, ready ones in range: 0 = the nearest, 1 = the
    * most genetically similar (so specialists tend to find each other, which lets a lineage keep
-   * a combination of genes that would be diluted by mixing with everyone).
+   * a combination of genes that would be diluted by mixing with everyone), 2 = the most similar
+   * color, 3 = the most similar diet.
    */
   matePreference: number;
+  /**
+   * Mates must have diets within this much of each other (diet genes, 0 to 1; 1 = any diet will do).
+   * With matePreference 3 (most similar diet) this is assortative mating by diet: hunters mate with hunters.
+   */
+  mateDietLimit: number;
 
   /**
    * Rare large mutations: with this chance per birth, a few genes at once change by a lot
@@ -1264,6 +1289,7 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   initialShare: 0,
   mutationLoadRate: 0,
   mutationLoadModel: 0,
+  mutationLoadMend: 0,
   mutationLoadLoci: 24,
   mutationLoadBack: 0.01,
   mutationLoadCost: 0.03,
@@ -1484,6 +1510,7 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   camoDetectMin: 0.2,
   camoGlance: 20,
   camoLearning: 1,
+  camoHunterEye: 0,
   camoLearnRate: 0.3,
   multicellular: 0,
   bondLinksMax: 4,
@@ -1520,6 +1547,9 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   mateRange: 6,
   mateDistance: 0.25,
   matePreference: 0,
+  kinHungerBelow: 0,
+  meatGorge: 1,
+  mateDietLimit: 1,
   macroMutationProb: 0,
   macroMutationStd: 0.3,
   macroMutationGenes: 3,
@@ -1778,6 +1808,7 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     if (!Number.isInteger(c.mutationLoadLoci) || c.mutationLoadLoci < 1 || c.mutationLoadLoci > 30) problems.push("mutationLoadLoci must be a whole number from 1 to 30");
     if (c.mutationLoadBack < 0 || c.mutationLoadBack > 1 || c.mutationLoadCost < 0) problems.push("mutationLoadBack must be between 0 and 1 and mutationLoadCost cannot be negative");
     if (c.mutationLoadModel === 0 && c.mutationLoadRate > c.mutationLoadLoci) problems.push("mutationLoadRate cannot be more than mutationLoadLoci");
+    if (c.mutationLoadMend < 0 || c.mutationLoadMend > 1) problems.push("mutationLoadMend must be between 0 and 1");
     if (c.mutationLoadSynergy < 0 || c.mutationLoadFertility < 0) problems.push("mutationLoadSynergy and mutationLoadFertility cannot be negative");
     if (c.mutationLoadStart < 0 || (c.mutationLoadModel === 0 && c.mutationLoadStart > c.mutationLoadLoci)) problems.push("mutationLoadStart must be between 0 and mutationLoadLoci");
   }
@@ -1873,7 +1904,10 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (c.sexFounderSpread !== -1 && (c.sexFounderSpread < 0 || c.sexFounderSpread > 1)) problems.push("sexFounderSpread must be -1 (follow founderSpread) or between 0 and 1");
   if (![0, 1].includes(c.sexAcceptAny)) problems.push("sexAcceptAny must be 0 or 1");
   if (!(c.mateRange > 0)) problems.push("mateRange must be positive");
-  if (![0, 1, 2].includes(c.matePreference)) problems.push("matePreference must be 0 (nearest), 1 (most similar genes) or 2 (most similar color)");
+  if (![0, 1, 2, 3].includes(c.matePreference)) problems.push("matePreference must be 0 (nearest), 1 (most similar genes), 2 (most similar color) or 3 (most similar diet)");
+  if (!(c.mateDietLimit > 0 && c.mateDietLimit <= 1)) problems.push("mateDietLimit must be above 0 and at most 1");
+  if (!(c.meatGorge >= 1)) problems.push("meatGorge must be at least 1");
+  if (c.kinHungerBelow < 0 || c.kinHungerBelow > 1 || c.camoHunterEye < 0 || c.camoHunterEye > 1) problems.push("kinHungerBelow and camoHunterEye must be between 0 and 1");
   if (![0, 1].includes(c.camouflageMode)) problems.push("camouflageMode must be 0 or 1");
   if (c.camouflageMode === 1) {
     const gw = c.worldWidth / c.foodCellSize;
