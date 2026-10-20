@@ -782,7 +782,16 @@ export class Simulation {
     if (this.camoOn && !this.detects(this.pickAttacker, index)) return; // never noticed it
     if (this.toxOn && this.avoidStrength[this.pickAttacker]! > 0 && this.avoids(this.pickAttacker, index)) return; // it remembers that this color was poison
     // Nobody attacks a relative (or, with kinTolerance, nobody tolerant enough to count the target as one).
-    const limitSq = this.kinToleranceOn ? this.toleranceSq[this.pickAttacker]! : this.kinLimitSq;
+    let limitSq = this.kinToleranceOn ? this.toleranceSq[this.pickAttacker]! : this.kinLimitSq;
+    const hungerBelow = this.config.kinHungerBelow;
+    if (limitSq > 0 && hungerBelow > 0) {
+      // Hunger overrides kin restraint: the hungrier it is, the closer a relative must be to be spared.
+      const fed = this.energy[this.pickAttacker]! / this.threshold[this.pickAttacker]!;
+      if (fed < hungerBelow) {
+        const keep = fed > 0 ? fed / hungerBelow : 0;
+        limitSq *= keep * keep;
+      }
+    }
     if (limitSq > 0 && this.geneDistanceSq(this.pickAttacker, index) <= limitSq) return;
     if (distSq < this.pickBestDistSq || (distSq === this.pickBestDistSq && index < this.pickBest)) {
       this.pickBest = index;
@@ -3068,6 +3077,8 @@ export class Simulation {
       p *= 1 + c.camoLearning * (1 - 2 * sd);
       if (p > 1) p = 1;
     }
+    // A committed hunter's eye: the more of a meat eater it is, the closer to certain it notices prey.
+    if (c.camoHunterEye > 0) p += (1 - p) * c.camoHunterEye * this.genes[viewer * GENE_COUNT + GENE.diet]!;
     const glance = Math.floor(this.tick / c.camoGlance);
     const u = ((Math.imul(glance + 1, 0x9e3779b1) ^ Math.imul(this.id[viewer]! + 1, 0x85ebca6b) ^ Math.imul(this.id[target]! + 1, 0xc2b2ae35)) >>> 0) / 4294967296;
     return u < p;

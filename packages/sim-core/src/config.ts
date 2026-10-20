@@ -855,6 +855,12 @@ export interface SimConfig {
    * kinDistance above 0. 0 = everybody follows kinDistance.
    */
   kinTolerance: number;
+  /**
+   * Hunger overrides kin restraint (0 = off). An animal whose energy is below this share of what it needs to
+   * breed spares only closer relatives the hungrier it gets: the closeness it respects shrinks in proportion,
+   * to nothing when it has no energy left. A well-fed animal spares relatives as before.
+   */
+  kinHungerBelow: number;
   /** Tolerance of the first generation (0 to 1). */
   initialTolerance: number;
   /** Energy per tick per unit of tolerance: recognizing relatives is a kind of sensing, so it is counted on the sensing line. */
@@ -906,6 +912,12 @@ export interface SimConfig {
   camoDetectMin: number;
   camoGlance: number;
   camoLearning: number;
+  /**
+   * A committed hunter's eye (0 = off): the chance of noticing camouflaged prey is raised toward certainty
+   * by this much times the hunter's diet gene, so an occasional meat eater stays easy to fool and a
+   * specialist sees through camouflage far better.
+   */
+  camoHunterEye: number;
   /** How far a hunter's remembered color moves toward the color of each new kill (0 to 1). */
   camoLearnRate: number;
 
@@ -1493,6 +1505,7 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   camoDetectMin: 0.2,
   camoGlance: 20,
   camoLearning: 1,
+  camoHunterEye: 0,
   camoLearnRate: 0.3,
   multicellular: 0,
   bondLinksMax: 4,
@@ -1529,6 +1542,7 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   mateRange: 6,
   mateDistance: 0.25,
   matePreference: 0,
+  kinHungerBelow: 0,
   mateDietLimit: 1,
   macroMutationProb: 0,
   macroMutationStd: 0.3,
@@ -1886,6 +1900,7 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (!(c.mateRange > 0)) problems.push("mateRange must be positive");
   if (![0, 1, 2, 3].includes(c.matePreference)) problems.push("matePreference must be 0 (nearest), 1 (most similar genes), 2 (most similar color) or 3 (most similar diet)");
   if (!(c.mateDietLimit > 0 && c.mateDietLimit <= 1)) problems.push("mateDietLimit must be above 0 and at most 1");
+  if (c.kinHungerBelow < 0 || c.kinHungerBelow > 1 || c.camoHunterEye < 0 || c.camoHunterEye > 1) problems.push("kinHungerBelow and camoHunterEye must be between 0 and 1");
   if (![0, 1].includes(c.camouflageMode)) problems.push("camouflageMode must be 0 or 1");
   if (c.camouflageMode === 1) {
     const gw = c.worldWidth / c.foodCellSize;
