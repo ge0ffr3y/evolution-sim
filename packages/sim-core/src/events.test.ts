@@ -364,6 +364,37 @@ describe("disaster events", () => {
     expect(again.worldEvents).toEqual(sim.worldEvents);
   }, 60_000);
 
+  it("a colony cell killed by a disaster takes no shared energy or gifts afterwards (the books stay exact)", () => {
+    // (Found in O1: colony sharing and food gifts ran after the disaster and fed energy into the dead, which then vanished.)
+    for (const seed of [2, 6]) {
+      const sim = new Simulation(seed, {
+        ...WORLD,
+        worldWidth: 192,
+        worldHeight: 192,
+        initialOrganisms: 600,
+        sexualReproduction: 2,
+        litterMax: 3,
+        toxinStrength: 0.5,
+        fatDepositRate: 0.2,
+        multicellular: 1,
+        cellTypes: 1,
+        initialBond: 0.3,
+        typePhotoGain: 0.05,
+        shareRate: 0.4,
+        shareKinOnly: 0,
+        evFireEvery: 600,
+        evVolcanoEvery: 1500,
+        evMeteorEvery: 1500,
+        evFloodEvery: 1500,
+        evStormEvery: 800,
+      });
+      sim.run(20);
+      const books = bookmark(sim);
+      sim.run(3000);
+      expectBooksBalance(sim, books);
+    }
+  }, 60_000);
+
   it("disasters in progress survive saving and loading, and carry on exactly", () => {
     const config: Partial<SimConfig> = { ...WORLD, initialOrganisms: 300, evFireEvery: 300, evStormEvery: 300, evFloodEvery: 400, evVolcanoEvery: 400, evBlightEvery: 400 };
     const a = new Simulation(5, config);

@@ -650,6 +650,10 @@ function updateStats(frame: FrameMessage): void {
     setText("stat-climate", parts.join(", "));
   }
   setText("stat-kills", format.int.format(s.totalKills));
+  el("stat-water-box").hidden = !w.drinkOn;
+  if (w.drinkOn) setText("stat-water", `${format.fixed(s.hydration.mean, 2)} / ${Math.round(s.hydration.dehydrated * 100)}%`);
+  el("stat-nutrient-box").hidden = !w.nutrientOn;
+  if (w.nutrientOn) setText("stat-nutrient", `${format.fixed(s.nutrientStore.mean, 2)} / ${Math.round(s.nutrientStore.deficient * 100)}%`);
   setText("stat-blocked", `${format.int.format(s.blockedBirthsSoil)} / ${format.int.format(s.blockedBirthsEnergy)} / ${format.int.format(s.blockedBirthsBoth)}`);
   const b = frame.behavior;
   setText("stat-chase", b.chaseSamples >= 10 ? `${Math.round(b.chase * 100)}% (random = 50%)` : "-");

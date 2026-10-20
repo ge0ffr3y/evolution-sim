@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { INPUT, OUTPUT, OUTPUT_START, setConnection } from "./brain";
+import { CONN_MAX, INPUT, OUTPUT, OUTPUT_START, setConnection } from "./brain";
 import { Simulation } from "./simulation";
 import type { SimConfig } from "./config";
 
@@ -32,7 +32,7 @@ function quiet(extra: Partial<SimConfig> = {}): Partial<SimConfig> {
 }
 
 function wire(sim: Simulation, index: number, from: number, to: number, weight: number): void {
-  sim.brainCount[index] = setConnection(sim.brainFrom, sim.brainTo, sim.brainWeight, index * 512, sim.brainCount[index]!, from, to, weight);
+  sim.brainCount[index] = setConnection(sim.brainFrom, sim.brainTo, sim.brainWeight, index * CONN_MAX, sim.brainCount[index]!, from, to, weight);
   (sim as unknown as { refreshBrain(i: number): void }).refreshBrain(index);
 }
 

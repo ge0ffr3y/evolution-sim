@@ -277,6 +277,49 @@ Result, grand world as configured (6 worlds, 60,000 ticks): **6 of 6 survive** (
 
 **Found while measuring (not part of O1, needs a decision):** the grand world as merged, with overgrazing, fouling, erosion and the disasters switched on at close-out, holds far fewer animals than before (end populations 101 to 166 and 1 of 3 extinct, against 367 to 904 with the Phase 8e mechanics off). Switching groups off one at a time (3 worlds, 60,000 ticks, single end-of-run counts, so noisy): with disasters off the worlds survive (209 to 971); with only disasters on, seed 2 goes extinct in every variant. Recommendation: take the disasters out of `grand-world.json` for now (keep the ground damage) and look again after O1 and O2, which change the food economy anyway.
 
+### O1 Level 1 result (built, `nutrientMode: 1`)
+
+Built as designed (store, assimilation, dung turnover, cap, births from the store, provisioning, deficiency upkeep, root uptake for photosynthesizing cells, founders' store from the soil, stores in corpses and in the matter audit). 11 new tests, books exact to 1e-9 in a plain world and in a world with colonies, sex, litters, poison, fat and five kinds of disaster. Viewer: a "Nutrient store" dot color, a "Nutrient store / short of it" readout, and a "Nutrients through food" preset. Off by default; every older world is unchanged.
+
+**A real bug found on the way (older than O1):** colony energy sharing and food gifts ran after a disaster had killed a cell, so energy flowed into the dead cell and vanished when it was cleared away (a leak of about 1 part in 6,000 over 3,000 ticks). Dead cells now take nothing; regression test added.
+
+**First measurement (3 worlds each, second half of 60,000 ticks; mode 0 against mode 1 with default settings):**
+
+| | Grand, off | Grand, on | Standard, off | Standard, on |
+|---|---|---|---|---|
+| Average population | 288 to 778 | 508 to 754 | 529 to 1,737 | 169 to 1,254 |
+| Animals short of nutrient | - | 10 to 12% | - | 21 to 29% |
+| Average store (times body) | - | 1.5 to 1.6 | - | 0.7 to 1.1 |
+| Meat eaters at the end | 0 | 0 | 0 to 6 | 3 to 23 |
+| Distance from birthplace | 39 to 45 | 36 to 41 | 66 to 96 | 55 to 92 |
+
+- **Nutrient is now a real second resource.** In the standard world it, not energy, decides who breeds: parents sit on plenty of energy waiting to fill their store. (The births-blocked count counts every retry, every tick, so it runs into the millions; it is a measure of waiting, not of animals.)
+- **Meat, being rich in nutrient, pays much more:** kills became the main cause of death in the standard world and meat eaters appeared in every world (3 to 23 at the end, against 0 to 6). This feeds straight into O4. In the grand world meat eaters still did not appear.
+- **Animals do not travel further**, because in Level 1 every plant carries the same nutrient wherever it grows: there is nowhere better to go. That is what Level 2 is for.
+- Soil became a little more uneven in the grand world (Gini 0.26 to 0.29, against 0.15 to 0.27), because dung lands where animals gather.
+
+### O1 Level 2 result (built, `nutrientMode: 2`)
+
+Plants hold `plantQualityMax * soil / (soil + plantQualityHalf)` nutrient per unit (defaults 2 and 30, so a plant on typical soil of about 30 holds the same as in Level 1, poor soil less, rich soil up to twice as much). It is mixed by weight as new growth comes in, and used everywhere plant matter moves (eating, dung, fire, crushing, the matter audit). Measured first: soil on land runs from about 15 to 50 in both worlds, far above the level (2) where it slows growth, so before this, soil mattered for almost nothing. Tests: 3 new (quality follows soil, poor plants fill the store more slowly, books exact with five kinds of disaster plus save and load). Viewer: a "Plant nutrient" map layer, stretched between the poorest and richest plants on the map at that moment. The "Nutrients through food" preset uses mode 2.
+
+**Grand world, 6 worlds each, second half of 100,000 ticks:**
+
+| | Mode 0 (soil) | Mode 1 (stores) | Mode 2 (stores + plant quality) |
+|---|---|---|---|
+| Worlds extinct | 1 of 6 | 0 of 6 | 0 of 6 |
+| Average population (survivors) | 467 to 748 | 458 to 865 | 191 to 1,044 |
+| Animals short of nutrient | - | 10 to 12% | 12 to 25% |
+| Average store (times body) | - | 1.5 to 1.6 | 1.0 to 1.6 |
+| Distance from birthplace | 38 to 50 | 35 to 46 | 37 to 48 |
+| Soil evenness (Gini; higher = more uneven) | 0.24 to 0.32 | 0.34 to 0.43 | 0.24 to 0.32 |
+| Meat eaters at the end | 0 | 0 | 0 |
+
+- **Nutrient matters more in mode 2:** up to a quarter of animals are short of it, and parents wait longer to breed.
+- **But animals still do not travel further.** They cannot sense their own store or how rich a plant is: brainless animals steer by plant amount and brains see plants, not their quality. So moving to rich ground is not something they can do on purpose yet. That needs two brain inputs: "my nutrient store" and "how rich the plants are here / ahead".
+- **Mode 1 makes soil more uneven** (dung piles up where animals gather), and **mode 2 evens it out again**, because rich soil grows richer plants that draw more out of it.
+- **Population is not hurt;** if anything, fewer worlds die out. In the grand world meat eaters still do not appear in any mode (that is O4).
+- **Recommendation:** add the two nutrient brain inputs together with O2's "ground health" input, in one change to the brain layout, so brain-world golden fingerprints are re-recorded only once.
+
 ### O2. Water, moisture and climate biomes (owner's notes 3 and 10)
 - **Moisture field:** a persistent per-cell moisture from distance to water, latitude bands, season and drought. Plants need it: growth is multiplied by a moisture response. This is the foundation for biomes.
 - **Drinking (optional switch):**
@@ -291,6 +334,39 @@ Result, grand world as configured (6 worlds, 60,000 ticks): **6 of 6 survive** (
 - **Mode:** keep the old five-biome terrain as a mode; the new system is a new `terrainMode` value.
 - **Viewer:** biome and moisture map layers, and a hydration readout.
 - **Evidence:** do lineages specialize by biome (traits and palates differ between biomes)? Does the ice edge move with the climate?
+
+### O2 result (built)
+
+**What was built (all off by default; older worlds unchanged):**
+- **One brain-layout change for O1 and O2:** eleven new senses (own nutrient store; plant richness here, ahead and to the side; ground damage here, ahead and to the side from overgrazing, fouling and erosion together; nearest water ahead, to the side and how far; thirst). 63 inputs and 576 connection slots. Brain-world golden fingerprints were re-recorded once; brains-off goldens are unchanged. A world saved with the older layout is renumbered when it loads.
+- **Climate biomes, `terrainMode: 2`:**
+  - The same seas and highlands as the five-biome terrain.
+  - A lasting moisture per cell, from nearness to water, latitude rain belts (wet equator, dry subtropics, wet temperate lands, dry poles) and patchy noise.
+  - A Whittaker-style table from average temperature and moisture: tundra, boreal forest, grassland, temperate forest, desert, savanna, tropical forest, swamp, highlands. In a 512 world: grassland 22 to 27%, temperate forest 11 to 13%, desert 10 to 11%, highlands 13%, tundra 11 to 12%, boreal 7 to 12%, savanna 7 to 8%, tropical 6 to 10%, swamp 2 to 3%.
+  - Each biome has its own growth, movement cost, visibility to hunters and disease rate, with a real upside and downside. For example, tropical forest is the richest and best for hiding, but slow to cross and full of disease; desert is poor and exposed, but healthy.
+  - Plant growth follows moisture through the seasons, and plant kinds follow temperature.
+  - Polar and high ground freezes when its average temperature (no seasons, but with drift and ice-age or volcano cooling) falls below `iceBelow`: nothing grows there, and crossing costs three times as much.
+- **Drinking, `drinking: 1`:** animals carry water that runs down faster in the heat and when running. They refill beside water, in a flood or on soaked ground, and pay up to three times the upkeep when dry.
+- **Viewer:** climate-biome colors, white ice, a Moisture layer, a Water readout and dot color, and a "Climate biomes" preset.
+- 22 new tests (senses, the old-layout loader, climate biomes, drinking).
+
+**Evidence (grand world, 6 worlds each, 100,000 ticks, trait measures from the second half): the grand world as it is, against the same world with climate biomes, drinking and nutrient mode 2, and the same again with a forced ice age.**
+
+| | Grand world | + climate biomes, drinking, nutrients | + forced ice age |
+|---|---|---|---|
+| Worlds extinct | 0 of 6 | 0 of 6 | 0 of 6 |
+| Average population | 378 to 782 | 397 to 790 | 399 to 783 |
+| Share of temperature-preference variation lying between biomes | 0.02 to 0.09 | 0.03 to 0.48 (above 0.15 in 5 of 6) | 0.05 to 0.74 (above 0.4 in 5 of 6) |
+| Same for palate (which plant kind it digests) | 0.01 to 0.06 | 0.02 to 0.66 (above 0.18 in 5 of 6) | 0.03 to 0.80 (above 0.67 in 5 of 6) |
+| Same for body size | 0.01 to 0.09 | 0.02 to 0.26 | 0.03 to 0.05 |
+| Dehydrated | - | 4 to 15% | 7 to 11% |
+| Short of nutrient | - | 15 to 32% | 17 to 25% |
+| Plant richness where animals stand, against the land average | - | 0.83 to 0.97 | 0.82 to 0.96 |
+
+- **Lineages do specialize by biome.** With climate biomes, temperature preference and palate differ strongly between biomes in 5 of 6 worlds, and the ice age sharpens it. Body size hardly does. Few species exist at once (1 to 3), so this is mostly one lineage varying across the map, not separate species per biome.
+- **The ice edge moves with the climate.** Ice covers 282 to 464 cells normally, 1,018 to 1,490 at the depth of the ice age (about 3 to 4 times as much), and melts back to exactly where it was. A volcano's cooling also adds a short burst of ice (282 to 597 cells).
+- **The new senses are picked up only here and there.** In each world one or two of them end up wired into 15 to 63% of brains (for example "richer plants: ahead" in 63% of one world, "thirst" in 42% of another), but no sense is used consistently across worlds. Animals still stand on slightly poorer-than-average plants (0.82 to 0.97), so seeking out rich ground has not evolved in 50,000 ticks. Most likely the best plant amounts and the richest plants are in different places: the senses exist, and the reward for using them is small.
+- Populations are unchanged on average, and none went extinct, but the lowest points are deeper (down to 47 to 73 in some worlds).
 
 ### O3. Colony physics and evolvable shared senses (owner's note 11)
 - **(a) Size protects:** when a hunter decides whether prey is too big, use the prey's colony total size, not the single cell's.

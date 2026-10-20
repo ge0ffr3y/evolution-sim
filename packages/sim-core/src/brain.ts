@@ -73,10 +73,34 @@ export const INPUT = {
   chemStress: VISION_INPUTS + 27,
   chemBond: VISION_INPUTS + 28,
   chemCalm: VISION_INPUTS + 29,
-  bias: VISION_INPUTS + 30,
-  noise: VISION_INPUTS + 31,
+  /** How full its own nutrient store is (-1 empty, +1 full; 0 without nutrient mode). */
+  nutrientStore: VISION_INPUTS + 30,
+  /** How rich in nutrient the plants are here (0 to 1), and which way they get richer (nutrient mode 2). */
+  plantRichHere: VISION_INPUTS + 31,
+  plantRichAhead: VISION_INPUTS + 32,
+  plantRichSide: VISION_INPUTS + 33,
+  /** How damaged the ground is here (overgrazing, fouling, erosion: 0 healthy, 1 ruined), and which way it gets worse. */
+  damageHere: VISION_INPUTS + 34,
+  damageAhead: VISION_INPUTS + 35,
+  damageSide: VISION_INPUTS + 36,
+  /** Where the nearest water is: ahead (+) or behind (-), to the left (+) or right (-), and how far (0 next to it, 1 far). */
+  waterAhead: VISION_INPUTS + 37,
+  waterSide: VISION_INPUTS + 38,
+  waterDistance: VISION_INPUTS + 39,
+  /** How thirsty it is (0 to 1; 0 in worlds without drinking). */
+  thirst: VISION_INPUTS + 40,
+  bias: VISION_INPUTS + 41,
+  noise: VISION_INPUTS + 42,
 } as const;
-export const INPUT_COUNT = VISION_INPUTS + 32;
+export const INPUT_COUNT = VISION_INPUTS + 43;
+/**
+ * The layout before Phase 8e added eleven senses (52 inputs, 512 connection slots). The new senses
+ * were inserted where the bias input used to be, so a brain saved with the old layout can be
+ * renumbered: nodes below this point keep their number, the rest move up by the difference.
+ */
+export const OLD_INPUT_COUNT = VISION_INPUTS + 32;
+export const OLD_CONN_MAX = 512;
+export const INSERTED_INPUTS_AT = VISION_INPUTS + 30;
 /** Memory cells: the brain's last four memory outputs come back as inputs next time it thinks. */
 export const MEMORY_COUNT = 4;
 
@@ -89,9 +113,9 @@ export const NODE_COUNT = OUTPUT_START + OUTPUT_COUNT;
 
 /**
  * Most connections one brain can hold. A fully wired fixed-layout brain needs
- * hidden x (INPUT_COUNT + OUTPUT_COUNT) of them (472 for 8 hidden units).
+ * hidden x (INPUT_COUNT + OUTPUT_COUNT) of them (560 for 8 hidden units).
  */
-export const CONN_MAX = 512;
+export const CONN_MAX = 576;
 /** Weights are kept within this range. */
 export const WEIGHT_LIMIT = 4;
 
@@ -135,6 +159,17 @@ export function inputLabel(index: number): string {
     [INPUT.chemStress]: "stress signal",
     [INPUT.chemBond]: "bonding signal",
     [INPUT.chemCalm]: "calm signal",
+    [INPUT.nutrientStore]: "my nutrient store",
+    [INPUT.plantRichHere]: "rich plants here",
+    [INPUT.plantRichAhead]: "richer plants: ahead",
+    [INPUT.plantRichSide]: "richer plants: left",
+    [INPUT.damageHere]: "damaged ground here",
+    [INPUT.damageAhead]: "worse ground: ahead",
+    [INPUT.damageSide]: "worse ground: left",
+    [INPUT.waterAhead]: "water: ahead",
+    [INPUT.waterSide]: "water: left",
+    [INPUT.waterDistance]: "water: how far",
+    [INPUT.thirst]: "thirst",
     [INPUT.bias]: "bias",
     [INPUT.noise]: "noise",
   };

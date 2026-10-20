@@ -12,11 +12,14 @@ import {
   type Traits,
 } from "./genome";
 import { polarness, smoothWave } from "./climate";
-import { BIOME, generateBackground, generateBiomes, generatePlantTypes, generateWeatherMap, growthMultipliers, moveMultipliers } from "./terrain";
+import { BIOME, climateBiome, climateBiomeTable, generateBackground, generateBiomes, generateClimateBase, generatePlantTypes, generateWeatherMap, growthMultipliers, moveMultipliers, rainBelt } from "./terrain";
 import { SNAPSHOT_FORMAT, type SimSnapshot, type SnapshotArray } from "./snapshot";
 import { SpeciesTracker, type SpeciesEvent, type SpeciesRecord } from "./species";
 import {
   CONN_MAX,
+  INSERTED_INPUTS_AT,
+  OLD_CONN_MAX,
+  OLD_INPUT_COUNT,
   HIDDEN_MAX,
   HIDDEN_START,
   INPUT,
@@ -182,6 +185,8 @@ export interface MatterAudit {
   corpses: number;
   detritus: number;
   bodies: number;
+  /** Nutrient carried in animals' stores (0 without nutrient mode). */
+  stores: number;
   total: number;
 }
 
@@ -227,6 +232,10 @@ export interface SimStats {
   colonies: ColonyStats;
   /** Disease: organisms sick now, strains alive in them, and infections so far (all 0 without disease). */
   disease: { infected: number; strains: number; totalInfections: number };
+  /** Nutrient mode: the average store as a multiple of body matter, and the share of animals short of nutrient (both 0 when off). */
+  nutrientStore: { mean: number; deficient: number };
+  /** Drinking: the average water an animal carries (0 to 1) and the share that are dehydrated (both 0 when off). */
+  hydration: { mean: number; dehydrated: number };
   traits: Record<GeneName, TraitSummary>;
   classes: DietClasses;
   /** Matter in the soil, as rotting meat, and as detritus. */
@@ -625,6 +634,24 @@ export class Simulation {
   private readonly loadMask: Uint32Array;
   /** Energy held in the fat reserve (counted in the energy audit; it goes into the corpse when the body dies). */
   private readonly fatStore: Float64Array;
+  /** Nutrients through food (nutrientMode 1): each animal's store of nutrient (matter), and per cell this tick, the eaten matter that went into stores instead of dung. */
+  private readonly nutrientOn: boolean;
+  readonly nutrientStore: Float64Array;
+  private readonly assimClaim: Float64Array;
+  /** Mode 2: how much nutrient each cell's plants hold per unit of plant (worked out from the soil they grew from). Saved with the land when on. */
+  private readonly qualityOn: boolean;
+  /** Climate biomes (terrainMode 2): each cell's lasting wetness (0 to 1), whether it is under ice right now, and per-biome lookups. */
+  private readonly climateBiomesOn: boolean;
+  readonly moistureBase: Float32Array;
+  readonly iced: Uint8Array;
+  private biomeSeen: number[] = [];
+  private biomeDisease: number[] = [];
+  /** Drinking: how much water each animal has (0 to 1). Saved with the animals when on. */
+  private readonly drinkOn: boolean;
+  readonly hydration: Float32Array;
+  /** For every cell, the nearest water cell (-1 if there is none): fixed with the terrain, for the brains' water sense. */
+  private nearestWater: Int32Array = new Int32Array(0);
+  readonly plantQ: Float64Array;
   private readonly torporOn: boolean;
   /** Who is dormant this tick (worked out fresh every tick; not saved). */
   private readonly torpid: Float32Array;
@@ -776,11 +803,26 @@ export class Simulation {
     this.foodCapacity = new Float64Array(cells).fill(c.foodCap);
     this.foodRegrow = new Float64Array(cells).fill(c.foodRegrowPerTick);
     if (c.fertilityVariation > 0) this.makeFertilityMap();
-    this.terrainOn = c.terrainMode === 1;
+    this.terrainOn = c.terrainMode >= 1;
+    this.climateBiomesOn = c.terrainMode === 2;
     this.biome = new Uint8Array(this.terrainOn ? cells : 0);
     this.passable = new Uint8Array(this.terrainOn ? cells : 0);
     this.terrainMove = new Float64Array(this.terrainOn ? cells : 0);
-    if (this.terrainOn) this.applyTerrain(generateBiomes(c, seed, this.gridWidth, this.gridHeight));
+    this.moistureBase = new Float32Array(this.climateBiomesOn ? cells : 0);
+    this.iced = new Uint8Array(this.climateBiomesOn ? cells : 0);
+    let moistureNoise: Float64Array | null = null;
+    if (c.terrainMode === 1) this.applyTerrain(generateBiomes(c, seed, this.gridWidth, this.gridHeight));
+    else if (this.climateBiomesOn) {
+      // Climate biomes: water and highlands now; the rest of the land gets its biome once the climate is set up (below).
+      const base = generateClimateBase(c, seed, this.gridWidth, this.gridHeight);
+      this.biome.set(base.biome);
+      for (let cell = 0; cell < cells; cell++) {
+        this.passable[cell] = base.biome[cell] === BIOME.water ? 0 : 1;
+        this.terrainMove[cell] = 1;
+      }
+      moistureNoise = base.moistureNoise;
+    }
+    if (this.terrainOn && c.brainMode > 0) this.nearestWater = this.findNearestWater();
     this.climateOn = c.climateMode === 1;
     const climateCells = this.climateOn ? cells : 0;
     this.temperature = new Float64Array(climateCells);
@@ -796,6 +838,7 @@ export class Simulation {
     this.weatherA = this.weatherOn ? generateWeatherMap(seed, this.gridWidth, this.gridHeight, c.weatherScale, 0x51f3a7c9) : new Float32Array(0);
     this.weatherB = this.weatherOn ? generateWeatherMap(seed, this.gridWidth, this.gridHeight, c.weatherScale, 0x1d8e4b27) : new Float32Array(0);
     if (this.climateOn) this.setUpClimate();
+    if (moistureNoise) this.setUpClimateBiomes(moistureNoise);
     this.food = new Float64Array(cells);
     for (let cell = 0; cell < cells; cell++) this.food[cell] = this.foodCapacity[cell]! * c.initialFoodFraction;
     this.nutrient = new Float64Array(cells).fill(c.initialNutrientPerCell);
@@ -954,6 +997,15 @@ export class Simulation {
     this.fireScar = new Uint32Array(this.fireOn ? cells : 0);
     this.stormCell = new Uint8Array(this.stormOn ? cells : 0);
     this.stormDelta = new Float64Array(this.stormOn ? cells : 0);
+    this.drinkOn = c.drinking === 1;
+    this.hydration = new Float32Array(this.drinkOn ? n : 0);
+    this.nutrientOn = c.nutrientMode >= 1;
+    this.qualityOn = c.nutrientMode === 2;
+    this.plantQ = new Float64Array(this.qualityOn ? cells : 0);
+    // The plants already standing hold what their soil would give them.
+    if (this.qualityOn) for (let cell = 0; cell < cells; cell++) this.plantQ[cell] = this.qualityFrom(this.nutrient[cell]!);
+    this.nutrientStore = new Float64Array(this.nutrientOn ? n : 0);
+    this.assimClaim = new Float64Array(this.nutrientOn ? cells : 0);
     this.fatOn = c.fatDepositRate > 0;
     this.fatStore = new Float64Array(this.fatOn ? n : 0);
     this.torporOn = this.climateOn && c.torporSaving > 0;
@@ -1026,6 +1078,8 @@ export class Simulation {
     if (this.chemOn) this.float32Fields.push(this.chemIntake);
     this.float64Fields = [this.energy, this.plantTaken, this.meatTaken];
     if (this.fatOn) this.float64Fields.push(this.fatStore);
+    if (this.nutrientOn) this.float64Fields.push(this.nutrientStore);
+    if (this.drinkOn) this.float32Fields.push(this.hydration);
     this.uint32Fields = [this.id, this.parentId, this.age, this.kills];
     if (this.tracker) this.uint32Fields.push(this.species);
     if (this.sexOn) this.uint32Fields.push(this.parent2Id);
@@ -1113,6 +1167,14 @@ export class Simulation {
       this.express(index);
       this.initBrain(index);
       this.energy[index] = this.threshold[index]! * c.initialEnergyFraction;
+      if (this.nutrientOn) {
+        // A founder's starting store comes out of the soil it starts on, so the books stay exact.
+        const cell = Math.floor(fy / c.foodCellSize) * this.gridWidth + Math.floor(fx / c.foodCellSize);
+        const want = c.founderNutrient * this.bodyMatter[index]!;
+        const take = want < this.nutrient[cell]! ? want : this.nutrient[cell]!;
+        this.nutrient[cell] = this.nutrient[cell]! - take;
+        this.nutrientStore[index] = take;
+      }
     }
     this.tracker?.start(this.count, this.genes, this.species);
   }
@@ -1201,6 +1263,16 @@ export class Simulation {
       const off = (temp - (kinds > 1 ? this.kindOptimum[kind]! : optimum)) / tolerance;
       const comfort = 1 - off * off;
       this.growthFactor[cell] = comfort > 0 ? this.lightBase[cell]! * daylight * (kinds > 1 ? this.kindGrowth[kind]! : seasonGrowth) * comfort : 0;
+      if (this.climateBiomesOn) {
+        // Plants need water: wetter ground grows more, and the growing season is the wet season.
+        let m = this.moistureBase[cell]! * (1 + c.moistureSeasonSwing * season);
+        m = m < 0 ? 0 : m > 1 ? 1 : m;
+        this.growthFactor[cell] = this.growthFactor[cell]! * ((m * (1 + c.moistureHalf)) / (m + c.moistureHalf));
+        // Ice: land whose average temperature (no seasons or days) is too cold freezes over, and thaws again as the climate warms.
+        const frozen = this.biome[cell] !== BIOME.water && this.tempBase[cell]! + drift - cooling < c.iceBelow ? 1 : 0;
+        this.iced[cell] = frozen;
+        if (frozen === 1) this.growthFactor[cell] = 0;
+      }
     }
   }
 
@@ -1261,22 +1333,111 @@ export class Simulation {
     const cs = this.config.foodCellSize;
     const cell = Math.floor(this.y[i]! / cs) * this.gridWidth + Math.floor(this.x[i]! / cs);
     this.corpseEnergy[cell] = this.corpseEnergy[cell]! + this.bodyEnergy[i]! + this.energy[i]! + (this.fatOn ? this.fatStore[i]! : 0);
-    if (this.toxOn) this.foldToxin(cell, this.corpseMatter[cell]!, this.bodyMatter[i]!, this.genes[i * GENE_COUNT + GENE.toxicity]!);
-    this.corpseMatter[cell] = this.corpseMatter[cell]! + this.bodyMatter[i]!;
+    const matter = this.bodyMatter[i]! + this.takeStore(i);
+    if (this.toxOn) this.foldToxin(cell, this.corpseMatter[cell]!, matter, this.genes[i * GENE_COUNT + GENE.toxicity]!);
+    this.corpseMatter[cell] = this.corpseMatter[cell]! + matter;
     this.energy[i] = 0;
     this.killed[i] = 1;
   }
 
+  /**
+   * A parent pays `body` from its store to build (its part of) a baby's body, then hands over a share
+   * of what is left (`share` scales it: 0.5 for each of two parents). Returns the baby's starting store from this parent.
+   */
+  private provision(parent: number, body: number, share: number): number {
+    const left = this.nutrientStore[parent]! - body;
+    const gift = left * this.config.provisionShare * share;
+    this.nutrientStore[parent] = left - gift;
+    return gift;
+  }
+
+  /**
+   * For every cell, the nearest water cell, found by spreading outward from all water at once
+   * (one step at a time to the four neighbors, so "nearest" is counted in steps). -1 if there is no water.
+   */
+  private findNearestWater(): Int32Array {
+    const gw = this.gridWidth;
+    const gh = this.gridHeight;
+    const out = new Int32Array(gw * gh).fill(-1);
+    const queue = new Int32Array(gw * gh);
+    let head = 0;
+    let tail = 0;
+    for (let cell = 0; cell < out.length; cell++) {
+      if (this.biome[cell] === BIOME.water) {
+        out[cell] = cell;
+        queue[tail++] = cell;
+      }
+    }
+    while (head < tail) {
+      const cell = queue[head++]!;
+      const cx = cell % gw;
+      const cy = (cell - cx) / gw;
+      for (let side = 0; side < 4; side++) {
+        const nx = side === 0 ? wrapCell(cx + 1, gw) : side === 1 ? wrapCell(cx - 1, gw) : cx;
+        const ny = side === 2 ? wrapCell(cy + 1, gh) : side === 3 ? wrapCell(cy - 1, gh) : cy;
+        const nb = ny * gw + nx;
+        if (out[nb] !== -1) continue;
+        out[nb] = out[cell]!;
+        queue[tail++] = nb;
+      }
+    }
+    return out;
+  }
+
+  /** Can an animal in this cell drink? Yes if it or a neighboring cell is water (a flood counts), or, with climate biomes, if the ground is soaked. */
+  private canDrink(cell: number): boolean {
+    const gw = this.gridWidth;
+    const gh = this.gridHeight;
+    const cx = cell % gw;
+    const cy = (cell - cx) / gw;
+    if (this.passable[cell] === 0) return true;
+    if (this.passable[cy * gw + wrapCell(cx + 1, gw)] === 0 || this.passable[cy * gw + wrapCell(cx - 1, gw)] === 0) return true;
+    if (this.passable[wrapCell(cy + 1, gh) * gw + cx] === 0 || this.passable[wrapCell(cy - 1, gh) * gw + cx] === 0) return true;
+    return this.climateBiomesOn && this.moistureBase[cell]! >= this.config.drinkMoisture;
+  }
+
+  /** How damaged a cell's ground is, from overgrazing, fouling and erosion together: 0 healthy, up to 1 ruined. */
+  private groundDamage(cell: number): number {
+    const c = this.config;
+    let health = 1;
+    if (this.erodeOn) health *= this.soilHealth[cell]!;
+    if (this.grazeOn) health *= 1 - c.overgrazePenalty * this.grazing[cell]!;
+    if (this.foulOn && this.foulMeanNow > 0) {
+      const excess = this.foul[cell]! / this.foulMeanNow - c.foulFree;
+      if (excess > 0) health /= 1 + c.foulGrowthEffect * excess;
+    }
+    return 1 - health;
+  }
+
+  /** Mode 2: the nutrient per unit of plant that grows from this much soil. */
+  private qualityFrom(soil: number): number {
+    const c = this.config;
+    return (c.plantQualityMax * soil) / (soil + c.plantQualityHalf);
+  }
+
+  /** The matter (nutrient) held by the plants in a cell: one per unit of plant, or in mode 2 whatever their soil gave them. */
+  private plantMatter(cell: number): number {
+    return this.qualityOn ? this.food[cell]! * this.plantQ[cell]! : this.food[cell]!;
+  }
+
+  /** Empty an animal's nutrient store (when it dies, its store goes into the corpse with its body). 0 without nutrient mode. */
+  private takeStore(i: number): number {
+    if (!this.nutrientOn) return 0;
+    const store = this.nutrientStore[i]!;
+    this.nutrientStore[i] = 0;
+    return store;
+  }
+
   /** Plants in a cell are crushed: the matter becomes detritus, the energy is lost as heat. */
   private crushPlants(cell: number): void {
-    this.detritus[cell] = this.detritus[cell]! + this.food[cell]!;
+    this.detritus[cell] = this.detritus[cell]! + this.plantMatter(cell);
     this.ledger.decayLoss += this.food[cell]! * this.config.energyPerFood;
     this.food[cell] = 0;
   }
 
   /** Plants in a cell burn: the energy is lost as heat and the matter goes straight into the soil as ash. */
   private burnPlants(cell: number): void {
-    this.nutrient[cell] = this.nutrient[cell]! + this.food[cell]!;
+    this.nutrient[cell] = this.nutrient[cell]! + this.plantMatter(cell);
     this.ledger.decayLoss += this.food[cell]! * this.config.energyPerFood;
     this.food[cell] = 0;
   }
@@ -1787,6 +1948,87 @@ export class Simulation {
     return this.activeEvents;
   }
 
+  /**
+   * Climate biomes: each land cell's lasting moisture (from how near water it is, its rain belt
+   * and patchy noise), then its biome from its average temperature and moisture, then plant
+   * growth and movement cost by biome. With several kinds of plant, each cell grows the kind
+   * that likes its temperature best.
+   */
+  private setUpClimateBiomes(noise: Float64Array): void {
+    const c = this.config;
+    const gw = this.gridWidth;
+    const gh = this.gridHeight;
+    const cells = gw * gh;
+    // Steps to the nearest water, spreading outward from all water at once.
+    const steps = new Int32Array(cells).fill(-1);
+    const queue = new Int32Array(cells);
+    let head = 0;
+    let tail = 0;
+    for (let cell = 0; cell < cells; cell++) {
+      if (this.biome[cell] === BIOME.water) {
+        steps[cell] = 0;
+        queue[tail++] = cell;
+      }
+    }
+    while (head < tail) {
+      const cell = queue[head++]!;
+      const cx = cell % gw;
+      const cy = (cell - cx) / gw;
+      for (let side = 0; side < 4; side++) {
+        const nx = side === 0 ? wrapCell(cx + 1, gw) : side === 1 ? wrapCell(cx - 1, gw) : cx;
+        const ny = side === 2 ? wrapCell(cy + 1, gh) : side === 3 ? wrapCell(cy - 1, gh) : cy;
+        const nb = ny * gw + nx;
+        if (steps[nb] !== -1) continue;
+        steps[nb] = steps[cell]! + 1;
+        queue[tail++] = nb;
+      }
+    }
+    const noiseWeight = 1 - c.moistureWaterWeight - c.moistureBandWeight;
+    const table = climateBiomeTable(c);
+    this.biomeSeen = table.seen;
+    this.biomeDisease = table.disease;
+    for (let cy = 0; cy < gh; cy++) {
+      const belt = rainBelt(c, polarness(cy, gh));
+      for (let cx = 0; cx < gw; cx++) {
+        const cell = cy * gw + cx;
+        if (this.biome[cell] === BIOME.water) {
+          this.moistureBase[cell] = 1;
+          continue;
+        }
+        const nearWater = steps[cell]! < 0 ? 0 : c.moistureReach / (c.moistureReach + steps[cell]!);
+        const m = c.moistureWaterWeight * nearWater + c.moistureBandWeight * belt + noiseWeight * noise[cell]!;
+        this.moistureBase[cell] = m < 0 ? 0 : m > 1 ? 1 : m;
+        if (this.biome[cell] !== BIOME.mountain) this.biome[cell] = climateBiome(c, this.tempBase[cell]!, this.moistureBase[cell]!);
+        const kind = this.biome[cell]!;
+        this.terrainMove[cell] = table.move[kind]!;
+        this.foodCapacity[cell] = this.foodCapacity[cell]! * table.growth[kind]!;
+        this.foodRegrow[cell] = this.foodRegrow[cell]! * table.growth[kind]!;
+      }
+    }
+    for (let cell = 0; cell < cells; cell++) {
+      if (this.biome[cell] === BIOME.water) {
+        this.foodCapacity[cell] = 0;
+        this.foodRegrow[cell] = 0;
+      }
+    }
+    if (this.plantKinds > 1) {
+      // Each kind of plant likes a slightly different temperature (see updateClimate): grow the best-suited one.
+      for (let cell = 0; cell < cells; cell++) {
+        let best = 0;
+        let bestOff = Infinity;
+        for (let j = 0; j < this.plantKinds; j++) {
+          const off = Math.abs(this.tempBase[cell]! - (c.plantTempOptimum + (j - (this.plantKinds - 1) / 2) * c.plantTypeTempSpread));
+          if (off < bestOff) {
+            bestOff = off;
+            best = j;
+          }
+        }
+        this.plantTypeOf[cell] = best;
+      }
+    }
+    this.updateClimate();
+  }
+
   /** Fill in the terrain arrays from a biome map, and scale plant growth by biome. */
   private applyTerrain(biome: Uint8Array): void {
     const c = this.config;
@@ -1851,6 +2093,8 @@ export class Simulation {
     if (this.sexOn) this.parent2Id[i] = 0;
     if (this.sexGeneOn) this.sexMode[i] = 0;
     if (this.fatOn) this.fatStore[i] = 0;
+    if (this.nutrientOn) this.nutrientStore[i] = 0;
+    if (this.drinkOn) this.hydration[i] = 1; // born with a full drink
     if (this.toxOn) {
       // A newborn remembers nothing (every field is cleared, so a reused slot never carries an old animal's memory).
       this.avoidStrength[i] = 0;
@@ -2602,6 +2846,53 @@ export class Simulation {
       for (let k = 0; k < MEMORY_COUNT; k++) inputs[INPUT.memory0 + k] = this.memState[i * MEMORY_COUNT + k]!;
     }
 
+    // The ground and the body's needs (Phase 8e): nutrient store, how rich the plants are, damaged ground, water, thirst.
+    {
+      const cx = Math.floor(x / cs);
+      const cy = Math.floor(y / cs);
+      const here = cy * gw + cx;
+      const east = cy * gw + ((cx + 1) % gw);
+      const west = cy * gw + ((cx + gw - 1) % gw);
+      const south = ((cy + 1) % gh) * gw + cx;
+      const north = ((cy + gh - 1) % gh) * gw + cx;
+      if (this.nutrientOn) inputs[INPUT.nutrientStore] = Math.min(1, this.nutrientStore[i]! / (c.nutrientStoreCap * this.bodyMatter[i]!)) * 2 - 1;
+      if (this.qualityOn) {
+        const q = this.plantQ;
+        const scale = 1 / c.plantQualityMax;
+        inputs[INPUT.plantRichHere] = Math.min(1, q[here]! * scale);
+        const gx = (q[east]! - q[west]!) * scale;
+        const gy = (q[south]! - q[north]!) * scale;
+        inputs[INPUT.plantRichAhead] = clampUnit(gx * hx + gy * hy);
+        inputs[INPUT.plantRichSide] = clampUnit(hx * gy - hy * gx);
+      }
+      if (this.erodeOn || this.grazeOn || this.foulOn) {
+        inputs[INPUT.damageHere] = this.groundDamage(here);
+        const gx = this.groundDamage(east) - this.groundDamage(west);
+        const gy = this.groundDamage(south) - this.groundDamage(north);
+        inputs[INPUT.damageAhead] = clampUnit(gx * hx + gy * hy);
+        inputs[INPUT.damageSide] = clampUnit(hx * gy - hy * gx);
+      }
+      if (this.drinkOn) inputs[INPUT.thirst] = 1 - this.hydration[i]!;
+      const water = this.nearestWater.length > 0 ? this.nearestWater[here]! : -1;
+      if (water >= 0) {
+        const W = c.worldWidth;
+        const H = c.worldHeight;
+        const wx = water % gw;
+        let dx = (wx + 0.5) * cs - x;
+        let dy = ((water - wx) / gw + 0.5) * cs - y;
+        if (dx > W / 2) dx -= W;
+        else if (dx < -W / 2) dx += W;
+        if (dy > H / 2) dy -= H;
+        else if (dy < -H / 2) dy += H;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance > 0) {
+          inputs[INPUT.waterAhead] = (dx * hx + dy * hy) / distance;
+          inputs[INPUT.waterSide] = (hx * dy - hy * dx) / distance;
+        }
+        inputs[INPUT.waterDistance] = Math.min(1, distance / c.brainWaterRange);
+      }
+    }
+
     // The body: hunger, age, its own diet, a constant, and a little noise (a deterministic scramble of the tick and the organism).
     inputs[INPUT.energy] = Math.min(this.energy[i]! / this.threshold[i]!, 1) * 2 - 1;
     inputs[INPUT.age] = Math.min(this.age[i]! / AGE_FULL, 1) * 2 - 1;
@@ -2669,6 +2960,7 @@ export class Simulation {
     if (d < 0) d = -d;
     if (d > 0.5) d = 1 - d;
     let p = c.camoDetectMin + (1 - c.camoDetectMin) * (d * 2);
+    if (this.climateBiomesOn) p = Math.min(1, p * this.biomeSeen[this.biome[cell]!]!); // forests hide, open ground exposes
     if (c.camoLearning > 0 && this.hasImage[viewer] === 1) {
       let sd = hue - this.searchHue[viewer]!;
       if (sd < 0) sd = -sd;
@@ -2769,7 +3061,7 @@ export class Simulation {
   /** Used while a generous animal looks for hungry neighbors: keep the few neediest (or youngest) in order. */
   private readonly considerGift = (index: number): void => {
     const c = this.config;
-    if (index === this.giftGiver) return;
+    if (index === this.giftGiver || this.killed[index] === 1) return; // (nobody feeds the dead)
     const fraction = this.energy[index]! / this.threshold[index]!;
     if (fraction >= c.shareAcceptBelow) return;
     if (c.shareKinOnly === 1 && this.geneDistanceSq(this.giftGiver, index) > this.kinLimitSq) return;
@@ -2833,6 +3125,8 @@ export class Simulation {
       for (let k = 0; k < BOND_SLOTS; k++) {
         const p = this.bondTo[i * BOND_SLOTS + k]!;
         if (p <= i) continue; // each bond once
+        // (A cell killed earlier this tick, by a disaster, shares nothing: its energy is already in its corpse.)
+        if (this.killed[i] === 1 || this.killed[p] === 1) continue;
         const moved = (share * (this.energy[i]! - this.energy[p]!)) / 2;
         delta[i] = delta[i]! - moved;
         delta[p] = delta[p]! + moved;
@@ -3178,6 +3472,7 @@ export class Simulation {
     const strainId = this.infection[this.diseaseHost]!;
     const antigen = this.strains[strainId - 1]!;
     let chance = c.diseaseTransmission * this.susceptibility(index, antigen);
+    if (this.climateBiomesOn) chance *= this.biomeDisease[this.biome[this.cellOf[this.diseaseHost]!]!]!; // warm wet biomes breed disease
     if (this.foulOn) {
       // Disease passes on more easily on fouled ground (where the sick animal is standing).
       const mean = this.foulMeanNow;
@@ -3265,6 +3560,29 @@ export class Simulation {
     }
     for (let i = 0; i < n; i++) if (this.infection[i]! !== 0) this.infection[i] = newId[this.infection[i]!]!;
     this.strains = kept;
+  }
+
+  private hydrationStats(): { mean: number; dehydrated: number } {
+    if (!this.drinkOn || this.count === 0) return { mean: 0, dehydrated: 0 };
+    let sum = 0;
+    let dry = 0;
+    for (let i = 0; i < this.count; i++) {
+      sum += this.hydration[i]!;
+      if (this.hydration[i]! < this.config.thirstBelow) dry++;
+    }
+    return { mean: sum / this.count, dehydrated: dry / this.count };
+  }
+
+  private nutrientStats(): { mean: number; deficient: number } {
+    if (!this.nutrientOn || this.count === 0) return { mean: 0, deficient: 0 };
+    let sum = 0;
+    let short = 0;
+    for (let i = 0; i < this.count; i++) {
+      const ratio = this.nutrientStore[i]! / this.bodyMatter[i]!;
+      sum += ratio;
+      if (ratio < this.config.deficiencyBelow) short++;
+    }
+    return { mean: sum / this.count, deficient: short / this.count };
   }
 
   private diseaseStats(): { infected: number; strains: number; totalInfections: number } {
@@ -3361,6 +3679,8 @@ export class Simulation {
     const brainMode = c.brainMode;
     let attackers = 0;
     if (c.catastropheKind !== 0) this.catastropheCheck();
+    // (Brains sense fouled ground compared with the average, so work the average out before anyone thinks.)
+    if (this.foulOn && brainMode > 0) this.foulMeanNow = this.meanFoul();
     if (this.eventsOn) this.eventsStep();
     if (this.climateOn) this.updateClimate();
     // Bonded cells even out their energy and turn toward their neighbors' heading.
@@ -3595,6 +3915,29 @@ export class Simulation {
       meatClaim[cell] = meatClaim[cell]! + meatMass;
       const plantRaw = plantMass * energyPerFood;
       const meatRaw = meatMass * meatDensity[cell]!;
+      if (this.nutrientOn) {
+        // Part of what it eats goes into its store (much more of meat, which is already body); the rest becomes dung here.
+        const plantNutrient = this.qualityOn ? plantMass * this.plantQ[cell]! : plantMass;
+        let store = this.nutrientStore[i]! + plantNutrient * c.plantAssimilation + meatMass * c.meatAssimilation;
+        this.assimClaim[cell] = this.assimClaim[cell]! + (store - this.nutrientStore[i]!);
+        if (this.typeOn && this.photoGain[i]! > 0) {
+          // A photosynthesizing cell eats nothing, so it draws a little nutrient from the soil (roots).
+          let up = c.nutrientRootUptake * this.bodyMatter[i]!;
+          if (up > this.nutrient[cell]!) up = this.nutrient[cell]!;
+          this.nutrient[cell] = this.nutrient[cell]! - up;
+          store += up;
+        }
+        // Some of the store is lost as dung every tick, here (so nutrient travels with animals), and anything over the cap spills out.
+        let dung = store * c.nutrientTurnover;
+        store -= dung;
+        const cap = c.nutrientStoreCap * this.bodyMatter[i]!;
+        if (store > cap) {
+          dung += store - cap;
+          store = cap;
+        }
+        this.detritus[cell] = this.detritus[cell]! + dung;
+        this.nutrientStore[i] = store;
+      }
       let toxinLoss = 0;
       if (this.toxOn) {
         const conc = this.corpseToxin[cell]!;
@@ -3682,6 +4025,29 @@ export class Simulation {
       }
 
       let basal = this.basalCost[i]! + toxinLoss;
+      if (this.drinkOn) {
+        // Thirst: water is used up faster in the heat and when running; beside water (or on soaked ground) it drinks its fill.
+        let water = this.hydration[i]!;
+        if (this.canDrink(cell)) water = 1;
+        else {
+          let rate = c.thirstRate;
+          if (this.climateOn) {
+            const hot = this.temperature[cell]! - c.thirstHeatAbove;
+            if (hot > 0) rate *= 1 + c.thirstHeat * hot;
+          }
+          if (brainMode > 0) rate *= 1 + c.thirstMove * this.moveScale[i]!;
+          water = water > rate ? water - rate : 0;
+        }
+        this.hydration[i] = water;
+        // Dehydrated: the body costs more to run (energy lost as heat, on the upkeep line).
+        if (water < c.thirstBelow) basal += this.basalCost[i]! * c.dehydrationCost * (1 - water / c.thirstBelow);
+      }
+      if (this.nutrientOn) {
+        // Short of nutrient: the body works less well and costs more to run (energy lost as heat, on the upkeep line).
+        const need = c.deficiencyBelow * this.bodyMatter[i]!;
+        const have = this.nutrientStore[i]!;
+        if (need > 0 && have < need) basal += this.basalCost[i]! * c.deficiencyCost * (1 - have / need);
+      }
       if (this.agingOn) {
         // Past its prime, a body wears out faster and faster.
         const lifespan = this.lifespan[i]!;
@@ -3710,6 +4076,7 @@ export class Simulation {
       let move = brainMode > 0 ? this.moveCost[i]! * this.moveScale[i]! * this.moveScale[i]! : this.moveCost[i]!;
       if (this.terrainOn) move *= this.terrainMove[cell]!; // mountains and forest cost more to cross
       if (this.stormOn && this.stormCell[cell] === 1) move *= c.evStormMoveCost; // fighting the wind
+      if (this.climateBiomesOn && this.iced[cell] === 1) move *= c.iceMoveCost; // crossing ice
       if (this.fatOn) move *= 1 + c.fatMoveCost * (this.fatStore[i]! / this.threshold[i]!);
       if (this.torporOn) move *= (1 - this.torpid[i]!) * (1 - this.torpid[i]!); // slower costs less (cost goes with speed squared)
       if (this.staminaOn) move += this.staminaCost[i]!; // the upkeep of the sprint reserve counts as movement
@@ -3762,7 +4129,7 @@ export class Simulation {
       plantClaim[cell] = 0;
       const plantsTaken = eatenPlants < food[cell]! ? eatenPlants : food[cell]!;
       food[cell] = food[cell]! - plantsTaken;
-      let waste = plantsTaken;
+      let waste = this.qualityOn ? plantsTaken * this.plantQ[cell]! : plantsTaken;
 
       // Eaten meat (the corpse loses the same fraction of its matter and its energy).
       const eatenMeat = meatClaim[cell]!;
@@ -3773,6 +4140,11 @@ export class Simulation {
         corpseEnergy[cell] = corpseEnergy[cell]! * (1 - fraction);
         corpseMatter[cell] = corpseMatter[cell]! - taken;
         waste += taken;
+      }
+      if (this.nutrientOn) {
+        // What the eaters kept went into their stores, not onto the ground.
+        waste -= this.assimClaim[cell]!;
+        this.assimClaim[cell] = 0;
       }
 
       // Rot: the corpse's energy is lost as heat, its matter becomes detritus.
@@ -3835,8 +4207,17 @@ export class Simulation {
       }
       let growth = potential < soil ? potential : soil;
       if (growth > room) growth = room > 0 ? room : 0;
+      if (this.qualityOn) {
+        // Mode 2: new growth holds nutrient according to the soil, and the cell's plants are a weighted mix of old and new.
+        const q = this.qualityFrom(soil);
+        if (growth * q > soil) growth = q > 0 ? soil / q : 0;
+        const total = food[cell]! + growth;
+        if (total > 0) this.plantQ[cell] = (food[cell]! * this.plantQ[cell]! + growth * q) / total;
+        soil -= growth * q;
+      } else {
+        soil -= growth;
+      }
       food[cell] = food[cell]! + growth;
-      soil -= growth;
       nutrient[cell] = soil;
       sunlightIn += growth * energyPerFood;
     }
@@ -3912,13 +4293,17 @@ export class Simulation {
           this.inheritBrainFromTwo(child, a, b);
           const cell = this.cellOf[a]!;
           const store = eachA + eachB - this.bodyEnergy[child]!;
-          if (nutrient[cell]! < this.bodyMatter[child]! || store < 0) {
+          const body = this.bodyMatter[child]!;
+          // (With nutrient mode, each parent builds half the body from its own store; otherwise it comes from the soil.)
+          const matterShort = this.nutrientOn ? this.nutrientStore[a]! < body / 2 || this.nutrientStore[b]! < body / 2 : nutrient[cell]! < body;
+          if (matterShort || store < 0) {
             this.count--;
             this.nextId = savedNextId;
-            this.noteBlockedBirth(nutrient[cell]! < this.bodyMatter[child]!, store < 0);
+            this.noteBlockedBirth(matterShort, store < 0);
             continue;
           }
-          nutrient[cell] = nutrient[cell]! - this.bodyMatter[child]!;
+          if (this.nutrientOn) this.nutrientStore[child] = this.provision(a, body / 2, 0.5) + this.provision(b, body / 2, 0.5);
+          else nutrient[cell] = nutrient[cell]! - body;
           this.energy[a] = this.energy[a]! - eachA;
           this.energy[b] = this.energy[b]! - eachB;
           this.energy[child] = store;
@@ -3955,14 +4340,17 @@ export class Simulation {
           this.inheritBrain(child, parent);
           const cell = this.cellOf[parent]!;
           const store = each - this.bodyEnergy[child]!;
-          if (nutrient[cell]! < this.bodyMatter[child]! || store < 0) {
+          const body = this.bodyMatter[child]!;
+          const matterShort = this.nutrientOn ? this.nutrientStore[parent]! < body : nutrient[cell]! < body;
+          if (matterShort || store < 0) {
             // Cannot afford this baby right now: undo it. The parent keeps its energy and tries again later.
             this.count--;
             this.nextId = savedNextId;
-            this.noteBlockedBirth(nutrient[cell]! < this.bodyMatter[child]!, store < 0);
+            this.noteBlockedBirth(matterShort, store < 0);
             continue;
           }
-          nutrient[cell] = nutrient[cell]! - this.bodyMatter[child]!;
+          if (this.nutrientOn) this.nutrientStore[child] = this.provision(parent, body, 1);
+          else nutrient[cell] = nutrient[cell]! - body;
           this.energy[parent] = this.energy[parent]! - each;
           this.energy[child] = store;
           this.totalBirths++;
@@ -3992,8 +4380,9 @@ export class Simulation {
       } else if (this.energy[i]! <= 0) {
         const cell = this.cellOf[i]!;
         corpseEnergy[cell] = corpseEnergy[cell]! + this.bodyEnergy[i]! + (this.fatOn ? this.fatStore[i]! : 0);
-        if (this.toxOn) this.foldToxin(cell, corpseMatter[cell]!, this.bodyMatter[i]!, this.genes[i * GENE_COUNT + GENE.toxicity]!);
-        corpseMatter[cell] = corpseMatter[cell]! + this.bodyMatter[i]!;
+        const matter = this.bodyMatter[i]! + this.takeStore(i);
+        if (this.toxOn) this.foldToxin(cell, corpseMatter[cell]!, matter, this.genes[i * GENE_COUNT + GENE.toxicity]!);
+        corpseMatter[cell] = corpseMatter[cell]! + matter;
         starved++;
         if (this.bondsOn) this.breakBonds(i);
         alive--;
@@ -4061,8 +4450,9 @@ export class Simulation {
       this.corpseOwnerUntil[cell] = this.tick + this.config.killOwnershipTicks;
     }
     this.corpseEnergy[cell] = this.corpseEnergy[cell]! + this.bodyEnergy[prey]! + this.energy[prey]! + (this.fatOn ? this.fatStore[prey]! : 0);
-    if (this.toxOn) this.foldToxin(cell, this.corpseMatter[cell]!, this.bodyMatter[prey]!, this.genes[prey * GENE_COUNT + GENE.toxicity]!);
-    this.corpseMatter[cell] = this.corpseMatter[cell]! + this.bodyMatter[prey]!;
+    const preyMatter = this.bodyMatter[prey]! + this.takeStore(prey);
+    if (this.toxOn) this.foldToxin(cell, this.corpseMatter[cell]!, preyMatter, this.genes[prey * GENE_COUNT + GENE.toxicity]!);
+    this.corpseMatter[cell] = this.corpseMatter[cell]! + preyMatter;
     this.energy[prey] = 0;
     this.killed[prey] = 1;
     this.kills[attacker] = this.kills[attacker]! + 1;
@@ -4177,6 +4567,7 @@ export class Simulation {
       events: this.events,
       worldEvents: this.worldEvents,
       catastrophe: [this.catKind, this.catStart, this.catEnd],
+      brainLayout: [INPUT_COUNT, CONN_MAX],
       // (Only in worlds with disaster events, so older saved worlds still load.)
       ...(this.eventsOn ? { activeEvents: this.activeEvents, eventRng: Array.from(this.eventRng.getState()) } : {}),
       strains: this.strains.map((a) => Array.from(a)),
@@ -4210,6 +4601,7 @@ export class Simulation {
       ...(this.erodeOn ? ([["soilHealth", this.soilHealth]] as [string, SnapshotArray][]) : []),
       ...(this.ashOn ? ([["ash", this.ash]] as [string, SnapshotArray][]) : []),
       ...(this.fireOn ? ([["fireScar", this.fireScar]] as [string, SnapshotArray][]) : []),
+      ...(this.qualityOn ? ([["plantQ", this.plantQ]] as [string, SnapshotArray][]) : []),
       ...(this.foulOn ? ([["foul", this.foul]] as [string, SnapshotArray][]) : []),
       ...(this.grazeOn ? ([["grazing", this.grazing]] as [string, SnapshotArray][]) : []),
       ["nutrient", this.nutrient],
@@ -4253,6 +4645,7 @@ export class Simulation {
       seen: boolean[];
       events: SimEvent[];
       worldEvents: WorldEvent[];
+      brainLayout?: [number, number];
       activeEvents?: ActiveEvent[];
       eventRng?: number[];
       catastrophe: [number, number, number];
@@ -4284,9 +4677,29 @@ export class Simulation {
       // take() clears with zeros; an empty bond slot is -1, so mark every slot past the saved cells empty.
       this.bondTo.fill(-1, s.count * BOND_SLOTS);
     }
-    take("brainFrom", this.brainFrom);
-    take("brainTo", this.brainTo);
-    take("brainWeight", this.brainWeight);
+    // A world saved before Phase 8e has the older brain layout (fewer inputs, fewer connection slots): renumber it.
+    const [savedInputs, savedSlots] = s.brainLayout ?? [OLD_INPUT_COUNT, OLD_CONN_MAX];
+    if (this.config.brainMode > 0 && (savedInputs !== INPUT_COUNT || savedSlots !== CONN_MAX)) {
+      const from = snapshot.arrays.brainFrom as Uint8Array;
+      const to = snapshot.arrays.brainTo as Uint8Array;
+      const weight = snapshot.arrays.brainWeight as Float32Array;
+      const shift = INPUT_COUNT - savedInputs;
+      const renumber = (node: number): number => (node < INSERTED_INPUTS_AT ? node : node + shift);
+      this.brainFrom.fill(0);
+      this.brainTo.fill(0);
+      this.brainWeight.fill(0);
+      for (let i = 0; i < s.count; i++) {
+        for (let k = 0; k < this.brainCount[i]!; k++) {
+          this.brainFrom[i * CONN_MAX + k] = renumber(from[i * savedSlots + k]!);
+          this.brainTo[i * CONN_MAX + k] = renumber(to[i * savedSlots + k]!);
+          this.brainWeight[i * CONN_MAX + k] = weight[i * savedSlots + k]!;
+        }
+      }
+    } else {
+      take("brainFrom", this.brainFrom);
+      take("brainTo", this.brainTo);
+      take("brainWeight", this.brainWeight);
+    }
     if (this.memoryOn) take("memState", this.memState);
     if (this.chemOn) take("chem", this.chem);
     // (Fire scars came a little after fires did; a world saved in between simply has none.)
@@ -4444,6 +4857,8 @@ export class Simulation {
       species: { alive: this.tracker?.aliveCount ?? 0, ever: this.tracker?.records.length ?? 0 },
       colonies: this.colonyStats(),
       disease: this.diseaseStats(),
+      nutrientStore: this.nutrientStats(),
+      hydration: this.hydrationStats(),
       totalBirths: this.totalBirths,
       sexualBirths: this.sexualBirths,
       totalDeaths: this.totalDeaths,
@@ -4473,10 +4888,14 @@ export class Simulation {
     let bodies = 0;
     for (let i = 0; i < this.count; i++) bodies += this.bodyMatter[i]!;
     const soilNutrient = sumOf(this.nutrient);
-    const plants = sumOf(this.food);
+    let plants = 0;
+    if (this.qualityOn) for (let cell = 0; cell < this.food.length; cell++) plants += this.food[cell]! * this.plantQ[cell]!;
+    else plants = sumOf(this.food);
     const corpses = sumOf(this.corpseMatter);
     const detritus = sumOf(this.detritus);
-    return { soilNutrient, plants, corpses, detritus, bodies, total: soilNutrient + plants + corpses + detritus + bodies };
+    let stores = 0;
+    if (this.nutrientOn) for (let i = 0; i < this.count; i++) stores += this.nutrientStore[i]!;
+    return { soilNutrient, plants, corpses, detritus, bodies, stores, total: soilNutrient + plants + corpses + detritus + bodies + stores };
   }
 
   /** Add up all the energy in the world, in every form that can be eaten or spent. */
@@ -4739,6 +5158,9 @@ export class Simulation {
       mixBits(this.searchHue, n);
       for (let i = 0; i < n; i++) mix(this.hasImage[i]!);
     }
+    if (this.nutrientOn) mixBits(this.nutrientStore, n);
+    if (this.qualityOn) mixBits(this.plantQ, this.plantQ.length);
+    if (this.drinkOn) mixBits(this.hydration, n);
     if (this.toxOn) {
       mixBits(this.avoidStrength, n);
       mixBits(this.avoidHue, n);

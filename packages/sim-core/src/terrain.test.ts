@@ -179,6 +179,7 @@ describe("terrain", () => {
     expect(() => new Simulation(1, { ...WORLD, terrainScale: 5 })).toThrow(/terrainScale/);
     expect(() => new Simulation(1, { ...WORLD, terrainWaterFraction: 0.7, terrainMountainFraction: 0.4 })).toThrow(/cover the whole world/);
     expect(() => new Simulation(1, { ...WORLD, terrainBarrierWidth: 5 })).toThrow(/terrainBarrierWidth/);
-    expect(() => new Simulation(1, { ...WORLD, terrainMode: 2 })).toThrow(/terrainMode/);
+    expect(() => new Simulation(1, { ...WORLD, terrainMode: 3 })).toThrow(/terrainMode/);
+    expect(() => new Simulation(1, { ...WORLD, terrainMode: 2, climateMode: 0 })).toThrow(/climate biomes need a climate/);
   });
 });

@@ -105,6 +105,10 @@ export interface WorldInfo {
   /** Whether the world has disease and camouflage. */
   diseaseOn: boolean;
   camouflageOn: boolean;
+  /** Whether animals carry nutrient (nutrientMode 1). */
+  nutrientOn: boolean;
+  /** Whether animals must drink. */
+  drinkOn: boolean;
   /** How many kinds of plant there are (1 = one kind), and whether sex is a gene. */
   plantKinds: number;
   sexGeneOn: boolean;
@@ -147,6 +151,8 @@ export interface FrameMessage {
   soilHealth: Float32Array | null;
   /** Where disasters are going on now: 1 fire, 2 flood, 3 storm, 4 volcanic ground, 0 nothing (null in worlds without events). */
   eventMap: Uint8Array | null;
+  /** Nutrient mode 2: how much nutrient each cell's plants hold per unit, as a share of the most possible (null otherwise). */
+  plantQuality: Float32Array | null;
   /** Plant-eater and meat-eater scent in each square of the scent grid (empty when brains are off). */
   preyScent: Float32Array;
   hunterScent: Float32Array;
@@ -162,6 +168,8 @@ export interface FrameMessage {
   palate: Float32Array | null;
   /** Each animal's toxicity gene (0 to 1), only in worlds with toxicity. */
   toxicity: Float32Array | null;
+  /** Each animal's nutrient store as a share of the most it can hold (0 to 1), only in worlds with nutrient mode. */
+  nutrientStore: Float32Array | null;
   /** Bonds between cells as pairs of organism indices (a, b, a, b, ...), and the size of each organism's colony (null without multicellularity). */
   bonds: Uint32Array | null;
   colonySize: Uint16Array | null;
@@ -171,6 +179,12 @@ export interface FrameMessage {
   health: Uint8Array | null;
   /** The biome of each cell (0 water, 1 plains, 2 forest, 3 desert, 4 mountains); null except in the first frame after a restart, and in worlds without terrain. */
   terrain: Uint8Array | null;
+  /** Climate biomes: each cell's lasting wetness, 0 to 1 (null except in the first frame after a restart, and in worlds without climate biomes). */
+  moisture: Float32Array | null;
+  /** Climate biomes: 1 where the land is under ice right now (null in worlds without climate biomes). */
+  ice: Uint8Array | null;
+  /** Drinking: how much water each animal carries, 0 to 1 (null in worlds without drinking). */
+  hydration: Float32Array | null;
   /** Chart samples recorded since the previous frame. */
   points: HistoryPoint[];
   /** Histogram snapshots taken since the previous frame. */

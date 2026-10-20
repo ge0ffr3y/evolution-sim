@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { INPUT, OUTPUT, OUTPUT_START, setConnection } from "./brain";
+import { CONN_MAX, INPUT, OUTPUT, OUTPUT_START, setConnection } from "./brain";
 import { GENE, GENE_COUNT } from "./genome";
 import { Simulation } from "./simulation";
 import type { SimConfig } from "./config";
@@ -30,7 +30,7 @@ function stage(extra: Partial<SimConfig> = {}): Partial<SimConfig> {
 }
 
 function wire(sim: Simulation, index: number, from: number, to: number, weight: number): void {
-  const base = index * 512;
+  const base = index * CONN_MAX;
   sim.brainCount[index] = setConnection(sim.brainFrom, sim.brainTo, sim.brainWeight, base, sim.brainCount[index]!, from, to, weight);
   (sim as unknown as { refreshBrain(i: number): void }).refreshBrain(index);
 }
