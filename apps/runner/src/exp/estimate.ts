@@ -53,13 +53,22 @@ export interface Estimate {
   pick: MachineOption;
 }
 
-/** How fast each arm runs here, in ticks per second: from earlier runs if there are any, else a short trial. */
+/** How much faster than a laptop core a core of this machine is (1 for the laptop or anything unknown). */
+export function speedOf(machine: string | undefined): number {
+  const family = machine?.split(".")[0];
+  return FAMILIES.find((f) => f.family === family)?.speed ?? 1;
+}
+
+/** How fast each arm runs here (in laptop terms: speeds measured in the cloud are converted back), in ticks per second: from earlier runs if there are any, else a short trial. */
 export function measureSpeeds(exp: Experiment, jobs: Job[], trialTicks = 1500): Record<string, number> {
   const speeds: Record<string, number> = {};
   for (const arm of Object.keys(exp.arms)) {
     const seen = jobs
       .filter((j) => j.arm === arm)
-      .map((j) => readResult(exp, j)?.ticksPerSecond ?? readProgress(exp, j)?.ticksPerSecond ?? 0)
+      .map((j) => {
+        const r = readResult(exp, j) ?? readProgress(exp, j);
+        return r ? r.ticksPerSecond / speedOf(r.machine) : 0;
+      })
       .filter((tps) => tps > 0);
     if (seen.length) {
       speeds[arm] = Math.min(...seen); // the slowest seen, to be safe

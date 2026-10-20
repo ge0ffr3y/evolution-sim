@@ -21,6 +21,8 @@ export interface JobResult {
   /** Wall time of the last stretch of running, and its speed (only for estimates; never affects results). */
   wallSeconds: number;
   ticksPerSecond: number;
+  /** Where it ran: a cloud machine type such as "c7g.xlarge", or "local". */
+  machine?: string;
   fingerprint: number;
   summary: Record<string, number | null>;
   rows: Row[];
@@ -32,7 +34,11 @@ export interface JobProgress {
   ticksPerSecond: number;
   updatedAt: string;
   state: "running" | "done" | "stopped" | "extinct";
+  machine?: string;
 }
+
+/** The machine this process runs on (a cloud machine's start-up script sets EVO_MACHINE). */
+export const thisMachine = (): string => process.env["EVO_MACHINE"] ?? "local";
 
 export const resultsDir = (exp: Experiment): string => join(exp.folder, "results");
 /** How many ticks a job runs between instants in which it can notice a stop signal. */
@@ -113,7 +119,7 @@ export async function runJob(exp: Experiment, job: Job, options: RunJobOptions =
     writeAtomic(checkpoint, snapshotToBytes(sim.save()));
   };
   const progress = (state: JobProgress["state"], ticksPerSecond: number): void => {
-    const p: JobProgress = { tick: sim.tick, targetTicks: target, ticksPerSecond, updatedAt: new Date().toISOString(), state };
+    const p: JobProgress = { tick: sim.tick, targetTicks: target, ticksPerSecond, updatedAt: new Date().toISOString(), state, machine: thisMachine() };
     writeAtomic(file(exp, job, "progress.json"), JSON.stringify(p));
     options.onProgress?.(p);
   };
@@ -161,6 +167,7 @@ export async function runJob(exp: Experiment, job: Job, options: RunJobOptions =
     extinctAt,
     wallSeconds: Math.round((performance.now() - startedAt) / 1000),
     ticksPerSecond: speed(),
+    machine: thisMachine(),
     fingerprint: sim.fingerprint(),
     summary: summarizeRun(rows, sim, measures),
     rows,

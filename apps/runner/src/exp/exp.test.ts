@@ -141,10 +141,11 @@ describe("estimates", () => {
 });
 
 describe("cloud requests (checked without touching AWS)", () => {
-  const userData = buildUserData({ bucket: "evolution-sim-results-123", region: "us-west-2", name: "tiny-test", runId: "20261020T120000", workers: 7, ticks: null, hardStopMinutes: 120, nodeVersion: "v22.22.3" });
+  const userData = buildUserData({ bucket: "evolution-sim-results-123", region: "us-west-2", name: "tiny-test", runId: "20261020T120000", workers: 7, ticks: null, hardStopMinutes: 120, nodeVersion: "v22.22.3", machine: "c7g.4xlarge" });
 
   it("the machine's start-up script has a hard stop, uploads results, and shuts down when done", () => {
     expect(userData).toContain("shutdown -h +130");
+    expect(userData).toContain("export EVO_MACHINE=c7g.4xlarge");
     expect(userData).toContain("sleep 7200");
     expect(userData).toContain("s3://$BUCKET/$NAME/results");
     expect(userData).toContain("npm run exp -- run experiments/$NAME --jobs 7");

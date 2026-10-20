@@ -1,0 +1,11 @@
+{
+  "name": "speed-c7g",
+  "question": "How fast does one c7g core run the grand world, compared with a laptop core and a c8g core?",
+  "base": "grand-world",
+  "ticks": 300000,
+  "seeds": "1-4",
+  "sampleEvery": 2000,
+  "checkpointEvery": 50000,
+  "arms": { "grand": {} },
+  "measures": ["population", "classes"]
+}

@@ -53,7 +53,7 @@ export function bucketFor(account: string): string {
 }
 
 /** The script the machine runs when it starts. Pure, so it can be checked by tests without touching AWS. */
-export function buildUserData(p: { bucket: string; region: string; name: string; runId: string; workers: number; ticks: number | null; hardStopMinutes: number; nodeVersion: string }): string {
+export function buildUserData(p: { bucket: string; region: string; name: string; runId: string; workers: number; ticks: number | null; hardStopMinutes: number; nodeVersion: string; machine: string }): string {
   const ticksArg = p.ticks !== null ? ` --ticks ${p.ticks}` : "";
   return `#!/bin/bash
 # Evolution Sim experiment machine: runs one experiment, uploads the results, then shuts down (which terminates it).
@@ -62,6 +62,8 @@ exec > /var/log/evo.log 2>&1
 # The absolute backstop: whatever happens, this machine is gone ${p.hardStopMinutes + 10} minutes after it started.
 shutdown -h +${p.hardStopMinutes + 10}
 export AWS_DEFAULT_REGION=${p.region}
+# Each result records the machine it ran on, so later estimates can tell cloud speeds from laptop speeds.
+export EVO_MACHINE=${p.machine}
 BUCKET=${p.bucket}
 NAME=${p.name}
 RUN=${p.runId}
@@ -244,7 +246,7 @@ export async function cloudCommand(positional: string[], options: Record<string,
       execFileSync("git", ["archive", "--format=tar.gz", "-o", tarball, "HEAD"], { cwd: ctx.repoRoot });
       aws(["s3", "cp", tarball, `s3://${bucket}/${exp.name}/runs/${runId}/code.tar.gz`, "--quiet"], { region, json: false });
       const imageId = (aws(["ssm", "get-parameter", "--name", AMI_PARAMETER], { region }) as { Parameter: { Value: string } }).Parameter.Value;
-      const userData = buildUserData({ bucket, region, name: exp.name, runId, workers: pick.workers, ticks: typeof options.ticks === "string" ? Number(options.ticks) : null, hardStopMinutes, nodeVersion: process.version });
+      const userData = buildUserData({ bucket, region, name: exp.name, runId, workers: pick.workers, ticks: typeof options.ticks === "string" ? Number(options.ticks) : null, hardStopMinutes, nodeVersion: process.version, machine: pick.type });
       const request = join(dir, "launch.json");
       writeFileSync(request, JSON.stringify(buildLaunchRequest({ imageId, instanceType: pick.type, userData, name: exp.name, runId })));
       const out = aws(["ec2", "run-instances", "--cli-input-json", `file://${request}`], { region }) as { Instances: { InstanceId: string }[] };
