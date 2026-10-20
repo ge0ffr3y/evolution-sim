@@ -1,7 +1,7 @@
 {
   "name": "Nutrients through food",
-  "description": "Animals carry nutrient. Eating fills a store (a little of every plant, most of every piece of meat), the rest becomes dung, and some of the store is lost as dung wherever the animal walks. A baby's body is built from its parent's store, not the soil, and a well-fed parent gives its baby a bigger start. An animal short of nutrient pays extra upkeep. Color the dots by Nutrient store and watch the readout: in this world nutrient, not energy, decides who can breed, and meat (rich in nutrient) becomes far more worth hunting.",
+  "description": "Animals carry nutrient, and plants hold more or less of it depending on the soil they grew from. Eating fills an animal's store (a little of every plant, more from plants on rich soil, most of every piece of meat); the rest becomes dung, and some of the store is lost as dung wherever the animal walks. A baby's body is built from its parent's store, not the soil, and a well-fed parent gives its baby a bigger start. An animal short of nutrient pays extra upkeep. Color the dots by Nutrient store, switch the map to Plant nutrient, and watch the readout: here nutrient, not energy, often decides who can breed.",
   "config": {
-    "nutrientMode": 1
+    "nutrientMode": 2
   }
 }

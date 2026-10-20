@@ -162,7 +162,7 @@ function worldInfo(s: Simulation): WorldInfo {
     multicellular: s.config.multicellular === 1,
     diseaseOn: s.config.diseaseTransmission > 0,
     camouflageOn: s.config.camouflageMode === 1,
-    nutrientOn: s.config.nutrientMode === 1,
+    nutrientOn: s.config.nutrientMode >= 1,
     plantKinds: s.config.plantTypes,
     sexGeneOn: s.config.sexualReproduction === 2,
     climateMode: s.config.climateMode,
@@ -230,7 +230,7 @@ function postFrame(s: Simulation): void {
     for (let i = 0; i < n; i++) toxicity[i] = s.traitOf("toxicity", i);
   }
   let nutrientStore: Float32Array | null = null;
-  if (s.config.nutrientMode === 1) {
+  if (s.config.nutrientMode >= 1) {
     nutrientStore = new Float32Array(n);
     const cap = s.config.nutrientStoreCap;
     for (let i = 0; i < n; i++) nutrientStore[i] = Math.min(1, s.nutrientStore[i]! / (cap * s.bodyMatter[i]!));

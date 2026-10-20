@@ -20,7 +20,7 @@ export const OVERLAYS: readonly { id: Overlay; label: string }[] = [
   { id: "grazing", label: "Grazing damage (worlds with overgrazing)" },
   { id: "fouling", label: "Fouled ground (worlds with fouling)" },
   { id: "erosion", label: "Worn-away soil (worlds with erosion)" },
-  { id: "plantQuality", label: "Plant nutrient (worlds with nutrient mode 2)" },
+  { id: "plantQuality", label: "Plant nutrient (worlds with nutrient mode 2; poorest to richest right now)" },
   { id: "events", label: "Disasters (worlds with events): fire red, flood blue, storm white, volcano purple" },
 ];
 
@@ -303,6 +303,17 @@ export class WorldRenderer {
     let wearMax = 0;
     if (overlay === "erosion" && frame.soilHealth) for (let cell = 0; cell < frame.soilHealth.length; cell++) if (1 - frame.soilHealth[cell]! > wearMax) wearMax = 1 - frame.soilHealth[cell]!;
     let foulMax = 0;
+    // (Plant nutrient is shown from the poorest to the richest plants on the map right now, so differences show even when they are small.)
+    let qLow = Infinity;
+    let qHigh = -Infinity;
+    if (overlay === "plantQuality" && frame.plantQuality) {
+      for (let cell = 0; cell < frame.plantQuality.length; cell++) {
+        if (capacity && !(capacity[cell]! > 0)) continue;
+        const q = frame.plantQuality[cell]!;
+        if (q < qLow) qLow = q;
+        if (q > qHigh) qHigh = q;
+      }
+    }
     if (overlay === "fouling" && frame.foul) for (let cell = 0; cell < frame.foul.length; cell++) if (frame.foul[cell]! > foulMax) foulMax = frame.foul[cell]!;
     for (let cell = 0; cell < frame.food.length; cell++) {
       // A faint base tint shows how fertile the land underneath is.
@@ -386,12 +397,12 @@ export class WorldRenderer {
         r += damage * 190;
         g += damage * 90;
       } else if (overlay === "plantQuality") {
-        // Where plants stand, poor plants are dull brown and nutrient-rich plants bright yellow-green.
-        const q = frame.plantQuality ? Math.min(frame.plantQuality[cell]!, 1) : 0;
-        const amount = capacity && capacity[cell]! > 0 ? Math.min(frame.food[cell]! / capacity[cell]!, 1) : 0;
-        r += amount * (90 + 60 * q);
-        g += amount * (40 + 190 * q);
-        b += amount * 20;
+        // How much nutrient the plants on each piece of land hold (however many there are): poor is dark brown, rich bright yellow-green.
+        const q = frame.plantQuality && qHigh > qLow ? (frame.plantQuality[cell]! - qLow) / (qHigh - qLow) : 0;
+        const land = !capacity || capacity[cell]! > 0 ? 1 : 0;
+        r += land * (60 + 110 * q);
+        g += land * (30 + 200 * q);
+        b += land * 15;
       } else if (overlay === "events") {
         // Quiet ground stays dark. Fire is red-orange, flood blue, storm pale grey, volcanic ground purple.
         const what = frame.eventMap ? frame.eventMap[cell]! : 0;

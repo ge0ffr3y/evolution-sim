@@ -298,6 +298,28 @@ Built as designed (store, assimilation, dung turnover, cap, births from the stor
 - **Animals do not travel further**, because in Level 1 every plant carries the same nutrient wherever it grows: there is nowhere better to go. That is what Level 2 is for.
 - Soil became a little more uneven in the grand world (Gini 0.26 to 0.29, against 0.15 to 0.27), because dung lands where animals gather.
 
+### O1 Level 2 result (built, `nutrientMode: 2`)
+
+Plants hold `plantQualityMax * soil / (soil + plantQualityHalf)` nutrient per unit (defaults 2 and 30, so a plant on typical soil of about 30 holds the same as in Level 1, poor soil less, rich soil up to twice as much). It is mixed by weight as new growth comes in, and used everywhere plant matter moves (eating, dung, fire, crushing, the matter audit). Measured first: soil on land runs from about 15 to 50 in both worlds, far above the level (2) where it slows growth, so before this, soil mattered for almost nothing. Tests: 3 new (quality follows soil, poor plants fill the store more slowly, books exact with five kinds of disaster plus save and load). Viewer: a "Plant nutrient" map layer, stretched between the poorest and richest plants on the map at that moment. The "Nutrients through food" preset uses mode 2.
+
+**Grand world, 6 worlds each, second half of 100,000 ticks:**
+
+| | Mode 0 (soil) | Mode 1 (stores) | Mode 2 (stores + plant quality) |
+|---|---|---|---|
+| Worlds extinct | 1 of 6 | 0 of 6 | 0 of 6 |
+| Average population (survivors) | 467 to 748 | 458 to 865 | 191 to 1,044 |
+| Animals short of nutrient | - | 10 to 12% | 12 to 25% |
+| Average store (times body) | - | 1.5 to 1.6 | 1.0 to 1.6 |
+| Distance from birthplace | 38 to 50 | 35 to 46 | 37 to 48 |
+| Soil evenness (Gini; higher = more uneven) | 0.24 to 0.32 | 0.34 to 0.43 | 0.24 to 0.32 |
+| Meat eaters at the end | 0 | 0 | 0 |
+
+- **Nutrient matters more in mode 2:** up to a quarter of animals are short of it, and parents wait longer to breed.
+- **But animals still do not travel further.** They cannot sense their own store or how rich a plant is: brainless animals steer by plant amount and brains see plants, not their quality. So moving to rich ground is not something they can do on purpose yet. That needs two brain inputs: "my nutrient store" and "how rich the plants are here / ahead".
+- **Mode 1 makes soil more uneven** (dung piles up where animals gather), and **mode 2 evens it out again**, because rich soil grows richer plants that draw more out of it.
+- **Population is not hurt;** if anything, fewer worlds die out. In the grand world meat eaters still do not appear in any mode (that is O4).
+- **Recommendation:** add the two nutrient brain inputs together with O2's "ground health" input, in one change to the brain layout, so brain-world golden fingerprints are re-recorded only once.
+
 ### O2. Water, moisture and climate biomes (owner's notes 3 and 10)
 - **Moisture field:** a persistent per-cell moisture from distance to water, latitude bands, season and drought. Plants need it: growth is multiplied by a moisture response. This is the foundation for biomes.
 - **Drinking (optional switch):**
