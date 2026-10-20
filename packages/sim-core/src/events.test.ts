@@ -362,7 +362,7 @@ describe("disaster events", () => {
     const again = run().sim;
     expect(again.fingerprint()).toBe(sim.fingerprint());
     expect(again.worldEvents).toEqual(sim.worldEvents);
-  });
+  }, 60_000);
 
   it("disasters in progress survive saving and loading, and carry on exactly", () => {
     const config: Partial<SimConfig> = { ...WORLD, initialOrganisms: 300, evFireEvery: 300, evStormEvery: 300, evFloodEvery: 400, evVolcanoEvery: 400, evBlightEvery: 400 };

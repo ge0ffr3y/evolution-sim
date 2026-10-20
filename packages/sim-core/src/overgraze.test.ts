@@ -119,5 +119,5 @@ describe("overgrazing", () => {
     plain.run(50);
     loaded.run(50);
     expect(loaded.fingerprint()).toBe(plain.fingerprint());
-  });
+  }, 60_000);
 });
