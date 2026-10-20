@@ -175,6 +175,13 @@ Replace the one-catastrophe-at-a-time system with an event engine. Keep the old 
 
 ---
 
+## Deferred long runs (do these later, on the cloud or when the laptop is free)
+
+- **Erosion, 1,000,000 ticks.** Question: does worn ground level off at a stable share, or keep climbing, with the gentlest default (`erosionRate` 0.00001, recovery 0.00004) in the grand world? So far about 15% is worn at 300,000 ticks and still rising. If it levels off at 20 to 30% the default is fine; if it keeps climbing toward most of the land, add a better recovery before turning erosion on in the grand world. Run `erodeexp` (3 seeds). The sampling script was fixed to record every tenth of the run (an earlier attempt recorded nothing because 1,000,000 does not divide evenly by 6).
+- (Add other long checks here as they come up, for example overgrazing and fouling over millions of ticks, to see whether their population cost keeps growing or settles.)
+
+---
+
 ## Opus batch (switch to Opus for these)
 
 ### O1. Nutrients travel through food (owner's notes 2d, 6 and 7a)
