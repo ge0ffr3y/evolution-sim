@@ -607,6 +607,32 @@ export interface SimConfig {
   /** The radius of a meteor strike, in world units. */
   meteorRadius: number;
 
+  // --- Nutrients through food (Phase 8e O1, off by default) ---
+  /**
+   * 0 = off: a baby's body is built from the soil under its parent (the older worlds).
+   * 1 = animals carry nutrient: each has a store (matter) filled by eating, and a baby's body
+   * is built from its parent's store. Dung puts the rest back on the ground wherever the animal is.
+   */
+  nutrientMode: number;
+  /** Share of eaten plant matter that goes into the store (the rest is dung on the spot). */
+  plantAssimilation: number;
+  /** Share of eaten meat matter that goes into the store (meat is already body, so most of it is kept). */
+  meatAssimilation: number;
+  /** Share of the store lost as dung each tick, wherever the animal stands then (so animals carry fertility around). */
+  nutrientTurnover: number;
+  /** The most an animal can store, as a multiple of its own body matter; anything above spills out as dung at once. */
+  nutrientStoreCap: number;
+  /** Share of what is left in a parent's store (after building the baby's body) that it hands to each baby. */
+  provisionShare: number;
+  /** Below this store (as a multiple of its body matter) an animal is short of nutrient and pays extra upkeep... */
+  deficiencyBelow: number;
+  /** ...rising to this much extra (0.3 = +30%) when the store is empty. */
+  deficiencyCost: number;
+  /** Nutrient a photosynthesizing cell draws from the soil under it each tick, as a multiple of its body matter (it eats nothing). */
+  nutrientRootUptake: number;
+  /** Founders start with this much store, as a multiple of their body matter, taken from the soil they start on. */
+  founderNutrient: number;
+
   // --- Disaster events (Phase 8e, all off by default) ---
   // Each kind has a mean interval (on average one every this many ticks; 0 = never) and ranges
   // (min, max) for how big, how wide and how long. The numbers for each event are drawn when it
@@ -1193,6 +1219,16 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   iceAgeCooling: 0.3,
   droughtSeverity: 0.8,
   meteorRadius: 40,
+  nutrientMode: 0,
+  plantAssimilation: 0.02,
+  meatAssimilation: 0.8,
+  nutrientTurnover: 0.002,
+  nutrientStoreCap: 3,
+  provisionShare: 0.25,
+  deficiencyBelow: 0.5,
+  deficiencyCost: 0.3,
+  nutrientRootUptake: 0.002,
+  founderNutrient: 1,
   evIceAgeEvery: 0,
   evIceAgeCoolingMin: 0.05,
   evIceAgeCoolingMax: 0.15,
@@ -1474,6 +1510,13 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     if (c.iceAgeCooling < 0) problems.push("iceAgeCooling cannot be negative");
     if (c.droughtSeverity < 0 || c.droughtSeverity > 1) problems.push("droughtSeverity must be between 0 and 1");
     if (!(c.meteorRadius > 0)) problems.push("meteorRadius must be positive");
+  }
+  if (![0, 1].includes(c.nutrientMode)) problems.push("nutrientMode must be 0 (babies built from soil) or 1 (animals carry nutrient)");
+  if (c.nutrientMode === 1) {
+    for (const [name, value] of [["plantAssimilation", c.plantAssimilation], ["meatAssimilation", c.meatAssimilation], ["nutrientTurnover", c.nutrientTurnover], ["provisionShare", c.provisionShare]] as const) {
+      if (!(value >= 0 && value <= 1)) problems.push(`${name} must be between 0 and 1`);
+    }
+    if (!(c.nutrientStoreCap > 0) || c.deficiencyBelow < 0 || c.deficiencyCost < 0 || c.nutrientRootUptake < 0 || c.founderNutrient < 0) problems.push("nutrientStoreCap must be positive, and deficiencyBelow, deficiencyCost, nutrientRootUptake and founderNutrient cannot be negative");
   }
   // Disaster events: each kind with a non-zero interval needs its ranges to make sense (and the world features it works on).
   const eventKinds: [string, number, [string, number, number][]][] = [

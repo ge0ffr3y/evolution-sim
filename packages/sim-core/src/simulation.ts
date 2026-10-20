@@ -182,6 +182,8 @@ export interface MatterAudit {
   corpses: number;
   detritus: number;
   bodies: number;
+  /** Nutrient carried in animals' stores (0 without nutrient mode). */
+  stores: number;
   total: number;
 }
 
@@ -625,6 +627,10 @@ export class Simulation {
   private readonly loadMask: Uint32Array;
   /** Energy held in the fat reserve (counted in the energy audit; it goes into the corpse when the body dies). */
   private readonly fatStore: Float64Array;
+  /** Nutrients through food (nutrientMode 1): each animal's store of nutrient (matter), and per cell this tick, the eaten matter that went into stores instead of dung. */
+  private readonly nutrientOn: boolean;
+  readonly nutrientStore: Float64Array;
+  private readonly assimClaim: Float64Array;
   private readonly torporOn: boolean;
   /** Who is dormant this tick (worked out fresh every tick; not saved). */
   private readonly torpid: Float32Array;
@@ -954,6 +960,9 @@ export class Simulation {
     this.fireScar = new Uint32Array(this.fireOn ? cells : 0);
     this.stormCell = new Uint8Array(this.stormOn ? cells : 0);
     this.stormDelta = new Float64Array(this.stormOn ? cells : 0);
+    this.nutrientOn = c.nutrientMode === 1;
+    this.nutrientStore = new Float64Array(this.nutrientOn ? n : 0);
+    this.assimClaim = new Float64Array(this.nutrientOn ? cells : 0);
     this.fatOn = c.fatDepositRate > 0;
     this.fatStore = new Float64Array(this.fatOn ? n : 0);
     this.torporOn = this.climateOn && c.torporSaving > 0;
@@ -1026,6 +1035,7 @@ export class Simulation {
     if (this.chemOn) this.float32Fields.push(this.chemIntake);
     this.float64Fields = [this.energy, this.plantTaken, this.meatTaken];
     if (this.fatOn) this.float64Fields.push(this.fatStore);
+    if (this.nutrientOn) this.float64Fields.push(this.nutrientStore);
     this.uint32Fields = [this.id, this.parentId, this.age, this.kills];
     if (this.tracker) this.uint32Fields.push(this.species);
     if (this.sexOn) this.uint32Fields.push(this.parent2Id);
@@ -1113,6 +1123,14 @@ export class Simulation {
       this.express(index);
       this.initBrain(index);
       this.energy[index] = this.threshold[index]! * c.initialEnergyFraction;
+      if (this.nutrientOn) {
+        // A founder's starting store comes out of the soil it starts on, so the books stay exact.
+        const cell = Math.floor(fy / c.foodCellSize) * this.gridWidth + Math.floor(fx / c.foodCellSize);
+        const want = c.founderNutrient * this.bodyMatter[index]!;
+        const take = want < this.nutrient[cell]! ? want : this.nutrient[cell]!;
+        this.nutrient[cell] = this.nutrient[cell]! - take;
+        this.nutrientStore[index] = take;
+      }
     }
     this.tracker?.start(this.count, this.genes, this.species);
   }
@@ -1261,10 +1279,30 @@ export class Simulation {
     const cs = this.config.foodCellSize;
     const cell = Math.floor(this.y[i]! / cs) * this.gridWidth + Math.floor(this.x[i]! / cs);
     this.corpseEnergy[cell] = this.corpseEnergy[cell]! + this.bodyEnergy[i]! + this.energy[i]! + (this.fatOn ? this.fatStore[i]! : 0);
-    if (this.toxOn) this.foldToxin(cell, this.corpseMatter[cell]!, this.bodyMatter[i]!, this.genes[i * GENE_COUNT + GENE.toxicity]!);
-    this.corpseMatter[cell] = this.corpseMatter[cell]! + this.bodyMatter[i]!;
+    const matter = this.bodyMatter[i]! + this.takeStore(i);
+    if (this.toxOn) this.foldToxin(cell, this.corpseMatter[cell]!, matter, this.genes[i * GENE_COUNT + GENE.toxicity]!);
+    this.corpseMatter[cell] = this.corpseMatter[cell]! + matter;
     this.energy[i] = 0;
     this.killed[i] = 1;
+  }
+
+  /**
+   * A parent pays `body` from its store to build (its part of) a baby's body, then hands over a share
+   * of what is left (`share` scales it: 0.5 for each of two parents). Returns the baby's starting store from this parent.
+   */
+  private provision(parent: number, body: number, share: number): number {
+    const left = this.nutrientStore[parent]! - body;
+    const gift = left * this.config.provisionShare * share;
+    this.nutrientStore[parent] = left - gift;
+    return gift;
+  }
+
+  /** Empty an animal's nutrient store (when it dies, its store goes into the corpse with its body). 0 without nutrient mode. */
+  private takeStore(i: number): number {
+    if (!this.nutrientOn) return 0;
+    const store = this.nutrientStore[i]!;
+    this.nutrientStore[i] = 0;
+    return store;
   }
 
   /** Plants in a cell are crushed: the matter becomes detritus, the energy is lost as heat. */
@@ -1851,6 +1889,7 @@ export class Simulation {
     if (this.sexOn) this.parent2Id[i] = 0;
     if (this.sexGeneOn) this.sexMode[i] = 0;
     if (this.fatOn) this.fatStore[i] = 0;
+    if (this.nutrientOn) this.nutrientStore[i] = 0;
     if (this.toxOn) {
       // A newborn remembers nothing (every field is cleared, so a reused slot never carries an old animal's memory).
       this.avoidStrength[i] = 0;
@@ -2769,7 +2808,7 @@ export class Simulation {
   /** Used while a generous animal looks for hungry neighbors: keep the few neediest (or youngest) in order. */
   private readonly considerGift = (index: number): void => {
     const c = this.config;
-    if (index === this.giftGiver) return;
+    if (index === this.giftGiver || this.killed[index] === 1) return; // (nobody feeds the dead)
     const fraction = this.energy[index]! / this.threshold[index]!;
     if (fraction >= c.shareAcceptBelow) return;
     if (c.shareKinOnly === 1 && this.geneDistanceSq(this.giftGiver, index) > this.kinLimitSq) return;
@@ -2833,6 +2872,8 @@ export class Simulation {
       for (let k = 0; k < BOND_SLOTS; k++) {
         const p = this.bondTo[i * BOND_SLOTS + k]!;
         if (p <= i) continue; // each bond once
+        // (A cell killed earlier this tick, by a disaster, shares nothing: its energy is already in its corpse.)
+        if (this.killed[i] === 1 || this.killed[p] === 1) continue;
         const moved = (share * (this.energy[i]! - this.energy[p]!)) / 2;
         delta[i] = delta[i]! - moved;
         delta[p] = delta[p]! + moved;
@@ -3595,6 +3636,28 @@ export class Simulation {
       meatClaim[cell] = meatClaim[cell]! + meatMass;
       const plantRaw = plantMass * energyPerFood;
       const meatRaw = meatMass * meatDensity[cell]!;
+      if (this.nutrientOn) {
+        // Part of what it eats goes into its store (much more of meat, which is already body); the rest becomes dung here.
+        let store = this.nutrientStore[i]! + plantMass * c.plantAssimilation + meatMass * c.meatAssimilation;
+        this.assimClaim[cell] = this.assimClaim[cell]! + (store - this.nutrientStore[i]!);
+        if (this.typeOn && this.photoGain[i]! > 0) {
+          // A photosynthesizing cell eats nothing, so it draws a little nutrient from the soil (roots).
+          let up = c.nutrientRootUptake * this.bodyMatter[i]!;
+          if (up > this.nutrient[cell]!) up = this.nutrient[cell]!;
+          this.nutrient[cell] = this.nutrient[cell]! - up;
+          store += up;
+        }
+        // Some of the store is lost as dung every tick, here (so nutrient travels with animals), and anything over the cap spills out.
+        let dung = store * c.nutrientTurnover;
+        store -= dung;
+        const cap = c.nutrientStoreCap * this.bodyMatter[i]!;
+        if (store > cap) {
+          dung += store - cap;
+          store = cap;
+        }
+        this.detritus[cell] = this.detritus[cell]! + dung;
+        this.nutrientStore[i] = store;
+      }
       let toxinLoss = 0;
       if (this.toxOn) {
         const conc = this.corpseToxin[cell]!;
@@ -3682,6 +3745,12 @@ export class Simulation {
       }
 
       let basal = this.basalCost[i]! + toxinLoss;
+      if (this.nutrientOn) {
+        // Short of nutrient: the body works less well and costs more to run (energy lost as heat, on the upkeep line).
+        const need = c.deficiencyBelow * this.bodyMatter[i]!;
+        const have = this.nutrientStore[i]!;
+        if (need > 0 && have < need) basal += this.basalCost[i]! * c.deficiencyCost * (1 - have / need);
+      }
       if (this.agingOn) {
         // Past its prime, a body wears out faster and faster.
         const lifespan = this.lifespan[i]!;
@@ -3773,6 +3842,11 @@ export class Simulation {
         corpseEnergy[cell] = corpseEnergy[cell]! * (1 - fraction);
         corpseMatter[cell] = corpseMatter[cell]! - taken;
         waste += taken;
+      }
+      if (this.nutrientOn) {
+        // What the eaters kept went into their stores, not onto the ground.
+        waste -= this.assimClaim[cell]!;
+        this.assimClaim[cell] = 0;
       }
 
       // Rot: the corpse's energy is lost as heat, its matter becomes detritus.
@@ -3912,13 +3986,17 @@ export class Simulation {
           this.inheritBrainFromTwo(child, a, b);
           const cell = this.cellOf[a]!;
           const store = eachA + eachB - this.bodyEnergy[child]!;
-          if (nutrient[cell]! < this.bodyMatter[child]! || store < 0) {
+          const body = this.bodyMatter[child]!;
+          // (With nutrient mode, each parent builds half the body from its own store; otherwise it comes from the soil.)
+          const matterShort = this.nutrientOn ? this.nutrientStore[a]! < body / 2 || this.nutrientStore[b]! < body / 2 : nutrient[cell]! < body;
+          if (matterShort || store < 0) {
             this.count--;
             this.nextId = savedNextId;
-            this.noteBlockedBirth(nutrient[cell]! < this.bodyMatter[child]!, store < 0);
+            this.noteBlockedBirth(matterShort, store < 0);
             continue;
           }
-          nutrient[cell] = nutrient[cell]! - this.bodyMatter[child]!;
+          if (this.nutrientOn) this.nutrientStore[child] = this.provision(a, body / 2, 0.5) + this.provision(b, body / 2, 0.5);
+          else nutrient[cell] = nutrient[cell]! - body;
           this.energy[a] = this.energy[a]! - eachA;
           this.energy[b] = this.energy[b]! - eachB;
           this.energy[child] = store;
@@ -3955,14 +4033,17 @@ export class Simulation {
           this.inheritBrain(child, parent);
           const cell = this.cellOf[parent]!;
           const store = each - this.bodyEnergy[child]!;
-          if (nutrient[cell]! < this.bodyMatter[child]! || store < 0) {
+          const body = this.bodyMatter[child]!;
+          const matterShort = this.nutrientOn ? this.nutrientStore[parent]! < body : nutrient[cell]! < body;
+          if (matterShort || store < 0) {
             // Cannot afford this baby right now: undo it. The parent keeps its energy and tries again later.
             this.count--;
             this.nextId = savedNextId;
-            this.noteBlockedBirth(nutrient[cell]! < this.bodyMatter[child]!, store < 0);
+            this.noteBlockedBirth(matterShort, store < 0);
             continue;
           }
-          nutrient[cell] = nutrient[cell]! - this.bodyMatter[child]!;
+          if (this.nutrientOn) this.nutrientStore[child] = this.provision(parent, body, 1);
+          else nutrient[cell] = nutrient[cell]! - body;
           this.energy[parent] = this.energy[parent]! - each;
           this.energy[child] = store;
           this.totalBirths++;
@@ -3992,8 +4073,9 @@ export class Simulation {
       } else if (this.energy[i]! <= 0) {
         const cell = this.cellOf[i]!;
         corpseEnergy[cell] = corpseEnergy[cell]! + this.bodyEnergy[i]! + (this.fatOn ? this.fatStore[i]! : 0);
-        if (this.toxOn) this.foldToxin(cell, corpseMatter[cell]!, this.bodyMatter[i]!, this.genes[i * GENE_COUNT + GENE.toxicity]!);
-        corpseMatter[cell] = corpseMatter[cell]! + this.bodyMatter[i]!;
+        const matter = this.bodyMatter[i]! + this.takeStore(i);
+        if (this.toxOn) this.foldToxin(cell, corpseMatter[cell]!, matter, this.genes[i * GENE_COUNT + GENE.toxicity]!);
+        corpseMatter[cell] = corpseMatter[cell]! + matter;
         starved++;
         if (this.bondsOn) this.breakBonds(i);
         alive--;
@@ -4061,8 +4143,9 @@ export class Simulation {
       this.corpseOwnerUntil[cell] = this.tick + this.config.killOwnershipTicks;
     }
     this.corpseEnergy[cell] = this.corpseEnergy[cell]! + this.bodyEnergy[prey]! + this.energy[prey]! + (this.fatOn ? this.fatStore[prey]! : 0);
-    if (this.toxOn) this.foldToxin(cell, this.corpseMatter[cell]!, this.bodyMatter[prey]!, this.genes[prey * GENE_COUNT + GENE.toxicity]!);
-    this.corpseMatter[cell] = this.corpseMatter[cell]! + this.bodyMatter[prey]!;
+    const preyMatter = this.bodyMatter[prey]! + this.takeStore(prey);
+    if (this.toxOn) this.foldToxin(cell, this.corpseMatter[cell]!, preyMatter, this.genes[prey * GENE_COUNT + GENE.toxicity]!);
+    this.corpseMatter[cell] = this.corpseMatter[cell]! + preyMatter;
     this.energy[prey] = 0;
     this.killed[prey] = 1;
     this.kills[attacker] = this.kills[attacker]! + 1;
@@ -4476,7 +4559,9 @@ export class Simulation {
     const plants = sumOf(this.food);
     const corpses = sumOf(this.corpseMatter);
     const detritus = sumOf(this.detritus);
-    return { soilNutrient, plants, corpses, detritus, bodies, total: soilNutrient + plants + corpses + detritus + bodies };
+    let stores = 0;
+    if (this.nutrientOn) for (let i = 0; i < this.count; i++) stores += this.nutrientStore[i]!;
+    return { soilNutrient, plants, corpses, detritus, bodies, stores, total: soilNutrient + plants + corpses + detritus + bodies + stores };
   }
 
   /** Add up all the energy in the world, in every form that can be eaten or spent. */
@@ -4739,6 +4824,7 @@ export class Simulation {
       mixBits(this.searchHue, n);
       for (let i = 0; i < n; i++) mix(this.hasImage[i]!);
     }
+    if (this.nutrientOn) mixBits(this.nutrientStore, n);
     if (this.toxOn) {
       mixBits(this.avoidStrength, n);
       mixBits(this.avoidHue, n);
