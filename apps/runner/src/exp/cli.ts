@@ -263,4 +263,11 @@ async function main(): Promise<void> {
   }
 }
 
-if (process.argv[1] && import.meta.filename === resolve(process.argv[1])) await main();
+if (process.argv[1] && import.meta.filename === resolve(process.argv[1])) {
+  try {
+    await main();
+  } catch (error) {
+    console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(1);
+  }
+}

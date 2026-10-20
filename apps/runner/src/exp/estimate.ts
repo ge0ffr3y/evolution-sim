@@ -28,6 +28,12 @@ export const SIZES: { size: string; vcpus: number; memoryGb: number }[] = [
   { size: "12xlarge", vcpus: 48, memoryGb: 96 },
   { size: "16xlarge", vcpus: 64, memoryGb: 128 },
 ];
+/**
+ * The most cores this AWS account may run at once on C-family machines (the quota "Running
+ * On-Demand Standard instances", 32 as of 2026-10-20). Plans never pick a bigger machine. Raise it
+ * here only after AWS has raised the quota (see infra/aws/README.md).
+ */
+export const MAX_VCPUS = 32;
 /** Allowance for populations growing during a run (worlds get slower as they fill up). */
 export const SAFETY_MARGIN = 1.5;
 /** Booting, installing Node and the project, and the final upload. */
@@ -114,11 +120,11 @@ export function makespan(seconds: number[], workers: number): number {
 /** Every machine size the lane allows, what it would take and cost, and the pick: the cheapest that finishes about as quickly as the fastest. */
 export function planMachines(exp: Experiment, jobSeconds: number[], families: MachineFamily[] = FAMILIES): { options: MachineOption[]; pick: MachineOption } {
   const options: MachineOption[] = [];
-  const sizes = exp.lane === "long" ? SIZES.filter((s) => s.vcpus <= 8) : SIZES;
+  const sizes = SIZES.filter((s) => s.vcpus <= (exp.lane === "long" ? Math.min(8, MAX_VCPUS) : MAX_VCPUS));
   for (const f of families) {
     for (const s of sizes) {
-      // On 16 or more cores, keep one free for the system and the uploads (on smaller machines they fit in the gaps).
-      const byCores = s.vcpus >= 16 ? s.vcpus - 1 : s.vcpus;
+      // One world per core. The uploads every 5 minutes are light enough to share the cores (the first cloud runs showed no slowdown).
+      const byCores = s.vcpus;
       const byMemory = Math.max(1, Math.floor((s.memoryGb - 1) / GB_PER_WORLD));
       const workers = Math.min(byCores, byMemory, Math.max(1, jobSeconds.length));
       const seconds = makespan(jobSeconds.map((x) => (x * SAFETY_MARGIN) / f.speed), workers) + SETUP_MINUTES * 60;
