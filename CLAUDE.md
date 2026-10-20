@@ -60,6 +60,9 @@ npm run bench -w apps/runner -- --sizes 512,1024 --config configs/brains-evolvab
 npm run sim -- --seed 5 --ticks 3000 --save w.evosnap     save the finished world
 npm run sim -- --load w.evosnap --ticks 2000               carry on from a saved world (add --branch-seed N for a different random future)
 npm run gif -- --seed 12 --ticks 60000   render a time-lapse GIF of a run
+npm run exp -- check|estimate|run|status experiments/<name>   experiments from a file (Phase 9): saves progress, resumes, estimates cost
+npm run exp -- cloud launch experiments/<name> [--confirm]     run it on one on-demand AWS machine (never without the owner's yes; see infra/aws/README.md)
+npm run exp -- cloud status | cloud fetch experiments/<name> | cloud stop
 ```
 
 ## Tech notes

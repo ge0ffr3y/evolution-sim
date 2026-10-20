@@ -20,7 +20,8 @@
     "dev": "npm run dev -w apps/viewer",
     "sim": "npm run start -w apps/runner --",
     "bench": "npm run bench -w apps/runner",
-    "gif": "npm run gif -w apps/runner --"
+    "gif": "npm run gif -w apps/runner --",
+    "exp": "npm run exp -w apps/runner --"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
