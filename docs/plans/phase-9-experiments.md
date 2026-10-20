@@ -120,6 +120,25 @@ npm run exp -- cloud stop                        terminate our machines now
 
 The spend check uses Cost Explorer, which charges $0.01 per query, so it runs once per launch.
 
+## 6b. The long-run lane (24 hours and more, up to 8 worlds at once)
+
+For runs too long to share a big machine with, such as watching the grand world for days to see whether meat eaters ever specialize.
+
+- **Machine:** c7g.2xlarge or c8g.2xlarge (8 cores, 16 GB), whichever wins the c7g/c8g test.
+  - On demand: about $0.29 an hour for c7g (about $7 a day) or about $0.32 for c8g (about $7.70 a day).
+  - Not t4g: those are "burstable" machines that either slow to 40% under constant load or charge extra for running flat out, and our runs are always flat out.
+- **How much it gets through:** a grand world runs about 370 ticks a second per core, so a day is roughly 30 million ticks per world, and 8 worlds run side by side. (Most of our "long" runs so far were 0.5 to 1 million ticks; 24 hours is far beyond that.)
+- **Saving:**
+  - a checkpoint every hour or so goes to S3, so nothing is lost if anything fails;
+  - a run can be **extended** later (relaunch from the last checkpoint with more ticks) instead of guessing the length up front;
+  - samples are sparser (for example every 10,000 ticks), so the result files stay small.
+- **Watching it:** the latest saved worlds can be downloaded and opened in the viewer with **Load world**, so the owner can look at a 3-day-old world as it stands. A time-lapse GIF can be made from the checkpoints.
+- **Cost guard:**
+  - the machine's hard shutdown time comes from the agreed spend (for example, $14 means about 48 hours);
+  - the launch shows the expected cost per day and in total, and needs a yes;
+  - a weekly reminder of what is running and what it has cost so far.
+- **Budget reality:** about $7 to $8 a day means a 3-day run costs about $21 to $23, close to half the monthly cap, so long runs would be planned one or two at a time.
+
 ## 7. Tests
 
 - Experiment file validation (good and bad files).
