@@ -124,10 +124,10 @@ The spend check uses Cost Explorer, which charges $0.01 per query, so it runs on
 
 For runs too long to share a big machine with, such as watching the grand world for days to see whether meat eaters ever specialize.
 
-- **Machine:** c7g.2xlarge or c8g.2xlarge (8 cores, 16 GB), whichever wins the c7g/c8g test.
-  - On demand: about $0.29 an hour for c7g (about $7 a day) or about $0.32 for c8g (about $7.70 a day).
+- **Machine:** c8g.2xlarge (8 cores, 16 GB), the winner of the c7g/c8g test (see 8, step 5).
+  - On demand: about $0.32 an hour (about $7.70 a day).
   - Not t4g: those are "burstable" machines that either slow to 40% under constant load or charge extra for running flat out, and our runs are always flat out.
-- **How much it gets through:** a grand world runs about 370 ticks a second per core, so a day is roughly 30 million ticks per world, and 8 worlds run side by side. (Most of our "long" runs so far were 0.5 to 1 million ticks; 24 hours is far beyond that.)
+- **How much it gets through:** a grand world runs about 370 ticks a second on a laptop core, and a c8g core is 0.84 times as fast, so a day is roughly 27 million ticks per world, and 8 worlds run side by side. (Most of our "long" runs so far were 0.5 to 1 million ticks; 24 hours is far beyond that.)
 - **Saving:**
   - a checkpoint every hour or so goes to S3, so nothing is lost if anything fails;
   - a run can be **extended** later (relaunch from the last checkpoint with more ticks) instead of guessing the length up front;
@@ -152,8 +152,8 @@ For runs too long to share a big machine with, such as watching the grand world 
 1. Experiment files, measures, jobs, checkpoints, resume, status, laptop `run` (with tests).
 2. Estimate and the spending guard.
 3. Cloud launch, status, fetch and stop.
-4. **First cloud trial:** a tiny smoke test on the smallest allowed machine (t4g, a few cents) to check the role, the bucket, the start-up script and self-termination end to end.
-5. **c7g against c8g:** the same 16 grand-world runs (100,000 ticks each) on a 16-core machine of each type at the same time. About 15 minutes and about 30 cents in all. The cheaper cost per run wins for the long runs.
+4. **First cloud trial: done (2026-10-20).** `experiments/runner-smoke` (4 small worlds, 2 million ticks) on a c7g.xlarge: it started, ran, uploaded, shut itself down after 7 minutes, and the results downloaded; about 2 cents. A laptop re-run of one world matched the cloud fingerprint exactly. It found one bug (a plain fetch could leave old saved worlds next to newer rows), now fixed.
+5. **c7g against c8g: done (2026-10-20).** The same 4 grand worlds (seeds 1–4, 300,000 ticks) on a 4-core c7g.xlarge, a 4-core c8g.xlarge and the laptop (M2), all cores busy on each. Run time in total: laptop 960 s, c8g 1,148 s, c7g 1,452 s. So one c8g core does 0.84 of a laptop core's work and one c7g core 0.66, the same within 0.03 on every seed (a smaller, plain world in the first smoke test gave c7g 0.74). Per unit of work, c8g ($0.16/h for 4 cores) is about 13% cheaper than c7g ($0.145/h) as well as about 26% faster, so **c8g is the machine** for both lanes. All four worlds ended in exactly the same state (same fingerprint) on all three machines, brains included. These speeds are now in the estimates (`FAMILIES` in `estimate.ts`), and each result records the machine it ran on, so a speed measured in the cloud is converted back to laptop terms. The test cost about 6 cents (two machines for about 8 minutes each, plus two spending checks).
 6. **First real batch:** the deferred long runs from Phase 8e (erosion 1M, meat eating 500k, warning colors, planted hunters with real brains, overgrazing and fouling at 2M). About 33 jobs and about 17 core-hours. On a right-sized machine (about 32 cores) for about 2.5 hours (the 2M-tick runs set the length), that is roughly $3–6 on demand.
 
 **All of Phase 9** (about 200 to 300 core-hours, up to 500 if generous) comes to roughly $10–25 on demand, well inside the $50 a month cap.
@@ -162,6 +162,6 @@ Then part 2 of Phase 9: the analysis reports and the headline experiments.
 
 ## Decisions (settled)
 
-1. **Machine:** test c7g and c8g side by side (step 5 above) and use the cheaper per run. Both are Graviton (ARM) machines, where every vCPU is a whole core; on Intel or AMD machines a vCPU is half a core, so they cost more for this kind of work.
+1. **Machine:** c8g, the cheaper per run in the side-by-side test (step 5 above). Both are Graviton (ARM) machines, where every vCPU is a whole core; on Intel or AMD machines a vCPU is half a core, so they cost more for this kind of work.
 2. **No spot:** on-demand only.
 3. **Results kept for 60 days** in S3.

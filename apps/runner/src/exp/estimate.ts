@@ -5,8 +5,10 @@ import { readProgress, readResult } from "./job";
 /**
  * Machines the runner may use (Graviton: every vCPU is a whole core, which suits one-core-per-world
  * runs). Prices are on-demand in us-west-2 as of 2026-10-20 and are only a fallback: the launch
- * reads the live price. `speed` is how fast one core runs the sim compared with the laptop's
- * average core, updated after the c7g/c8g speed test (1 until then).
+ * reads the live price. `speed` is how fast one core runs the sim compared with one laptop (M2)
+ * core, from the speed test of 2026-10-20 (experiments/speed-c7g and speed-c8g: four grand worlds,
+ * 300,000 ticks, all cores busy on each machine): c7g 0.66, c8g 0.84, the same within 0.03 on every
+ * seed. Per unit of work c8g is about 13% cheaper as well as faster.
  */
 export interface MachineFamily {
   family: "c7g" | "c8g" | "t4g";
@@ -14,8 +16,8 @@ export interface MachineFamily {
   speed: number;
 }
 export const FAMILIES: MachineFamily[] = [
-  { family: "c7g", pricePerVcpuHour: 2.32 / 64, speed: 1 },
-  { family: "c8g", pricePerVcpuHour: 2.552 / 64, speed: 1 },
+  { family: "c7g", pricePerVcpuHour: 2.32 / 64, speed: 0.66 },
+  { family: "c8g", pricePerVcpuHour: 2.552 / 64, speed: 0.84 },
 ];
 export const SIZES: { size: string; vcpus: number; memoryGb: number }[] = [
   { size: "large", vcpus: 2, memoryGb: 4 },
