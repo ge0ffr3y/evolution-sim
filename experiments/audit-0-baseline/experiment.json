@@ -6,7 +6,7 @@
   "seeds": "1-16",
   "arms": {
     "mended": { "mutationLoadMend": 0.15 },
-    "as-committed": {}
+    "as-committed": { "mutationLoadMend": 0 }
   },
   "measures": ["all"]
 }

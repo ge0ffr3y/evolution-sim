@@ -115,6 +115,13 @@ It is not the 24-hour long-run lane (that stays on hold): each run is about half
 
 Stage 1 should therefore look hard at disease, erosion, overgrazing and the trait ranges (what holds size, metabolism and the weapons at their limits).
 
+**Owner's decision (2026-10-20): `mutationLoadMend` 0.15 is now in the grand-world preset.** (The `as-committed` arm of stage 0 now names `mutationLoadMend: 0` explicitly, so the file still describes what ran.)
+
+**Sex with mending:** each world settles on its own share of births with two parents by about tick 100,000 (4% to 27% across seeds) and holds it. 12 of 16 worlds ended slightly lower than they began, and none clearly higher, so longer runs alone are unlikely to spread sex further. The audit's best leads for sex:
+- disease: the Red Queen reason for sex is missing while disease never takes hold;
+- finding a mate: the mate-finding settings are in stage 2;
+- compounding harm: `mutationLoadSynergy`, added to the stage 3 candidates.
+
 ### Stage 1: switch each mechanism off (8 seeds x 200,000 ticks, about 40 arms)
 
 From the baseline, one mechanism off at a time: terrain, climate, seasons, day and night, weather, harsh years, random catastrophes, each of the seven disaster events, plant kinds, brains (and separately memory, home, chemical signals, their body effects, appetite senses), kill ownership, scent trails, kin restraint, the tolerance gene, the herd bonus, sex (asexual only), harmful mutations, disease, camouflage, aging, litters, torpor, colonies, cell types, luck, sharing, founder variety, overgrazing, fouling, erosion, and thermal costs.
@@ -138,7 +145,8 @@ Each built-but-off feature added on its own:
 - stamina;
 - contact bonding;
 - the O4 fixes (hunger overriding kin restraint, the hunter's eye, bigger and richer meals, mating by diet);
-- rare big mutations.
+- rare big mutations;
+- compounding harmful mutations (`mutationLoadSynergy`, each one hurting more than the last, which in theory favours sex).
 
 The question for each is whether the world gets richer (more feeding levels, more species, steadier populations) or merely harder.
 
