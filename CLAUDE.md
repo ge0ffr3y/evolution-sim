@@ -63,6 +63,9 @@ npm run gif -- --seed 12 --ticks 60000   render a time-lapse GIF of a run
 npm run exp -- check|estimate|run|status experiments/<name>   experiments from a file (Phase 9): saves progress, resumes, estimates cost
 npm run exp -- cloud launch experiments/<name> [--confirm]     run it on one on-demand AWS machine (never without the owner's yes; see infra/aws/README.md)
 npm run exp -- cloud status | cloud fetch experiments/<name> | cloud stop
+npm run exp -- report experiments/<name>                       compare every arm with the control: report.md, red flags first
+npm run exp -- settings grand-world --changes mutationLoadMend=0.15 --out experiments/audit-settings.json   draft the audit's settings list
+npm run exp -- make-doses experiments/audit-settings.json experiments/audit-2-doses   write the down-and-up experiment from it
 ```
 
 ## Tech notes

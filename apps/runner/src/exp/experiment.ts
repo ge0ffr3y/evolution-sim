@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { makeConfig, parsePreset, parseConfigOverrides, type SimConfig } from "@evo/sim-core";
-import { MEASURES } from "./measures";
+import { Simulation, makeConfig, parsePreset, parseConfigOverrides, type SimConfig } from "@evo/sim-core";
+import { MEASURES, expandMeasures } from "./measures";
 import { parseSeedList } from "../run";
 
 /**
@@ -24,6 +24,8 @@ export interface ExperimentFile {
   checkpointEvery?: number;
   /** ...and at least every this many minutes of wall time (default 30), so long runs lose little if anything fails. */
   checkpointMinutes?: number;
+  /** Changes made to the base world in every arm (e.g. the audit's baseline: the grand world with 15% mending). */
+  baseChanges?: Record<string, number>;
   /** Each arm is a set of changes to the base world. Include a control (usually {}). */
   arms: Record<string, Record<string, number>>;
   measures: string[];
@@ -65,7 +67,7 @@ export function loadExperiment(path: string, repoRoot: string): Experiment {
 export function checkExperiment(raw: unknown, folder: string, repoRoot: string): Experiment {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) throw new Error("An experiment must be a JSON object");
   const e = raw as Record<string, unknown>;
-  const known = ["name", "question", "base", "ticks", "seeds", "sampleEvery", "checkpointEvery", "checkpointMinutes", "arms", "measures", "lane"];
+  const known = ["name", "question", "base", "baseChanges", "ticks", "seeds", "sampleEvery", "checkpointEvery", "checkpointMinutes", "arms", "measures", "lane"];
   for (const key of Object.keys(e)) if (!known.includes(key)) throw new Error(`Unknown experiment field "${key}" (expected one of: ${known.join(", ")})`);
 
   if (typeof e.name !== "string" || !NAME.test(e.name)) throw new Error("name must be lower-case letters, digits and dashes, e.g. \"meat-eating-long\"");
@@ -91,6 +93,14 @@ export function checkExperiment(raw: unknown, folder: string, repoRoot: string):
   const presetFile = join(repoRoot, "configs", `${base}.json`);
   if (!existsSync(presetFile)) throw new Error(`base "${base}" is not a preset (no configs/${base}.json)`);
   const preset = parsePreset(JSON.parse(readFileSync(presetFile, "utf8")), base);
+  let baseChanges: Partial<SimConfig> = {};
+  if (e.baseChanges !== undefined) {
+    try {
+      baseChanges = parseConfigOverrides(e.baseChanges);
+    } catch (error) {
+      throw new Error(`baseChanges: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
 
   if (typeof e.arms !== "object" || e.arms === null || Array.isArray(e.arms) || Object.keys(e.arms).length === 0) throw new Error("arms must be an object with at least one arm, e.g. { \"control\": {} }");
   const arms = e.arms as Record<string, unknown>;
@@ -103,7 +113,7 @@ export function checkExperiment(raw: unknown, folder: string, repoRoot: string):
     } catch (error) {
       throw new Error(`arm "${arm}": ${error instanceof Error ? error.message : String(error)}`);
     }
-    const config = { ...preset.config, ...parsed };
+    const config = { ...preset.config, ...baseChanges, ...parsed };
     try {
       makeConfig(config); // the same checks the simulation itself runs
     } catch (error) {
@@ -113,25 +123,39 @@ export function checkExperiment(raw: unknown, folder: string, repoRoot: string):
   }
 
   if (!Array.isArray(e.measures) || e.measures.length === 0) throw new Error(`measures must list what to record, from: ${Object.keys(MEASURES).join(", ")}`);
-  for (const m of e.measures) if (typeof m !== "string" || !(m in MEASURES)) throw new Error(`Unknown measure "${String(m)}" (available: ${Object.keys(MEASURES).join(", ")})`);
+  for (const m of e.measures) if (typeof m !== "string" || !(m in MEASURES || m === "all")) throw new Error(`Unknown measure "${String(m)}" (available: all, ${Object.keys(MEASURES).join(", ")})`);
   if (lane === "long" && seedList.length * Object.keys(arms).length > 8) throw new Error("the long lane runs at most 8 worlds at once (arms x seeds); use the sweep lane for more");
 
   return {
     name: e.name,
     question: e.question,
     base,
+    baseChanges: baseChanges as Record<string, number>,
     ticks,
     seeds: e.seeds,
     sampleEvery,
     checkpointEvery,
     checkpointMinutes,
     arms: arms as Record<string, Record<string, number>>,
-    measures: e.measures as string[],
+    measures: expandMeasures(e.measures as string[]),
     lane,
     folder,
     seedList,
     armConfigs,
   };
+}
+
+/** Build every arm's world (first seed) and run a few ticks, to catch an arm that cannot start before any machine is paid for. */
+export function buildArms(exp: Experiment): string[] {
+  const failures: string[] = [];
+  for (const [arm, config] of Object.entries(exp.armConfigs)) {
+    try {
+      new Simulation(exp.seedList[0]!, config).run(5);
+    } catch (error) {
+      failures.push(`${arm}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  return failures;
 }
 
 /** Every (arm, seed) pair, in a fixed order. */

@@ -34,6 +34,8 @@ export const SAFETY_MARGIN = 1.5;
 export const SETUP_MINUTES = 8;
 /** Memory one world needs at most (a full grand world with brains), in GB. */
 export const GB_PER_WORLD = 0.6;
+/** At most this many arms get a timing trial; the rest are scaled from them by world area. */
+export const TRIAL_ARMS = 4;
 /** A machine whose finish is within this share of the fastest option counts as "about as quick". */
 export const SPEED_TOLERANCE = 1.15;
 
@@ -74,6 +76,16 @@ export function measureSpeeds(exp: Experiment, jobs: Job[], trialTicks = 1500): 
       .filter((tps) => tps > 0);
     if (seen.length) {
       speeds[arm] = Math.min(...seen); // the slowest seen, to be safe
+      continue;
+    }
+    // With many arms (the audit's 500+), time only a few and scale the rest by world area, which
+    // is what mostly sets the speed; timing every arm would keep the laptop busy for many minutes.
+    const area = (a: string): number => (exp.armConfigs[a]!.worldWidth ?? 256) * (exp.armConfigs[a]!.worldHeight ?? 256);
+    const timed = Object.keys(speeds).filter((a) => speeds[a]! > 0);
+    if (timed.length >= TRIAL_ARMS) {
+      const sameSize = timed.find((a) => area(a) === area(arm));
+      const ref = sameSize ?? timed[0]!;
+      speeds[arm] = (speeds[ref]! * area(ref)) / area(arm);
       continue;
     }
     // A short trial run: a little warm-up, then time a stretch.

@@ -73,6 +73,38 @@ export interface EnergyLedger {
   brainBurned: number;
 }
 
+/**
+ * What the average organism pays per tick, split into every part (see costBreakdown). Upkeep is
+ * body (size and metabolism) plus the birth-time extras (repair for a long lifespan, the torpor
+ * gene, harmful mutations, luck, the toxin gene) plus the per-tick extras (colony saving and the
+ * torpor rest are negative). upkeep, movement, sensing, attack, armor and brain match the ledger lines.
+ */
+export interface CostBreakdown {
+  body: number;
+  repair: number;
+  torporGene: number;
+  load: number;
+  luck: number;
+  toxinGene: number;
+  colonySaving: number;
+  signal: number;
+  thirst: number;
+  deficiency: number;
+  wear: number;
+  sickness: number;
+  stressCalm: number;
+  fat: number;
+  torporRest: number;
+  thermal: number;
+  upkeep: number;
+  movement: number;
+  sensing: number;
+  attack: number;
+  armor: number;
+  brain: number;
+  total: number;
+}
+
 /** How big evolved brains are, on average. */
 export interface BrainStats {
   /** Averages over everyone in each group: hidden units and working connections. */
@@ -4996,6 +5028,150 @@ export class Simulation {
         return range.min + this.genes[i * GENE_COUNT + GENE.stamina]! * (range.max - range.min);
       }
     }
+  }
+
+  /**
+   * What the average living organism is paying per tick right now, split into every part.
+   * Read only: it changes nothing and draws no random numbers. It repeats the arithmetic of the
+   * upkeep code in step() (keep the two in step; a test holds this one to the ledger). The
+   * birth-time upkeep is a chain of multipliers, so each one's share is taken in the order the
+   * code applies them, which makes the parts add up exactly to the whole. Poison from a meal
+   * (toxicity) is left out: it is only known inside the tick.
+   */
+  costBreakdown(): CostBreakdown {
+    const c = this.config;
+    const out: CostBreakdown = {
+      body: 0, repair: 0, torporGene: 0, load: 0, luck: 0, toxinGene: 0,
+      colonySaving: 0, signal: 0, thirst: 0, deficiency: 0, wear: 0, sickness: 0, stressCalm: 0, fat: 0, torporRest: 0, thermal: 0,
+      upkeep: 0, movement: 0, sensing: 0, attack: 0, armor: 0, brain: 0, total: 0,
+    };
+    const n = this.count;
+    if (n === 0) return out;
+    const cs = c.foodCellSize;
+    const brains = c.brainMode > 0;
+    for (let i = 0; i < n; i++) {
+      const g = i * GENE_COUNT;
+      const cell = Math.floor(this.y[i]! / cs) * this.gridWidth + Math.floor(this.x[i]! / cs);
+      // Birth-time upkeep, undone from the last multiplier back to the first.
+      const cached = this.basalCost[i]!;
+      let v = cached;
+      if (this.toxOn) {
+        const before = v / (1 + c.toxinUpkeep * this.genes[g + GENE.toxicity]!);
+        out.toxinGene += v - before;
+        v = before;
+      }
+      if (this.luckOn) {
+        const before = v / this.upkeepLuck[i]!;
+        out.luck += v - before;
+        v = before;
+      }
+      if (this.loadOn) {
+        const spots = this.badSpots(i);
+        const before = v / (1 + c.mutationLoadCost * spots + c.mutationLoadSynergy * spots * spots);
+        out.load += v - before;
+        v = before;
+      }
+      if (this.torporOn) {
+        const before = v / (1 + c.torporUpkeep * this.genes[g + GENE.torpor]!);
+        out.torporGene += v - before;
+        v = before;
+      }
+      if (this.agingOn) {
+        const before = v / (1 + c.agingRepairCoeff * this.genes[g + GENE.lifespan]!);
+        out.repair += v - before;
+        v = before;
+      }
+      out.body += v;
+
+      // Per-tick extras, in the order step() applies them.
+      let basal = cached;
+      if (this.colonyInfoOn && c.colonyScaleSaving > 0 && this.colonyCount[i]! > 1) {
+        const saving = -cached * c.colonyScaleSaving * (1 - 1 / Math.sqrt(Math.sqrt(Math.sqrt(this.colonyCount[i]!))));
+        out.colonySaving += saving;
+        basal += saving;
+      }
+      if (this.signalOn) {
+        const gene = this.genes[g + GENE.signal]!;
+        if (gene > 0) {
+          const s = c.signalCost * gene * this.bondCount(i);
+          out.signal += s;
+          basal += s;
+        }
+      }
+      if (this.drinkOn) {
+        const water = this.hydration[i]!;
+        if (water < c.thirstBelow) {
+          const s = cached * c.dehydrationCost * (1 - water / c.thirstBelow);
+          out.thirst += s;
+          basal += s;
+        }
+      }
+      if (this.nutrientOn) {
+        const need = c.deficiencyBelow * this.bodyMatter[i]!;
+        const have = this.nutrientStore[i]!;
+        if (need > 0 && have < need) {
+          const s = cached * c.deficiencyCost * (1 - have / need);
+          out.deficiency += s;
+          basal += s;
+        }
+      }
+      if (this.agingOn) {
+        const prime = this.lifespan[i]! * c.agingPrimeFraction;
+        const age = this.age[i]!;
+        if (age > prime) {
+          const worn = (age - prime) / (this.lifespan[i]! - prime);
+          const s = c.agingCoeff * cached * worn * worn;
+          out.wear += s;
+          basal += s;
+        }
+      }
+      if (this.diseaseOn && this.sickFor[i]! > 0) {
+        out.sickness += c.diseaseCost * cached;
+        basal += c.diseaseCost * cached;
+      }
+      if (this.bodyChemOn) {
+        const at = i * 4;
+        const factor = c.chemStressUpkeep * this.genes[g + GENE.stressResponse]! * this.chem[at + 1]! - c.chemCalmSaving * this.genes[g + GENE.calmResponse]! * this.chem[at + 3]!;
+        out.stressCalm += basal * factor;
+        basal += basal * factor;
+      }
+      if (this.fatOn) {
+        const s = c.fatUpkeep * (this.fatStore[i]! / this.threshold[i]!) * cached;
+        out.fat += s;
+        basal += s;
+      }
+      if (this.torporOn) {
+        const s = -basal * c.torporSaving * this.torpid[i]!;
+        out.torporRest += s;
+        basal += s;
+      }
+      if (this.thermalOn) {
+        const off = this.temperature[cell]! - this.thermalPref[i]!;
+        const excess = (off < 0 ? -off : off) - c.thermalTolerance;
+        if (excess > 0) {
+          const s = this.thermalScale[i]! * excess * excess;
+          out.thermal += s;
+          basal += s;
+        }
+      }
+      out.upkeep += basal;
+
+      let move = brains ? this.moveCost[i]! * this.moveScale[i]! * this.moveScale[i]! : this.moveCost[i]!;
+      if (this.terrainOn) move *= this.terrainMove[cell]!;
+      if (this.stormOn && this.stormCell[cell] === 1) move *= c.evStormMoveCost;
+      if (this.climateBiomesOn && this.iced[cell] === 1) move *= c.iceMoveCost;
+      if (this.fatOn) move *= 1 + c.fatMoveCost * (this.fatStore[i]! / this.threshold[i]!);
+      if (this.torporOn) move *= (1 - this.torpid[i]!) * (1 - this.torpid[i]!);
+      if (this.staminaOn) move += this.staminaCost[i]!;
+      out.movement += move;
+      out.sensing += this.senseCost[i]!;
+      out.attack += this.attackCost[i]! + (this.attempted[i] === 1 ? this.attemptCost[i]! : 0);
+      out.armor += this.armorCost[i]!;
+      if (brains) out.brain += this.brainCost[i]!;
+    }
+    out.total = out.upkeep + out.movement + out.sensing + out.attack + out.armor + out.brain;
+    for (const key of Object.keys(out) as (keyof CostBreakdown)[]) out[key] /= n;
+    return out;
   }
 
   stats(): SimStats {

@@ -1,0 +1,5117 @@
+{
+  "base": "grand-world",
+  "baseChanges": {
+    "mutationLoadMend": 0.15
+  },
+  "note": "Drafted by `npm run exp -- settings`, then reviewed. test: false means the setting is not turned down and up, for the reason given. down and up are the exact changes each arm makes.",
+  "settings": [
+    {
+      "key": "worldSize",
+      "group": "World",
+      "value": 512,
+      "test": true,
+      "reason": "",
+      "down": {
+        "worldWidth": 256,
+        "worldHeight": 256,
+        "initialOrganisms": 150
+      },
+      "up": {
+        "worldWidth": 1024,
+        "worldHeight": 1024,
+        "initialOrganisms": 2400
+      }
+    },
+    {
+      "key": "foodCellSize",
+      "group": "World",
+      "value": 8,
+      "test": true,
+      "reason": "",
+      "down": {
+        "foodCellSize": 4
+      },
+      "up": {
+        "foodCellSize": 16
+      }
+    },
+    {
+      "key": "foodCap",
+      "group": "Food (plants)",
+      "value": 10,
+      "test": true,
+      "reason": "",
+      "down": {
+        "foodCap": 5
+      },
+      "up": {
+        "foodCap": 20
+      }
+    },
+    {
+      "key": "foodRegrowPerTick",
+      "group": "Food (plants)",
+      "value": 0.12,
+      "test": true,
+      "reason": "",
+      "down": {
+        "foodRegrowPerTick": 0.06
+      },
+      "up": {
+        "foodRegrowPerTick": 0.24
+      }
+    },
+    {
+      "key": "initialFoodFraction",
+      "group": "Food (plants)",
+      "value": 1,
+      "test": true,
+      "reason": "",
+      "down": {
+        "initialFoodFraction": 0.5
+      },
+      "up": null
+    },
+    {
+      "key": "fertilityVariation",
+      "group": "Food (plants)",
+      "value": 0.9,
+      "test": true,
+      "reason": "",
+      "down": {
+        "fertilityVariation": 0.45
+      },
+      "up": {
+        "fertilityVariation": 0.95
+      }
+    },
+    {
+      "key": "fertilityScale",
+      "group": "Food (plants)",
+      "value": 8,
+      "test": true,
+      "reason": "",
+      "down": {
+        "fertilityScale": 4
+      },
+      "up": {
+        "fertilityScale": 16
+      }
+    },
+    {
+      "key": "initialNutrientPerCell",
+      "group": "Soil, bodies and decay (the matter loop)",
+      "value": 30,
+      "test": true,
+      "reason": "",
+      "down": {
+        "initialNutrientPerCell": 15
+      },
+      "up": {
+        "initialNutrientPerCell": 60
+      }
+    },
+    {
+      "key": "nutrientHalfSaturation",
+      "group": "Soil, bodies and decay (the matter loop)",
+      "value": 2,
+      "test": true,
+      "reason": "",
+      "down": {
+        "nutrientHalfSaturation": 1
+      },
+      "up": {
+        "nutrientHalfSaturation": 4
+      }
+    },
+    {
+      "key": "bodyMatterPerSize",
+      "group": "Soil, bodies and decay (the matter loop)",
+      "value": 1,
+      "test": true,
+      "reason": "",
+      "down": {
+        "bodyMatterPerSize": 0.5
+      },
+      "up": {
+        "bodyMatterPerSize": 2
+      }
+    },
+    {
+      "key": "bodyEnergyPerSize",
+      "group": "Soil, bodies and decay (the matter loop)",
+      "value": 4,
+      "test": true,
+      "reason": "",
+      "down": {
+        "bodyEnergyPerSize": 2
+      },
+      "up": {
+        "bodyEnergyPerSize": 8
+      }
+    },
+    {
+      "key": "meatDecayRate",
+      "group": "Soil, bodies and decay (the matter loop)",
+      "value": 0.01,
+      "test": true,
+      "reason": "",
+      "down": {
+        "meatDecayRate": 0.005
+      },
+      "up": {
+        "meatDecayRate": 0.02
+      }
+    },
+    {
+      "key": "detritusMineralizeRate",
+      "group": "Soil, bodies and decay (the matter loop)",
+      "value": 0.01,
+      "test": true,
+      "reason": "",
+      "down": {
+        "detritusMineralizeRate": 0.005
+      },
+      "up": {
+        "detritusMineralizeRate": 0.02
+      }
+    },
+    {
+      "key": "initialOrganisms",
+      "group": "Population",
+      "value": 600,
+      "test": true,
+      "reason": "",
+      "down": {
+        "initialOrganisms": 300
+      },
+      "up": {
+        "initialOrganisms": 1200
+      }
+    },
+    {
+      "key": "maxOrganisms",
+      "group": "Population",
+      "value": 30000,
+      "test": true,
+      "reason": "",
+      "down": {
+        "maxOrganisms": 15000
+      },
+      "up": {
+        "maxOrganisms": 60000
+      }
+    },
+    {
+      "key": "initialSize",
+      "group": "First generation (identical bodies, random color)",
+      "value": 1,
+      "test": true,
+      "reason": "",
+      "down": {
+        "initialSize": 0.5
+      },
+      "up": {
+        "initialSize": 2
+      }
+    },
+    {
+      "key": "initialSpeed",
+      "group": "First generation (identical bodies, random color)",
+      "value": 1,
+      "test": true,
+      "reason": "",
+      "down": {
+        "initialSpeed": 0.5
+      },
+      "up": {
+        "initialSpeed": 2
+      }
+    },
+    {
+      "key": "initialSenseRange",
+      "group": "First generation (identical bodies, random color)",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "initialMetabolism",
+      "group": "First generation (identical bodies, random color)",
+      "value": 1,
+      "test": true,
+      "reason": "",
+      "down": {
+        "initialMetabolism": 0.5
+      },
+      "up": {
+        "initialMetabolism": 2
+      }
+    },
+    {
+      "key": "initialMutationRate",
+      "group": "First generation (identical bodies, random color)",
+      "value": 0.01,
+      "test": true,
+      "reason": "",
+      "down": {
+        "initialMutationRate": 0.005
+      },
+      "up": {
+        "initialMutationRate": 0.02
+      }
+    },
+    {
+      "key": "initialDiet",
+      "group": "First generation (identical bodies, random color)",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "initialAttack",
+      "group": "First generation (identical bodies, random color)",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "initialArmor",
+      "group": "First generation (identical bodies, random color)",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "initialStamina",
+      "group": "First generation (identical bodies, random color)",
+      "value": 10,
+      "test": true,
+      "reason": "",
+      "down": {
+        "initialStamina": 5
+      },
+      "up": {
+        "initialStamina": 20
+      }
+    },
+    {
+      "key": "initialThermal",
+      "group": "First generation (identical bodies, random color)",
+      "value": 0.5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "initialThermal": 0.25
+      },
+      "up": {
+        "initialThermal": 0.75
+      }
+    },
+    {
+      "key": "initialLifespan",
+      "group": "First generation (identical bodies, random color)",
+      "value": 8000,
+      "test": true,
+      "reason": "",
+      "down": {
+        "initialLifespan": 4000
+      },
+      "up": {
+        "initialLifespan": 16000
+      }
+    },
+    {
+      "key": "initialLitter",
+      "group": "First generation (identical bodies, random color)",
+      "value": 1,
+      "test": true,
+      "reason": "",
+      "down": null,
+      "up": {
+        "initialLitter": 2
+      }
+    },
+    {
+      "key": "initialEnergyFraction",
+      "group": "First generation (identical bodies, random color)",
+      "value": 0.6,
+      "test": true,
+      "reason": "",
+      "down": {
+        "initialEnergyFraction": 0.3
+      },
+      "up": {
+        "initialEnergyFraction": 0.8
+      }
+    },
+    {
+      "key": "sizeMin",
+      "group": "Trait limits: each gene (0 to 1) is stretched across its trait's range",
+      "value": 0.3,
+      "test": true,
+      "reason": "",
+      "down": {
+        "sizeMin": 0.15
+      },
+      "up": {
+        "sizeMin": 0.6
+      }
+    },
+    {
+      "key": "sizeMax",
+      "group": "Trait limits: each gene (0 to 1) is stretched across its trait's range",
+      "value": 4,
+      "test": true,
+      "reason": "",
+      "down": {
+        "sizeMax": 2
+      },
+      "up": {
+        "sizeMax": 8
+      }
+    },
+    {
+      "key": "speedMin",
+      "group": "Trait limits: each gene (0 to 1) is stretched across its trait's range",
+      "value": 0.1,
+      "test": true,
+      "reason": "",
+      "down": {
+        "speedMin": 0.05
+      },
+      "up": {
+        "speedMin": 0.2
+      }
+    },
+    {
+      "key": "speedMax",
+      "group": "Trait limits: each gene (0 to 1) is stretched across its trait's range",
+      "value": 4,
+      "test": true,
+      "reason": "",
+      "down": {
+        "speedMax": 2
+      },
+      "up": {
+        "speedMax": 8
+      }
+    },
+    {
+      "key": "senseRangeMin",
+      "group": "Trait limits: each gene (0 to 1) is stretched across its trait's range",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "senseRangeMax",
+      "group": "Trait limits: each gene (0 to 1) is stretched across its trait's range",
+      "value": 16,
+      "test": true,
+      "reason": "",
+      "down": {
+        "senseRangeMax": 8
+      },
+      "up": {
+        "senseRangeMax": 32
+      }
+    },
+    {
+      "key": "metabolismMin",
+      "group": "Trait limits: each gene (0 to 1) is stretched across its trait's range",
+      "value": 0.5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "metabolismMin": 0.25
+      },
+      "up": {
+        "metabolismMin": 1
+      }
+    },
+    {
+      "key": "metabolismMax",
+      "group": "Trait limits: each gene (0 to 1) is stretched across its trait's range",
+      "value": 2,
+      "test": true,
+      "reason": "",
+      "down": {
+        "metabolismMax": 1
+      },
+      "up": {
+        "metabolismMax": 4
+      }
+    },
+    {
+      "key": "mutationRateMin",
+      "group": "Trait limits: each gene (0 to 1) is stretched across its trait's range",
+      "value": 0.001,
+      "test": true,
+      "reason": "",
+      "down": {
+        "mutationRateMin": 0.0005
+      },
+      "up": {
+        "mutationRateMin": 0.002
+      }
+    },
+    {
+      "key": "mutationRateMax",
+      "group": "Trait limits: each gene (0 to 1) is stretched across its trait's range",
+      "value": 0.05,
+      "test": true,
+      "reason": "",
+      "down": {
+        "mutationRateMax": 0.025
+      },
+      "up": {
+        "mutationRateMax": 0.1
+      }
+    },
+    {
+      "key": "dietMin",
+      "group": "Trait limits: each gene (0 to 1) is stretched across its trait's range",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "dietMax",
+      "group": "Trait limits: each gene (0 to 1) is stretched across its trait's range",
+      "value": 1,
+      "test": true,
+      "reason": "",
+      "down": {
+        "dietMax": 0.5
+      },
+      "up": null
+    },
+    {
+      "key": "attackMin",
+      "group": "Trait limits: each gene (0 to 1) is stretched across its trait's range",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "attackMax",
+      "group": "Trait limits: each gene (0 to 1) is stretched across its trait's range",
+      "value": 2,
+      "test": true,
+      "reason": "",
+      "down": {
+        "attackMax": 1
+      },
+      "up": {
+        "attackMax": 4
+      }
+    },
+    {
+      "key": "armorMin",
+      "group": "Trait limits: each gene (0 to 1) is stretched across its trait's range",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "armorMax",
+      "group": "Trait limits: each gene (0 to 1) is stretched across its trait's range",
+      "value": 2,
+      "test": true,
+      "reason": "",
+      "down": {
+        "armorMax": 1
+      },
+      "up": {
+        "armorMax": 4
+      }
+    },
+    {
+      "key": "staminaMin",
+      "group": "Trait limits: each gene (0 to 1) is stretched across its trait's range",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "staminaMax",
+      "group": "Trait limits: each gene (0 to 1) is stretched across its trait's range",
+      "value": 30,
+      "test": true,
+      "reason": "",
+      "down": {
+        "staminaMax": 15
+      },
+      "up": {
+        "staminaMax": 60
+      }
+    },
+    {
+      "key": "thermalMin",
+      "group": "Trait limits: each gene (0 to 1) is stretched across its trait's range",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "thermalMax",
+      "group": "Trait limits: each gene (0 to 1) is stretched across its trait's range",
+      "value": 1,
+      "test": true,
+      "reason": "",
+      "down": {
+        "thermalMax": 0.5
+      },
+      "up": null
+    },
+    {
+      "key": "lifespanMin",
+      "group": "Trait limits: each gene (0 to 1) is stretched across its trait's range",
+      "value": 1000,
+      "test": true,
+      "reason": "",
+      "down": {
+        "lifespanMin": 500
+      },
+      "up": {
+        "lifespanMin": 2000
+      }
+    },
+    {
+      "key": "lifespanMax",
+      "group": "Trait limits: each gene (0 to 1) is stretched across its trait's range",
+      "value": 30000,
+      "test": true,
+      "reason": "",
+      "down": {
+        "lifespanMax": 15000
+      },
+      "up": {
+        "lifespanMax": 60000
+      }
+    },
+    {
+      "key": "litterMin",
+      "group": "Trait limits: each gene (0 to 1) is stretched across its trait's range",
+      "value": 1,
+      "test": false,
+      "reason": "no valid smaller or larger value",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "litterMax",
+      "group": "Trait limits: each gene (0 to 1) is stretched across its trait's range",
+      "value": 4,
+      "test": true,
+      "reason": "",
+      "down": {
+        "litterMax": 2
+      },
+      "up": {
+        "litterMax": 8
+      }
+    },
+    {
+      "key": "metaMutationStd",
+      "group": "Trait limits: each gene (0 to 1) is stretched across its trait's range",
+      "value": 0.05,
+      "test": true,
+      "reason": "",
+      "down": {
+        "metaMutationStd": 0.025
+      },
+      "up": {
+        "metaMutationStd": 0.1
+      }
+    },
+    {
+      "key": "turnStd",
+      "group": "Behavior (temporary, replaced by evolved brains in Phase 4)",
+      "value": 0.3,
+      "test": true,
+      "reason": "",
+      "down": {
+        "turnStd": 0.15
+      },
+      "up": {
+        "turnStd": 0.6
+      }
+    },
+    {
+      "key": "steerGain",
+      "group": "Behavior (temporary, replaced by evolved brains in Phase 4)",
+      "value": 3,
+      "test": true,
+      "reason": "",
+      "down": {
+        "steerGain": 1.5
+      },
+      "up": {
+        "steerGain": 6
+      }
+    },
+    {
+      "key": "biteRate",
+      "group": "Energy economy",
+      "value": 1,
+      "test": true,
+      "reason": "",
+      "down": {
+        "biteRate": 0.5
+      },
+      "up": {
+        "biteRate": 2
+      }
+    },
+    {
+      "key": "biteSizeBlend",
+      "group": "Energy economy",
+      "value": 1,
+      "test": true,
+      "reason": "",
+      "down": {
+        "biteSizeBlend": 0.5
+      },
+      "up": null
+    },
+    {
+      "key": "contestStrength",
+      "group": "Energy economy",
+      "value": 2,
+      "test": true,
+      "reason": "",
+      "down": {
+        "contestStrength": 1
+      },
+      "up": null
+    },
+    {
+      "key": "energyPerFood",
+      "group": "Energy economy",
+      "value": 1,
+      "test": true,
+      "reason": "",
+      "down": {
+        "energyPerFood": 0.5
+      },
+      "up": {
+        "energyPerFood": 2
+      }
+    },
+    {
+      "key": "basalCostCoeff",
+      "group": "Energy economy",
+      "value": 0.05,
+      "test": true,
+      "reason": "",
+      "down": {
+        "basalCostCoeff": 0.025
+      },
+      "up": {
+        "basalCostCoeff": 0.1
+      }
+    },
+    {
+      "key": "moveCostCoeff",
+      "group": "Energy economy",
+      "value": 0.01,
+      "test": true,
+      "reason": "",
+      "down": {
+        "moveCostCoeff": 0.005
+      },
+      "up": {
+        "moveCostCoeff": 0.02
+      }
+    },
+    {
+      "key": "senseCostCoeff",
+      "group": "Energy economy",
+      "value": 0.0005,
+      "test": true,
+      "reason": "",
+      "down": {
+        "senseCostCoeff": 0.00025
+      },
+      "up": {
+        "senseCostCoeff": 0.001
+      }
+    },
+    {
+      "key": "dietSpecialization",
+      "group": "Energy economy",
+      "value": 0.5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "dietSpecialization": 0.25
+      },
+      "up": {
+        "dietSpecialization": 1
+      }
+    },
+    {
+      "key": "attackCostCoeff",
+      "group": "Attack and defense",
+      "value": 0.01,
+      "test": true,
+      "reason": "",
+      "down": {
+        "attackCostCoeff": 0.005
+      },
+      "up": {
+        "attackCostCoeff": 0.02
+      }
+    },
+    {
+      "key": "attackAttemptCost",
+      "group": "Attack and defense",
+      "value": 0.25,
+      "test": true,
+      "reason": "",
+      "down": {
+        "attackAttemptCost": 0.125
+      },
+      "up": {
+        "attackAttemptCost": 0.5
+      }
+    },
+    {
+      "key": "armorCostCoeff",
+      "group": "Attack and defense",
+      "value": 0.01,
+      "test": true,
+      "reason": "",
+      "down": {
+        "armorCostCoeff": 0.005
+      },
+      "up": {
+        "armorCostCoeff": 0.02
+      }
+    },
+    {
+      "key": "armorMoveFactor",
+      "group": "Attack and defense",
+      "value": 0.5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "armorMoveFactor": 0.25
+      },
+      "up": {
+        "armorMoveFactor": 1
+      }
+    },
+    {
+      "key": "armorBase",
+      "group": "Attack and defense",
+      "value": 0.25,
+      "test": true,
+      "reason": "",
+      "down": {
+        "armorBase": 0.125
+      },
+      "up": {
+        "armorBase": 0.5
+      }
+    },
+    {
+      "key": "attackThreshold",
+      "group": "Attack and defense",
+      "value": 0.05,
+      "test": true,
+      "reason": "",
+      "down": {
+        "attackThreshold": 0.025
+      },
+      "up": {
+        "attackThreshold": 0.1
+      }
+    },
+    {
+      "key": "reachBase",
+      "group": "Attack and defense",
+      "value": 1.5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "reachBase": 0.75
+      },
+      "up": {
+        "reachBase": 3
+      }
+    },
+    {
+      "key": "reachPerSize",
+      "group": "Attack and defense",
+      "value": 1,
+      "test": true,
+      "reason": "",
+      "down": {
+        "reachPerSize": 0.5
+      },
+      "up": {
+        "reachPerSize": 2
+      }
+    },
+    {
+      "key": "preyMaxSizeRatio",
+      "group": "Attack and defense",
+      "value": 1.25,
+      "test": true,
+      "reason": "",
+      "down": {
+        "preyMaxSizeRatio": 0.625
+      },
+      "up": {
+        "preyMaxSizeRatio": 2.5
+      }
+    },
+    {
+      "key": "herbivoreAttackPenalty",
+      "group": "Attack and defense",
+      "value": 4,
+      "test": true,
+      "reason": "",
+      "down": {
+        "herbivoreAttackPenalty": 2
+      },
+      "up": {
+        "herbivoreAttackPenalty": 8
+      }
+    },
+    {
+      "key": "killCooldown",
+      "group": "Attack and defense",
+      "value": 20,
+      "test": true,
+      "reason": "",
+      "down": {
+        "killCooldown": 10
+      },
+      "up": {
+        "killCooldown": 40
+      }
+    },
+    {
+      "key": "brainMode",
+      "group": "Senses and brains",
+      "value": 2,
+      "test": false,
+      "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "brainHidden",
+      "group": "Senses and brains",
+      "value": 8,
+      "test": true,
+      "reason": "",
+      "down": {
+        "brainHidden": 4
+      },
+      "up": {
+        "brainHidden": 16
+      }
+    },
+    {
+      "key": "brainWaterRange",
+      "group": "Senses and brains",
+      "value": 64,
+      "test": true,
+      "reason": "",
+      "down": {
+        "brainWaterRange": 32
+      },
+      "up": {
+        "brainWaterRange": 128
+      }
+    },
+    {
+      "key": "brainVisionRange",
+      "group": "Senses and brains",
+      "value": 6,
+      "test": true,
+      "reason": "",
+      "down": {
+        "brainVisionRange": 3
+      },
+      "up": {
+        "brainVisionRange": 12
+      }
+    },
+    {
+      "key": "brainEvery",
+      "group": "Senses and brains",
+      "value": 2,
+      "test": true,
+      "reason": "",
+      "down": {
+        "brainEvery": 1
+      },
+      "up": {
+        "brainEvery": 4
+      }
+    },
+    {
+      "key": "brainTurnMax",
+      "group": "Senses and brains",
+      "value": 0.5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "brainTurnMax": 0.25
+      },
+      "up": {
+        "brainTurnMax": 1
+      }
+    },
+    {
+      "key": "brainTurnNoise",
+      "group": "Senses and brains",
+      "value": 0.1,
+      "test": true,
+      "reason": "",
+      "down": {
+        "brainTurnNoise": 0.05
+      },
+      "up": {
+        "brainTurnNoise": 0.2
+      }
+    },
+    {
+      "key": "brainStillEatBonus",
+      "group": "Senses and brains",
+      "value": 0.5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "brainStillEatBonus": 0.25
+      },
+      "up": {
+        "brainStillEatBonus": 1
+      }
+    },
+    {
+      "key": "brainAttackGate",
+      "group": "Senses and brains",
+      "value": -0.5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "brainAttackGate": -0.25
+      },
+      "up": {
+        "brainAttackGate": -1
+      }
+    },
+    {
+      "key": "brainWeightMutationProb",
+      "group": "Senses and brains",
+      "value": 0.03,
+      "test": true,
+      "reason": "",
+      "down": {
+        "brainWeightMutationProb": 0.015
+      },
+      "up": {
+        "brainWeightMutationProb": 0.06
+      }
+    },
+    {
+      "key": "brainWeightMutationStd",
+      "group": "Senses and brains",
+      "value": 0.4,
+      "test": true,
+      "reason": "",
+      "down": {
+        "brainWeightMutationStd": 0.2
+      },
+      "up": {
+        "brainWeightMutationStd": 0.8
+      }
+    },
+    {
+      "key": "brainWeightZeroProb",
+      "group": "Senses and brains",
+      "value": 0.3,
+      "test": true,
+      "reason": "",
+      "down": {
+        "brainWeightZeroProb": 0.15
+      },
+      "up": {
+        "brainWeightZeroProb": 0.6
+      }
+    },
+    {
+      "key": "brainPruneBelow",
+      "group": "Senses and brains",
+      "value": 0.05,
+      "test": true,
+      "reason": "",
+      "down": {
+        "brainPruneBelow": 0.025
+      },
+      "up": {
+        "brainPruneBelow": 0.1
+      }
+    },
+    {
+      "key": "brainFounderReflex",
+      "group": "Senses and brains",
+      "value": 1,
+      "test": false,
+      "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "brainAddConnectionProb",
+      "group": "Senses and brains",
+      "value": 0.08,
+      "test": true,
+      "reason": "",
+      "down": {
+        "brainAddConnectionProb": 0.04
+      },
+      "up": {
+        "brainAddConnectionProb": 0.16
+      }
+    },
+    {
+      "key": "brainAddNodeProb",
+      "group": "Senses and brains",
+      "value": 0.03,
+      "test": true,
+      "reason": "",
+      "down": {
+        "brainAddNodeProb": 0.015
+      },
+      "up": {
+        "brainAddNodeProb": 0.06
+      }
+    },
+    {
+      "key": "brainRemoveConnectionProb",
+      "group": "Senses and brains",
+      "value": 0.03,
+      "test": true,
+      "reason": "",
+      "down": {
+        "brainRemoveConnectionProb": 0.015
+      },
+      "up": {
+        "brainRemoveConnectionProb": 0.06
+      }
+    },
+    {
+      "key": "brainRemoveNodeProb",
+      "group": "Senses and brains",
+      "value": 0.01,
+      "test": true,
+      "reason": "",
+      "down": {
+        "brainRemoveNodeProb": 0.005
+      },
+      "up": {
+        "brainRemoveNodeProb": 0.02
+      }
+    },
+    {
+      "key": "brainMemory",
+      "group": "Senses and brains",
+      "value": 1,
+      "test": false,
+      "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "homeMode",
+      "group": "Senses and brains",
+      "value": 3,
+      "test": false,
+      "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "homeRange",
+      "group": "Senses and brains",
+      "value": 64,
+      "test": true,
+      "reason": "",
+      "down": {
+        "homeRange": 32
+      },
+      "up": {
+        "homeRange": 128
+      }
+    },
+    {
+      "key": "homeMemoryDecay",
+      "group": "Senses and brains",
+      "value": 0.999,
+      "test": true,
+      "reason": "",
+      "down": {
+        "homeMemoryDecay": 0.998
+      },
+      "up": {
+        "homeMemoryDecay": 0.9995
+      }
+    },
+    {
+      "key": "homeMemoryMin",
+      "group": "Senses and brains",
+      "value": 0.005,
+      "test": true,
+      "reason": "",
+      "down": {
+        "homeMemoryMin": 0.0025
+      },
+      "up": {
+        "homeMemoryMin": 0.01
+      }
+    },
+    {
+      "key": "chemicals",
+      "group": "Senses and brains",
+      "value": 1,
+      "test": false,
+      "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "chemDecay",
+      "group": "Senses and brains",
+      "value": 0.95,
+      "test": true,
+      "reason": "",
+      "down": {
+        "chemDecay": 0.9
+      },
+      "up": {
+        "chemDecay": 0.975
+      }
+    },
+    {
+      "key": "chemRewardGain",
+      "group": "Senses and brains",
+      "value": 20,
+      "test": true,
+      "reason": "",
+      "down": {
+        "chemRewardGain": 10
+      },
+      "up": {
+        "chemRewardGain": 40
+      }
+    },
+    {
+      "key": "chemStressHit",
+      "group": "Senses and brains",
+      "value": 0.5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "chemStressHit": 0.25
+      },
+      "up": {
+        "chemStressHit": 1
+      }
+    },
+    {
+      "key": "chemStressSick",
+      "group": "Senses and brains",
+      "value": 0.05,
+      "test": true,
+      "reason": "",
+      "down": {
+        "chemStressSick": 0.025
+      },
+      "up": {
+        "chemStressSick": 0.1
+      }
+    },
+    {
+      "key": "chemStressHunger",
+      "group": "Senses and brains",
+      "value": 0.1,
+      "test": true,
+      "reason": "",
+      "down": {
+        "chemStressHunger": 0.05
+      },
+      "up": {
+        "chemStressHunger": 0.2
+      }
+    },
+    {
+      "key": "chemHungerBelow",
+      "group": "Senses and brains",
+      "value": 0.3,
+      "test": true,
+      "reason": "",
+      "down": {
+        "chemHungerBelow": 0.15
+      },
+      "up": {
+        "chemHungerBelow": 0.6
+      }
+    },
+    {
+      "key": "chemBondGain",
+      "group": "Senses and brains",
+      "value": 0.1,
+      "test": true,
+      "reason": "",
+      "down": {
+        "chemBondGain": 0.05
+      },
+      "up": {
+        "chemBondGain": 0.2
+      }
+    },
+    {
+      "key": "chemCalmRate",
+      "group": "Senses and brains",
+      "value": 0.02,
+      "test": true,
+      "reason": "",
+      "down": {
+        "chemCalmRate": 0.01
+      },
+      "up": {
+        "chemCalmRate": 0.04
+      }
+    },
+    {
+      "key": "chemicalsCost",
+      "group": "Senses and brains",
+      "value": 0.0005,
+      "test": true,
+      "reason": "",
+      "down": {
+        "chemicalsCost": 0.00025
+      },
+      "up": {
+        "chemicalsCost": 0.001
+      }
+    },
+    {
+      "key": "chemBodyEffects",
+      "group": "Senses and brains",
+      "value": 1,
+      "test": false,
+      "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "chemStressSpeed",
+      "group": "Senses and brains",
+      "value": 0.5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "chemStressSpeed": 0.25
+      },
+      "up": {
+        "chemStressSpeed": 1
+      }
+    },
+    {
+      "key": "chemStressUpkeep",
+      "group": "Senses and brains",
+      "value": 0.5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "chemStressUpkeep": 0.25
+      },
+      "up": {
+        "chemStressUpkeep": 1
+      }
+    },
+    {
+      "key": "chemCalmSaving",
+      "group": "Senses and brains",
+      "value": 0.3,
+      "test": true,
+      "reason": "",
+      "down": {
+        "chemCalmSaving": 0.15
+      },
+      "up": {
+        "chemCalmSaving": 0.6
+      }
+    },
+    {
+      "key": "chemCalmSlow",
+      "group": "Senses and brains",
+      "value": 0.3,
+      "test": true,
+      "reason": "",
+      "down": {
+        "chemCalmSlow": 0.15
+      },
+      "up": {
+        "chemCalmSlow": 0.6
+      }
+    },
+    {
+      "key": "initialStressResponse",
+      "group": "Senses and brains",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "initialCalmResponse",
+      "group": "Senses and brains",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "brainBaseCost",
+      "group": "Senses and brains",
+      "value": 0.001,
+      "test": true,
+      "reason": "",
+      "down": {
+        "brainBaseCost": 0.0005
+      },
+      "up": {
+        "brainBaseCost": 0.002
+      }
+    },
+    {
+      "key": "brainCostPerNeuron",
+      "group": "Senses and brains",
+      "value": 0.0005,
+      "test": true,
+      "reason": "",
+      "down": {
+        "brainCostPerNeuron": 0.00025
+      },
+      "up": {
+        "brainCostPerNeuron": 0.001
+      }
+    },
+    {
+      "key": "brainCostPerConnection",
+      "group": "Senses and brains",
+      "value": 0.0001,
+      "test": true,
+      "reason": "",
+      "down": {
+        "brainCostPerConnection": 0.00005
+      },
+      "up": {
+        "brainCostPerConnection": 0.0002
+      }
+    },
+    {
+      "key": "brainAppetiteSenses",
+      "group": "Senses and brains",
+      "value": 1,
+      "test": false,
+      "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "terrainMode",
+      "group": "Terrain (off by default)",
+      "value": 1,
+      "test": false,
+      "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "terrainScale",
+      "group": "Terrain (off by default)",
+      "value": 8,
+      "test": true,
+      "reason": "",
+      "down": {
+        "terrainScale": 4
+      },
+      "up": {
+        "terrainScale": 16
+      }
+    },
+    {
+      "key": "terrainWaterFraction",
+      "group": "Terrain (off by default)",
+      "value": 0.25,
+      "test": true,
+      "reason": "",
+      "down": {
+        "terrainWaterFraction": 0.125
+      },
+      "up": {
+        "terrainWaterFraction": 0.5
+      }
+    },
+    {
+      "key": "terrainMountainFraction",
+      "group": "Terrain (off by default)",
+      "value": 0.1,
+      "test": true,
+      "reason": "",
+      "down": {
+        "terrainMountainFraction": 0.05
+      },
+      "up": {
+        "terrainMountainFraction": 0.2
+      }
+    },
+    {
+      "key": "terrainDesertFraction",
+      "group": "Terrain (off by default)",
+      "value": 0.25,
+      "test": true,
+      "reason": "",
+      "down": {
+        "terrainDesertFraction": 0.125
+      },
+      "up": {
+        "terrainDesertFraction": 0.5
+      }
+    },
+    {
+      "key": "terrainForestFraction",
+      "group": "Terrain (off by default)",
+      "value": 0.3,
+      "test": true,
+      "reason": "",
+      "down": {
+        "terrainForestFraction": 0.15
+      },
+      "up": {
+        "terrainForestFraction": 0.6
+      }
+    },
+    {
+      "key": "terrainBarrierWidth",
+      "group": "Terrain (off by default)",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "terrainGrowthForest",
+      "group": "Terrain (off by default)",
+      "value": 1.3,
+      "test": true,
+      "reason": "",
+      "down": {
+        "terrainGrowthForest": 0.65
+      },
+      "up": {
+        "terrainGrowthForest": 2.6
+      }
+    },
+    {
+      "key": "terrainGrowthDesert",
+      "group": "Terrain (off by default)",
+      "value": 0.3,
+      "test": true,
+      "reason": "",
+      "down": {
+        "terrainGrowthDesert": 0.15
+      },
+      "up": {
+        "terrainGrowthDesert": 0.6
+      }
+    },
+    {
+      "key": "terrainGrowthMountain",
+      "group": "Terrain (off by default)",
+      "value": 0.4,
+      "test": true,
+      "reason": "",
+      "down": {
+        "terrainGrowthMountain": 0.2
+      },
+      "up": {
+        "terrainGrowthMountain": 0.8
+      }
+    },
+    {
+      "key": "terrainMoveForest",
+      "group": "Terrain (off by default)",
+      "value": 1.4,
+      "test": true,
+      "reason": "",
+      "down": {
+        "terrainMoveForest": 0.7
+      },
+      "up": {
+        "terrainMoveForest": 2.8
+      }
+    },
+    {
+      "key": "terrainMoveDesert",
+      "group": "Terrain (off by default)",
+      "value": 1.2,
+      "test": true,
+      "reason": "",
+      "down": {
+        "terrainMoveDesert": 0.6
+      },
+      "up": {
+        "terrainMoveDesert": 2.4
+      }
+    },
+    {
+      "key": "terrainMoveMountain",
+      "group": "Terrain (off by default)",
+      "value": 3,
+      "test": true,
+      "reason": "",
+      "down": {
+        "terrainMoveMountain": 1.5
+      },
+      "up": {
+        "terrainMoveMountain": 6
+      }
+    },
+    {
+      "key": "climateMode",
+      "group": "Climate (off by default)",
+      "value": 1,
+      "test": false,
+      "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "baseTemperature",
+      "group": "Climate (off by default)",
+      "value": 0.75,
+      "test": true,
+      "reason": "",
+      "down": {
+        "baseTemperature": 0.375
+      },
+      "up": {
+        "baseTemperature": 0.875
+      }
+    },
+    {
+      "key": "latitudeCooling",
+      "group": "Climate (off by default)",
+      "value": 0.45,
+      "test": true,
+      "reason": "",
+      "down": {
+        "latitudeCooling": 0.225
+      },
+      "up": {
+        "latitudeCooling": 0.9
+      }
+    },
+    {
+      "key": "mountainCooling",
+      "group": "Climate (off by default)",
+      "value": 0.2,
+      "test": true,
+      "reason": "",
+      "down": {
+        "mountainCooling": 0.1
+      },
+      "up": {
+        "mountainCooling": 0.4
+      }
+    },
+    {
+      "key": "plantTempOptimum",
+      "group": "Climate (off by default)",
+      "value": 0.65,
+      "test": true,
+      "reason": "",
+      "down": {
+        "plantTempOptimum": 0.325
+      },
+      "up": {
+        "plantTempOptimum": 0.825
+      }
+    },
+    {
+      "key": "plantTempTolerance",
+      "group": "Climate (off by default)",
+      "value": 0.6,
+      "test": true,
+      "reason": "",
+      "down": {
+        "plantTempTolerance": 0.3
+      },
+      "up": {
+        "plantTempTolerance": 1.2
+      }
+    },
+    {
+      "key": "latitudeLight",
+      "group": "Climate (off by default)",
+      "value": 0.4,
+      "test": true,
+      "reason": "",
+      "down": {
+        "latitudeLight": 0.2
+      },
+      "up": {
+        "latitudeLight": 0.8
+      }
+    },
+    {
+      "key": "dayLength",
+      "group": "Climate (off by default)",
+      "value": 150,
+      "test": true,
+      "reason": "",
+      "down": {
+        "dayLength": 75
+      },
+      "up": {
+        "dayLength": 300
+      }
+    },
+    {
+      "key": "dayNightDepth",
+      "group": "Climate (off by default)",
+      "value": 0.5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "dayNightDepth": 0.25
+      },
+      "up": {
+        "dayNightDepth": 1
+      }
+    },
+    {
+      "key": "yearLength",
+      "group": "Climate (off by default)",
+      "value": 3000,
+      "test": true,
+      "reason": "",
+      "down": {
+        "yearLength": 1500
+      },
+      "up": {
+        "yearLength": 6000
+      }
+    },
+    {
+      "key": "seasonGrowthSwing",
+      "group": "Climate (off by default)",
+      "value": 0.6,
+      "test": true,
+      "reason": "",
+      "down": {
+        "seasonGrowthSwing": 0.3
+      },
+      "up": {
+        "seasonGrowthSwing": 0.8
+      }
+    },
+    {
+      "key": "seasonTempSwing",
+      "group": "Climate (off by default)",
+      "value": 0.2,
+      "test": true,
+      "reason": "",
+      "down": {
+        "seasonTempSwing": 0.1
+      },
+      "up": {
+        "seasonTempSwing": 0.4
+      }
+    },
+    {
+      "key": "climateDriftPeriod",
+      "group": "Climate (off by default)",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "climateDriftAmplitude",
+      "group": "Climate (off by default)",
+      "value": 0.15,
+      "test": true,
+      "reason": "",
+      "down": {
+        "climateDriftAmplitude": 0.075
+      },
+      "up": {
+        "climateDriftAmplitude": 0.3
+      }
+    },
+    {
+      "key": "thermalCostCoeff",
+      "group": "Climate (off by default)",
+      "value": 1.5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "thermalCostCoeff": 0.75
+      },
+      "up": {
+        "thermalCostCoeff": 3
+      }
+    },
+    {
+      "key": "thermalTolerance",
+      "group": "Climate (off by default)",
+      "value": 0.1,
+      "test": true,
+      "reason": "",
+      "down": {
+        "thermalTolerance": 0.05
+      },
+      "up": {
+        "thermalTolerance": 0.2
+      }
+    },
+    {
+      "key": "weatherAmplitude",
+      "group": "Weather, harsh and mild years, reserves and dormancy (all off by default; weather and harsh years need a climate)",
+      "value": 0.12,
+      "test": true,
+      "reason": "",
+      "down": {
+        "weatherAmplitude": 0.06
+      },
+      "up": {
+        "weatherAmplitude": 0.24
+      }
+    },
+    {
+      "key": "weatherScale",
+      "group": "Weather, harsh and mild years, reserves and dormancy (all off by default; weather and harsh years need a climate)",
+      "value": 8,
+      "test": true,
+      "reason": "",
+      "down": {
+        "weatherScale": 4
+      },
+      "up": {
+        "weatherScale": 16
+      }
+    },
+    {
+      "key": "weatherDriftTicks",
+      "group": "Weather, harsh and mild years, reserves and dormancy (all off by default; weather and harsh years need a climate)",
+      "value": 400,
+      "test": true,
+      "reason": "",
+      "down": {
+        "weatherDriftTicks": 200
+      },
+      "up": {
+        "weatherDriftTicks": 800
+      }
+    },
+    {
+      "key": "weatherDriftYTicks",
+      "group": "Weather, harsh and mild years, reserves and dormancy (all off by default; weather and harsh years need a climate)",
+      "value": 1500,
+      "test": true,
+      "reason": "",
+      "down": {
+        "weatherDriftYTicks": 750
+      },
+      "up": {
+        "weatherDriftYTicks": 3000
+      }
+    },
+    {
+      "key": "weatherMorphPeriod",
+      "group": "Weather, harsh and mild years, reserves and dormancy (all off by default; weather and harsh years need a climate)",
+      "value": 30000,
+      "test": true,
+      "reason": "",
+      "down": {
+        "weatherMorphPeriod": 15000
+      },
+      "up": {
+        "weatherMorphPeriod": 60000
+      }
+    },
+    {
+      "key": "yearVariability",
+      "group": "Weather, harsh and mild years, reserves and dormancy (all off by default; weather and harsh years need a climate)",
+      "value": 0.25,
+      "test": true,
+      "reason": "",
+      "down": {
+        "yearVariability": 0.125
+      },
+      "up": {
+        "yearVariability": 0.5
+      }
+    },
+    {
+      "key": "fatDepositRate",
+      "group": "Weather, harsh and mild years, reserves and dormancy (all off by default; weather and harsh years need a climate)",
+      "value": 0,
+      "test": false,
+      "reason": "the fat reserve is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "fatDepositAbove",
+      "group": "Weather, harsh and mild years, reserves and dormancy (all off by default; weather and harsh years need a climate)",
+      "value": 0.6,
+      "test": false,
+      "reason": "the fat reserve is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "fatEfficiency",
+      "group": "Weather, harsh and mild years, reserves and dormancy (all off by default; weather and harsh years need a climate)",
+      "value": 0.8,
+      "test": false,
+      "reason": "the fat reserve is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "fatDrawBelow",
+      "group": "Weather, harsh and mild years, reserves and dormancy (all off by default; weather and harsh years need a climate)",
+      "value": 0.35,
+      "test": false,
+      "reason": "the fat reserve is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "fatDrawRate",
+      "group": "Weather, harsh and mild years, reserves and dormancy (all off by default; weather and harsh years need a climate)",
+      "value": 0.05,
+      "test": false,
+      "reason": "the fat reserve is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "fatCap",
+      "group": "Weather, harsh and mild years, reserves and dormancy (all off by default; weather and harsh years need a climate)",
+      "value": 1,
+      "test": false,
+      "reason": "the fat reserve is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "fatMoveCost",
+      "group": "Weather, harsh and mild years, reserves and dormancy (all off by default; weather and harsh years need a climate)",
+      "value": 0.5,
+      "test": false,
+      "reason": "the fat reserve is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "fatUpkeep",
+      "group": "Weather, harsh and mild years, reserves and dormancy (all off by default; weather and harsh years need a climate)",
+      "value": 0.2,
+      "test": false,
+      "reason": "the fat reserve is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "initialFat",
+      "group": "Weather, harsh and mild years, reserves and dormancy (all off by default; weather and harsh years need a climate)",
+      "value": 0,
+      "test": false,
+      "reason": "the fat reserve is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "torporSaving",
+      "group": "Weather, harsh and mild years, reserves and dormancy (all off by default; weather and harsh years need a climate)",
+      "value": 0.7,
+      "test": true,
+      "reason": "",
+      "down": {
+        "torporSaving": 0.35
+      },
+      "up": {
+        "torporSaving": 0.85
+      }
+    },
+    {
+      "key": "torporBelowGrowth",
+      "group": "Weather, harsh and mild years, reserves and dormancy (all off by default; weather and harsh years need a climate)",
+      "value": 0.35,
+      "test": true,
+      "reason": "",
+      "down": {
+        "torporBelowGrowth": 0.175
+      },
+      "up": {
+        "torporBelowGrowth": 0.7
+      }
+    },
+    {
+      "key": "torporUpkeep",
+      "group": "Weather, harsh and mild years, reserves and dormancy (all off by default; weather and harsh years need a climate)",
+      "value": 0.1,
+      "test": true,
+      "reason": "",
+      "down": {
+        "torporUpkeep": 0.05
+      },
+      "up": {
+        "torporUpkeep": 0.2
+      }
+    },
+    {
+      "key": "torporSleepAt",
+      "group": "Weather, harsh and mild years, reserves and dormancy (all off by default; weather and harsh years need a climate)",
+      "value": 0.5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "torporSleepAt": 0.25
+      },
+      "up": {
+        "torporSleepAt": 1
+      }
+    },
+    {
+      "key": "initialTorpor",
+      "group": "Weather, harsh and mild years, reserves and dormancy (all off by default; weather and harsh years need a climate)",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "plantTypes",
+      "group": "Kinds of plant (off by default: 1 = every plant is alike)",
+      "value": 3,
+      "test": true,
+      "reason": "",
+      "down": {
+        "plantTypes": 2
+      },
+      "up": {
+        "plantTypes": 6
+      }
+    },
+    {
+      "key": "plantTypeScale",
+      "group": "Kinds of plant (off by default: 1 = every plant is alike)",
+      "value": 8,
+      "test": true,
+      "reason": "",
+      "down": {
+        "plantTypeScale": 4
+      },
+      "up": {
+        "plantTypeScale": 16
+      }
+    },
+    {
+      "key": "plantTypePhase",
+      "group": "Kinds of plant (off by default: 1 = every plant is alike)",
+      "value": 1,
+      "test": true,
+      "reason": "",
+      "down": {
+        "plantTypePhase": 0.5
+      },
+      "up": null
+    },
+    {
+      "key": "plantTypeTempSpread",
+      "group": "Kinds of plant (off by default: 1 = every plant is alike)",
+      "value": 0.1,
+      "test": true,
+      "reason": "",
+      "down": {
+        "plantTypeTempSpread": 0.05
+      },
+      "up": {
+        "plantTypeTempSpread": 0.2
+      }
+    },
+    {
+      "key": "plantPalateWidth",
+      "group": "Kinds of plant (off by default: 1 = every plant is alike)",
+      "value": 0.5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "plantPalateWidth": 0.25
+      },
+      "up": {
+        "plantPalateWidth": 1
+      }
+    },
+    {
+      "key": "plantPalateFloor",
+      "group": "Kinds of plant (off by default: 1 = every plant is alike)",
+      "value": 0.1,
+      "test": true,
+      "reason": "",
+      "down": {
+        "plantPalateFloor": 0.05
+      },
+      "up": {
+        "plantPalateFloor": 0.2
+      }
+    },
+    {
+      "key": "initialPalate",
+      "group": "Kinds of plant (off by default: 1 = every plant is alike)",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "founderSpread",
+      "group": "Kinds of plant (off by default: 1 = every plant is alike)",
+      "value": 0.6,
+      "test": true,
+      "reason": "",
+      "down": {
+        "founderSpread": 0.3
+      },
+      "up": {
+        "founderSpread": 0.8
+      }
+    },
+    {
+      "key": "shareRate",
+      "group": "Sharing food (off by default)",
+      "value": 0.4,
+      "test": true,
+      "reason": "",
+      "down": {
+        "shareRate": 0.2
+      },
+      "up": {
+        "shareRate": 0.8
+      }
+    },
+    {
+      "key": "shareAbove",
+      "group": "Sharing food (off by default)",
+      "value": 0.6,
+      "test": true,
+      "reason": "",
+      "down": {
+        "shareAbove": 0.3
+      },
+      "up": {
+        "shareAbove": 0.8
+      }
+    },
+    {
+      "key": "shareAcceptBelow",
+      "group": "Sharing food (off by default)",
+      "value": 0.9,
+      "test": true,
+      "reason": "",
+      "down": {
+        "shareAcceptBelow": 0.45
+      },
+      "up": {
+        "shareAcceptBelow": 0.95
+      }
+    },
+    {
+      "key": "shareRange",
+      "group": "Sharing food (off by default)",
+      "value": 6,
+      "test": true,
+      "reason": "",
+      "down": {
+        "shareRange": 3
+      },
+      "up": {
+        "shareRange": 12
+      }
+    },
+    {
+      "key": "shareRecipients",
+      "group": "Sharing food (off by default)",
+      "value": 2,
+      "test": true,
+      "reason": "",
+      "down": {
+        "shareRecipients": 1
+      },
+      "up": {
+        "shareRecipients": 4
+      }
+    },
+    {
+      "key": "shareTarget",
+      "group": "Sharing food (off by default)",
+      "value": 0,
+      "test": false,
+      "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "shareKinOnly",
+      "group": "Sharing food (off by default)",
+      "value": 1,
+      "test": false,
+      "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "shareEfficiency",
+      "group": "Sharing food (off by default)",
+      "value": 0.9,
+      "test": true,
+      "reason": "",
+      "down": {
+        "shareEfficiency": 0.45
+      },
+      "up": {
+        "shareEfficiency": 0.95
+      }
+    },
+    {
+      "key": "initialShare",
+      "group": "Sharing food (off by default)",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "mutationLoadRate",
+      "group": "Harmful mutations (off by default)",
+      "value": 3,
+      "test": true,
+      "reason": "",
+      "down": {
+        "mutationLoadRate": 1.5
+      },
+      "up": {
+        "mutationLoadRate": 6
+      }
+    },
+    {
+      "key": "mutationLoadModel",
+      "group": "Harmful mutations (off by default)",
+      "value": 1,
+      "test": false,
+      "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "mutationLoadMend",
+      "group": "Harmful mutations (off by default)",
+      "value": 0.15,
+      "test": true,
+      "reason": "",
+      "down": {
+        "mutationLoadMend": 0.075
+      },
+      "up": {
+        "mutationLoadMend": 0.3
+      }
+    },
+    {
+      "key": "mutationLoadLoci",
+      "group": "Harmful mutations (off by default)",
+      "value": 24,
+      "test": false,
+      "reason": "used only by the older 24-spot model (mutationLoadModel 0)",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "mutationLoadBack",
+      "group": "Harmful mutations (off by default)",
+      "value": 0.01,
+      "test": false,
+      "reason": "used only by the older 24-spot model (mutationLoadModel 0)",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "mutationLoadCost",
+      "group": "Harmful mutations (off by default)",
+      "value": 0.04,
+      "test": true,
+      "reason": "",
+      "down": {
+        "mutationLoadCost": 0.02
+      },
+      "up": {
+        "mutationLoadCost": 0.08
+      }
+    },
+    {
+      "key": "mutationLoadSynergy",
+      "group": "Harmful mutations (off by default)",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "mutationLoadFertility",
+      "group": "Harmful mutations (off by default)",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "mutationLoadStart",
+      "group": "Harmful mutations (off by default)",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "luckSpread",
+      "group": "Developmental noise: luck (off by default)",
+      "value": 0.08,
+      "test": true,
+      "reason": "",
+      "down": {
+        "luckSpread": 0.04
+      },
+      "up": {
+        "luckSpread": 0.16
+      }
+    },
+    {
+      "key": "luckLimit",
+      "group": "Developmental noise: luck (off by default)",
+      "value": 2.5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "luckLimit": 1.25
+      },
+      "up": {
+        "luckLimit": 5
+      }
+    },
+    {
+      "key": "toxinStrength",
+      "group": "Toxicity and warning colors (off by default)",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "toxinUpkeep",
+      "group": "Toxicity and warning colors (off by default)",
+      "value": 0.15,
+      "test": false,
+      "reason": "toxicity is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "initialToxicity",
+      "group": "Toxicity and warning colors (off by default)",
+      "value": 0,
+      "test": false,
+      "reason": "toxicity is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "avoidLearn",
+      "group": "Toxicity and warning colors (off by default)",
+      "value": 0.5,
+      "test": false,
+      "reason": "toxicity is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "avoidFade",
+      "group": "Toxicity and warning colors (off by default)",
+      "value": 0.0005,
+      "test": false,
+      "reason": "toxicity is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "avoidWidth",
+      "group": "Toxicity and warning colors (off by default)",
+      "value": 0.08,
+      "test": false,
+      "reason": "toxicity is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "erosionRate",
+      "group": "Erosion (off by default)",
+      "value": 0.00001,
+      "test": true,
+      "reason": "",
+      "down": {
+        "erosionRate": 0.000005
+      },
+      "up": {
+        "erosionRate": 0.00002
+      }
+    },
+    {
+      "key": "erosionBelow",
+      "group": "Erosion (off by default)",
+      "value": 0.01,
+      "test": true,
+      "reason": "",
+      "down": {
+        "erosionBelow": 0.005
+      },
+      "up": {
+        "erosionBelow": 0.02
+      }
+    },
+    {
+      "key": "erosionRecoverAbove",
+      "group": "Erosion (off by default)",
+      "value": 0.1,
+      "test": true,
+      "reason": "",
+      "down": {
+        "erosionRecoverAbove": 0.05
+      },
+      "up": {
+        "erosionRecoverAbove": 0.2
+      }
+    },
+    {
+      "key": "erosionRecovery",
+      "group": "Erosion (off by default)",
+      "value": 0.00004,
+      "test": true,
+      "reason": "",
+      "down": {
+        "erosionRecovery": 0.00002
+      },
+      "up": {
+        "erosionRecovery": 0.00008
+      }
+    },
+    {
+      "key": "erosionMin",
+      "group": "Erosion (off by default)",
+      "value": 0.4,
+      "test": true,
+      "reason": "",
+      "down": {
+        "erosionMin": 0.2
+      },
+      "up": {
+        "erosionMin": 0.8
+      }
+    },
+    {
+      "key": "fouling",
+      "group": "Fouling (off by default)",
+      "value": 0.01,
+      "test": true,
+      "reason": "",
+      "down": {
+        "fouling": 0.005
+      },
+      "up": {
+        "fouling": 0.02
+      }
+    },
+    {
+      "key": "foulDecay",
+      "group": "Fouling (off by default)",
+      "value": 0.01,
+      "test": true,
+      "reason": "",
+      "down": {
+        "foulDecay": 0.005
+      },
+      "up": {
+        "foulDecay": 0.02
+      }
+    },
+    {
+      "key": "foulFree",
+      "group": "Fouling (off by default)",
+      "value": 2,
+      "test": true,
+      "reason": "",
+      "down": {
+        "foulFree": 1
+      },
+      "up": {
+        "foulFree": 4
+      }
+    },
+    {
+      "key": "foulGrowthEffect",
+      "group": "Fouling (off by default)",
+      "value": 0.2,
+      "test": true,
+      "reason": "",
+      "down": {
+        "foulGrowthEffect": 0.1
+      },
+      "up": {
+        "foulGrowthEffect": 0.4
+      }
+    },
+    {
+      "key": "foulDiseaseEffect",
+      "group": "Fouling (off by default)",
+      "value": 0.3,
+      "test": true,
+      "reason": "",
+      "down": {
+        "foulDiseaseEffect": 0.15
+      },
+      "up": {
+        "foulDiseaseEffect": 0.6
+      }
+    },
+    {
+      "key": "overgrazeDamage",
+      "group": "Overgrazing (off by default)",
+      "value": 0.003,
+      "test": true,
+      "reason": "",
+      "down": {
+        "overgrazeDamage": 0.0015
+      },
+      "up": {
+        "overgrazeDamage": 0.006
+      }
+    },
+    {
+      "key": "overgrazeBelow",
+      "group": "Overgrazing (off by default)",
+      "value": 0.01,
+      "test": true,
+      "reason": "",
+      "down": {
+        "overgrazeBelow": 0.005
+      },
+      "up": {
+        "overgrazeBelow": 0.02
+      }
+    },
+    {
+      "key": "overgrazeHeal",
+      "group": "Overgrazing (off by default)",
+      "value": 0.001,
+      "test": true,
+      "reason": "",
+      "down": {
+        "overgrazeHeal": 0.0005
+      },
+      "up": {
+        "overgrazeHeal": 0.002
+      }
+    },
+    {
+      "key": "overgrazePenalty",
+      "group": "Overgrazing (off by default)",
+      "value": 0.7,
+      "test": true,
+      "reason": "",
+      "down": {
+        "overgrazePenalty": 0.35
+      },
+      "up": {
+        "overgrazePenalty": 0.85
+      }
+    },
+    {
+      "key": "catastropheKind",
+      "group": "Catastrophes (off by default)",
+      "value": 4,
+      "test": false,
+      "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "catastropheAt",
+      "group": "Catastrophes (off by default)",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "catastropheEvery",
+      "group": "Catastrophes (off by default)",
+      "value": 150000,
+      "test": true,
+      "reason": "",
+      "down": {
+        "catastropheEvery": 75000
+      },
+      "up": {
+        "catastropheEvery": 300000
+      }
+    },
+    {
+      "key": "catastropheLength",
+      "group": "Catastrophes (off by default)",
+      "value": 15000,
+      "test": true,
+      "reason": "",
+      "down": {
+        "catastropheLength": 7500
+      },
+      "up": {
+        "catastropheLength": 30000
+      }
+    },
+    {
+      "key": "iceAgeCooling",
+      "group": "Catastrophes (off by default)",
+      "value": 0.3,
+      "test": true,
+      "reason": "",
+      "down": {
+        "iceAgeCooling": 0.15
+      },
+      "up": {
+        "iceAgeCooling": 0.6
+      }
+    },
+    {
+      "key": "droughtSeverity",
+      "group": "Catastrophes (off by default)",
+      "value": 0.8,
+      "test": true,
+      "reason": "",
+      "down": {
+        "droughtSeverity": 0.4
+      },
+      "up": {
+        "droughtSeverity": 0.9
+      }
+    },
+    {
+      "key": "meteorRadius",
+      "group": "Catastrophes (off by default)",
+      "value": 40,
+      "test": true,
+      "reason": "",
+      "down": {
+        "meteorRadius": 20
+      },
+      "up": {
+        "meteorRadius": 80
+      }
+    },
+    {
+      "key": "biomeColdBelow",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 0.36,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeCoolBelow",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 0.5,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeHotAbove",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 0.66,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeDryBelow",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 0.4,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeWetAbove",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 0.52,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeSwampAbove",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 0.7,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "moistureWaterWeight",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 0.3,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "moistureBandWeight",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 0.4,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "moistureReach",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 3,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "moistureBandEquator",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 1,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "moistureBandSubtropic",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 0.1,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "moistureBandTemperate",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 0.8,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "moistureBandPolar",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 0.3,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "moistureHalf",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 0.3,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "moistureSeasonSwing",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 0.25,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "iceBelow",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 0.33,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "iceMoveCost",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 3,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeGrowthGrassland",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 1,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeMoveGrassland",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 1,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeSeenGrassland",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 1.2,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeDiseaseGrassland",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 1,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeGrowthTemperateForest",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 1.15,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeMoveTemperateForest",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 1.4,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeSeenTemperateForest",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 0.6,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeDiseaseTemperateForest",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 1.1,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeGrowthDesert",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 0.7,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeMoveDesert",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 1.2,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeSeenDesert",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 1.3,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeDiseaseDesert",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 0.5,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeGrowthHighlands",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 0.6,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeMoveHighlands",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 2.5,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeSeenHighlands",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 0.9,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeDiseaseHighlands",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 0.6,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeGrowthTundra",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 0.6,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeMoveTundra",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 1.3,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeSeenTundra",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 1.2,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeDiseaseTundra",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 0.5,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeGrowthBoreal",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 0.9,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeMoveBoreal",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 1.5,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeSeenBoreal",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 0.7,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeDiseaseBoreal",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 0.8,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeGrowthSavanna",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 1.05,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeMoveSavanna",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 1,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeSeenSavanna",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 1.3,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeDiseaseSavanna",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 1.2,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeGrowthTropical",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 1.3,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeMoveTropical",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 1.8,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeSeenTropical",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 0.5,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeDiseaseTropical",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 1.6,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeGrowthSwamp",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 1.15,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeMoveSwamp",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 2.2,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeSeenSwamp",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 0.7,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "biomeDiseaseSwamp",
+      "group": "Climate biomes (terrainMode 2; needs a climate)",
+      "value": 1.8,
+      "test": false,
+      "reason": "climate biomes (terrainMode 2) is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "colonyProtect",
+      "group": "Colony physics and shared senses (Phase 8e O3, off by default; need multicellular)",
+      "value": 0,
+      "test": false,
+      "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "colonyScaleSaving",
+      "group": "Colony physics and shared senses (Phase 8e O3, off by default; need multicellular)",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "signaling",
+      "group": "Colony physics and shared senses (Phase 8e O3, off by default; need multicellular)",
+      "value": 0,
+      "test": false,
+      "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "signalCost",
+      "group": "Colony physics and shared senses (Phase 8e O3, off by default; need multicellular)",
+      "value": 0.002,
+      "test": false,
+      "reason": "shared colony senses is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "initialSignal",
+      "group": "Colony physics and shared senses (Phase 8e O3, off by default; need multicellular)",
+      "value": 0,
+      "test": false,
+      "reason": "shared colony senses is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "drinking",
+      "group": "Drinking (Phase 8e O2, off by default; needs terrain)",
+      "value": 0,
+      "test": false,
+      "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "thirstRate",
+      "group": "Drinking (Phase 8e O2, off by default; needs terrain)",
+      "value": 0.002,
+      "test": false,
+      "reason": "drinking is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "thirstHeat",
+      "group": "Drinking (Phase 8e O2, off by default; needs terrain)",
+      "value": 2,
+      "test": false,
+      "reason": "drinking is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "thirstHeatAbove",
+      "group": "Drinking (Phase 8e O2, off by default; needs terrain)",
+      "value": 0.6,
+      "test": false,
+      "reason": "drinking is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "thirstMove",
+      "group": "Drinking (Phase 8e O2, off by default; needs terrain)",
+      "value": 0.5,
+      "test": false,
+      "reason": "drinking is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "drinkMoisture",
+      "group": "Drinking (Phase 8e O2, off by default; needs terrain)",
+      "value": 0.65,
+      "test": false,
+      "reason": "drinking is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "thirstBelow",
+      "group": "Drinking (Phase 8e O2, off by default; needs terrain)",
+      "value": 0.5,
+      "test": false,
+      "reason": "drinking is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "dehydrationCost",
+      "group": "Drinking (Phase 8e O2, off by default; needs terrain)",
+      "value": 2,
+      "test": false,
+      "reason": "drinking is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "nutrientMode",
+      "group": "Nutrients through food (Phase 8e O1, off by default)",
+      "value": 0,
+      "test": false,
+      "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "plantQualityHalf",
+      "group": "Nutrients through food (Phase 8e O1, off by default)",
+      "value": 30,
+      "test": false,
+      "reason": "nutrients through food is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "plantQualityMax",
+      "group": "Nutrients through food (Phase 8e O1, off by default)",
+      "value": 2,
+      "test": false,
+      "reason": "nutrients through food is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "plantAssimilation",
+      "group": "Nutrients through food (Phase 8e O1, off by default)",
+      "value": 0.02,
+      "test": false,
+      "reason": "nutrients through food is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "meatAssimilation",
+      "group": "Nutrients through food (Phase 8e O1, off by default)",
+      "value": 0.8,
+      "test": false,
+      "reason": "nutrients through food is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "nutrientTurnover",
+      "group": "Nutrients through food (Phase 8e O1, off by default)",
+      "value": 0.002,
+      "test": false,
+      "reason": "nutrients through food is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "nutrientStoreCap",
+      "group": "Nutrients through food (Phase 8e O1, off by default)",
+      "value": 3,
+      "test": false,
+      "reason": "nutrients through food is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "provisionShare",
+      "group": "Nutrients through food (Phase 8e O1, off by default)",
+      "value": 0.25,
+      "test": false,
+      "reason": "nutrients through food is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "deficiencyBelow",
+      "group": "Nutrients through food (Phase 8e O1, off by default)",
+      "value": 0.5,
+      "test": false,
+      "reason": "nutrients through food is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "deficiencyCost",
+      "group": "Nutrients through food (Phase 8e O1, off by default)",
+      "value": 0.3,
+      "test": false,
+      "reason": "nutrients through food is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "nutrientRootUptake",
+      "group": "Nutrients through food (Phase 8e O1, off by default)",
+      "value": 0.002,
+      "test": false,
+      "reason": "nutrients through food is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "founderNutrient",
+      "group": "Nutrients through food (Phase 8e O1, off by default)",
+      "value": 1,
+      "test": false,
+      "reason": "nutrients through food is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "evIceAgeEvery",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "evIceAgeCoolingMin",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 0.05,
+      "test": false,
+      "reason": "the IceAge event is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "evIceAgeCoolingMax",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 0.15,
+      "test": false,
+      "reason": "the IceAge event is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "evIceAgeLengthMin",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 1500,
+      "test": false,
+      "reason": "the IceAge event is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "evIceAgeLengthMax",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 4000,
+      "test": false,
+      "reason": "the IceAge event is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "evDroughtEvery",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "evDroughtSeverityMin",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 0.3,
+      "test": false,
+      "reason": "the Drought event is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "evDroughtSeverityMax",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 0.7,
+      "test": false,
+      "reason": "the Drought event is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "evDroughtLengthMin",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 1500,
+      "test": false,
+      "reason": "the Drought event is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "evDroughtLengthMax",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 5000,
+      "test": false,
+      "reason": "the Drought event is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "evMeteorEvery",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "evMeteorRadiusMin",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 15,
+      "test": false,
+      "reason": "the Meteor event is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "evMeteorRadiusMax",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 50,
+      "test": false,
+      "reason": "the Meteor event is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "evFireEvery",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 20000,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evFireEvery": 10000
+      },
+      "up": {
+        "evFireEvery": 40000
+      }
+    },
+    {
+      "key": "evFireRadiusMin",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 6,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evFireRadiusMin": 3
+      },
+      "up": {
+        "evFireRadiusMin": 12
+      }
+    },
+    {
+      "key": "evFireRadiusMax",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 14,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evFireRadiusMax": 7
+      },
+      "up": {
+        "evFireRadiusMax": 28
+      }
+    },
+    {
+      "key": "evFireSpreadMin",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 0.05,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evFireSpreadMin": 0.025
+      },
+      "up": {
+        "evFireSpreadMin": 0.1
+      }
+    },
+    {
+      "key": "evFireSpreadMax",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 0.4,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evFireSpreadMax": 0.2
+      },
+      "up": {
+        "evFireSpreadMax": 0.8
+      }
+    },
+    {
+      "key": "evFireLengthMin",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 200,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evFireLengthMin": 100
+      },
+      "up": {
+        "evFireLengthMin": 400
+      }
+    },
+    {
+      "key": "evFireLengthMax",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 800,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evFireLengthMax": 400
+      },
+      "up": {
+        "evFireLengthMax": 1600
+      }
+    },
+    {
+      "key": "evFireCellBurn",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 3,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evFireCellBurn": 2
+      },
+      "up": {
+        "evFireCellBurn": 6
+      }
+    },
+    {
+      "key": "evFireRecover",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 3000,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evFireRecover": 1500
+      },
+      "up": {
+        "evFireRecover": 6000
+      }
+    },
+    {
+      "key": "evFireDryWeight",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 0.5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evFireDryWeight": 0.25
+      },
+      "up": {
+        "evFireDryWeight": 1
+      }
+    },
+    {
+      "key": "evStormEvery",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 20000,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evStormEvery": 10000
+      },
+      "up": {
+        "evStormEvery": 40000
+      }
+    },
+    {
+      "key": "evStormRadiusMin",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 30,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evStormRadiusMin": 15
+      },
+      "up": {
+        "evStormRadiusMin": 60
+      }
+    },
+    {
+      "key": "evStormRadiusMax",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 80,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evStormRadiusMax": 40
+      },
+      "up": {
+        "evStormRadiusMax": 160
+      }
+    },
+    {
+      "key": "evStormPushMin",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 0.02,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evStormPushMin": 0.01
+      },
+      "up": {
+        "evStormPushMin": 0.04
+      }
+    },
+    {
+      "key": "evStormPushMax",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 0.1,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evStormPushMax": 0.05
+      },
+      "up": {
+        "evStormPushMax": 0.2
+      }
+    },
+    {
+      "key": "evStormLengthMin",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 100,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evStormLengthMin": 50
+      },
+      "up": {
+        "evStormLengthMin": 200
+      }
+    },
+    {
+      "key": "evStormLengthMax",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 400,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evStormLengthMax": 200
+      },
+      "up": {
+        "evStormLengthMax": 800
+      }
+    },
+    {
+      "key": "evStormMoveCost",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 1.5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evStormMoveCost": 1.25
+      },
+      "up": {
+        "evStormMoveCost": 3
+      }
+    },
+    {
+      "key": "evStormSoilShare",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 0.001,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evStormSoilShare": 0.0005
+      },
+      "up": {
+        "evStormSoilShare": 0.002
+      }
+    },
+    {
+      "key": "evFloodEvery",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 80000,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evFloodEvery": 40000
+      },
+      "up": {
+        "evFloodEvery": 160000
+      }
+    },
+    {
+      "key": "evFloodRadiusMin",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 20,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evFloodRadiusMin": 10
+      },
+      "up": {
+        "evFloodRadiusMin": 40
+      }
+    },
+    {
+      "key": "evFloodRadiusMax",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 60,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evFloodRadiusMax": 30
+      },
+      "up": {
+        "evFloodRadiusMax": 120
+      }
+    },
+    {
+      "key": "evFloodLengthMin",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 500,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evFloodLengthMin": 250
+      },
+      "up": {
+        "evFloodLengthMin": 1000
+      }
+    },
+    {
+      "key": "evFloodLengthMax",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 2500,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evFloodLengthMax": 1250
+      },
+      "up": {
+        "evFloodLengthMax": 5000
+      }
+    },
+    {
+      "key": "evVolcanoEvery",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 100000,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evVolcanoEvery": 50000
+      },
+      "up": {
+        "evVolcanoEvery": 200000
+      }
+    },
+    {
+      "key": "evVolcanoRadiusMin",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 6,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evVolcanoRadiusMin": 3
+      },
+      "up": {
+        "evVolcanoRadiusMin": 12
+      }
+    },
+    {
+      "key": "evVolcanoRadiusMax",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 14,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evVolcanoRadiusMax": 7
+      },
+      "up": {
+        "evVolcanoRadiusMax": 28
+      }
+    },
+    {
+      "key": "evVolcanoCoolingMin",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 0.03,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evVolcanoCoolingMin": 0.015
+      },
+      "up": {
+        "evVolcanoCoolingMin": 0.06
+      }
+    },
+    {
+      "key": "evVolcanoCoolingMax",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 0.1,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evVolcanoCoolingMax": 0.05
+      },
+      "up": {
+        "evVolcanoCoolingMax": 0.2
+      }
+    },
+    {
+      "key": "evVolcanoLengthMin",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 1500,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evVolcanoLengthMin": 750
+      },
+      "up": {
+        "evVolcanoLengthMin": 3000
+      }
+    },
+    {
+      "key": "evVolcanoLengthMax",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 4000,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evVolcanoLengthMax": 2000
+      },
+      "up": {
+        "evVolcanoLengthMax": 8000
+      }
+    },
+    {
+      "key": "evVolcanoBoost",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 0.5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evVolcanoBoost": 0.25
+      },
+      "up": {
+        "evVolcanoBoost": 1
+      }
+    },
+    {
+      "key": "evVolcanoBoostReach",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 4,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evVolcanoBoostReach": 2
+      },
+      "up": {
+        "evVolcanoBoostReach": 8
+      }
+    },
+    {
+      "key": "evVolcanoBoostFade",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 0.0001,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evVolcanoBoostFade": 0.00005
+      },
+      "up": {
+        "evVolcanoBoostFade": 0.0002
+      }
+    },
+    {
+      "key": "evBlightEvery",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 50000,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evBlightEvery": 25000
+      },
+      "up": {
+        "evBlightEvery": 100000
+      }
+    },
+    {
+      "key": "evBlightGrowthMin",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 0.3,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evBlightGrowthMin": 0.15
+      },
+      "up": {
+        "evBlightGrowthMin": 0.6
+      }
+    },
+    {
+      "key": "evBlightGrowthMax",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 0.7,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evBlightGrowthMax": 0.35
+      },
+      "up": {
+        "evBlightGrowthMax": 0.85
+      }
+    },
+    {
+      "key": "evBlightLengthMin",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 1000,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evBlightLengthMin": 500
+      },
+      "up": {
+        "evBlightLengthMin": 2000
+      }
+    },
+    {
+      "key": "evBlightLengthMax",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 4000,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evBlightLengthMax": 2000
+      },
+      "up": {
+        "evBlightLengthMax": 8000
+      }
+    },
+    {
+      "key": "evOutbreakEvery",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 50000,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evOutbreakEvery": 25000
+      },
+      "up": {
+        "evOutbreakEvery": 100000
+      }
+    },
+    {
+      "key": "evOutbreakRadius",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 25,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evOutbreakRadius": 12.5
+      },
+      "up": {
+        "evOutbreakRadius": 50
+      }
+    },
+    {
+      "key": "evOutbreakHosts",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 20,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evOutbreakHosts": 10
+      },
+      "up": {
+        "evOutbreakHosts": 40
+      }
+    },
+    {
+      "key": "evOutbreakDurationMult",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 2,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evOutbreakDurationMult": 1
+      },
+      "up": {
+        "evOutbreakDurationMult": 4
+      }
+    },
+    {
+      "key": "evGoodYearEvery",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 40000,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evGoodYearEvery": 20000
+      },
+      "up": {
+        "evGoodYearEvery": 80000
+      }
+    },
+    {
+      "key": "evGoodYearBoostMin",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 1.3,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evGoodYearBoostMin": 1.15
+      },
+      "up": null
+    },
+    {
+      "key": "evGoodYearBoostMax",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 1.8,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evGoodYearBoostMax": 1.4
+      },
+      "up": {
+        "evGoodYearBoostMax": 3.6
+      }
+    },
+    {
+      "key": "evGoodYearLengthMin",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 2000,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evGoodYearLengthMin": 1000
+      },
+      "up": {
+        "evGoodYearLengthMin": 4000
+      }
+    },
+    {
+      "key": "evGoodYearLengthMax",
+      "group": "Disaster events (Phase 8e, all off by default)",
+      "value": 4000,
+      "test": true,
+      "reason": "",
+      "down": {
+        "evGoodYearLengthMax": 2000
+      },
+      "up": {
+        "evGoodYearLengthMax": 8000
+      }
+    },
+    {
+      "key": "agingCoeff",
+      "group": "Aging and litter size (off by default)",
+      "value": 3,
+      "test": true,
+      "reason": "",
+      "down": {
+        "agingCoeff": 1.5
+      },
+      "up": {
+        "agingCoeff": 6
+      }
+    },
+    {
+      "key": "agingPrimeFraction",
+      "group": "Aging and litter size (off by default)",
+      "value": 0.5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "agingPrimeFraction": 0.25
+      },
+      "up": {
+        "agingPrimeFraction": 0.75
+      }
+    },
+    {
+      "key": "agingRepairCoeff",
+      "group": "Aging and litter size (off by default)",
+      "value": 0.3,
+      "test": true,
+      "reason": "",
+      "down": {
+        "agingRepairCoeff": 0.15
+      },
+      "up": {
+        "agingRepairCoeff": 0.6
+      }
+    },
+    {
+      "key": "kinDistance",
+      "group": "Kin recognition and herding (off by default)",
+      "value": 0.05,
+      "test": true,
+      "reason": "",
+      "down": {
+        "kinDistance": 0.025
+      },
+      "up": {
+        "kinDistance": 0.1
+      }
+    },
+    {
+      "key": "kinTolerance",
+      "group": "Kin recognition and herding (off by default)",
+      "value": 1,
+      "test": false,
+      "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "kinHungerBelow",
+      "group": "Kin recognition and herding (off by default)",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "meatGorge",
+      "group": "Kin recognition and herding (off by default)",
+      "value": 1,
+      "test": true,
+      "reason": "",
+      "down": null,
+      "up": {
+        "meatGorge": 2
+      }
+    },
+    {
+      "key": "initialTolerance",
+      "group": "Kin recognition and herding (off by default)",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "toleranceCostCoeff",
+      "group": "Kin recognition and herding (off by default)",
+      "value": 0.003,
+      "test": true,
+      "reason": "",
+      "down": {
+        "toleranceCostCoeff": 0.0015
+      },
+      "up": {
+        "toleranceCostCoeff": 0.006
+      }
+    },
+    {
+      "key": "herdBonus",
+      "group": "Kin recognition and herding (off by default)",
+      "value": 0.3,
+      "test": true,
+      "reason": "",
+      "down": {
+        "herdBonus": 0.15
+      },
+      "up": {
+        "herdBonus": 0.6
+      }
+    },
+    {
+      "key": "herdRange",
+      "group": "Kin recognition and herding (off by default)",
+      "value": 8,
+      "test": true,
+      "reason": "",
+      "down": {
+        "herdRange": 4
+      },
+      "up": {
+        "herdRange": 16
+      }
+    },
+    {
+      "key": "herdCap",
+      "group": "Kin recognition and herding (off by default)",
+      "value": 5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "herdCap": 2.5
+      },
+      "up": {
+        "herdCap": 10
+      }
+    },
+    {
+      "key": "diseaseTransmission",
+      "group": "Disease (off by default)",
+      "value": 0.5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "diseaseTransmission": 0.25
+      },
+      "up": {
+        "diseaseTransmission": 1
+      }
+    },
+    {
+      "key": "diseaseContactRange",
+      "group": "Disease (off by default)",
+      "value": 3,
+      "test": true,
+      "reason": "",
+      "down": {
+        "diseaseContactRange": 1.5
+      },
+      "up": {
+        "diseaseContactRange": 6
+      }
+    },
+    {
+      "key": "diseaseWidth",
+      "group": "Disease (off by default)",
+      "value": 0.05,
+      "test": true,
+      "reason": "",
+      "down": {
+        "diseaseWidth": 0.025
+      },
+      "up": {
+        "diseaseWidth": 0.1
+      }
+    },
+    {
+      "key": "diseaseDuration",
+      "group": "Disease (off by default)",
+      "value": 200,
+      "test": true,
+      "reason": "",
+      "down": {
+        "diseaseDuration": 100
+      },
+      "up": {
+        "diseaseDuration": 400
+      }
+    },
+    {
+      "key": "diseaseImmunity",
+      "group": "Disease (off by default)",
+      "value": 600,
+      "test": true,
+      "reason": "",
+      "down": {
+        "diseaseImmunity": 300
+      },
+      "up": {
+        "diseaseImmunity": 1200
+      }
+    },
+    {
+      "key": "diseaseCost",
+      "group": "Disease (off by default)",
+      "value": 30,
+      "test": true,
+      "reason": "",
+      "down": {
+        "diseaseCost": 15
+      },
+      "up": {
+        "diseaseCost": 60
+      }
+    },
+    {
+      "key": "diseaseIntroEvery",
+      "group": "Disease (off by default)",
+      "value": 20000,
+      "test": true,
+      "reason": "",
+      "down": {
+        "diseaseIntroEvery": 10000
+      },
+      "up": {
+        "diseaseIntroEvery": 40000
+      }
+    },
+    {
+      "key": "diseaseMutationProb",
+      "group": "Disease (off by default)",
+      "value": 0.5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "diseaseMutationProb": 0.25
+      },
+      "up": {
+        "diseaseMutationProb": 1
+      }
+    },
+    {
+      "key": "diseaseDrift",
+      "group": "Disease (off by default)",
+      "value": 0.5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "diseaseDrift": 0.25
+      },
+      "up": {
+        "diseaseDrift": 1
+      }
+    },
+    {
+      "key": "camouflageMode",
+      "group": "Signals and camouflage (off by default)",
+      "value": 1,
+      "test": false,
+      "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "camoScale",
+      "group": "Signals and camouflage (off by default)",
+      "value": 8,
+      "test": true,
+      "reason": "",
+      "down": {
+        "camoScale": 4
+      },
+      "up": {
+        "camoScale": 16
+      }
+    },
+    {
+      "key": "camoDetectMin",
+      "group": "Signals and camouflage (off by default)",
+      "value": 0.2,
+      "test": true,
+      "reason": "",
+      "down": {
+        "camoDetectMin": 0.1
+      },
+      "up": {
+        "camoDetectMin": 0.4
+      }
+    },
+    {
+      "key": "camoGlance",
+      "group": "Signals and camouflage (off by default)",
+      "value": 20,
+      "test": true,
+      "reason": "",
+      "down": {
+        "camoGlance": 10
+      },
+      "up": {
+        "camoGlance": 40
+      }
+    },
+    {
+      "key": "camoLearning",
+      "group": "Signals and camouflage (off by default)",
+      "value": 1,
+      "test": true,
+      "reason": "",
+      "down": {
+        "camoLearning": 0.5
+      },
+      "up": {
+        "camoLearning": 2
+      }
+    },
+    {
+      "key": "camoHunterEye",
+      "group": "Signals and camouflage (off by default)",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "camoLearnRate",
+      "group": "Signals and camouflage (off by default)",
+      "value": 0.3,
+      "test": true,
+      "reason": "",
+      "down": {
+        "camoLearnRate": 0.15
+      },
+      "up": {
+        "camoLearnRate": 0.6
+      }
+    },
+    {
+      "key": "multicellular",
+      "group": "Multicellularity (off by default)",
+      "value": 1,
+      "test": false,
+      "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "bondLinksMax",
+      "group": "Multicellularity (off by default)",
+      "value": 4,
+      "test": true,
+      "reason": "",
+      "down": {
+        "bondLinksMax": 2
+      },
+      "up": {
+        "bondLinksMax": 6
+      }
+    },
+    {
+      "key": "colonyMax",
+      "group": "Multicellularity (off by default)",
+      "value": 16,
+      "test": true,
+      "reason": "",
+      "down": {
+        "colonyMax": 8
+      },
+      "up": {
+        "colonyMax": 32
+      }
+    },
+    {
+      "key": "bondRestLength",
+      "group": "Multicellularity (off by default)",
+      "value": 1.5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "bondRestLength": 0.75
+      },
+      "up": {
+        "bondRestLength": 3
+      }
+    },
+    {
+      "key": "bondStiffness",
+      "group": "Multicellularity (off by default)",
+      "value": 0.5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "bondStiffness": 0.25
+      },
+      "up": {
+        "bondStiffness": 1
+      }
+    },
+    {
+      "key": "bondIterations",
+      "group": "Multicellularity (off by default)",
+      "value": 2,
+      "test": true,
+      "reason": "",
+      "down": {
+        "bondIterations": 1
+      },
+      "up": {
+        "bondIterations": 4
+      }
+    },
+    {
+      "key": "bondShare",
+      "group": "Multicellularity (off by default)",
+      "value": 0.1,
+      "test": true,
+      "reason": "",
+      "down": {
+        "bondShare": 0.05
+      },
+      "up": {
+        "bondShare": 0.2
+      }
+    },
+    {
+      "key": "bondAlign",
+      "group": "Multicellularity (off by default)",
+      "value": 0.3,
+      "test": true,
+      "reason": "",
+      "down": {
+        "bondAlign": 0.15
+      },
+      "up": {
+        "bondAlign": 0.6
+      }
+    },
+    {
+      "key": "initialBond",
+      "group": "Multicellularity (off by default)",
+      "value": 0.15,
+      "test": true,
+      "reason": "",
+      "down": {
+        "initialBond": 0.075
+      },
+      "up": {
+        "initialBond": 0.3
+      }
+    },
+    {
+      "key": "contactBonding",
+      "group": "Cross-lineage bonding (off by default; needs multicellular)",
+      "value": 0,
+      "test": false,
+      "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "initialStick",
+      "group": "Cross-lineage bonding (off by default; needs multicellular)",
+      "value": 0,
+      "test": false,
+      "reason": "contact bonding is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "cellTypes",
+      "group": "Cell types (off by default; needs multicellular)",
+      "value": 1,
+      "test": false,
+      "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "typeFeederBite",
+      "group": "Cell types (off by default; needs multicellular)",
+      "value": 2,
+      "test": true,
+      "reason": "",
+      "down": {
+        "typeFeederBite": 1
+      },
+      "up": {
+        "typeFeederBite": 4
+      }
+    },
+    {
+      "key": "typeFeederSpeed",
+      "group": "Cell types (off by default; needs multicellular)",
+      "value": 0.4,
+      "test": true,
+      "reason": "",
+      "down": {
+        "typeFeederSpeed": 0.2
+      },
+      "up": {
+        "typeFeederSpeed": 0.8
+      }
+    },
+    {
+      "key": "typeMoverSpeed",
+      "group": "Cell types (off by default; needs multicellular)",
+      "value": 2,
+      "test": true,
+      "reason": "",
+      "down": {
+        "typeMoverSpeed": 1
+      },
+      "up": {
+        "typeMoverSpeed": 4
+      }
+    },
+    {
+      "key": "typeMoverBite",
+      "group": "Cell types (off by default; needs multicellular)",
+      "value": 0.4,
+      "test": true,
+      "reason": "",
+      "down": {
+        "typeMoverBite": 0.2
+      },
+      "up": {
+        "typeMoverBite": 0.8
+      }
+    },
+    {
+      "key": "typePhotoGain",
+      "group": "Cell types (off by default; needs multicellular)",
+      "value": 0.05,
+      "test": true,
+      "reason": "",
+      "down": {
+        "typePhotoGain": 0.025
+      },
+      "up": {
+        "typePhotoGain": 0.1
+      }
+    },
+    {
+      "key": "typePhotoBite",
+      "group": "Cell types (off by default; needs multicellular)",
+      "value": 0.3,
+      "test": true,
+      "reason": "",
+      "down": {
+        "typePhotoBite": 0.15
+      },
+      "up": {
+        "typePhotoBite": 0.6
+      }
+    },
+    {
+      "key": "typePhotoSpeed",
+      "group": "Cell types (off by default; needs multicellular)",
+      "value": 0.5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "typePhotoSpeed": 0.25
+      },
+      "up": {
+        "typePhotoSpeed": 1
+      }
+    },
+    {
+      "key": "typeArmorDefense",
+      "group": "Cell types (off by default; needs multicellular)",
+      "value": 3,
+      "test": true,
+      "reason": "",
+      "down": {
+        "typeArmorDefense": 1.5
+      },
+      "up": {
+        "typeArmorDefense": 6
+      }
+    },
+    {
+      "key": "typeArmorSpeed",
+      "group": "Cell types (off by default; needs multicellular)",
+      "value": 0.5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "typeArmorSpeed": 0.25
+      },
+      "up": {
+        "typeArmorSpeed": 1
+      }
+    },
+    {
+      "key": "typeArmorUpkeep",
+      "group": "Cell types (off by default; needs multicellular)",
+      "value": 1.2,
+      "test": true,
+      "reason": "",
+      "down": {
+        "typeArmorUpkeep": 0.6
+      },
+      "up": {
+        "typeArmorUpkeep": 2.4
+      }
+    },
+    {
+      "key": "typeSensorRange",
+      "group": "Cell types (off by default; needs multicellular)",
+      "value": 4,
+      "test": true,
+      "reason": "",
+      "down": {
+        "typeSensorRange": 2
+      },
+      "up": {
+        "typeSensorRange": 8
+      }
+    },
+    {
+      "key": "typeSensorBite",
+      "group": "Cell types (off by default; needs multicellular)",
+      "value": 0.5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "typeSensorBite": 0.25
+      },
+      "up": {
+        "typeSensorBite": 1
+      }
+    },
+    {
+      "key": "typeSensorSpeed",
+      "group": "Cell types (off by default; needs multicellular)",
+      "value": 0.7,
+      "test": true,
+      "reason": "",
+      "down": {
+        "typeSensorSpeed": 0.35
+      },
+      "up": {
+        "typeSensorSpeed": 1.4
+      }
+    },
+    {
+      "key": "colonyDefenseShare",
+      "group": "Cell types (off by default; needs multicellular)",
+      "value": 0.5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "colonyDefenseShare": 0.25
+      },
+      "up": {
+        "colonyDefenseShare": 1
+      }
+    },
+    {
+      "key": "sexualReproduction",
+      "group": "Sexual reproduction (off by default)",
+      "value": 2,
+      "test": false,
+      "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "initialSex",
+      "group": "Sexual reproduction (off by default)",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "sexWaitLimit",
+      "group": "Sexual reproduction (off by default)",
+      "value": 200,
+      "test": true,
+      "reason": "",
+      "down": {
+        "sexWaitLimit": 100
+      },
+      "up": {
+        "sexWaitLimit": 400
+      }
+    },
+    {
+      "key": "mateReadyFraction",
+      "group": "Sexual reproduction (off by default)",
+      "value": 0.6,
+      "test": true,
+      "reason": "",
+      "down": {
+        "mateReadyFraction": 0.3
+      },
+      "up": {
+        "mateReadyFraction": 0.8
+      }
+    },
+    {
+      "key": "sexFounderSpread",
+      "group": "Sexual reproduction (off by default)",
+      "value": 1,
+      "test": true,
+      "reason": "",
+      "down": {
+        "sexFounderSpread": 0.5
+      },
+      "up": null
+    },
+    {
+      "key": "sexAcceptAny",
+      "group": "Sexual reproduction (off by default)",
+      "value": 1,
+      "test": false,
+      "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "mateRange",
+      "group": "Sexual reproduction (off by default)",
+      "value": 6,
+      "test": true,
+      "reason": "",
+      "down": {
+        "mateRange": 3
+      },
+      "up": {
+        "mateRange": 12
+      }
+    },
+    {
+      "key": "mateDistance",
+      "group": "Sexual reproduction (off by default)",
+      "value": 0.25,
+      "test": true,
+      "reason": "",
+      "down": {
+        "mateDistance": 0.125
+      },
+      "up": {
+        "mateDistance": 0.5
+      }
+    },
+    {
+      "key": "matePreference",
+      "group": "Sexual reproduction (off by default)",
+      "value": 0,
+      "test": false,
+      "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "mateDietLimit",
+      "group": "Sexual reproduction (off by default)",
+      "value": 1,
+      "test": true,
+      "reason": "",
+      "down": {
+        "mateDietLimit": 0.5
+      },
+      "up": null
+    },
+    {
+      "key": "macroMutationProb",
+      "group": "Sexual reproduction (off by default)",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "macroMutationStd",
+      "group": "Sexual reproduction (off by default)",
+      "value": 0.3,
+      "test": true,
+      "reason": "",
+      "down": {
+        "macroMutationStd": 0.15
+      },
+      "up": {
+        "macroMutationStd": 0.6
+      }
+    },
+    {
+      "key": "macroMutationGenes",
+      "group": "Sexual reproduction (off by default)",
+      "value": 3,
+      "test": true,
+      "reason": "",
+      "down": {
+        "macroMutationGenes": 2
+      },
+      "up": {
+        "macroMutationGenes": 6
+      }
+    },
+    {
+      "key": "speciesEvery",
+      "group": "Species tracking (only watches; never changes the world)",
+      "value": 50,
+      "test": false,
+      "reason": "only watches the world; cannot change what happens",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "speciesDistance",
+      "group": "Species tracking (only watches; never changes the world)",
+      "value": 0.2,
+      "test": false,
+      "reason": "only watches the world; cannot change what happens",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "speciesMinMembers",
+      "group": "Species tracking (only watches; never changes the world)",
+      "value": 10,
+      "test": false,
+      "reason": "only watches the world; cannot change what happens",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "speciesProbation",
+      "group": "Species tracking (only watches; never changes the world)",
+      "value": 2000,
+      "test": false,
+      "reason": "only watches the world; cannot change what happens",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "speciesSampleEvery",
+      "group": "Species tracking (only watches; never changes the world)",
+      "value": 500,
+      "test": false,
+      "reason": "only watches the world; cannot change what happens",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "speciesCrashDrop",
+      "group": "Species tracking (only watches; never changes the world)",
+      "value": 0.4,
+      "test": false,
+      "reason": "only watches the world; cannot change what happens",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "speciesCrashWindow",
+      "group": "Species tracking (only watches; never changes the world)",
+      "value": 2000,
+      "test": false,
+      "reason": "only watches the world; cannot change what happens",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "sprintFatigue",
+      "group": "Sprinting and stamina (only with brains)",
+      "value": 0,
+      "test": false,
+      "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "staminaRegen",
+      "group": "Sprinting and stamina (only with brains)",
+      "value": 0.1,
+      "test": false,
+      "reason": "stamina is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "staminaRestBonus",
+      "group": "Sprinting and stamina (only with brains)",
+      "value": 1,
+      "test": false,
+      "reason": "stamina is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "staminaCostCoeff",
+      "group": "Sprinting and stamina (only with brains)",
+      "value": 0.001,
+      "test": false,
+      "reason": "stamina is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "killOwnershipTicks",
+      "group": "Kill ownership",
+      "value": 30,
+      "test": true,
+      "reason": "",
+      "down": {
+        "killOwnershipTicks": 15
+      },
+      "up": {
+        "killOwnershipTicks": 60
+      }
+    },
+    {
+      "key": "killOwnershipLeak",
+      "group": "Kill ownership",
+      "value": 0.1,
+      "test": true,
+      "reason": "",
+      "down": {
+        "killOwnershipLeak": 0.05
+      },
+      "up": {
+        "killOwnershipLeak": 0.2
+      }
+    },
+    {
+      "key": "scentDeposit",
+      "group": "Scent trails (only laid when brains are on)",
+      "value": 1,
+      "test": true,
+      "reason": "",
+      "down": {
+        "scentDeposit": 0.5
+      },
+      "up": {
+        "scentDeposit": 2
+      }
+    },
+    {
+      "key": "scentDecay",
+      "group": "Scent trails (only laid when brains are on)",
+      "value": 0.05,
+      "test": true,
+      "reason": "",
+      "down": {
+        "scentDecay": 0.025
+      },
+      "up": {
+        "scentDecay": 0.1
+      }
+    },
+    {
+      "key": "scentCellSize",
+      "group": "Scent trails (only laid when brains are on)",
+      "value": 4,
+      "test": true,
+      "reason": "",
+      "down": {
+        "scentCellSize": 2
+      },
+      "up": {
+        "scentCellSize": 8
+      }
+    },
+    {
+      "key": "reproThresholdPerSize",
+      "group": "Reproduction",
+      "value": 30,
+      "test": true,
+      "reason": "",
+      "down": {
+        "reproThresholdPerSize": 15
+      },
+      "up": {
+        "reproThresholdPerSize": 60
+      }
+    },
+    {
+      "key": "offspringEnergyFraction",
+      "group": "Reproduction",
+      "value": 0.5,
+      "test": true,
+      "reason": "",
+      "down": {
+        "offspringEnergyFraction": 0.25
+      },
+      "up": {
+        "offspringEnergyFraction": 0.75
+      }
+    }
+  ]
+}

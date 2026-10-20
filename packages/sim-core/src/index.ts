@@ -39,6 +39,7 @@ export type {
   BrainStats,
   DietClasses,
   EnergyAudit,
+  CostBreakdown,
   EnergyLedger,
   MatterAudit,
   OrganismSnapshot,

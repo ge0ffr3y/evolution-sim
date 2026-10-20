@@ -1,4 +1,4 @@
-# Phase 9 plan, part 2: the grand-world audit (proposed, waiting for the owner's OK)
+# Phase 9 plan, part 2: the grand-world audit (approved 2026-10-20: baseline with 15% mending, recommended run lengths and order)
 
 **Goal:** before any long runs or headline experiments, test every factor that plays into the grand world, find what is broken, too strong, too weak, doing nothing, or drifting, and decide what the grand world should contain. Everything runs in the cloud (c8g, on demand); the laptop only builds and checks the tools.
 
@@ -44,6 +44,36 @@ Each stage is one experiment folder, launched only after I show you its estimate
 
    It writes a readable `report.md` with the red flags (below) at the top, plus a spreadsheet file. The report is committed; the raw results stay out of git.
 4. **Tests:** the new measures do not change the world, generated arms are all valid, and the report's arithmetic is right on a small known case.
+
+**Stage A result (built 2026-10-20):**
+- **Cost breakdown:** `Simulation.costBreakdown()` is a read-only split of what the average organism pays per tick into 22 parts:
+  - upkeep: body, repair for a long lifespan, the torpor gene, harmful mutations, luck, the toxin gene, colony saving, signaling, thirst, nutrient shortage, aging wear, sickness, stress and calm, fat, torpor rest, heat and cold;
+  - movement, sensing, weapons, armor and brain.
+
+  Its parts add up exactly, and it predicts what the ledger books to within 1% (tested). On a 20,000-tick grand world with mending it already shows harmful mutations at about 40% of upkeep and heat and cold at about 12%.
+- **New measures:** `costs`, `energyBudget`, `deaths` (killed, starved, disaster), `births` (and why births were blocked), `condition` (age, hunger), `genesAtLimits`, `disease`, `brains`, `colonyMakeup`, `landHealth` (plant fill, soil, grazing damage, fouling, soil health, worn share, ash, where the matter sits). Also end-of-run trends (`trend_*`: the change over the last quarter as a share of its level) and `"measures": ["all"]`. Experiment files take `baseChanges`, applied to every arm.
+- **Settings list:** `experiments/audit-settings.json`, drafted by `npm run exp -- settings`. It covers 446 settings: 278 are turned down and up (545 arms); the other 168 each give their reason:
+  - 53 belong to climate biomes, which are off;
+  - 31 are 0 here, so doubling does nothing (candidates for stage 3);
+  - 26 are switches;
+  - 7 only watch the world;
+  - the rest belong to features that are off.
+
+  Special rules:
+  - shares kept from tick to tick (`chemDecay`, `homeMemoryDecay`) have how long they last halved and doubled;
+  - multipliers that must stay at 1 or more have half their excess over 1;
+  - shares and temperatures on a 0 to 1 scale go halfway to each end;
+  - world size changes width, height and starting numbers together.
+
+  `experiments/audit-2-doses` is generated from it: 546 arms × 4 seeds × 100,000 ticks. Estimate: about $6, 2.4 hours on a c8g.16xlarge.
+- **Report:** `npm run exp -- report <folder>` writes `report.md` with:
+  - the control's normal range;
+  - the red flags above, each with a command to reproduce it;
+  - the biggest effects on each key measure;
+  - the arms with no clear effect.
+
+  Every comparison goes to `results/comparisons.csv` (paired by seed, with a t-based 95% range and noise units). `check --build` builds every arm's world before any machine is paid for.
+- **Stage 0 file:** `experiments/audit-0-baseline` (2 arms × 16 seeds × 1,000,000 ticks). Estimate: about $1.50, 46 minutes on a c8g.12xlarge.
 
 ### Stage 0: the baseline, long (16 seeds x 1,000,000 ticks, 2 arms)
 
