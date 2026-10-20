@@ -1,0 +1,14 @@
+{
+  "name": "runner-smoke",
+  "question": "Does the experiment runner work end to end (run, save, resume, status, estimate) on a tiny world?",
+  "base": "default",
+  "ticks": 3000,
+  "seeds": "1-2",
+  "sampleEvery": 100,
+  "checkpointEvery": 1000,
+  "arms": {
+    "control": { "worldWidth": 128, "worldHeight": 128, "initialOrganisms": 100 },
+    "crowded": { "worldWidth": 128, "worldHeight": 128, "initialOrganisms": 250 }
+  },
+  "measures": ["population", "classes", "trophicLevels", "dietSpread", "kills", "firsts", "traits"]
+}
