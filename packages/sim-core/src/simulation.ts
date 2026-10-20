@@ -633,6 +633,9 @@ export class Simulation {
   private readonly nutrientOn: boolean;
   readonly nutrientStore: Float64Array;
   private readonly assimClaim: Float64Array;
+  /** Mode 2: how much nutrient each cell's plants hold per unit of plant (worked out from the soil they grew from). Saved with the land when on. */
+  private readonly qualityOn: boolean;
+  readonly plantQ: Float64Array;
   private readonly torporOn: boolean;
   /** Who is dormant this tick (worked out fresh every tick; not saved). */
   private readonly torpid: Float32Array;
@@ -962,7 +965,11 @@ export class Simulation {
     this.fireScar = new Uint32Array(this.fireOn ? cells : 0);
     this.stormCell = new Uint8Array(this.stormOn ? cells : 0);
     this.stormDelta = new Float64Array(this.stormOn ? cells : 0);
-    this.nutrientOn = c.nutrientMode === 1;
+    this.nutrientOn = c.nutrientMode >= 1;
+    this.qualityOn = c.nutrientMode === 2;
+    this.plantQ = new Float64Array(this.qualityOn ? cells : 0);
+    // The plants already standing hold what their soil would give them.
+    if (this.qualityOn) for (let cell = 0; cell < cells; cell++) this.plantQ[cell] = this.qualityFrom(this.nutrient[cell]!);
     this.nutrientStore = new Float64Array(this.nutrientOn ? n : 0);
     this.assimClaim = new Float64Array(this.nutrientOn ? cells : 0);
     this.fatOn = c.fatDepositRate > 0;
@@ -1299,6 +1306,17 @@ export class Simulation {
     return gift;
   }
 
+  /** Mode 2: the nutrient per unit of plant that grows from this much soil. */
+  private qualityFrom(soil: number): number {
+    const c = this.config;
+    return (c.plantQualityMax * soil) / (soil + c.plantQualityHalf);
+  }
+
+  /** The matter (nutrient) held by the plants in a cell: one per unit of plant, or in mode 2 whatever their soil gave them. */
+  private plantMatter(cell: number): number {
+    return this.qualityOn ? this.food[cell]! * this.plantQ[cell]! : this.food[cell]!;
+  }
+
   /** Empty an animal's nutrient store (when it dies, its store goes into the corpse with its body). 0 without nutrient mode. */
   private takeStore(i: number): number {
     if (!this.nutrientOn) return 0;
@@ -1309,14 +1327,14 @@ export class Simulation {
 
   /** Plants in a cell are crushed: the matter becomes detritus, the energy is lost as heat. */
   private crushPlants(cell: number): void {
-    this.detritus[cell] = this.detritus[cell]! + this.food[cell]!;
+    this.detritus[cell] = this.detritus[cell]! + this.plantMatter(cell);
     this.ledger.decayLoss += this.food[cell]! * this.config.energyPerFood;
     this.food[cell] = 0;
   }
 
   /** Plants in a cell burn: the energy is lost as heat and the matter goes straight into the soil as ash. */
   private burnPlants(cell: number): void {
-    this.nutrient[cell] = this.nutrient[cell]! + this.food[cell]!;
+    this.nutrient[cell] = this.nutrient[cell]! + this.plantMatter(cell);
     this.ledger.decayLoss += this.food[cell]! * this.config.energyPerFood;
     this.food[cell] = 0;
   }
@@ -3652,7 +3670,8 @@ export class Simulation {
       const meatRaw = meatMass * meatDensity[cell]!;
       if (this.nutrientOn) {
         // Part of what it eats goes into its store (much more of meat, which is already body); the rest becomes dung here.
-        let store = this.nutrientStore[i]! + plantMass * c.plantAssimilation + meatMass * c.meatAssimilation;
+        const plantNutrient = this.qualityOn ? plantMass * this.plantQ[cell]! : plantMass;
+        let store = this.nutrientStore[i]! + plantNutrient * c.plantAssimilation + meatMass * c.meatAssimilation;
         this.assimClaim[cell] = this.assimClaim[cell]! + (store - this.nutrientStore[i]!);
         if (this.typeOn && this.photoGain[i]! > 0) {
           // A photosynthesizing cell eats nothing, so it draws a little nutrient from the soil (roots).
@@ -3845,7 +3864,7 @@ export class Simulation {
       plantClaim[cell] = 0;
       const plantsTaken = eatenPlants < food[cell]! ? eatenPlants : food[cell]!;
       food[cell] = food[cell]! - plantsTaken;
-      let waste = plantsTaken;
+      let waste = this.qualityOn ? plantsTaken * this.plantQ[cell]! : plantsTaken;
 
       // Eaten meat (the corpse loses the same fraction of its matter and its energy).
       const eatenMeat = meatClaim[cell]!;
@@ -3923,8 +3942,17 @@ export class Simulation {
       }
       let growth = potential < soil ? potential : soil;
       if (growth > room) growth = room > 0 ? room : 0;
+      if (this.qualityOn) {
+        // Mode 2: new growth holds nutrient according to the soil, and the cell's plants are a weighted mix of old and new.
+        const q = this.qualityFrom(soil);
+        if (growth * q > soil) growth = q > 0 ? soil / q : 0;
+        const total = food[cell]! + growth;
+        if (total > 0) this.plantQ[cell] = (food[cell]! * this.plantQ[cell]! + growth * q) / total;
+        soil -= growth * q;
+      } else {
+        soil -= growth;
+      }
       food[cell] = food[cell]! + growth;
-      soil -= growth;
       nutrient[cell] = soil;
       sunlightIn += growth * energyPerFood;
     }
@@ -4307,6 +4335,7 @@ export class Simulation {
       ...(this.erodeOn ? ([["soilHealth", this.soilHealth]] as [string, SnapshotArray][]) : []),
       ...(this.ashOn ? ([["ash", this.ash]] as [string, SnapshotArray][]) : []),
       ...(this.fireOn ? ([["fireScar", this.fireScar]] as [string, SnapshotArray][]) : []),
+      ...(this.qualityOn ? ([["plantQ", this.plantQ]] as [string, SnapshotArray][]) : []),
       ...(this.foulOn ? ([["foul", this.foul]] as [string, SnapshotArray][]) : []),
       ...(this.grazeOn ? ([["grazing", this.grazing]] as [string, SnapshotArray][]) : []),
       ["nutrient", this.nutrient],
@@ -4571,7 +4600,9 @@ export class Simulation {
     let bodies = 0;
     for (let i = 0; i < this.count; i++) bodies += this.bodyMatter[i]!;
     const soilNutrient = sumOf(this.nutrient);
-    const plants = sumOf(this.food);
+    let plants = 0;
+    if (this.qualityOn) for (let cell = 0; cell < this.food.length; cell++) plants += this.food[cell]! * this.plantQ[cell]!;
+    else plants = sumOf(this.food);
     const corpses = sumOf(this.corpseMatter);
     const detritus = sumOf(this.detritus);
     let stores = 0;
@@ -4840,6 +4871,7 @@ export class Simulation {
       for (let i = 0; i < n; i++) mix(this.hasImage[i]!);
     }
     if (this.nutrientOn) mixBits(this.nutrientStore, n);
+    if (this.qualityOn) mixBits(this.plantQ, this.plantQ.length);
     if (this.toxOn) {
       mixBits(this.avoidStrength, n);
       mixBits(this.avoidHue, n);

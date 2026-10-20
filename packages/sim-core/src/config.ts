@@ -612,8 +612,13 @@ export interface SimConfig {
    * 0 = off: a baby's body is built from the soil under its parent (the older worlds).
    * 1 = animals carry nutrient: each has a store (matter) filled by eating, and a baby's body
    * is built from its parent's store. Dung puts the rest back on the ground wherever the animal is.
+   * 2 = as 1, and plants also hold more or less nutrient depending on the soil they grew from, so
+   * plants on poor ground are filling but poor food.
    */
   nutrientMode: number;
+  /** Mode 2: plants hold nutrient = plantQualityMax * soil / (soil + plantQualityHalf) per unit of plant. */
+  plantQualityHalf: number;
+  plantQualityMax: number;
   /** Share of eaten plant matter that goes into the store (the rest is dung on the spot). */
   plantAssimilation: number;
   /** Share of eaten meat matter that goes into the store (meat is already body, so most of it is kept). */
@@ -1229,6 +1234,8 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   deficiencyCost: 0.3,
   nutrientRootUptake: 0.002,
   founderNutrient: 1,
+  plantQualityHalf: 30,
+  plantQualityMax: 2,
   evIceAgeEvery: 0,
   evIceAgeCoolingMin: 0.05,
   evIceAgeCoolingMax: 0.15,
@@ -1511,8 +1518,9 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     if (c.droughtSeverity < 0 || c.droughtSeverity > 1) problems.push("droughtSeverity must be between 0 and 1");
     if (!(c.meteorRadius > 0)) problems.push("meteorRadius must be positive");
   }
-  if (![0, 1].includes(c.nutrientMode)) problems.push("nutrientMode must be 0 (babies built from soil) or 1 (animals carry nutrient)");
-  if (c.nutrientMode === 1) {
+  if (![0, 1, 2].includes(c.nutrientMode)) problems.push("nutrientMode must be 0 (babies built from soil), 1 (animals carry nutrient) or 2 (and plants vary with the soil)");
+  if (c.nutrientMode === 2 && !(c.plantQualityHalf > 0 && c.plantQualityMax > 0)) problems.push("plantQualityHalf and plantQualityMax must be positive");
+  if (c.nutrientMode >= 1) {
     for (const [name, value] of [["plantAssimilation", c.plantAssimilation], ["meatAssimilation", c.meatAssimilation], ["nutrientTurnover", c.nutrientTurnover], ["provisionShare", c.provisionShare]] as const) {
       if (!(value >= 0 && value <= 1)) problems.push(`${name} must be between 0 and 1`);
     }

@@ -4,7 +4,7 @@ import type { FrameMessage } from "./protocol";
 export type ColorBy = "diet" | "speed" | "size" | "hue" | "energy" | "sense" | "health" | "colony" | "cell" | "palate" | "toxicity" | "nutrient";
 
 /** What the map background shows. */
-export type Overlay = "plants" | "nutrients" | "corpses" | "detritus" | "trails" | "terrain" | "temperature" | "light" | "background" | "plantKinds" | "grazing" | "fouling" | "erosion" | "events";
+export type Overlay = "plants" | "nutrients" | "corpses" | "detritus" | "trails" | "terrain" | "temperature" | "light" | "background" | "plantKinds" | "grazing" | "fouling" | "erosion" | "events" | "plantQuality";
 
 export const OVERLAYS: readonly { id: Overlay; label: string }[] = [
   { id: "plants", label: "Plants" },
@@ -20,6 +20,7 @@ export const OVERLAYS: readonly { id: Overlay; label: string }[] = [
   { id: "grazing", label: "Grazing damage (worlds with overgrazing)" },
   { id: "fouling", label: "Fouled ground (worlds with fouling)" },
   { id: "erosion", label: "Worn-away soil (worlds with erosion)" },
+  { id: "plantQuality", label: "Plant nutrient (worlds with nutrient mode 2)" },
   { id: "events", label: "Disasters (worlds with events): fire red, flood blue, storm white, volcano purple" },
 ];
 
@@ -384,6 +385,13 @@ export class WorldRenderer {
         const damage = frame.grazing ? frame.grazing[cell]! : 0;
         r += damage * 190;
         g += damage * 90;
+      } else if (overlay === "plantQuality") {
+        // Where plants stand, poor plants are dull brown and nutrient-rich plants bright yellow-green.
+        const q = frame.plantQuality ? Math.min(frame.plantQuality[cell]!, 1) : 0;
+        const amount = capacity && capacity[cell]! > 0 ? Math.min(frame.food[cell]! / capacity[cell]!, 1) : 0;
+        r += amount * (90 + 60 * q);
+        g += amount * (40 + 190 * q);
+        b += amount * 20;
       } else if (overlay === "events") {
         // Quiet ground stays dark. Fire is red-orange, flood blue, storm pale grey, volcanic ground purple.
         const what = frame.eventMap ? frame.eventMap[cell]! : 0;

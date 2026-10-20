@@ -149,6 +149,8 @@ export interface FrameMessage {
   soilHealth: Float32Array | null;
   /** Where disasters are going on now: 1 fire, 2 flood, 3 storm, 4 volcanic ground, 0 nothing (null in worlds without events). */
   eventMap: Uint8Array | null;
+  /** Nutrient mode 2: how much nutrient each cell's plants hold per unit, as a share of the most possible (null otherwise). */
+  plantQuality: Float32Array | null;
   /** Plant-eater and meat-eater scent in each square of the scent grid (empty when brains are off). */
   preyScent: Float32Array;
   hunterScent: Float32Array;

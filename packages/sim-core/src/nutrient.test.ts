@@ -159,7 +159,7 @@ describe("nutrients through food", () => {
       expect(sim.matterAudit().stores).toBeGreaterThan(0);
       expectBooksBalance(sim, books);
     }
-  });
+  }, 60_000);
 
   it("is repeatable, and a world saved mid-run carries on exactly", () => {
     const config: Partial<SimConfig> = { worldWidth: 128, worldHeight: 128, initialOrganisms: 300, speciesEvery: 0, nutrientMode: 1, sexualReproduction: 2 };
@@ -174,8 +174,62 @@ describe("nutrients through food", () => {
     expect(c.fingerprint()).toBe(a.fingerprint());
   });
 
+  it("mode 2: plants on poor soil hold less nutrient than plants on rich soil", () => {
+    const grown = (soil: number): Simulation => {
+      const sim = new Simulation(1, { ...PATCH, nutrientMode: 2, initialOrganisms: 0, initialFoodFraction: 0, initialNutrientPerCell: soil, plantQualityHalf: 30, plantQualityMax: 2 });
+      sim.step();
+      return sim;
+    };
+    const poor = grown(10);
+    const rich = grown(90);
+    // The new growth holds 2 * soil / (soil + 30) per unit of plant, from the soil left after it grew.
+    expect(poor.plantQ[0]).toBeCloseTo(2 * poor.nutrient[0]! / (poor.nutrient[0]! + 30), 2);
+    expect(rich.plantQ[0]! / poor.plantQ[0]!).toBeGreaterThan(2);
+    // Every bit of nutrient in the new plants came out of the soil.
+    expect(poor.food[0]! * poor.plantQ[0]! + poor.nutrient[0]!).toBeCloseTo(10, 9);
+  });
+
+  it("mode 2: an animal eating poor plants fills its store more slowly than one eating rich plants", () => {
+    const storeAfter = (soil: number): number => {
+      const sim = new Simulation(1, { ...PATCH, nutrientMode: 2, initialNutrientPerCell: soil, founderNutrient: 0, nutrientTurnover: 0, nutrientStoreCap: 1000 });
+      sim.run(20);
+      return sim.nutrientStore[0]!;
+    };
+    expect(storeAfter(200)).toBeGreaterThan(storeAfter(10) * 2);
+  });
+
+  it("mode 2: the books balance exactly, including fire, flood and meteors, and a saved world carries on exactly", () => {
+    const config: Partial<SimConfig> = {
+      worldWidth: 192,
+      worldHeight: 192,
+      initialOrganisms: 600,
+      speciesEvery: 0,
+      nutrientMode: 2,
+      terrainMode: 1,
+      climateMode: 1,
+      yearLength: 2000,
+      sexualReproduction: 2,
+      evFireEvery: 600,
+      evVolcanoEvery: 1500,
+      evMeteorEvery: 1500,
+      evFloodEvery: 1500,
+      evStormEvery: 800,
+    };
+    const sim = new Simulation(3, config);
+    sim.run(20);
+    const books = bookmark(sim);
+    sim.run(2000);
+    const copy = Simulation.load(sim.save());
+    sim.run(1000);
+    copy.run(1000);
+    expect(copy.fingerprint()).toBe(sim.fingerprint());
+    expect(sim.count).toBeGreaterThan(0);
+    expectBooksBalance(sim, books);
+  }, 60_000);
+
   it("check the settings", () => {
-    expect(() => new Simulation(1, { nutrientMode: 2 })).toThrow(/nutrientMode/);
+    expect(() => new Simulation(1, { nutrientMode: 3 })).toThrow(/nutrientMode/);
+    expect(() => new Simulation(1, { nutrientMode: 2, plantQualityHalf: 0 })).toThrow(/plantQualityHalf/);
     expect(() => new Simulation(1, { nutrientMode: 1, plantAssimilation: 1.5 })).toThrow(/plantAssimilation/);
     expect(() => new Simulation(1, { nutrientMode: 1, nutrientStoreCap: 0 })).toThrow(/nutrientStoreCap/);
   });

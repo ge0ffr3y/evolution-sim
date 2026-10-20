@@ -213,6 +213,11 @@ function postFrame(s: Simulation): void {
   const foul = s.foul.length > 0 ? s.foul.slice() : null;
   const soilHealth = s.soilHealth.length > 0 ? s.soilHealth.slice() : null;
   const eventMap = s.eventsEnabled ? s.eventMap() : null;
+  let plantQuality: Float32Array | null = null;
+  if (s.plantQ.length > 0) {
+    plantQuality = new Float32Array(s.plantQ.length);
+    for (let cell = 0; cell < s.plantQ.length; cell++) plantQuality[cell] = s.plantQ[cell]! / s.config.plantQualityMax;
+  }
   const preyScent = Float32Array.from(s.preyScent);
   const hunterScent = Float32Array.from(s.hunterScent);
   const capacity = sendCapacity ? s.foodCapacity.slice() : null;
@@ -278,6 +283,7 @@ function postFrame(s: Simulation): void {
     foul,
     soilHealth,
     eventMap,
+    plantQuality,
     preyScent,
     hunterScent,
     capacity,
@@ -315,6 +321,7 @@ function postFrame(s: Simulation): void {
   if (foul) transfer.push(foul.buffer);
   if (soilHealth) transfer.push(soilHealth.buffer);
   if (eventMap) transfer.push(eventMap.buffer);
+  if (plantQuality) transfer.push(plantQuality.buffer);
   if (capacity) transfer.push(capacity.buffer);
   if (terrain) transfer.push(terrain.buffer);
   if (background) transfer.push(background.buffer);
