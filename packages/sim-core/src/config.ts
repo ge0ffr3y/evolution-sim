@@ -609,6 +609,70 @@ export interface SimConfig {
   /** The radius of a meteor strike, in world units. */
   meteorRadius: number;
 
+  // --- Climate biomes (terrainMode 2; needs a climate) ---
+  /** Average temperatures that divide the climate belts: tundra below the first, cool lands below the second, hot lands above the third. */
+  biomeColdBelow: number;
+  biomeCoolBelow: number;
+  biomeHotAbove: number;
+  /** Moisture (0 to 1) that divides dry from middling from wet land, and above which warm wet land is swamp. */
+  biomeDryBelow: number;
+  biomeWetAbove: number;
+  biomeSwampAbove: number;
+  /** Moisture: how near water a cell is counts this much (out of 1), the rain belt this much, and the rest is patchy noise. */
+  moistureWaterWeight: number;
+  moistureBandWeight: number;
+  /** How many cells from water the wetness from water halves. */
+  moistureReach: number;
+  /** How wet each rain belt is (equator, subtropics, temperate lands, poles), 0 to 1. */
+  moistureBandEquator: number;
+  moistureBandSubtropic: number;
+  moistureBandTemperate: number;
+  moistureBandPolar: number;
+  /** Plant growth is multiplied by moisture / (moisture + moistureHalf) * (1 + moistureHalf), so it is 1 on soaked ground. */
+  moistureHalf: number;
+  /** How much wetter (and drier) the land is at the height (and depth) of the growing season. */
+  moistureSeasonSwing: number;
+  /** Land whose average temperature (no seasons or days, but with climate drift, ice ages and volcanic cooling) is below this is ice: nothing grows, and crossing it costs iceMoveCost times as much. */
+  iceBelow: number;
+  iceMoveCost: number;
+  /** Per climate biome: plant growth, movement cost, how easily an animal there is noticed by a hunter (camouflage worlds), and how easily disease spreads. */
+  biomeGrowthGrassland: number;
+  biomeMoveGrassland: number;
+  biomeSeenGrassland: number;
+  biomeDiseaseGrassland: number;
+  biomeGrowthTemperateForest: number;
+  biomeMoveTemperateForest: number;
+  biomeSeenTemperateForest: number;
+  biomeDiseaseTemperateForest: number;
+  biomeGrowthDesert: number;
+  biomeMoveDesert: number;
+  biomeSeenDesert: number;
+  biomeDiseaseDesert: number;
+  biomeGrowthHighlands: number;
+  biomeMoveHighlands: number;
+  biomeSeenHighlands: number;
+  biomeDiseaseHighlands: number;
+  biomeGrowthTundra: number;
+  biomeMoveTundra: number;
+  biomeSeenTundra: number;
+  biomeDiseaseTundra: number;
+  biomeGrowthBoreal: number;
+  biomeMoveBoreal: number;
+  biomeSeenBoreal: number;
+  biomeDiseaseBoreal: number;
+  biomeGrowthSavanna: number;
+  biomeMoveSavanna: number;
+  biomeSeenSavanna: number;
+  biomeDiseaseSavanna: number;
+  biomeGrowthTropical: number;
+  biomeMoveTropical: number;
+  biomeSeenTropical: number;
+  biomeDiseaseTropical: number;
+  biomeGrowthSwamp: number;
+  biomeMoveSwamp: number;
+  biomeSeenSwamp: number;
+  biomeDiseaseSwamp: number;
+
   // --- Nutrients through food (Phase 8e O1, off by default) ---
   /**
    * 0 = off: a baby's body is built from the soil under its parent (the older worlds).
@@ -1227,6 +1291,59 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   iceAgeCooling: 0.3,
   droughtSeverity: 0.8,
   meteorRadius: 40,
+  biomeColdBelow: 0.36,
+  biomeCoolBelow: 0.5,
+  biomeHotAbove: 0.66,
+  biomeDryBelow: 0.4,
+  biomeWetAbove: 0.52,
+  biomeSwampAbove: 0.7,
+  moistureWaterWeight: 0.3,
+  moistureBandWeight: 0.4,
+  moistureReach: 3,
+  moistureBandEquator: 1,
+  moistureBandSubtropic: 0.1,
+  moistureBandTemperate: 0.8,
+  moistureBandPolar: 0.3,
+  moistureHalf: 0.3,
+  moistureSeasonSwing: 0.25,
+  iceBelow: 0.33,
+  iceMoveCost: 3,
+  biomeGrowthGrassland: 1.0,
+  biomeMoveGrassland: 1.0,
+  biomeSeenGrassland: 1.2,
+  biomeDiseaseGrassland: 1.0,
+  biomeGrowthTemperateForest: 1.15,
+  biomeMoveTemperateForest: 1.4,
+  biomeSeenTemperateForest: 0.6,
+  biomeDiseaseTemperateForest: 1.1,
+  biomeGrowthDesert: 0.7,
+  biomeMoveDesert: 1.2,
+  biomeSeenDesert: 1.3,
+  biomeDiseaseDesert: 0.5,
+  biomeGrowthHighlands: 0.6,
+  biomeMoveHighlands: 2.5,
+  biomeSeenHighlands: 0.9,
+  biomeDiseaseHighlands: 0.6,
+  biomeGrowthTundra: 0.6,
+  biomeMoveTundra: 1.3,
+  biomeSeenTundra: 1.2,
+  biomeDiseaseTundra: 0.5,
+  biomeGrowthBoreal: 0.9,
+  biomeMoveBoreal: 1.5,
+  biomeSeenBoreal: 0.7,
+  biomeDiseaseBoreal: 0.8,
+  biomeGrowthSavanna: 1.05,
+  biomeMoveSavanna: 1.0,
+  biomeSeenSavanna: 1.3,
+  biomeDiseaseSavanna: 1.2,
+  biomeGrowthTropical: 1.3,
+  biomeMoveTropical: 1.8,
+  biomeSeenTropical: 0.5,
+  biomeDiseaseTropical: 1.6,
+  biomeGrowthSwamp: 1.15,
+  biomeMoveSwamp: 2.2,
+  biomeSeenSwamp: 0.7,
+  biomeDiseaseSwamp: 1.8,
   nutrientMode: 0,
   plantAssimilation: 0.02,
   meatAssimilation: 0.8,
@@ -1486,8 +1603,15 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (c.homeMemoryDecay < 0 || c.homeMemoryDecay > 1 || c.homeMemoryMin < 0) problems.push("homeMemoryDecay must be between 0 and 1 and homeMemoryMin cannot be negative");
   if (c.homeMode > 0 && c.brainMode === 0) problems.push("homeMode needs brains (set brainMode to 1 or 2)");
   if (!(c.homeRange > 0)) problems.push("homeRange must be positive");
-  if (![0, 1].includes(c.terrainMode)) problems.push("terrainMode must be 0 (open plain) or 1 (biomes)");
-  if (c.terrainMode === 1) {
+  if (![0, 1, 2].includes(c.terrainMode)) problems.push("terrainMode must be 0 (open plain), 1 (five biomes) or 2 (climate biomes)");
+  if (c.terrainMode === 2) {
+    if (c.climateMode !== 1) problems.push("climate biomes need a climate (set climateMode to 1)");
+    if (!(c.biomeColdBelow < c.biomeCoolBelow && c.biomeCoolBelow < c.biomeHotAbove)) problems.push("biomeColdBelow, biomeCoolBelow and biomeHotAbove must rise in that order");
+    if (!(c.biomeDryBelow < c.biomeWetAbove && c.biomeWetAbove <= c.biomeSwampAbove)) problems.push("biomeDryBelow, biomeWetAbove and biomeSwampAbove must rise in that order");
+    if (c.moistureWaterWeight < 0 || c.moistureBandWeight < 0 || c.moistureWaterWeight + c.moistureBandWeight > 1) problems.push("moistureWaterWeight and moistureBandWeight cannot be negative or add up to more than 1");
+    if (!(c.moistureReach > 0) || !(c.moistureHalf > 0) || c.moistureSeasonSwing < 0 || c.moistureSeasonSwing > 1 || c.iceMoveCost < 1) problems.push("moistureReach and moistureHalf must be positive, moistureSeasonSwing between 0 and 1, iceMoveCost at least 1");
+  }
+  if (c.terrainMode >= 1) {
     const gw = c.worldWidth / c.foodCellSize;
     const gh = c.worldHeight / c.foodCellSize;
     if (!Number.isInteger(c.terrainScale) || c.terrainScale < 1 || gw % c.terrainScale !== 0 || gh % c.terrainScale !== 0) {
@@ -1553,7 +1677,7 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (c.evIceAgeEvery > 0 || c.evDroughtEvery > 0 || c.evVolcanoEvery > 0) {
     if (c.climateMode !== 1) problems.push("ice ages, droughts and volcanoes need a climate (set climateMode to 1)");
   }
-  if (c.evFloodEvery > 0 && c.terrainMode !== 1) problems.push("floods need terrain (set terrainMode to 1)");
+  if (c.evFloodEvery > 0 && c.terrainMode === 0) problems.push("floods need terrain (set terrainMode to 1 or 2)");
   if (c.evOutbreakEvery > 0 && !(c.diseaseTransmission > 0)) problems.push("outbreaks need disease (set diseaseTransmission above 0)");
   if (c.evDroughtEvery > 0 && c.evDroughtSeverityMax > 1) problems.push("evDroughtSeverityMax cannot be above 1");
   if (c.evBlightEvery > 0 && c.evBlightGrowthMax > 1) problems.push("evBlightGrowthMax cannot be above 1 (it is the fraction of normal growth that is left)");

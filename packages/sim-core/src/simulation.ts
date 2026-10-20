@@ -12,7 +12,7 @@ import {
   type Traits,
 } from "./genome";
 import { polarness, smoothWave } from "./climate";
-import { BIOME, generateBackground, generateBiomes, generatePlantTypes, generateWeatherMap, growthMultipliers, moveMultipliers } from "./terrain";
+import { BIOME, climateBiome, climateBiomeTable, generateBackground, generateBiomes, generateClimateBase, generatePlantTypes, generateWeatherMap, growthMultipliers, moveMultipliers, rainBelt } from "./terrain";
 import { SNAPSHOT_FORMAT, type SimSnapshot, type SnapshotArray } from "./snapshot";
 import { SpeciesTracker, type SpeciesEvent, type SpeciesRecord } from "./species";
 import {
@@ -638,6 +638,12 @@ export class Simulation {
   private readonly assimClaim: Float64Array;
   /** Mode 2: how much nutrient each cell's plants hold per unit of plant (worked out from the soil they grew from). Saved with the land when on. */
   private readonly qualityOn: boolean;
+  /** Climate biomes (terrainMode 2): each cell's lasting wetness (0 to 1), whether it is under ice right now, and per-biome lookups. */
+  private readonly climateBiomesOn: boolean;
+  readonly moistureBase: Float32Array;
+  readonly iced: Uint8Array;
+  private biomeSeen: number[] = [];
+  private biomeDisease: number[] = [];
   /** For every cell, the nearest water cell (-1 if there is none): fixed with the terrain, for the brains' water sense. */
   private nearestWater: Int32Array = new Int32Array(0);
   readonly plantQ: Float64Array;
@@ -792,11 +798,25 @@ export class Simulation {
     this.foodCapacity = new Float64Array(cells).fill(c.foodCap);
     this.foodRegrow = new Float64Array(cells).fill(c.foodRegrowPerTick);
     if (c.fertilityVariation > 0) this.makeFertilityMap();
-    this.terrainOn = c.terrainMode === 1;
+    this.terrainOn = c.terrainMode >= 1;
+    this.climateBiomesOn = c.terrainMode === 2;
     this.biome = new Uint8Array(this.terrainOn ? cells : 0);
     this.passable = new Uint8Array(this.terrainOn ? cells : 0);
     this.terrainMove = new Float64Array(this.terrainOn ? cells : 0);
-    if (this.terrainOn) this.applyTerrain(generateBiomes(c, seed, this.gridWidth, this.gridHeight));
+    this.moistureBase = new Float32Array(this.climateBiomesOn ? cells : 0);
+    this.iced = new Uint8Array(this.climateBiomesOn ? cells : 0);
+    let moistureNoise: Float64Array | null = null;
+    if (c.terrainMode === 1) this.applyTerrain(generateBiomes(c, seed, this.gridWidth, this.gridHeight));
+    else if (this.climateBiomesOn) {
+      // Climate biomes: water and highlands now; the rest of the land gets its biome once the climate is set up (below).
+      const base = generateClimateBase(c, seed, this.gridWidth, this.gridHeight);
+      this.biome.set(base.biome);
+      for (let cell = 0; cell < cells; cell++) {
+        this.passable[cell] = base.biome[cell] === BIOME.water ? 0 : 1;
+        this.terrainMove[cell] = 1;
+      }
+      moistureNoise = base.moistureNoise;
+    }
     if (this.terrainOn && c.brainMode > 0) this.nearestWater = this.findNearestWater();
     this.climateOn = c.climateMode === 1;
     const climateCells = this.climateOn ? cells : 0;
@@ -813,6 +833,7 @@ export class Simulation {
     this.weatherA = this.weatherOn ? generateWeatherMap(seed, this.gridWidth, this.gridHeight, c.weatherScale, 0x51f3a7c9) : new Float32Array(0);
     this.weatherB = this.weatherOn ? generateWeatherMap(seed, this.gridWidth, this.gridHeight, c.weatherScale, 0x1d8e4b27) : new Float32Array(0);
     if (this.climateOn) this.setUpClimate();
+    if (moistureNoise) this.setUpClimateBiomes(moistureNoise);
     this.food = new Float64Array(cells);
     for (let cell = 0; cell < cells; cell++) this.food[cell] = this.foodCapacity[cell]! * c.initialFoodFraction;
     this.nutrient = new Float64Array(cells).fill(c.initialNutrientPerCell);
@@ -1234,6 +1255,16 @@ export class Simulation {
       const off = (temp - (kinds > 1 ? this.kindOptimum[kind]! : optimum)) / tolerance;
       const comfort = 1 - off * off;
       this.growthFactor[cell] = comfort > 0 ? this.lightBase[cell]! * daylight * (kinds > 1 ? this.kindGrowth[kind]! : seasonGrowth) * comfort : 0;
+      if (this.climateBiomesOn) {
+        // Plants need water: wetter ground grows more, and the growing season is the wet season.
+        let m = this.moistureBase[cell]! * (1 + c.moistureSeasonSwing * season);
+        m = m < 0 ? 0 : m > 1 ? 1 : m;
+        this.growthFactor[cell] = this.growthFactor[cell]! * ((m * (1 + c.moistureHalf)) / (m + c.moistureHalf));
+        // Ice: land whose average temperature (no seasons or days) is too cold freezes over, and thaws again as the climate warms.
+        const frozen = this.biome[cell] !== BIOME.water && this.tempBase[cell]! + drift - cooling < c.iceBelow ? 1 : 0;
+        this.iced[cell] = frozen;
+        if (frozen === 1) this.growthFactor[cell] = 0;
+      }
     }
   }
 
@@ -1895,6 +1926,87 @@ export class Simulation {
   /** The disasters going on now, for the viewer. */
   get currentEvents(): readonly ActiveEvent[] {
     return this.activeEvents;
+  }
+
+  /**
+   * Climate biomes: each land cell's lasting moisture (from how near water it is, its rain belt
+   * and patchy noise), then its biome from its average temperature and moisture, then plant
+   * growth and movement cost by biome. With several kinds of plant, each cell grows the kind
+   * that likes its temperature best.
+   */
+  private setUpClimateBiomes(noise: Float64Array): void {
+    const c = this.config;
+    const gw = this.gridWidth;
+    const gh = this.gridHeight;
+    const cells = gw * gh;
+    // Steps to the nearest water, spreading outward from all water at once.
+    const steps = new Int32Array(cells).fill(-1);
+    const queue = new Int32Array(cells);
+    let head = 0;
+    let tail = 0;
+    for (let cell = 0; cell < cells; cell++) {
+      if (this.biome[cell] === BIOME.water) {
+        steps[cell] = 0;
+        queue[tail++] = cell;
+      }
+    }
+    while (head < tail) {
+      const cell = queue[head++]!;
+      const cx = cell % gw;
+      const cy = (cell - cx) / gw;
+      for (let side = 0; side < 4; side++) {
+        const nx = side === 0 ? wrapCell(cx + 1, gw) : side === 1 ? wrapCell(cx - 1, gw) : cx;
+        const ny = side === 2 ? wrapCell(cy + 1, gh) : side === 3 ? wrapCell(cy - 1, gh) : cy;
+        const nb = ny * gw + nx;
+        if (steps[nb] !== -1) continue;
+        steps[nb] = steps[cell]! + 1;
+        queue[tail++] = nb;
+      }
+    }
+    const noiseWeight = 1 - c.moistureWaterWeight - c.moistureBandWeight;
+    const table = climateBiomeTable(c);
+    this.biomeSeen = table.seen;
+    this.biomeDisease = table.disease;
+    for (let cy = 0; cy < gh; cy++) {
+      const belt = rainBelt(c, polarness(cy, gh));
+      for (let cx = 0; cx < gw; cx++) {
+        const cell = cy * gw + cx;
+        if (this.biome[cell] === BIOME.water) {
+          this.moistureBase[cell] = 1;
+          continue;
+        }
+        const nearWater = steps[cell]! < 0 ? 0 : c.moistureReach / (c.moistureReach + steps[cell]!);
+        const m = c.moistureWaterWeight * nearWater + c.moistureBandWeight * belt + noiseWeight * noise[cell]!;
+        this.moistureBase[cell] = m < 0 ? 0 : m > 1 ? 1 : m;
+        if (this.biome[cell] !== BIOME.mountain) this.biome[cell] = climateBiome(c, this.tempBase[cell]!, this.moistureBase[cell]!);
+        const kind = this.biome[cell]!;
+        this.terrainMove[cell] = table.move[kind]!;
+        this.foodCapacity[cell] = this.foodCapacity[cell]! * table.growth[kind]!;
+        this.foodRegrow[cell] = this.foodRegrow[cell]! * table.growth[kind]!;
+      }
+    }
+    for (let cell = 0; cell < cells; cell++) {
+      if (this.biome[cell] === BIOME.water) {
+        this.foodCapacity[cell] = 0;
+        this.foodRegrow[cell] = 0;
+      }
+    }
+    if (this.plantKinds > 1) {
+      // Each kind of plant likes a slightly different temperature (see updateClimate): grow the best-suited one.
+      for (let cell = 0; cell < cells; cell++) {
+        let best = 0;
+        let bestOff = Infinity;
+        for (let j = 0; j < this.plantKinds; j++) {
+          const off = Math.abs(this.tempBase[cell]! - (c.plantTempOptimum + (j - (this.plantKinds - 1) / 2) * c.plantTypeTempSpread));
+          if (off < bestOff) {
+            bestOff = off;
+            best = j;
+          }
+        }
+        this.plantTypeOf[cell] = best;
+      }
+    }
+    this.updateClimate();
   }
 
   /** Fill in the terrain arrays from a biome map, and scale plant growth by biome. */
@@ -2826,6 +2938,7 @@ export class Simulation {
     if (d < 0) d = -d;
     if (d > 0.5) d = 1 - d;
     let p = c.camoDetectMin + (1 - c.camoDetectMin) * (d * 2);
+    if (this.climateBiomesOn) p = Math.min(1, p * this.biomeSeen[this.biome[cell]!]!); // forests hide, open ground exposes
     if (c.camoLearning > 0 && this.hasImage[viewer] === 1) {
       let sd = hue - this.searchHue[viewer]!;
       if (sd < 0) sd = -sd;
@@ -3337,6 +3450,7 @@ export class Simulation {
     const strainId = this.infection[this.diseaseHost]!;
     const antigen = this.strains[strainId - 1]!;
     let chance = c.diseaseTransmission * this.susceptibility(index, antigen);
+    if (this.climateBiomesOn) chance *= this.biomeDisease[this.biome[this.cellOf[this.diseaseHost]!]!]!; // warm wet biomes breed disease
     if (this.foulOn) {
       // Disease passes on more easily on fouled ground (where the sick animal is standing).
       const mean = this.foulMeanNow;
@@ -3912,6 +4026,7 @@ export class Simulation {
       let move = brainMode > 0 ? this.moveCost[i]! * this.moveScale[i]! * this.moveScale[i]! : this.moveCost[i]!;
       if (this.terrainOn) move *= this.terrainMove[cell]!; // mountains and forest cost more to cross
       if (this.stormOn && this.stormCell[cell] === 1) move *= c.evStormMoveCost; // fighting the wind
+      if (this.climateBiomesOn && this.iced[cell] === 1) move *= c.iceMoveCost; // crossing ice
       if (this.fatOn) move *= 1 + c.fatMoveCost * (this.fatStore[i]! / this.threshold[i]!);
       if (this.torporOn) move *= (1 - this.torpid[i]!) * (1 - this.torpid[i]!); // slower costs less (cost goes with speed squared)
       if (this.staminaOn) move += this.staminaCost[i]!; // the upkeep of the sprint reserve counts as movement
