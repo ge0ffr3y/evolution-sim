@@ -258,6 +258,24 @@ Where destroyed things go (all checked by the conservation test to 1e-9 with all
 - (d) A milder load rate in the grand world. Phase 8d found this removes the reason for sex, so it is a last resort.
 - Recommended order: (a) and (b) together in the grand world, measured on both meat eaters and sex; then (c) if hunters still cannot find mates.
 
+### O4 first fixes: mending plus nutrient-rich meat (grand world, 4 worlds each, 100,000 ticks)
+
+Built: `mutationLoadMend` (model 1 only, default 0): each inherited harmful mutation has this chance of being repaired at birth. The reward tried is the one that already exists, nutrient-rich meat (`nutrientMode: 2`). Fat is still off in the grand world, pending the owner's decision.
+
+| | Meat eaters | Meat in the diet | Diet gene | Harmful mutations per animal | Sex gene | Births with two parents | Population |
+|---|---|---|---|---|---|---|---|
+| Grand world | 0 | 1.5 to 2.9% | 0.02 | **93 to 202** | 0.13 to 0.48 | 11 to 44% | 366 to 623 |
+| + mending 5% | 0 | 1.6 to 5.5% | 0.02 to 0.03 | 28 to 40 | 0.06 to 0.35 | 4 to 32% | 709 to 884 |
+| + mending 15% | 0 | 3.0 to 5.1% | 0.03 | 15 to 16 | 0.04 to 0.14 | 4 to 13% | 769 to 944 |
+| + nutrient-rich meat | 0 | 0.7 to 2.6% | 0.02 to 0.05 | 77 to 147 | 0.24 to 0.31 | 35 to 47% | 489 to 1,033 |
+| + mending 5% + nutrient-rich meat | 0 | 1.1 to 8.9% | 0.02 to 0.10 | 28 to 45 | 0.03 to 0.40 | 18 to 53% | 682 to 840 |
+| + mending 15% + nutrient-rich meat | 0 | **1.7 to 16.9%** | **0.02 to 0.21** | 14 to 18 | 0.03 to 0.13 | 14 to 47% | 458 to 999 |
+
+- **The grand world is in a slow meltdown without mending.** By tick 100,000 every animal carries 93 to 202 harmful mutations, so its upkeep is about 5 to 9 times normal, and the number is still climbing. Mending holds it near 30 to 40 (5%) or 15 (15%), and populations rise by a third to a half.
+- **Mending weakens sex,** as Phase 8d predicted: the sex gene falls from 0.13 to 0.48 to 0.04 to 0.14 at 15% mending. Nutrient-rich meat pushes the other way (two-parent births 35 to 47%), probably because a baby is built from both parents' stores.
+- **Meat eating moves, but no true meat eaters appear.** With 15% mending and nutrient-rich meat, two of four worlds reach 14 to 17% meat in the diet, a diet gene of 0.15 to 0.21, and over 1,000 kills per 1,000 ticks: mixed eaters, not specialists. The done criterion (a lasting meat-eating lineage in most worlds) is **not met**.
+- **What is left:** the smaller brakes from step 2 (climate and terrain, brains, social traits), which compound in the grand world, and the cost of being half-way between diets (`dietSpecialization` makes a mixed diet worse at both foods, a valley a lineage has to cross).
+
 ## Deferred long runs (do these later, on the cloud or when the laptop is free)
 
 - **Erosion, 1,000,000 ticks.** Question: does worn ground level off at a stable share, or keep climbing, with the gentlest default (`erosionRate` 0.00001, recovery 0.00004) in the grand world? So far about 15% is worn at 300,000 ticks and still rising. If it levels off at 20 to 30% the default is fine; if it keeps climbing toward most of the land, add a better recovery before turning erosion on in the grand world. Run `erodeexp` (3 seeds). The sampling script was fixed to record every tenth of the run (an earlier attempt recorded nothing because 1,000,000 does not divide evenly by 6).
