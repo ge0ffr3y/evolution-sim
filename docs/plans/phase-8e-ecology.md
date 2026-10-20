@@ -203,7 +203,7 @@ Where destroyed things go (all checked by the conservation test to 1e-9 with all
 
 ---
 
-### O4 diagnosis (in progress)
+### O4 diagnosis (done)
 
 **Step 1: switch the suspects off one at a time in the grand world** (4 worlds each, 100,000 ticks, measured over the second half; "meat eaters" means diet above 0.75):
 
@@ -220,7 +220,43 @@ Where destroyed things go (all checked by the conservation test to 1e-9 with all
 - **Prey are hidden by kin restraint and camouflage.** In the grand world only 5 to 21% of prey within reach are eligible: 38 to 49% go unnoticed and 23 to 53% count as relatives. With every suspect off, 97% count as relatives, because the fixed rule "never attack anyone within kinDistance" covers almost everyone in a uniform population.
 - **But that is not the cause.** With kin restraint off too, 97% of prey within reach become eligible, and still no meat eaters appear; fewer animals even bother to arm (1%). None of the suspects listed in the plan is the reason.
 
-**Step 2 (running): add one grand-world group at a time to the standard world,** where meat eaters do appear: world size and food, climate and terrain, plant kinds, brains, social traits, sex, disease, life history, colonies, the Phase 8e ecology.
+**Step 2: add one grand-world group at a time to the standard world,** where meat eaters do appear (4 worlds each, 100,000 ticks):
+
+| Standard world plus... | Worlds with meat eaters | Meat eaters (average) | Meat in the diet |
+|---|---|---|---|
+| nothing (control) | 3 of 4 | 33 to 80 | 32 to 42% |
+| bigger world and 1.5x food | 4 of 4 | 480 to 690 | 43 to 45% |
+| Phase 8e ecology | 4 of 4 | 29 to 89 | 29 to 45% |
+| disease | 4 of 4 | 16 to 99 | 17 to 38% |
+| life history (aging, litters, luck, starting variety) | 3 of 4 | 117 to 188 | 38 to 47% |
+| colonies | 3 of 4 | 3 to 129 | 11 to 43% |
+| plant kinds | 3 of 4 | 27 to 152 | 18 to 38% |
+| climate and terrain | 2 of 4 | 9 to 26 | 21 to 32% |
+| brains | 2 of 4 | 47 to 80 | 25 to 33% |
+| social traits (kin, herds, sharing, camouflage) | 1 of 4 | 43 | 34% |
+| **sex and harmful mutations** | **0 of 4** | 0 | about 1% |
+| sex only (as a gene, with the easier-mating settings) | 1 of 4 | 62 | 37% |
+| **harmful mutations only** (`mutationLoadRate` 3, the textbook ratchet) | **0 of 4** | 0 | about 1% |
+
+**Step 3: confirm.**
+- In the standard world with harmful mutations, armed animals carry about **twice as many harmful mutations** as everyone else, in all 4 worlds (5.6 to 17.2, against 2.9 to 7.2).
+- The grand world without harmful mutations:
+  - kills rise from 250 to 410 to 1,250 to 1,530 per 1,000 ticks;
+  - meat in the diet rises from 1.5 to 3% to 11 to 13%;
+  - the diet gene triples (0.02 to 0.05 to 0.07), and 26 to 93% of animals are armed;
+  - but true meat eaters still appeared only once, briefly (18 at most).
+
+**Diagnosis:**
+1. **The main cause is the harmful-mutation load (Muller's ratchet) added in Phase 8d to make sex pay.** It reliably stops meat eating from taking off. Would-be hunters are always a small group, and small groups pile up harmful mutations faster (the ratchet turns faster when there are fewer to choose from). Their upkeep climbs until hunting no longer pays. Sex is the cure for the ratchet, but rare hunters rarely meet a compatible mate, so they stay asexual and keep loading up.
+2. **Smaller brakes remain once the load is gone:** climate and terrain, brains, and the social traits each cut meat eating to 1 or 2 worlds in 4 in the standard world. Together they explain why the grand world without load reaches mixed diets but not true meat eaters.
+3. **Not the cause:** the herd bonus, camouflage, colonies, kin tolerance, food sharing, disease, torpor, plant kinds, the Phase 8e ecology, and kin restraint. Each hides or protects prey, but switching any of them off, or all of them, did not bring back meat eaters while the load was on.
+
+**Options for the next step (to decide with the owner):**
+- **(a) A small chance of mending** (back-mutation) in the textbook ratchet, so load in small asexual groups levels off instead of growing for ever. Real genomes do repair a little. This needs checking that sex still pays in the grand world.
+- **(b) Make hunting pay more,** so hunters out-breed their load. These are the O4 rewards: meat nutrient-rich (already in nutrient mode, which helped meat eaters in the standard world), meat filling a reserve, and fewer but bigger meals.
+- **(c) Hunters find mates more easily,** for example compatibility judged without the diet and attack genes, so rare hunters can get the benefit of sex. This risks mixing hunting genes back into the prey.
+- (d) A milder load rate in the grand world. Phase 8d found this removes the reason for sex, so it is a last resort.
+- Recommended order: (a) and (b) together in the grand world, measured on both meat eaters and sex; then (c) if hunters still cannot find mates.
 
 ## Deferred long runs (do these later, on the cloud or when the laptop is free)
 
