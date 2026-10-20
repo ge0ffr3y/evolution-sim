@@ -235,6 +235,20 @@ Where destroyed things go (all checked by the conservation test to 1e-9 with all
 - **Mode:** a new switch (for example `nutrientMode: 1`), so old worlds stay identical.
 - **Evidence:** in the grand world, starvation versus blocked births before and after, how far animals travel, and whether meat eaters gain from nutrient-rich meat.
 
+### Disaster review (Opus, after the merge)
+
+The grand world with disasters on lost one world in six and held fewer animals in others. Each disaster kind alone, at one every 10,000 ticks in the grand world (3 worlds each), was mild: average populations were within the normal spread and nothing went extinct. The damage came from **wildfires**:
+- **Flaw 1, fires re-burned their own ground.** Burnt cells regrew a little and could be lit again by the same fire, so a fire burned until its time limit ran out. One fire lit 27,570 patches in a world of 3,072 land patches: it went round the map about nine times. In another world one fire killed 648 animals and the world went extinct 600 ticks later.
+- **Flaw 2, spread was above the tipping point.** With spread 0.15 to 0.5, any ground with average plant cover passed fire on to more than one neighbor, so fires grew until stopped by time or water.
+- **Fix:** fire scars (`evFireRecover`, default 3,000 ticks; a burnt cell cannot burn again until its fuel has grown back, saved with the world) and spread 0.05 to 0.4. Fire sizes in the grand world, 89 fires at four times the grand-world frequency: median 13 patches, 90th percentile 99, largest 300 (a tenth of the land); no extinctions. (At a ceiling of 0.6 the largest fire burned 72% of the land.)
+
+Other settings that were out of scale, all per tick where they should have been per event:
+- **Storm shove** 0.2 to 0.8 world units every tick, over 100 to 400 ticks, swept animals 50 to 150 units, out of the storm and against coasts. Now 0.02 to 0.1, about 5 to 30 units per storm.
+- **Storm soil** 2% of each cell's nutrient blown downwind every tick stripped the upwind ground almost bare. Now 0.1%. Extra movement cost in a storm 2 times, now 1.5 times.
+- **Volcano cooling** (0.1 to 0.3) was stronger than the softened ice age (0.05 to 0.15). Now 0.03 to 0.1.
+
+Result, grand world as configured (6 worlds, 60,000 ticks): **6 of 6 survive** (before the fix 5 of 6), average population 490 to 723 against 356 to 656 with no Phase 8e disasters. Disaster frequencies in `grand-world.json` are unchanged.
+
 ### O1 design (proposed by Opus, waiting for the owner's OK)
 
 **What happens today (measured, 3 worlds each, second half of 60,000 ticks):**
