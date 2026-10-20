@@ -234,6 +234,8 @@ export interface SimStats {
   disease: { infected: number; strains: number; totalInfections: number };
   /** Nutrient mode: the average store as a multiple of body matter, and the share of animals short of nutrient (both 0 when off). */
   nutrientStore: { mean: number; deficient: number };
+  /** Drinking: the average water an animal carries (0 to 1) and the share that are dehydrated (both 0 when off). */
+  hydration: { mean: number; dehydrated: number };
   traits: Record<GeneName, TraitSummary>;
   classes: DietClasses;
   /** Matter in the soil, as rotting meat, and as detritus. */
@@ -644,6 +646,9 @@ export class Simulation {
   readonly iced: Uint8Array;
   private biomeSeen: number[] = [];
   private biomeDisease: number[] = [];
+  /** Drinking: how much water each animal has (0 to 1). Saved with the animals when on. */
+  private readonly drinkOn: boolean;
+  readonly hydration: Float32Array;
   /** For every cell, the nearest water cell (-1 if there is none): fixed with the terrain, for the brains' water sense. */
   private nearestWater: Int32Array = new Int32Array(0);
   readonly plantQ: Float64Array;
@@ -992,6 +997,8 @@ export class Simulation {
     this.fireScar = new Uint32Array(this.fireOn ? cells : 0);
     this.stormCell = new Uint8Array(this.stormOn ? cells : 0);
     this.stormDelta = new Float64Array(this.stormOn ? cells : 0);
+    this.drinkOn = c.drinking === 1;
+    this.hydration = new Float32Array(this.drinkOn ? n : 0);
     this.nutrientOn = c.nutrientMode >= 1;
     this.qualityOn = c.nutrientMode === 2;
     this.plantQ = new Float64Array(this.qualityOn ? cells : 0);
@@ -1072,6 +1079,7 @@ export class Simulation {
     this.float64Fields = [this.energy, this.plantTaken, this.meatTaken];
     if (this.fatOn) this.float64Fields.push(this.fatStore);
     if (this.nutrientOn) this.float64Fields.push(this.nutrientStore);
+    if (this.drinkOn) this.float32Fields.push(this.hydration);
     this.uint32Fields = [this.id, this.parentId, this.age, this.kills];
     if (this.tracker) this.uint32Fields.push(this.species);
     if (this.sexOn) this.uint32Fields.push(this.parent2Id);
@@ -1374,6 +1382,18 @@ export class Simulation {
       }
     }
     return out;
+  }
+
+  /** Can an animal in this cell drink? Yes if it or a neighboring cell is water (a flood counts), or, with climate biomes, if the ground is soaked. */
+  private canDrink(cell: number): boolean {
+    const gw = this.gridWidth;
+    const gh = this.gridHeight;
+    const cx = cell % gw;
+    const cy = (cell - cx) / gw;
+    if (this.passable[cell] === 0) return true;
+    if (this.passable[cy * gw + wrapCell(cx + 1, gw)] === 0 || this.passable[cy * gw + wrapCell(cx - 1, gw)] === 0) return true;
+    if (this.passable[wrapCell(cy + 1, gh) * gw + cx] === 0 || this.passable[wrapCell(cy - 1, gh) * gw + cx] === 0) return true;
+    return this.climateBiomesOn && this.moistureBase[cell]! >= this.config.drinkMoisture;
   }
 
   /** How damaged a cell's ground is, from overgrazing, fouling and erosion together: 0 healthy, up to 1 ruined. */
@@ -2074,6 +2094,7 @@ export class Simulation {
     if (this.sexGeneOn) this.sexMode[i] = 0;
     if (this.fatOn) this.fatStore[i] = 0;
     if (this.nutrientOn) this.nutrientStore[i] = 0;
+    if (this.drinkOn) this.hydration[i] = 1; // born with a full drink
     if (this.toxOn) {
       // A newborn remembers nothing (every field is cleared, so a reused slot never carries an old animal's memory).
       this.avoidStrength[i] = 0;
@@ -2851,6 +2872,7 @@ export class Simulation {
         inputs[INPUT.damageAhead] = clampUnit(gx * hx + gy * hy);
         inputs[INPUT.damageSide] = clampUnit(hx * gy - hy * gx);
       }
+      if (this.drinkOn) inputs[INPUT.thirst] = 1 - this.hydration[i]!;
       const water = this.nearestWater.length > 0 ? this.nearestWater[here]! : -1;
       if (water >= 0) {
         const W = c.worldWidth;
@@ -3540,6 +3562,17 @@ export class Simulation {
     this.strains = kept;
   }
 
+  private hydrationStats(): { mean: number; dehydrated: number } {
+    if (!this.drinkOn || this.count === 0) return { mean: 0, dehydrated: 0 };
+    let sum = 0;
+    let dry = 0;
+    for (let i = 0; i < this.count; i++) {
+      sum += this.hydration[i]!;
+      if (this.hydration[i]! < this.config.thirstBelow) dry++;
+    }
+    return { mean: sum / this.count, dehydrated: dry / this.count };
+  }
+
   private nutrientStats(): { mean: number; deficient: number } {
     if (!this.nutrientOn || this.count === 0) return { mean: 0, deficient: 0 };
     let sum = 0;
@@ -3992,6 +4025,23 @@ export class Simulation {
       }
 
       let basal = this.basalCost[i]! + toxinLoss;
+      if (this.drinkOn) {
+        // Thirst: water is used up faster in the heat and when running; beside water (or on soaked ground) it drinks its fill.
+        let water = this.hydration[i]!;
+        if (this.canDrink(cell)) water = 1;
+        else {
+          let rate = c.thirstRate;
+          if (this.climateOn) {
+            const hot = this.temperature[cell]! - c.thirstHeatAbove;
+            if (hot > 0) rate *= 1 + c.thirstHeat * hot;
+          }
+          if (brainMode > 0) rate *= 1 + c.thirstMove * this.moveScale[i]!;
+          water = water > rate ? water - rate : 0;
+        }
+        this.hydration[i] = water;
+        // Dehydrated: the body costs more to run (energy lost as heat, on the upkeep line).
+        if (water < c.thirstBelow) basal += this.basalCost[i]! * c.dehydrationCost * (1 - water / c.thirstBelow);
+      }
       if (this.nutrientOn) {
         // Short of nutrient: the body works less well and costs more to run (energy lost as heat, on the upkeep line).
         const need = c.deficiencyBelow * this.bodyMatter[i]!;
@@ -4808,6 +4858,7 @@ export class Simulation {
       colonies: this.colonyStats(),
       disease: this.diseaseStats(),
       nutrientStore: this.nutrientStats(),
+      hydration: this.hydrationStats(),
       totalBirths: this.totalBirths,
       sexualBirths: this.sexualBirths,
       totalDeaths: this.totalDeaths,
@@ -5109,6 +5160,7 @@ export class Simulation {
     }
     if (this.nutrientOn) mixBits(this.nutrientStore, n);
     if (this.qualityOn) mixBits(this.plantQ, this.plantQ.length);
+    if (this.drinkOn) mixBits(this.hydration, n);
     if (this.toxOn) {
       mixBits(this.avoidStrength, n);
       mixBits(this.avoidHue, n);

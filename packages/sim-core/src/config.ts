@@ -673,6 +673,22 @@ export interface SimConfig {
   biomeSeenSwamp: number;
   biomeDiseaseSwamp: number;
 
+  // --- Drinking (Phase 8e O2, off by default; needs terrain) ---
+  /** 0 = off. 1 = animals get thirsty and must drink: next to water, or (with climate biomes) on very wet ground. */
+  drinking: number;
+  /** How much of a full drink an animal loses each tick when cool and still... */
+  thirstRate: number;
+  /** ...times (1 + thirstHeat times how far the temperature is above thirstHeatAbove)... */
+  thirstHeat: number;
+  thirstHeatAbove: number;
+  /** ...times (1 + thirstMove times how hard a brain drives the body; 1 = normal pace). */
+  thirstMove: number;
+  /** With climate biomes, ground at least this wet (swamp, soaked forest) also lets an animal drink. */
+  drinkMoisture: number;
+  /** Below this much water an animal is dehydrated: its upkeep rises, by up to this much more (2 = three times) when it has none left. */
+  thirstBelow: number;
+  dehydrationCost: number;
+
   // --- Nutrients through food (Phase 8e O1, off by default) ---
   /**
    * 0 = off: a baby's body is built from the soil under its parent (the older worlds).
@@ -1344,6 +1360,14 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   biomeMoveSwamp: 2.2,
   biomeSeenSwamp: 0.7,
   biomeDiseaseSwamp: 1.8,
+  drinking: 0,
+  thirstRate: 0.002,
+  thirstHeat: 2,
+  thirstHeatAbove: 0.6,
+  thirstMove: 0.5,
+  drinkMoisture: 0.65,
+  thirstBelow: 0.5,
+  dehydrationCost: 2,
   nutrientMode: 0,
   plantAssimilation: 0.02,
   meatAssimilation: 0.8,
@@ -1644,6 +1668,11 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     if (c.iceAgeCooling < 0) problems.push("iceAgeCooling cannot be negative");
     if (c.droughtSeverity < 0 || c.droughtSeverity > 1) problems.push("droughtSeverity must be between 0 and 1");
     if (!(c.meteorRadius > 0)) problems.push("meteorRadius must be positive");
+  }
+  if (![0, 1].includes(c.drinking)) problems.push("drinking must be 0 (off) or 1 (on)");
+  if (c.drinking === 1) {
+    if (c.terrainMode === 0) problems.push("drinking needs terrain with water (set terrainMode to 1 or 2)");
+    if (!(c.thirstRate > 0) || c.thirstHeat < 0 || c.thirstMove < 0 || c.dehydrationCost < 0 || !(c.thirstBelow > 0 && c.thirstBelow <= 1)) problems.push("thirstRate must be positive, thirstBelow above 0 and at most 1, and the other thirst settings cannot be negative");
   }
   if (![0, 1, 2].includes(c.nutrientMode)) problems.push("nutrientMode must be 0 (babies built from soil), 1 (animals carry nutrient) or 2 (and plants vary with the soil)");
   if (c.nutrientMode === 2 && !(c.plantQualityHalf > 0 && c.plantQualityMax > 0)) problems.push("plantQualityHalf and plantQualityMax must be positive");
