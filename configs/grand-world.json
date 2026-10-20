@@ -1,6 +1,6 @@
 {
   "name": "The grand world (everything on, extra large)",
-  "description": "Every optional feature at once in a 512 x 512 world: continents and seas, seasons with weather fronts and harsh and mild years, random ice ages, droughts and meteors, three kinds of plant, brains with memory, a sense of home (the best feeding place remembered) and chemical signals that also act on the body, deadly fast-adapting disease, camouflage, aging, litter size, torpor, tolerance of relatives, food sharing, luck at birth, and cells that can bond into colonies with specialized cells. Sex is a gene: harmful mutations pile up in lines that never mix (the textbook Muller's ratchet), mate-seekers that wait too long split in two instead, any well-fed neighbor can be a mate, and the first generation has a full spread of mate-seeking. Food is 1.5 times the standard rate so populations stay big enough for mates to meet. The fat reserve is left out because it held sex back here and never evolved. Nothing here is fully tuned: watch the births-with-two-parents readout and the mate-seeking trait chart.",
+  "description": "Every optional feature at once in a 512 x 512 world: continents and seas, seasons with weather fronts and harsh and mild years, random ice ages, droughts and meteors, wildfires, storms, floods, volcanoes, plant blights, outbreaks and good years (all at mild settings), overgrazing, fouled ground and erosion of bare soil, three kinds of plant, brains with memory, a sense of home (the best feeding place remembered) and chemical signals that also act on the body, deadly fast-adapting disease, camouflage, aging, litter size, torpor, tolerance of relatives, food sharing, luck at birth, and cells that can bond into colonies with specialized cells. Sex is a gene: harmful mutations pile up in lines that never mix (the textbook Muller's ratchet), mate-seekers that wait too long split in two instead, any well-fed neighbor can be a mate, and the first generation has a full spread of mate-seeking. Food is 1.5 times the standard rate so populations stay big enough for mates to meet. The fat reserve is left out because it held sex back here and never evolved. Nothing here is fully tuned: watch the births-with-two-parents readout and the mate-seeking trait chart.",
   "config": {
     "worldWidth": 512,
     "worldHeight": 512,
@@ -58,6 +58,16 @@
     "sexFounderSpread": 1,
     "sexWaitLimit": 200,
     "mateReadyFraction": 0.6,
-    "mutationLoadModel": 1
+    "mutationLoadModel": 1,
+    "overgrazeDamage": 0.003,
+    "fouling": 0.01,
+    "erosionRate": 1e-05,
+    "evFireEvery": 20000,
+    "evStormEvery": 20000,
+    "evFloodEvery": 80000,
+    "evVolcanoEvery": 100000,
+    "evBlightEvery": 50000,
+    "evOutbreakEvery": 50000,
+    "evGoodYearEvery": 40000
   }
 }
