@@ -307,6 +307,37 @@ Built: `matePreference: 3` (pick the most similar diet) and `mateDietLimit` (ref
 - **Why the catch rate is low:** many small things that each lower it, and that add up (camouflage hides 38 to 49% of prey within reach, kin restraint and the herd protect others, brains have to learn to attack, climate and terrain scatter animals). Removing one at a time was never enough.
 - **Next options:** (1) remove several of these together (no camouflage, no kin restraint or herd, no brains), to learn whether specialists can appear at all in a world this size; (2) make each kill worth more (bigger meals or a reserve for meat), so a specialist can live on fewer kills.
 
+### O4 mechanism: energy budgets by diet and planted hunters
+
+Measured in 4 grand worlds (15% mending, nutrient-rich meat) and 4 standard worlds. Budgets by diet run from tick 30,000 to 50,000. At tick 50,000, 30 animals per world were turned into ready-made meat eaters, using the average genome of evolved meat eaters in a standard world (size 0.46, speed 0.36, sense 0.28, metabolism 0.51, diet 0.83, attack 0.34, armor 0.85), and followed to tick 90,000.
+
+**Would-be hunters at the same diet (diet gene 0.3 to 0.5), grand against standard:**
+
+| | Grand world | Standard world |
+|---|---|---|
+| Kills per animal per 1,000 ticks | 5.5 | 25.9 |
+| Meat energy per tick | 0.063 | 0.228 |
+| Upkeep per tick | 0.106 | 0.053 |
+| Body size | 1.14 | 0.80 |
+| Animals with diet above 0.5 | none | 4% of all animals |
+
+**The planted meat eaters:**
+- **Grand world:** all 30 were gone within 1,000 ticks in 3 of 4 worlds (29 of 30 starved rather than being killed), and in the 4th within 4,000. They made 0.1 to 4 kills per 1,000 ticks while paying 0.18 to 0.20 upkeep per tick.
+- **Standard world:** the same genome made 11 to 35 kills per 1,000 ticks. Its lineage grew to 250 to 550 in two worlds and held at 30 to 60 in a third.
+
+**Why kills are rare in the grand world (from the earlier runs):**
+- Of the prey within a hunter's reach, only 5 to 46% are eligible, against 81 to 84% in standard worlds with meat eaters. Camouflage hides 35 to 53%, and kin restraint spares 14 to 58%.
+- Attacks succeed 15 to 36% of the time, against 38 to 47%.
+- Brains never hold an attack back (the attack gate is never the limit), but grand-world brains steer toward plants, and the planted hunters carried plant eaters' brains. That is a limit of this test: there are no hunting brains in the grand world to give them.
+
+**The mechanism, put together:**
+1. **A hunter in the grand world gets about a quarter of the meat a hunter of the same diet gets in the standard world,** because it makes about a fifth as many kills. Most prey near it are hidden by camouflage or protected as relatives, and fewer attacks succeed.
+2. **It also pays about twice the upkeep,** because hunting there favors a much bigger body (and the grand world has extra costs: brains, aging, the remaining mutation load).
+3. **So the best strategy is a little meat on top of plants.** In the grand world, net growth (births minus deaths per 1,000 animal-ticks) rises slightly with diet up to 0.5 (from -0.02 to +0.06), so omnivores are favored, but nothing past 0.5 can pay. Planted specialists starve.
+4. **Why switching off camouflage or kin restraint alone failed earlier:** they compound, and the run that switched both off together (97% of prey eligible) still had the full, unmended mutation load. Catching enough prey and carrying a manageable load have never been tested together.
+
+**Suggested decisive test:** the grand world with 15% mending and nutrient-rich meat, and with camouflage, kin restraint and the herd bonus off. If specialists appear, the mechanism is confirmed (low catch rate plus load). Then the fix can be chosen to keep camouflage and kinship in the world but soften them for hunters. For example: hunters learn to see through camouflage faster, or kin restraint applies only to close relatives. Bigger meals would make each kill count more without discouraging omnivores.
+
 ## Deferred long runs (do these later, on the cloud or when the laptop is free)
 
 - **Erosion, 1,000,000 ticks.** Question: does worn ground level off at a stable share, or keep climbing, with the gentlest default (`erosionRate` 0.00001, recovery 0.00004) in the grand world? So far about 15% is worn at 300,000 ticks and still rising. If it levels off at 20 to 30% the default is fine; if it keeps climbing toward most of the land, add a better recovery before turning erosion on in the grand world. Run `erodeexp` (3 seeds). The sampling script was fixed to record every tenth of the run (an earlier attempt recorded nothing because 1,000,000 does not divide evenly by 6).
