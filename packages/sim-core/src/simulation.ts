@@ -4200,7 +4200,7 @@ export class Simulation {
       ["food", this.food],
       ["foodCapacity", this.foodCapacity],
       ["foodRegrow", this.foodRegrow],
-      // (Only in worlds with overgrazing, so worlds saved before it existed still load.)
+      // (Each of these only in worlds where its feature is on, so worlds saved before it existed still load.)
       ...(this.toxOn ? ([["corpseToxin", this.corpseToxin]] as [string, SnapshotArray][]) : []),
       ...(this.erodeOn ? ([["soilHealth", this.soilHealth]] as [string, SnapshotArray][]) : []),
       ...(this.ashOn ? ([["ash", this.ash]] as [string, SnapshotArray][]) : []),
@@ -4261,7 +4261,17 @@ export class Simulation {
     this.uint32Fields.forEach((array, k) => take(`u32.${k}`, array));
     this.uint16Fields.forEach((array, k) => take(`u16.${k}`, array));
     this.uint8Fields.forEach((array, k) => take(`u8.${k}`, array));
-    take("genes", this.genes);
+    // A world saved before a gene was added has fewer genes per animal. Copy each animal's genes
+    // across at its own spacing so they line up (genes it never had stay 0: they are not in use there).
+    const savedGenes = snapshot.arrays.genes;
+    const savedStride = savedGenes && s.count > 0 ? savedGenes.length / s.count : GENE_COUNT;
+    if (savedGenes && savedStride !== GENE_COUNT) {
+      if (!Number.isInteger(savedStride) || savedStride > GENE_COUNT) throw new Error(`The saved world's "genes" does not fit this world`);
+      this.genes.fill(0);
+      for (let i = 0; i < s.count; i++) for (let k = 0; k < savedStride; k++) this.genes[i * GENE_COUNT + k] = savedGenes[i * savedStride + k]!;
+    } else {
+      take("genes", this.genes);
+    }
     take("cellOf", this.cellOf);
     if (this.bondsOn) {
       take("bondTo", this.bondTo);

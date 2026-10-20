@@ -117,6 +117,22 @@ describe("saving and loading a world", () => {
     expect(back.state.note).toBe("héllo ✓ 🦊");
   });
 
+  it("a world saved before the last gene was added still loads with every animal's genes lined up", () => {
+    const sim = new Simulation(3, WORLDS[0]!.config);
+    sim.run(200);
+    const snapshot = sim.save();
+    // Make it look like an older save: one gene fewer per animal (the newest gene, which is not in use in this world).
+    const genes = snapshot.arrays.genes as Float32Array;
+    const stride = genes.length / sim.count;
+    const older = new Float32Array(sim.count * (stride - 1));
+    for (let i = 0; i < sim.count; i++) for (let k = 0; k < stride - 1; k++) older[i * (stride - 1) + k] = genes[i * stride + k]!;
+    const loaded = Simulation.load({ ...snapshot, arrays: { ...snapshot.arrays, genes: older } });
+    for (let i = 0; i < sim.count; i++) expect(loaded.genes[i * stride]).toBe(sim.genes[i * stride]);
+    sim.run(300);
+    loaded.run(300);
+    expect(loaded.fingerprint()).toBe(sim.fingerprint());
+  });
+
   it("every piece of the world's state is either saved or knowingly left out (guard for future changes)", () => {
     // If this fails after you add a field to Simulation: decide whether it must be saved (add it
     // to save() and restore()) or is scratch space rebuilt every tick, then list it below.
