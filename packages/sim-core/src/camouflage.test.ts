@@ -279,6 +279,6 @@ describe("what noticing changes", () => {
   it("rejects settings that make no sense", () => {
     expect(() => new Simulation(1, { camouflageMode: 1, camoScale: 5 })).toThrow(/camoScale/);
     expect(() => new Simulation(1, { camouflageMode: 1, camoDetectMin: 2 })).toThrow(/camoDetectMin/);
-    expect(() => new Simulation(1, { matePreference: 3 })).toThrow(/matePreference/);
+    expect(() => new Simulation(1, { matePreference: 4 })).toThrow(/matePreference/);
   });
 });

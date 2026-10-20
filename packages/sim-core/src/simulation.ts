@@ -3782,6 +3782,9 @@ export class Simulation {
     const limit = this.config.mateDistance;
     const geneSq = this.geneDistanceSq(this.mateSelf, index);
     if (geneSq > limit * limit) return;
+    let dietGap = this.genes[this.mateSelf * GENE_COUNT + GENE.diet]! - this.genes[index * GENE_COUNT + GENE.diet]!;
+    if (dietGap < 0) dietGap = -dietGap;
+    if (dietGap > this.config.mateDietLimit) return; // too different an eater to pair with
     // The score to beat: how near (default) or how genetically similar (matePreference 1, nearer wins a tie).
     let score = distSq;
     if (this.config.matePreference === 1) score = geneSq;
@@ -3789,7 +3792,7 @@ export class Simulation {
       let hd = this.genes[this.mateSelf * GENE_COUNT + GENE.hue]! - this.genes[index * GENE_COUNT + GENE.hue]!;
       if (hd < 0) hd = -hd;
       score = hd > 0.5 ? 1 - hd : hd; // how far apart the colors are, round the color wheel
-    }
+    } else if (this.config.matePreference === 3) score = dietGap; // the most similar eater
     if (score > this.mateBestScore || (score === this.mateBestScore && distSq >= this.mateBestDistSq)) return;
     this.mateBest = index;
     this.mateBestScore = score;

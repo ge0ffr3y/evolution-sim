@@ -1014,9 +1014,15 @@ export interface SimConfig {
   /**
    * Who an organism picks out of the compatible, ready ones in range: 0 = the nearest, 1 = the
    * most genetically similar (so specialists tend to find each other, which lets a lineage keep
-   * a combination of genes that would be diluted by mixing with everyone).
+   * a combination of genes that would be diluted by mixing with everyone), 2 = the most similar
+   * color, 3 = the most similar diet.
    */
   matePreference: number;
+  /**
+   * Mates must have diets within this much of each other (diet genes, 0 to 1; 1 = any diet will do).
+   * With matePreference 3 (most similar diet) this is assortative mating by diet: hunters mate with hunters.
+   */
+  mateDietLimit: number;
 
   /**
    * Rare large mutations: with this chance per birth, a few genes at once change by a lot
@@ -1523,6 +1529,7 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   mateRange: 6,
   mateDistance: 0.25,
   matePreference: 0,
+  mateDietLimit: 1,
   macroMutationProb: 0,
   macroMutationStd: 0.3,
   macroMutationGenes: 3,
@@ -1877,7 +1884,8 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (c.sexFounderSpread !== -1 && (c.sexFounderSpread < 0 || c.sexFounderSpread > 1)) problems.push("sexFounderSpread must be -1 (follow founderSpread) or between 0 and 1");
   if (![0, 1].includes(c.sexAcceptAny)) problems.push("sexAcceptAny must be 0 or 1");
   if (!(c.mateRange > 0)) problems.push("mateRange must be positive");
-  if (![0, 1, 2].includes(c.matePreference)) problems.push("matePreference must be 0 (nearest), 1 (most similar genes) or 2 (most similar color)");
+  if (![0, 1, 2, 3].includes(c.matePreference)) problems.push("matePreference must be 0 (nearest), 1 (most similar genes), 2 (most similar color) or 3 (most similar diet)");
+  if (!(c.mateDietLimit > 0 && c.mateDietLimit <= 1)) problems.push("mateDietLimit must be above 0 and at most 1");
   if (![0, 1].includes(c.camouflageMode)) problems.push("camouflageMode must be 0 or 1");
   if (c.camouflageMode === 1) {
     const gw = c.worldWidth / c.foodCellSize;
