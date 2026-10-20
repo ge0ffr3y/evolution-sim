@@ -139,6 +139,47 @@ From the baseline, one mechanism off at a time: terrain, climate, seasons, day a
 
 For each mechanism this shows what it does in the grand world, and whether it does anything at all. A mechanism that changes nothing beyond the noise is either too weak to matter or broken. As each result comes in, I read that mechanism's code against what it is meant to do: where its energy and matter go, hidden fixed numbers, and order effects. Anything found is fixed with a test before stage 2.
 
+**Stage 1 result (run 2026-10-20 on one c8g.8xlarge, about an hour, about $1.30; 49 arms × 8 seeds × 200,000 ticks, none died out; report in `experiments/audit-1-switch-off/report.md`):**
+
+Control: population 764 (638 to 874), about 2 species, plants standing at 5% of capacity, no animal ever sick, 6 genes pinned at their lower limit. Worn ground is still rising at tick 200,000 (Stage 0 shows it levels off near 60% by tick 500,000).
+
+1. **Overgrazing is the biggest brake in the grand world.**
+   - Switching it off nearly doubles the population (764 to 1,446). Switching off all three kinds of land damage more than doubles it (1,703), with kills up 3.6 times and meat in the diet up 2.2 times.
+   - It is not an exploit: the land captures twice the sunlight overall (91,000 against 45,000 units per 1,000 ticks), and each animal eats and spends about as before.
+   - Grazing damage averages 0.67 across the land, so overgrazing roughly halves what the whole world grows.
+2. **Climate is the main brake on hunting.**
+   - Without it, the population is 42% bigger and kills are 4 times higher. Meat in the diet rises from 3.7% to 10%, and feeding levels from 1.0 to 1.4: mixed eaters establish themselves, the first sign of a second feeding level in any grand world.
+   - Its parts switched off one at a time (day and night, weather, harsh years, drift, the cost of heat and cold) do little on their own, so it is climate as a whole that holds hunting back.
+   - Without terrain, the population is 35% bigger.
+3. **Diversity:**
+   - Without seasons, species alive rise from 2.0 to 3.8.
+   - With only one kind of plant, diversity collapses (Shannon 0.56 to 0.02), worn ground triples (15% to 47%, still rising), and colonies fall by two thirds. Plant kinds hold up both diversity and soil.
+   - A disease that can spread (cost 1, wider matching; 15 to 23% sick in 6 of 8 worlds) raises species alive from 2.0 to 3.2 without costing population. Sex did not rise in 200,000 ticks.
+4. **Brains matter:**
+   - Without them, the population is 27% smaller and deaths per animal rise by two thirds.
+   - Births with two parents drop from 14% to 4%, so brains find mates. Plants are left uneaten (24% standing), so brains also find food.
+   - Without sex (asexual only), the population is 13% smaller, costs are higher and brains are smaller.
+5. **Disease at cost 5 is still dead; at cost 1 it comes and goes** (0.1% to 10% sick, depending on the world). It needs both a low cost and wider matching to become established.
+6. **No clear effect (14):**
+   - parts of the climate: day and night, weather, climate drift;
+   - disasters: the old catastrophes, good years, and **all disaster events together**;
+   - brains: memory, the sense of home, kill ownership;
+   - social: the tolerance gene, the herd bonus;
+   - colonies: cell types;
+   - disease at cost 5 and at cost 1.
+
+   Each is too weak to matter here or broken; per the plan, its code gets read before stage 2.
+7. **Two ways of settling (to re-check, not an effect yet).** In several arms (no harsh years, no camouflage, no aging, no torpor), 3 to 5 of 8 worlds settle with 15 to 33% of plants standing and fewer animals, while the others match the control's 5%. All 8 control worlds happened to settle low, but Stage 0's control worlds range from 3% to 29%. So this is probably a second way the grand world can settle, not something those arms cause. Stage 4 re-runs them on fresh seeds.
+8. **Pinned genes:**
+   - Armor becomes pinned at its lower limit in 7 arms.
+   - Generosity is freed when sharing is off (the gene then does nothing, so it drifts).
+   - Without brains, the sex gene becomes pinned at its lower limit.
+
+**Before stage 2:**
+- read the code of the 14 mechanisms with no clear effect, and fix what is broken;
+- decide with the owner whether overgrazing and climate are too strong, and what disease should be;
+- note that 100,000-tick runs see the world before erosion has settled.
+
 ### Stage 2: turn every setting down and up (4 seeds x 100,000 ticks, about 640 arms)
 
 Each of the about 320 grand-world settings at half and at double (or halfway to each end), one at a time. 4 seeds is enough to spot big effects and cliffs, not small ones; anything flagged gets more seeds in stage 4. The output is a map of which settings the grand world is sensitive to, which barely matter, and where a small change causes a collapse.
