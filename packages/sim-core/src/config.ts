@@ -482,6 +482,8 @@ export interface SimConfig {
    * selection is weak, which is the situation sex is thought to solve.
    */
   mutationLoadModel: number;
+  /** Model 1 only: the chance that each harmful mutation a baby inherits is repaired (0 = never, the textbook ratchet). */
+  mutationLoadMend: number;
   mutationLoadLoci: number;
   mutationLoadBack: number;
   mutationLoadCost: number;
@@ -1264,6 +1266,7 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   initialShare: 0,
   mutationLoadRate: 0,
   mutationLoadModel: 0,
+  mutationLoadMend: 0,
   mutationLoadLoci: 24,
   mutationLoadBack: 0.01,
   mutationLoadCost: 0.03,
@@ -1778,6 +1781,7 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     if (!Number.isInteger(c.mutationLoadLoci) || c.mutationLoadLoci < 1 || c.mutationLoadLoci > 30) problems.push("mutationLoadLoci must be a whole number from 1 to 30");
     if (c.mutationLoadBack < 0 || c.mutationLoadBack > 1 || c.mutationLoadCost < 0) problems.push("mutationLoadBack must be between 0 and 1 and mutationLoadCost cannot be negative");
     if (c.mutationLoadModel === 0 && c.mutationLoadRate > c.mutationLoadLoci) problems.push("mutationLoadRate cannot be more than mutationLoadLoci");
+    if (c.mutationLoadMend < 0 || c.mutationLoadMend > 1) problems.push("mutationLoadMend must be between 0 and 1");
     if (c.mutationLoadSynergy < 0 || c.mutationLoadFertility < 0) problems.push("mutationLoadSynergy and mutationLoadFertility cannot be negative");
     if (c.mutationLoadStart < 0 || (c.mutationLoadModel === 0 && c.mutationLoadStart > c.mutationLoadLoci)) problems.push("mutationLoadStart must be between 0 and mutationLoadLoci");
   }

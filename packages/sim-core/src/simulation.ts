@@ -2429,6 +2429,13 @@ export class Simulation {
       } else {
         count = this.loadMask[a]!;
       }
+      // Mending (off unless set): each harmful mutation passed down has a small chance of being repaired, so the
+      // load of a small asexual group levels off instead of growing for ever.
+      if (c.mutationLoadMend > 0) {
+        let kept = 0;
+        for (let k = count; k > 0; k--) if (this.rng.next() >= c.mutationLoadMend) kept++;
+        count = kept;
+      }
       this.loadMask[child] = count + this.newHarm(c.mutationLoadRate);
       return;
     }
