@@ -235,6 +235,34 @@ Where destroyed things go (all checked by the conservation test to 1e-9 with all
 - **Mode:** a new switch (for example `nutrientMode: 1`), so old worlds stay identical.
 - **Evidence:** in the grand world, starvation versus blocked births before and after, how far animals travel, and whether meat eaters gain from nutrient-rich meat.
 
+### O1 design (proposed by Opus, waiting for the owner's OK)
+
+**What happens today (measured, 3 worlds each, second half of 60,000 ticks):**
+- A plant bite is matter and energy at once (1 unit of plant = 1 unit of matter = 1 energy). Eaten matter goes straight back to the ground where it was eaten. Only energy goes into the animal.
+- Babies are built from the soil under the parent, so a parent on poor ground cannot breed even though it has eaten plenty. Grand-world animals eat 52 to 79 units of plant per birth, while a baby's body needs about 0.35 units of matter: 150 to 220 times more matter passes through them than they keep.
+- Meat holds 5 to 30 energy per unit of matter (it is mostly stored energy), so per bite meat is already rich in energy but poor in matter.
+- Soil nutrient is moderately uneven (a Gini of 0.17 to 0.38; the richest tenth of land holds 15 to 27% of it). Animals end up 37 to 40 world units from where they were born (66 to 96 in the standard world).
+
+**Level 1: animals carry nutrient** (a new switch, `nutrientMode: 1`; 0 keeps every older world identical):
+1. **A nutrient store per animal**, made of matter. It is saved, counted in the matter audit, and goes into the corpse when the animal dies (so meat carries it).
+2. **Eating fills it.** A small share of the plant matter eaten (`plantAssimilation`, about 1%, to be set so a typical plant eater collects one to two babies' worth per breeding cycle) goes into the store; the rest is dung on the spot, as now. A large share of meat matter (`meatAssimilation`, about 80%) goes in, because meat is already body. Per unit of energy, meat then brings several times more nutrient than plants: **meat is nutrient-rich**.
+3. **Dung moves nutrient around.** Each tick a little of the store (`nutrientTurnover`, about 0.2%) is lost as dung on the cell where the animal stands now. A store above its cap (`nutrientStoreCap` times its own body matter) spills over at once. Nutrient eaten on rich ground ends up where animals walk and rest, which is how real animals spread fertility. This is a natural form of the pinned S2b "soil mixing"; S2b can be decided after seeing it.
+4. **Babies are built from the parent's store, not the soil** (half from each parent in a sexual birth). A parent without enough store cannot breed until it eats more. It keeps its energy, so it can go and find food instead of standing still. Blocked births are then counted as "nutrient" rather than "soil".
+5. **Provisioning (note 6):** a parent also hands the baby a share of what is left in its store (`provisionShare`, about 25%). A well-fed parent's baby starts with a full store; a lean parent's baby starts nearly empty.
+6. **Deficiency:** an animal whose store is below `deficiencyBelow` times its body matter pays extra upkeep, rising to `deficiencyCost` (about +30%) when the store is empty. This only costs energy (on the upkeep line), it never creates any. It is the "buff or nerf from the parent's nourishment": a poorly provisioned baby is deficient until it has eaten well.
+7. **Edge cases:** photosynthesizing colony cells eat nothing, so they draw a little nutrient from the soil under them (roots); colony cells do not share stores (yet). Founders start with a store taken from the soil they are placed on, so the books stay exact.
+
+**Level 2: plants on poor soil are poor food** (recommended as the second step of O1, measured separately):
+- Today a unit of plant always holds the same matter, so poor ground simply grows fewer plants. Hunger and nutrient shortage would mostly go together, and "nutrient-starved" would rarely differ from "hungry".
+- In Level 2, each cell's plants hold a nutrient concentration that follows the soil they grew from (as with corpse toxicity, it is mixed by weight as new growth is added). Energy still comes from sunlight per unit of plant; the nutrient taken from the soil is the concentration times the growth. Plants on poor soil are then filling but poor in nutrient. An animal grazing there stays fed but becomes deficient, so it must move to rich ground or breed slowly. That is exactly the behavior the owner asked for.
+- The cost: plant growth no longer uses up soil one-for-one in this mode. Matter is still conserved exactly (the matter audit counts nutrient: soil, plants by concentration, stores, bodies, corpses, detritus). Energy is unchanged.
+
+**Tests:** matter and energy conservation to 1e-9 in both levels, with every corpse route (kills, starvation, meteor, fire, volcano); save and load mid-run; `nutrientMode: 0` goldens unchanged; deficiency and provisioning unit tests on a single patch.
+
+**Evidence plan:** the grand world with modes 0, 1 and 1+2 (6 worlds each, 100,000 ticks): births blocked against starvation, mean population, how far animals travel, soil evenness (Gini), share of meat in the diet and the number of meat eaters.
+
+**Found while measuring (not part of O1, needs a decision):** the grand world as merged, with overgrazing, fouling, erosion and the disasters switched on at close-out, holds far fewer animals than before (end populations 101 to 166 and 1 of 3 extinct, against 367 to 904 with the Phase 8e mechanics off). Switching groups off one at a time (3 worlds, 60,000 ticks, single end-of-run counts, so noisy): with disasters off the worlds survive (209 to 971); with only disasters on, seed 2 goes extinct in every variant. Recommendation: take the disasters out of `grand-world.json` for now (keep the ground damage) and look again after O1 and O2, which change the food economy anyway.
+
 ### O2. Water, moisture and climate biomes (owner's notes 3 and 10)
 - **Moisture field:** a persistent per-cell moisture from distance to water, latitude bands, season and drought. Plants need it: growth is multiplied by a moisture response. This is the foundation for biomes.
 - **Drinking (optional switch):**
