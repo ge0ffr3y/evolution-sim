@@ -182,3 +182,43 @@ It is a new mechanism, not an experiment, so I suggest it gets its own branch an
 - It also seems to replace learning: the learning gene falls by half when working memory is present.
 - **Better design to consider:** let the brain choose, each thought, how much of each cell to keep and how much to overwrite (a "write" output per cell, like the gating in real working memory), with the gene setting how many cells there are. That means another brain-layout change (four new outputs).
 - Still missing: the lifetime-learning signature (older animals never gather more than younger ones).
+
+## Step 3b result: gated working memory (built 2026-10-21)
+
+**Built (off by default; 690 tests pass):**
+- Four new brain outputs, "hold memory 1 to 4": one gate per memory cell. A gate of 0 or above (what any brain not wired to it gives) overwrites the cell, exactly as memory worked before. A gate below 0 holds, keeping up to `wmKeepMax` (now 0.99) of the old value at -1.
+- The working memory gene now sets only how many cells a brain can use (1 to 4), each costing upkeep.
+- The outputs were added after the existing ones, so no connection changed number and every saved world still loads.
+- Connection capacity rose from 704 to 768; the brain-world reference fingerprints were re-recorded; brains-off ones are unchanged.
+- New measure: `wired_gates` (connections into the gates, per gate).
+- `wm-test` and `wm-grand` above ran the first, carry-over design (commit 4b136a1). Their files now describe the gated design.
+
+**Cloud runs (`gates-test`, `gates-grand`; 8 seeds each, same arms as step 3; about 45 cents):**
+- **No effect holds up in either world.** Population, lifespan, food gathered by age, diversity, kills and memory wiring are all within the noise.
+- The working memory gene holds about level: 0.35 to 0.37 in the test world; 0.30, dipping to 0.16, back to 0.27 in the grand world (0.05 to 0.58 across seeds). About 1.6 to 1.9 cells per brain.
+- **Gate wiring is chance:** 0.20 to 0.32 connections per gate in every arm, including those where working memory is off and the gates do nothing. A new connection lands on a random output, and 4 of the 11 outputs are now gates.
+- **Memory wiring is at chance in every arm.**
+- **Step 2's main result did not replicate.** Place memory with learning wired memory at 0.116 per input in `place-grand` (against 0.035). Here the same setup gives 0.027 (against a control of 0.047). Evolution took different paths after the layout change, and the earlier result was most likely one of the few comparisons that look significant by chance among many. Any claim from this phase needs a 16-seed confirmation on fresh seeds.
+
+## Where Phase 8f stands
+
+What works:
+- reward-guided learning during life;
+- the learning senses;
+- place memory;
+- gated working memory.
+
+All are tested (determinism, exact energy books, exact save and load) and off by default. Evolution keeps all three genes at moderate levels (about 0.2 to 0.5) when they are on.
+
+What has not happened in any run:
+- a lasting, measurable advantage;
+- the lifetime-learning signature (older animals gathering more than younger ones);
+- brains using their memory reliably above chance.
+
+The place sense and the learning senses are wired above chance in most runs.
+
+The likely reasons:
+- brains stay tiny (6 to 10 working connections), because every connection costs energy and the worlds reward the cheapest body;
+- in both worlds, following the nose is nearly as good as anything memory could add.
+
+These features will only pay in a world where remembering beats sensing: food or danger that is predictable but out of sensing range, or patterns in time.
