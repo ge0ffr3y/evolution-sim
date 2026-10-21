@@ -306,6 +306,8 @@ With about 700 comparisons, a few will look important by pure chance. So every r
 
 **Recommendation:** put `nutrientMode` 2 and `mutationRateMin` 0.01 into the grand-world preset. Rare big mutations (`macroMutationProb` 0.005) are a smaller, optional addition: more species, but a slightly weaker second feeding level than the pair alone.
 
+**Owner's decision (2026-10-21):** `nutrientMode` 2, `mutationRateMin` 0.01 and `macroMutationProb` 0.005 are now in the grand-world preset. The audit experiments before this commit (stages 0, 1, 1b, 3 and 4) ran earlier versions of the preset; their `base: grand-world` means the preset as it was at their commit, which git history keeps.
+
 ### Stage 5 (optional, after stage 4): settings working together
 
 The settings that mattered most (perhaps 20 to 30) varied all at once, in random combinations spread evenly across their ranges (about 400 runs). This finds pairs that only matter together (for example camouflage and kinship, which O4 suggested compound). It is worth doing only if stages 1 to 4 leave the grand world unexplained.

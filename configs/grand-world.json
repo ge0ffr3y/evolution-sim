@@ -1,6 +1,6 @@
 {
   "name": "The grand world (everything on, extra large)",
-  "description": "Every optional feature at once in a 512 x 512 world: continents and seas, seasons with weather fronts and harsh and mild years, a slow warming and cooling of the climate over 150,000 ticks, random ice ages, droughts and meteors, wildfires, storms, floods, volcanoes, plant blights, outbreaks and good years (all at mild settings), overgrazing (softened: grazed-out ground regrows at no less than 45% of normal speed), fouled ground and erosion of bare soil, three kinds of plant, brains with memory, a sense of home (the best feeding place remembered) and chemical signals that also act on the body, fast-adapting disease that spreads (sickness doubles upkeep; immunity follows), camouflage, aging, litter size, torpor, tolerance of relatives, food sharing, luck at birth, and cells that can bond into colonies with specialized cells. Sex is a gene: harmful mutations pile up in lines that never mix (the textbook Muller's ratchet, with a 15% chance of each inherited one being repaired, so the load levels off near 14 instead of melting the world down), mate-seekers that wait too long split in two instead, any well-fed neighbor can be a mate, and the first generation has a full spread of mate-seeking. Food is 1.5 times the standard rate so populations stay big enough for mates to meet. The fat reserve is left out because it held sex back here and never evolved. Nothing here is fully tuned: watch the births-with-two-parents readout and the mate-seeking trait chart.",
+  "description": "Every optional feature at once in a 512 x 512 world: continents and seas, seasons with weather fronts and harsh and mild years, a slow warming and cooling of the climate over 150,000 ticks, random ice ages, droughts and meteors, wildfires, storms, floods, volcanoes, plant blights, outbreaks and good years (all at mild settings), overgrazing (softened: grazed-out ground regrows at no less than 45% of normal speed), fouled ground and erosion of bare soil, three kinds of plant, brains with memory, a sense of home (the best feeding place remembered) and chemical signals that also act on the body, fast-adapting disease that spreads (sickness doubles upkeep; immunity follows), camouflage, aging, litter size, torpor, tolerance of relatives, food sharing, luck at birth, and cells that can bond into colonies with specialized cells. Sex is a gene: harmful mutations pile up in lines that never mix (the textbook Muller's ratchet, with a 15% chance of each inherited one being repaired, so the load levels off near 14 instead of melting the world down), mate-seekers that wait too long split in two instead, any well-fed neighbor can be a mate, and the first generation has a full spread of mate-seeking. Food is 1.5 times the standard rate so populations stay big enough for mates to meet. Nutrients travel through food (animals carry a nutrient store; plants on poor soil are poor food), every baby mutates at least a little (a mutation-rate floor of 0.01), and now and then a few genes jump by a lot at once (rare big mutations). Together these nearly double the species alive and give a lasting second feeding level of mixed eaters (Phase 9 audit, stages 3 and 4). The fat reserve is left out because it held sex back here and never evolved. Nothing here is fully tuned: watch the births-with-two-parents readout and the mate-seeking trait chart.",
   "config": {
     "worldWidth": 512,
     "worldHeight": 512,
@@ -72,6 +72,9 @@
     "evVolcanoEvery": 100000,
     "evBlightEvery": 50000,
     "evOutbreakEvery": 50000,
-    "evGoodYearEvery": 40000
+    "evGoodYearEvery": 40000,
+    "nutrientMode": 2,
+    "mutationRateMin": 0.01,
+    "macroMutationProb": 0.005
   }
 }
