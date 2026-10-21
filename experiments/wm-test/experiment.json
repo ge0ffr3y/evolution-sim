@@ -1,0 +1,15 @@
+{
+  "name": "wm-test",
+  "question": "In the learning test world (food that moves with the seasons, learning and place memory on), does working memory evolve (the gene rises from a low start), do brains use their memory more, and does it help? Which part matters: holding a value over time, or simply having the cells? Does it need learning?",
+  "base": "learning-test",
+  "ticks": 200000,
+  "seeds": "1-8",
+  "arms": {
+    "control": {},
+    "no-wm": { "workingMemory": 0 },
+    "wm-no-learning": { "brainLearning": 0 },
+    "cells-only": { "wmKeepMax": 0 },
+    "free-wm": { "wmCostCoeff": 0 }
+  },
+  "measures": ["all"]
+}

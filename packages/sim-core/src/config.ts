@@ -1122,6 +1122,22 @@ export interface SimConfig {
   /** The first generation's place memory gene. */
   initialPlaceMemory: number;
 
+  // --- Working memory (Phase 8f, off by default; needs brains with memory) ---
+  /**
+   * 0 = off: with brainMemory, every brain has all four memory cells for free, and each thought
+   * overwrites them. 1 = on: the working memory gene sets how many cells a brain can use (any gene
+   * above 0 gives one, a gene of 1 gives all four; the rest read 0) and how much of a cell's old
+   * value carries over (the gene x wmKeepMax; the rest is what the brain writes now), so a value
+   * can be held in mind for a while. Each usable cell costs upkeep.
+   */
+  workingMemory: number;
+  /** At a working memory gene of 1, a memory cell keeps this share of its old value each thought. */
+  wmKeepMax: number;
+  /** Upkeep per usable memory cell, per tick (on the brain line). */
+  wmCostCoeff: number;
+  /** The first generation's working memory gene. */
+  initialWorkingMemory: number;
+
   // --- Sprinting and stamina (only with brains) ---
   /**
    * 0 = off: brains can run flat out for as long as they like (paying the energy), and the
@@ -1629,6 +1645,10 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   placeRange: 64,
   placeCostCoeff: 0.0005,
   initialPlaceMemory: 0,
+  workingMemory: 0,
+  wmKeepMax: 0.95,
+  wmCostCoeff: 0.0003,
+  initialWorkingMemory: 0,
   sprintFatigue: 0,
   staminaRegen: 0.1,
   staminaRestBonus: 1,
@@ -2016,6 +2036,11 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (c.placeMinMeal < 0 || c.placeMergeRadius < 0 || c.placeCostCoeff < 0) problems.push("placeMinMeal, placeMergeRadius and placeCostCoeff cannot be negative");
   if (c.placeRange <= 0) problems.push("placeRange must be positive");
   if (c.initialPlaceMemory < 0 || c.initialPlaceMemory > 1) problems.push("initialPlaceMemory must be between 0 and 1");
+  if (![0, 1].includes(c.workingMemory)) problems.push("workingMemory must be 0 or 1");
+  if (c.workingMemory === 1 && (c.brainMode === 0 || c.brainMemory !== 1)) problems.push("workingMemory needs brains with memory (brainMode 1 or 2, brainMemory 1)");
+  if (c.wmKeepMax < 0 || c.wmKeepMax >= 1) problems.push("wmKeepMax must be at least 0 and below 1");
+  if (c.wmCostCoeff < 0) problems.push("wmCostCoeff cannot be negative");
+  if (c.initialWorkingMemory < 0 || c.initialWorkingMemory > 1) problems.push("initialWorkingMemory must be between 0 and 1");
   if (![0, 1].includes(c.sprintFatigue)) problems.push("sprintFatigue must be 0 or 1");
   if (c.staminaMin < 0) problems.push("staminaMin cannot be negative");
   if (c.staminaRegen < 0 || c.staminaRestBonus < 0 || c.staminaCostCoeff < 0) problems.push("stamina regen, rest bonus and cost cannot be negative");

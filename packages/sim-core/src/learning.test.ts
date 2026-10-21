@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Simulation } from "./simulation";
 import { snapshotFromBytes, snapshotToBytes } from "./snapshot";
 import { GENE, GENE_COUNT } from "./genome";
-import { HIDDEN_MAX, INPUT, INPUT_COUNT, LEARN_SLOTS, OUTPUT, OUTPUT_COUNT, OUTPUT_START, applyLearning, evaluateBrain, learnedWeights, updateTraces } from "./brain";
+import { HIDDEN_MAX, INPUT, INPUT_COUNT, LEARN_SLOTS, OUTPUT, OUTPUT_COUNT, OUTPUT_START, applyLearning, carryMemory, evaluateBrain, learnedWeights, updateTraces } from "./brain";
 import type { SimConfig } from "./config";
 
 /** A small brainy world with learning and its senses on, seasons for the time-of-year sense, and a starting spread of the learning gene. */
@@ -21,9 +21,12 @@ const learners: Partial<SimConfig> = {
   learnRateMax: 0.2,
   placeMemory: 1,
   initialPlaceMemory: 0.3,
+  brainMemory: 1,
+  workingMemory: 1,
+  initialWorkingMemory: 0.3,
 };
 
-type Inside = { learnDelta: Float32Array; learnTrace: Float32Array; learnPrevE: Float64Array; brainCost: Float32Array; age: Uint32Array; traceInputs: Float64Array; placeVal: Float32Array; placeSlots: Uint8Array; placeX: Float32Array };
+type Inside = { memState: Float32Array; wmCells: Uint8Array; learnDelta: Float32Array; learnTrace: Float32Array; learnPrevE: Float64Array; brainCost: Float32Array; age: Uint32Array; traceInputs: Float64Array; placeVal: Float32Array; placeSlots: Uint8Array; placeX: Float32Array };
 const inside = (sim: Simulation): Inside => sim as unknown as Inside;
 
 describe("the learning rule (pure functions)", () => {
@@ -91,6 +94,18 @@ describe("the learning rule (pure functions)", () => {
     }
     expect(weight[0]! + delta[0]!).toBeGreaterThan(0.5); // it now turns with the cue
     expect(rightLate).toBe(100);
+  });
+});
+
+describe("working memory (pure function)", () => {
+  it("usable cells keep part of their old value and blend in the new one; the rest are cleared", () => {
+    const memory = Float32Array.from([1, 1, 1, 1]);
+    const outputs = new Float64Array(OUTPUT_COUNT);
+    for (let k = 0; k < 4; k++) outputs[OUTPUT.memory0 + k] = -1;
+    carryMemory(memory, 0, outputs, 2, 0.75);
+    expect([...memory]).toEqual([0.5, 0.5, 0, 0]); // 0.75 x 1 + 0.25 x -1
+    carryMemory(memory, 0, outputs, 4, 0);
+    expect([...memory]).toEqual([-1, -1, -1, -1]); // keep 0: plain overwrite, as without working memory
   });
 });
 
@@ -242,10 +257,27 @@ describe("learning in a world", () => {
     for (let i = 0; i < sim.count; i++) expect(s.brainCost[i]!).toBeGreaterThanOrEqual(0.01 * s.placeSlots[i]! + sim.config.brainBaseCost - 1e-7);
   }, 60_000);
 
+  it("working memory: the gene sets how many cells a brain can use, the rest stay at 0, and each cell costs upkeep", () => {
+    const sim = new Simulation(8, { ...learners, wmCostCoeff: 0.01 });
+    sim.run(800);
+    const s = inside(sim);
+    let partial = 0;
+    for (let i = 0; i < sim.count; i++) {
+      const gene = sim.genes[i * GENE_COUNT + GENE.workingMemory]!;
+      const cells = gene > 0 ? Math.min(4, Math.ceil(gene * 4)) : 0;
+      expect(s.wmCells[i]).toBe(cells);
+      for (let k = cells; k < 4; k++) expect(s.memState[i * 4 + k]).toBe(0);
+      if (cells < 4) partial++;
+      expect(s.brainCost[i]!).toBeGreaterThanOrEqual(0.01 * cells + sim.config.brainBaseCost - 1e-7);
+    }
+    expect(partial).toBeGreaterThan(0);
+  }, 60_000);
+
   it("with learning off, nothing is kept for it", () => {
-    const sim = new Simulation(8, { ...learners, brainLearning: 0, learnSenses: 0, placeMemory: 0 });
+    const sim = new Simulation(8, { ...learners, brainLearning: 0, learnSenses: 0, placeMemory: 0, workingMemory: 0 });
     expect(inside(sim).learnDelta.length).toBe(0);
     expect(inside(sim).learnPrevE.length).toBe(0);
     expect(inside(sim).placeVal.length).toBe(0);
+    expect(inside(sim).wmCells.length).toBe(0);
   });
 });

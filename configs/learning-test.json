@@ -1,6 +1,6 @@
 {
   "name": "Learning test (food that moves with the seasons)",
-  "description": "A small world for testing learning brains. Three kinds of plant grow in separate patches, and each peaks at a different time of year, so the best place to eat keeps moving in a fixed yearly pattern. Brains can learn during their lives (the learning gene, which starts low and varies), sense the time of year, how their energy just changed and what they did last, and remember up to four good feeding places (the place memory gene, which also starts low and varies), with a sense pointing to the best one elsewhere. An animal that learns where and when food is should do better than one that only follows its nose. Watch the learning gene chart and the brain viewer.",
+  "description": "A small world for testing learning brains. Three kinds of plant grow in separate patches, and each peaks at a different time of year, so the best place to eat keeps moving in a fixed yearly pattern. Brains can learn during their lives (the learning gene, which starts low and varies), sense the time of year, how their energy just changed and what they did last, and remember up to four good feeding places (the place memory gene, which also starts low and varies), with a sense pointing to the best one elsewhere, and hold things in mind for a while (the working memory gene: how many memory cells a brain can use and how long it keeps what it wrote). An animal that learns where and when food is should do better than one that only follows its nose. Watch the learning gene chart and the brain viewer.",
   "config": {
     "worldWidth": 256,
     "worldHeight": 256,
@@ -21,6 +21,8 @@
     "initialLearning": 0.1,
     "founderSpread": 0.5,
     "placeMemory": 1,
-    "initialPlaceMemory": 0.1
+    "initialPlaceMemory": 0.1,
+    "workingMemory": 1,
+    "initialWorkingMemory": 0.1
   }
 }

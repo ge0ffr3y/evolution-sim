@@ -26,6 +26,7 @@ export {
   MEMORY_COUNT,
   LEARN_SLOTS,
   applyLearning,
+  carryMemory,
   learnedWeights,
   updateTraces,
   OUTPUT_LABELS,

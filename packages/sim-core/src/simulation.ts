@@ -29,6 +29,7 @@ import {
   MEMORY_COUNT,
   LEARN_SLOTS,
   applyLearning,
+  carryMemory,
   learnedWeights,
   updateTraces,
   OUTPUT_START,
@@ -620,6 +621,9 @@ export class Simulation {
   private readonly placeY: Float32Array;
   private readonly placeVal: Float32Array;
   private readonly placeSlots: Uint8Array;
+  /** Working memory (Phase 8f): how many memory cells each brain can use (from its gene, cached at birth). */
+  private readonly wmOn: boolean;
+  private readonly wmCells: Uint8Array;
   /** Scratch: the weights a learning brain thinks with (inherited plus learned). */
   private readonly learnWeights = new Float32Array(CONN_MAX);
   /** Chemical signals: four per organism (reward, stress, bond, calm), plus what has happened to the organism since it last thought. */
@@ -1053,6 +1057,7 @@ export class Simulation {
         (k === GENE.signal && c.signaling === 1 && c.multicellular === 1 && c.brainMode > 0) ||
         (k === GENE.learning && c.brainLearning === 1 && c.brainMode > 0) ||
         (k === GENE.placeMemory && c.placeMemory === 1 && c.brainMode > 0) ||
+        (k === GENE.workingMemory && c.workingMemory === 1 && c.brainMemory === 1 && c.brainMode > 0) ||
         ((k === GENE.stressResponse || k === GENE.calmResponse) && c.brainMode > 0 && c.chemicals === 1 && c.chemBodyEffects === 1),
     );
     this.kinLimitSq = c.kinDistance * c.kinDistance;
@@ -1127,6 +1132,8 @@ export class Simulation {
     this.placeY = new Float32Array(this.placeOn ? n * PLACE_SLOTS : 0);
     this.placeVal = new Float32Array(this.placeOn ? n * PLACE_SLOTS : 0);
     this.placeSlots = new Uint8Array(this.placeOn ? n : 0);
+    this.wmOn = this.memoryOn && c.workingMemory === 1;
+    this.wmCells = new Uint8Array(this.wmOn ? n : 0);
     this.chemOn = c.brainMode > 0 && c.chemicals === 1;
     this.bodyChemOn = this.chemOn && c.chemBodyEffects === 1;
     this.chem = new Float32Array(this.chemOn ? n * 4 : 0);
@@ -1161,7 +1168,7 @@ export class Simulation {
     }
     this.species = new Uint32Array(c.speciesEvery > 0 ? n : 0);
     // Species, like compatibility, ignore tolerance of relatives: it is a behavior setting, not a kind of body.
-    const speciesGenes = this.activeGene.map((on, k) => on && k !== GENE.tolerance && k !== GENE.sex && k !== GENE.stressResponse && k !== GENE.calmResponse && k !== GENE.generosity && k !== GENE.signal && k !== GENE.learning && k !== GENE.placeMemory);
+    const speciesGenes = this.activeGene.map((on, k) => on && k !== GENE.tolerance && k !== GENE.sex && k !== GENE.stressResponse && k !== GENE.calmResponse && k !== GENE.generosity && k !== GENE.signal && k !== GENE.learning && k !== GENE.placeMemory && k !== GENE.workingMemory);
     this.tracker = c.speciesEvery > 0 ? new SpeciesTracker(c, this.ranges, speciesGenes) : null;
     const staminaOrganisms = this.staminaOn ? n : 0;
     this.stamina = new Float32Array(staminaOrganisms);
@@ -1251,6 +1258,7 @@ export class Simulation {
     founder[GENE.signal] = c.initialSignal;
     founder[GENE.learning] = c.initialLearning;
     founder[GENE.placeMemory] = c.initialPlaceMemory;
+    founder[GENE.workingMemory] = c.initialWorkingMemory;
     founder[GENE.generosity] = c.initialShare;
     for (let i = 0; i < c.initialOrganisms; i++) {
       let fx = this.rng.range(0, c.worldWidth);
@@ -1266,7 +1274,7 @@ export class Simulation {
       if (c.founderSpread > 0 || c.sexFounderSpread > 0) {
         // Standing variety: the newer genes that are switched on start a random amount above their starting value.
         // (The mate-seeking gene can have its own amount, sexFounderSpread; -1 means it follows founderSpread.)
-        for (const gene of [GENE.tolerance, GENE.sex, GENE.fat, GENE.torpor, GENE.palate, GENE.stressResponse, GENE.calmResponse, GENE.generosity, GENE.toxicity, GENE.signal, GENE.learning, GENE.placeMemory]) {
+        for (const gene of [GENE.tolerance, GENE.sex, GENE.fat, GENE.torpor, GENE.palate, GENE.stressResponse, GENE.calmResponse, GENE.generosity, GENE.toxicity, GENE.signal, GENE.learning, GENE.placeMemory, GENE.workingMemory]) {
           const spread = gene === GENE.sex && c.sexFounderSpread >= 0 ? c.sexFounderSpread : c.founderSpread;
           if (this.activeGene[gene] && spread > 0) this.genes[index * GENE_COUNT + gene] = clamp01(this.genes[index * GENE_COUNT + gene]! + spread * this.rng.next());
         }
@@ -2644,6 +2652,12 @@ export class Simulation {
     return gene > 0 ? Math.min(this.config.placeSlotsMax, Math.ceil(gene * this.config.placeSlotsMax)) : 0;
   }
 
+  /** With working memory: how many memory cells organism i's brain can use (any gene above 0 gives one, a gene of 1 all four). */
+  private memoryCells(i: number): number {
+    const gene = this.genes[i * GENE_COUNT + GENE.workingMemory]!;
+    return gene > 0 ? Math.min(MEMORY_COUNT, Math.ceil(gene * MEMORY_COUNT)) : 0;
+  }
+
   /** Squared distance between two points in the wrapped world. */
   private wrappedDistSq(ax: number, ay: number, bx: number, by: number): number {
     const W = this.config.worldWidth;
@@ -2722,8 +2736,10 @@ export class Simulation {
       c.brainCostPerConnection * size.connections +
       (readsChem && this.chemOn ? c.chemicalsCost : 0) +
       (this.learnOn ? c.learnCostCoeff * this.genes[i * GENE_COUNT + GENE.learning]! : 0) + // the learning machinery
-      (this.placeOn ? c.placeCostCoeff * this.placeCapacity(i) : 0); // room to remember places
+      (this.placeOn ? c.placeCostCoeff * this.placeCapacity(i) : 0) + // room to remember places
+      (this.wmOn ? c.wmCostCoeff * this.memoryCells(i) : 0); // memory cells it can use
     if (this.placeOn) this.placeSlots[i] = this.placeCapacity(i);
+    if (this.wmOn) this.wmCells[i] = this.memoryCells(i);
   }
 
   /** Which kind of plant grows in each cell (empty when there is only one kind). Fixed for the whole run. */
@@ -3122,6 +3138,7 @@ export class Simulation {
     }
     // Memory: what the brain wrote to its memory cells last time it thought.
     if (this.memoryOn) {
+      // (With working memory, cells beyond the brain's capacity are kept at 0.)
       for (let k = 0; k < MEMORY_COUNT; k++) inputs[INPUT.memory0 + k] = this.memState[i * MEMORY_COUNT + k]!;
     }
 
@@ -3242,7 +3259,10 @@ export class Simulation {
     this.outTurn[i] = outputs[OUTPUT.turn]!;
     this.outSpeed[i] = outputs[OUTPUT.speed]!;
     this.outAttack[i] = outputs[OUTPUT.attack]!;
-    if (this.memoryOn) {
+    if (this.wmOn) {
+      // Working memory: usable cells keep part of their old value and blend in the new one.
+      carryMemory(this.memState, i * MEMORY_COUNT, outputs, this.wmCells[i]!, c.wmKeepMax * this.genes[i * GENE_COUNT + GENE.workingMemory]!);
+    } else if (this.memoryOn) {
       for (let k = 0; k < MEMORY_COUNT; k++) this.memState[i * MEMORY_COUNT + k] = outputs[OUTPUT.memory0 + k]!;
     }
 
@@ -4955,6 +4975,7 @@ export class Simulation {
         this.placeVal.copyWithin(to * PLACE_SLOTS, from * PLACE_SLOTS, (from + 1) * PLACE_SLOTS);
         this.placeSlots[to] = this.placeSlots[from]!;
       }
+      if (this.wmOn) this.wmCells[to] = this.wmCells[from]!;
     }
   }
 
@@ -5001,6 +5022,7 @@ export class Simulation {
       organism("placeVal", this.placeVal, PLACE_SLOTS);
       organism("placeSlots", this.placeSlots);
     }
+    if (this.wmOn) organism("wmCells", this.wmCells);
     if (this.chemOn) organism("chem", this.chem, 4);
     // The land and the scent trails, in full.
     for (const [name, array] of this.landArrays()) arrays[name] = array.slice();
@@ -5171,6 +5193,7 @@ export class Simulation {
       take("placeVal", this.placeVal);
       take("placeSlots", this.placeSlots);
     }
+    if (this.wmOn) take("wmCells", this.wmCells);
     if (this.chemOn) take("chem", this.chem);
     // (Fire scars came a little after fires did; a world saved in between simply has none.)
     for (const [name, array] of this.landArrays()) if (name !== "fireScar" || snapshot.arrays[name]) take(name, array);
@@ -5257,6 +5280,7 @@ export class Simulation {
       case "signal":
       case "learning":
       case "placeMemory":
+      case "workingMemory":
         return this.genes[i * GENE_COUNT + GENE[name]]!;
       case "lifespan": {
         const range = this.ranges.lifespan;

@@ -321,6 +321,16 @@ export function updateTraces(from: Uint8Array, to: Uint8Array, base: number, cou
   }
 }
 
+/**
+ * Working memory (Phase 8f): after a thought, each usable memory cell keeps `keep` of its old value
+ * and takes the rest from what the brain writes now. Cells the brain cannot use are cleared.
+ */
+export function carryMemory(memory: Float32Array, at: number, outputs: Float64Array, cells: number, keep: number): void {
+  for (let k = 0; k < MEMORY_COUNT; k++) {
+    memory[at + k] = k < cells ? keep * memory[at + k]! + (1 - keep) * outputs[OUTPUT.memory0 + k]! : 0;
+  }
+}
+
 export interface BrainSize {
   /** Hidden units that have something coming in and something going out. */
   hidden: number;

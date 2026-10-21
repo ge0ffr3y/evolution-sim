@@ -45,6 +45,7 @@ type Internals = {
   learnDelta: Float32Array;
   placeVal: Float32Array;
   placeSlots: Uint8Array;
+  wmCells: Uint8Array;
   plantTaken: Float32Array | Float64Array;
   meatTaken: Float32Array | Float64Array;
 };
@@ -537,12 +538,13 @@ export const MEASURES: Record<string, Measure> = {
         intakeOld: rate(2),
         placeCapacity: sim.count ? round(capacity / sim.count, 3) : 0,
         placesFilled: sim.count ? round(filled / sim.count, 3) : 0,
+        memoryCells: s.wmCells.length && sim.count ? round(s.wmCells.reduce((a, b) => a + b, 0) / sim.count, 3) : NaN,
       };
     },
     summarize: (rows) => {
       const young = lateMean(rows, "intakeYoung");
       const old = lateMean(rows, "intakeOld");
-      return { placeCapacityLate: lateMean(rows, "placeCapacity"), placesFilledLate: lateMean(rows, "placesFilled"), learnedChangeLate: lateMean(rows, "learnedChange"), intakeYoungLate: young, intakeMiddleLate: lateMean(rows, "intakeMiddle"), intakeOldLate: old, intakeOldOverYoungLate: young && old !== null ? round(old / young, 4) : null };
+      return { memoryCellsLate: lateMean(rows, "memoryCells"), placeCapacityLate: lateMean(rows, "placeCapacity"), placesFilledLate: lateMean(rows, "placesFilled"), learnedChangeLate: lateMean(rows, "learnedChange"), intakeYoungLate: young, intakeMiddleLate: lateMean(rows, "intakeMiddle"), intakeOldLate: old, intakeOldOverYoungLate: young && old !== null ? round(old / young, 4) : null };
     },
   },
 

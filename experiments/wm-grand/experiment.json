@@ -1,0 +1,13 @@
+{
+  "name": "wm-grand",
+  "question": "In the grand world, on top of place memory and learning (the first setup in which brains used their memory above chance), does working memory evolve, raise memory use, and help (population, lifespan, food gathered by age, diversity)?",
+  "base": "grand-world",
+  "ticks": 300000,
+  "seeds": "1-8",
+  "arms": {
+    "control": {},
+    "place-learning": { "placeMemory": 1, "brainLearning": 1, "learnSenses": 1 },
+    "place-learning-wm": { "placeMemory": 1, "brainLearning": 1, "learnSenses": 1, "workingMemory": 1 }
+  },
+  "measures": ["all"]
+}
