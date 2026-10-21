@@ -68,3 +68,21 @@ The audited grand world (Phase 9 audit, devlog 16), 16 fresh seeds per setup. Ea
 - **Disease supports mixed eaters.** Without disease there are 70% fewer mixed eaters, and a third less meat and fewer kills. One likely reason, not yet tested: animals weakened or killed by disease leave carcasses, so eating some meat pays.
 - **Disease lowers sex,** against the Red Queen idea that parasites favour it: two-parent births are 43% without disease and 33% with it. Its other costs are real too: lives a third shorter and a population a sixth smaller.
 - **The wider disease** is not worse than today's. Its population is even slightly larger, and none of its differences from today's disease are large.
+
+## 4. Do geographic barriers produce more species? (first attempt: inconclusive)
+
+**Experiment:** `headline-barriers`, 500,000 ticks, seeds 701 to 716. Seas covering 10%, 25% (today's) and 40% of the map. About 73 minutes in the cloud, about 78 cents.
+
+**Result: this did not test barriers. More sea did not split the land.** In every world, at every sea level, a single land mass held the animals (1.0 to 1.06 land masses with 10 or more animals, on average). The seas form lakes and bays, not separate continents. So the experiment changed how much land there is, not whether populations are isolated:
+
+| | 25% sea (today) | 10% sea | 40% sea |
+|---|---|---|---|
+| Population | 825 | **+30%*** | **-24%*** |
+| Species alive | 4.8 | 4.7 | 5.0 |
+| Species ever | 28 | 24 | 28 |
+| Shannon diversity | 1.18 | 1.16 | 1.17 |
+| Share in the biggest species | 49% | 48% | 51% |
+
+(* holds up)
+
+**Proposed follow-up:** add two straight water channels that cut the world into two halves that cannot reach each other (`terrainBarrierWidth` 2, as in the Two continents preset), against the same world without them. About 32 runs of 500,000 ticks, about 50 cents. The land-mass measure then shows how far the two halves drift apart.
