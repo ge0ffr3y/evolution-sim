@@ -98,14 +98,19 @@ describe("the learning rule (pure functions)", () => {
 });
 
 describe("working memory (pure function)", () => {
-  it("usable cells keep part of their old value and blend in the new one; the rest are cleared", () => {
+  it("each usable cell is overwritten or held as its gate says; the rest are cleared", () => {
     const memory = Float32Array.from([1, 1, 1, 1]);
     const outputs = new Float64Array(OUTPUT_COUNT);
-    for (let k = 0; k < 4; k++) outputs[OUTPUT.memory0 + k] = -1;
-    carryMemory(memory, 0, outputs, 2, 0.75);
-    expect([...memory]).toEqual([0.5, 0.5, 0, 0]); // 0.75 x 1 + 0.25 x -1
-    carryMemory(memory, 0, outputs, 4, 0);
-    expect([...memory]).toEqual([-1, -1, -1, -1]); // keep 0: plain overwrite, as without working memory
+    for (let k = 0; k < 4; k++) outputs[OUTPUT.memory0 + k] = -1; // what the brain writes now
+    outputs[OUTPUT.gate0] = 0; // gate 0: overwrite (as every brain did before gates)
+    outputs[OUTPUT.gate1] = -1; // fully at hold: keep keepMax of the old value
+    outputs[OUTPUT.gate2] = -0.5; // half hold (but this cell is beyond the brain's capacity)
+    carryMemory(memory, 0, outputs, 2, 0.8);
+    expect([...memory].map((v) => +v.toFixed(5))).toEqual([-1, 0.6, 0, 0]); // 0.8 x 1 + 0.2 x -1 = 0.6
+    outputs[OUTPUT.gate0] = 0.7; // above 0 also overwrites
+    outputs[OUTPUT.gate1] = -0.5; // keep 0.4 of 0.6, add 0.6 of -1
+    carryMemory(memory, 0, outputs, 4, 0.8);
+    expect([...memory].map((v) => +v.toFixed(5))).toEqual([-1, -0.36, -0.6, -1]);
   });
 });
 

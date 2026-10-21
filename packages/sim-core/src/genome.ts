@@ -108,7 +108,7 @@ export function traitRanges(c: SimConfig): Record<GeneName, TraitRange> {
     learning: { min: 0, max: 1 },
     // How many good feeding places it can remember (0 up to placeSlotsMax): plain 0 to 1.
     placeMemory: { min: 0, max: 1 },
-    // How much its brain can hold in mind: how many memory cells it can use, and how much of each carries over: plain 0 to 1.
+    // How much its brain can hold in mind: how many memory cells it can use (the brain decides what to hold): plain 0 to 1.
     workingMemory: { min: 0, max: 1 },
   };
 }

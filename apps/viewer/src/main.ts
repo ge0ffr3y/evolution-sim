@@ -281,7 +281,7 @@ const GENE_LABELS: Record<GeneName, string> = {
   signal: "Signaling (shares what it senses with bonded cells)",
   learning: "Learning (how fast its brain changes with experience during its life)",
   placeMemory: "Place memory (how many good feeding places it can remember)",
-  workingMemory: "Working memory (how many memory cells it can use, and how long it holds what it wrote)",
+  workingMemory: "Working memory (how many memory cells it can use; the brain decides what to hold)",
 };
 
 function traitText(gene: GeneName, value: number): string {

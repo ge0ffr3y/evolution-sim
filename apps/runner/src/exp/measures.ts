@@ -1,4 +1,4 @@
-import { GENE, GENE_COUNT, GENES, INPUT, LEARN_SLOTS, type CostBreakdown, type Simulation, type SimStats } from "@evo/sim-core";
+import { GENE, GENE_COUNT, GENES, INPUT, LEARN_SLOTS, OUTPUT, OUTPUT_START, type CostBreakdown, type Simulation, type SimStats } from "@evo/sim-core";
 
 /**
  * Things an experiment can record. Each measure only READS the world (a test checks that recording
@@ -549,7 +549,7 @@ export const MEASURES: Record<string, Measure> = {
   },
 
   brainUse: {
-    describe: "how often evolved brains are wired to memory, home and the learning senses, against inputs that are always 0 in this world (the baseline for wiring by chance): working connections per input",
+    describe: "how often evolved brains are wired to memory, home and the learning senses, against inputs that are always 0 in this world (the baseline for wiring by chance): working connections per input; and connections into working memory's hold gates, per gate",
     sample: ({ sim }) => {
       const c = sim.config;
       const groups: Record<string, number[]> = {
@@ -568,16 +568,23 @@ export const MEASURES: Record<string, Measure> = {
       const out: Row = {};
       if (c.brainMode === 0 || sim.count === 0) return out;
       const counts: Record<string, number> = {};
+      // Working memory's hold gates (outputs): connections into them, per brain and per gate.
+      const gates = [OUTPUT.gate0, OUTPUT.gate1, OUTPUT.gate2, OUTPUT.gate3].map((o) => OUTPUT_START + o);
+      let intoGates = 0;
       for (let i = 0; i < sim.count; i++) {
         const links = sim.describe(i).brain?.links ?? [];
-        for (const l of links) for (const [g, ins] of Object.entries(groups)) if (ins.includes(l.from)) counts[g] = (counts[g] ?? 0) + 1;
+        for (const l of links) {
+          for (const [g, ins] of Object.entries(groups)) if (ins.includes(l.from)) counts[g] = (counts[g] ?? 0) + 1;
+          if (gates.includes(l.to)) intoGates++;
+        }
       }
       for (const [g, ins] of Object.entries(groups)) out[`wired_${g}`] = ins.length ? round((counts[g] ?? 0) / sim.count / ins.length, 4) : NaN;
+      out.wired_gates = round(intoGates / sim.count / gates.length, 4);
       return out;
     },
     summarize: (rows) => {
       const out: Record<string, number | null> = {};
-      for (const g of ["memory", "home", "learnSenses", "place", "baseline"]) out[`wired_${g}_late`] = lateMean(rows, `wired_${g}`);
+      for (const g of ["memory", "home", "learnSenses", "place", "baseline", "gates"]) out[`wired_${g}_late`] = lateMean(rows, `wired_${g}`);
       return out;
     },
   },

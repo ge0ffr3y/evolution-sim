@@ -1,0 +1,15 @@
+{
+  "name": "gates-test",
+  "question": "With working memory redesigned so the brain decides each thought whether to hold or overwrite each memory cell (hold gates), in the learning test world: do brains wire the gates and use their memory above chance, does the working memory gene rise, and does it help? Does it need learning, and does a shorter hold change it?",
+  "base": "learning-test",
+  "ticks": 200000,
+  "seeds": "1-8",
+  "arms": {
+    "control": {},
+    "no-wm": { "workingMemory": 0 },
+    "wm-no-learning": { "brainLearning": 0 },
+    "short-hold": { "wmKeepMax": 0.9 },
+    "free-wm": { "wmCostCoeff": 0 }
+  },
+  "measures": ["all"]
+}

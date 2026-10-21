@@ -3260,8 +3260,8 @@ export class Simulation {
     this.outSpeed[i] = outputs[OUTPUT.speed]!;
     this.outAttack[i] = outputs[OUTPUT.attack]!;
     if (this.wmOn) {
-      // Working memory: usable cells keep part of their old value and blend in the new one.
-      carryMemory(this.memState, i * MEMORY_COUNT, outputs, this.wmCells[i]!, c.wmKeepMax * this.genes[i * GENE_COUNT + GENE.workingMemory]!);
+      // Working memory: the brain's hold gates decide, cell by cell, whether to overwrite or hold.
+      carryMemory(this.memState, i * MEMORY_COUNT, outputs, this.wmCells[i]!, c.wmKeepMax);
     } else if (this.memoryOn) {
       for (let k = 0; k < MEMORY_COUNT; k++) this.memState[i * MEMORY_COUNT + k] = outputs[OUTPUT.memory0 + k]!;
     }

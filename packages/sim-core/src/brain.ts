@@ -129,6 +129,7 @@ export const BRAIN_LAYOUTS: readonly { inputs: number; slots: number; insertedAt
   { inputs: VISION_INPUTS + 43, slots: 576, insertedAt: VISION_INPUTS + 30 }, // Phase 8e O1/O2: nutrient, ground, water, thirst
   { inputs: VISION_INPUTS + 49, slots: 640, insertedAt: VISION_INPUTS + 41 }, // Phase 8e O3: colony senses
   { inputs: VISION_INPUTS + 58, slots: 704, insertedAt: VISION_INPUTS + 47 }, // Phase 8f: learning senses and place memory
+  { inputs: VISION_INPUTS + 58, slots: 768, insertedAt: VISION_INPUTS + 58 }, // Phase 8f: four memory gate outputs (added after the other outputs, so no node moved)
 ];
 /** The node number in today's layout of a node saved with an older layout (identified by its input count). */
 export function renumberOldNode(node: number, savedInputs: number): number {
@@ -146,15 +147,20 @@ export const MEMORY_COUNT = 4;
 export const HIDDEN_MAX = 16;
 export const HIDDEN_START = INPUT_COUNT;
 export const OUTPUT_START = INPUT_COUNT + HIDDEN_MAX;
-export const OUTPUT = { turn: 0, speed: 1, attack: 2, memory0: 3, memory1: 4, memory2: 5, memory3: 6 } as const;
-export const OUTPUT_COUNT = 7;
+/**
+ * Outputs. gate0 to gate3 (Phase 8f working memory) say how much of each memory cell to hold
+ * instead of overwriting: 0 or above means overwrite (what every brain did before), below 0 means
+ * hold, up to wmKeepMax at -1. They come last, so adding them moved no other node.
+ */
+export const OUTPUT = { turn: 0, speed: 1, attack: 2, memory0: 3, memory1: 4, memory2: 5, memory3: 6, gate0: 7, gate1: 8, gate2: 9, gate3: 10 } as const;
+export const OUTPUT_COUNT = 11;
 export const NODE_COUNT = OUTPUT_START + OUTPUT_COUNT;
 
 /**
  * Most connections one brain can hold. A fully wired fixed-layout brain needs
- * hidden x (INPUT_COUNT + OUTPUT_COUNT) of them (680 for 8 hidden units).
+ * hidden x (INPUT_COUNT + OUTPUT_COUNT) of them (712 for 8 hidden units).
  */
-export const CONN_MAX = 704;
+export const CONN_MAX = 768;
 /**
  * Learning (Phase 8f) keeps a record of recent activity and a learned change for this many of a
  * brain's connections (its first ones). Evolved brains use 8 to 12, so this is plenty, and it keeps
@@ -236,7 +242,7 @@ export function inputLabel(index: number): string {
   return names[index] ?? `input ${index}`;
 }
 
-export const OUTPUT_LABELS = ["turn left", "speed", "attack", "write memory 1", "write memory 2", "write memory 3", "write memory 4"] as const;
+export const OUTPUT_LABELS = ["turn left", "speed", "attack", "write memory 1", "write memory 2", "write memory 3", "write memory 4", "hold memory 1", "hold memory 2", "hold memory 3", "hold memory 4"] as const;
 
 /** A smooth squashing function between -1 and 1, built from exact arithmetic only. */
 export function soft(x: number): number {
@@ -322,12 +328,20 @@ export function updateTraces(from: Uint8Array, to: Uint8Array, base: number, cou
 }
 
 /**
- * Working memory (Phase 8f): after a thought, each usable memory cell keeps `keep` of its old value
- * and takes the rest from what the brain writes now. Cells the brain cannot use are cleared.
+ * Working memory (Phase 8f): after a thought, each usable memory cell is updated as its gate says.
+ * A gate of 0 or above overwrites the cell with what the brain writes now (as every brain did before
+ * gates). A gate below 0 holds: the cell keeps -gate x keepMax of its old value and takes the rest
+ * from what is written. Cells the brain cannot use are cleared.
  */
-export function carryMemory(memory: Float32Array, at: number, outputs: Float64Array, cells: number, keep: number): void {
+export function carryMemory(memory: Float32Array, at: number, outputs: Float64Array, cells: number, keepMax: number): void {
   for (let k = 0; k < MEMORY_COUNT; k++) {
-    memory[at + k] = k < cells ? keep * memory[at + k]! + (1 - keep) * outputs[OUTPUT.memory0 + k]! : 0;
+    if (k >= cells) {
+      memory[at + k] = 0;
+      continue;
+    }
+    const gate = outputs[OUTPUT.gate0 + k]!;
+    const keep = gate < 0 ? -gate * keepMax : 0;
+    memory[at + k] = keep * memory[at + k]! + (1 - keep) * outputs[OUTPUT.memory0 + k]!;
   }
 }
 

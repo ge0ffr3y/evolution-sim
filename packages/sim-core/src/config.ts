@@ -1126,12 +1126,12 @@ export interface SimConfig {
   /**
    * 0 = off: with brainMemory, every brain has all four memory cells for free, and each thought
    * overwrites them. 1 = on: the working memory gene sets how many cells a brain can use (any gene
-   * above 0 gives one, a gene of 1 gives all four; the rest read 0) and how much of a cell's old
-   * value carries over (the gene x wmKeepMax; the rest is what the brain writes now), so a value
-   * can be held in mind for a while. Each usable cell costs upkeep.
+   * above 0 gives one, a gene of 1 gives all four; the rest read 0), each costing upkeep, and the
+   * brain decides each thought whether to overwrite a cell or hold it, with one "hold" output
+   * (gate) per cell: 0 or above overwrites, below 0 holds, keeping up to wmKeepMax of the old value.
    */
   workingMemory: number;
-  /** At a working memory gene of 1, a memory cell keeps this share of its old value each thought. */
+  /** The most of its old value a held memory cell keeps in one thought (with its gate fully at hold). */
   wmKeepMax: number;
   /** Upkeep per usable memory cell, per tick (on the brain line). */
   wmCostCoeff: number;
@@ -1646,7 +1646,7 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   placeCostCoeff: 0.0005,
   initialPlaceMemory: 0,
   workingMemory: 0,
-  wmKeepMax: 0.95,
+  wmKeepMax: 0.99,
   wmCostCoeff: 0.0003,
   initialWorkingMemory: 0,
   sprintFatigue: 0,
