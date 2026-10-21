@@ -42,3 +42,29 @@ The audited grand world (Phase 9 audit, devlog 16), 16 fresh seeds per setup. Ea
 - **Mild and moderate ice ages:** the population falls by a quarter to a half, then fully recovers. Species and diversity afterwards lean slightly higher than in worlds without an ice age, but no difference holds up with 16 seeds.
 - **A severe ice age:** 7 of 16 worlds died out within about 6,000 ticks of it striking. The survivors recovered their numbers but stayed less diverse, with about 20% fewer species.
 - This matches the audit's cold-side cliff: the grand world copes well with moderate cold, then fails sharply.
+
+## 3. Does disease stop one species taking over?
+
+**Experiment:** `headline-disease`, 300,000 ticks, seeds 801 to 816. Three setups: no disease (no outbreaks either); today's disease; a disease that infects a wider range of hosts (`diseaseWidth` 0.3 against 0.15). About 46 minutes in the cloud, about 49 cents.
+
+**Answer: no.** The biggest species holds about half of all animals with or without disease, and the number of species and diversity do not change. **But disease feeds the second feeding level, and it costs sex.**
+
+| | Today's disease | No disease | Wider disease |
+|---|---|---|---|
+| Share of animals in the biggest species | 47% | 48% | 49% |
+| Species alive | 4.6 | 4.9 | 4.5 |
+| Shannon diversity | 1.18 | 1.23 | 1.15 |
+| Mixed eaters (late in the run) | 32 | **10*** | 20 |
+| Feeding levels | 1.62 | **-20%*** | -11% |
+| Meat in the diet | 8.7% | **-30%*** | **-18%*** |
+| Kills per 1,000 ticks | 1,070 | **-35%*** | -20% |
+| Births with two parents | 33% | **43%*** | **39%*** |
+| Population | 814 | **+17%*** | **+11%*** |
+| Average age | 681 | **+39%*** | +21% |
+
+(* holds up against today's disease)
+
+- **Dominance is unaffected.** In this world, the species picture is shaped by other things: sex and mate choice (experiment 1), cold (experiment 2), plant quality (experiment 5).
+- **Disease supports mixed eaters.** Without disease there are 70% fewer mixed eaters, and a third less meat and fewer kills. One likely reason, not yet tested: animals weakened or killed by disease leave carcasses, so eating some meat pays.
+- **Disease lowers sex,** against the Red Queen idea that parasites favour it: two-parent births are 43% without disease and 33% with it. Its other costs are real too: lives a third shorter and a population a sixth smaller.
+- **The wider disease** is not worse than today's. Its population is even slightly larger, and none of its differences from today's disease are large.
