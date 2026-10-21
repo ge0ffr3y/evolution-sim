@@ -278,6 +278,35 @@ describe("learning in a world", () => {
     expect(partial).toBeGreaterThan(0);
   }, 60_000);
 
+  it("barren ground: below barrenBelow nothing holds or grows plants, so only oases have food", () => {
+    const sim = new Simulation(3, { worldWidth: 256, worldHeight: 256, initialOrganisms: 100, fertilityVariation: 0.9, fertilityScale: 4, barrenBelow: 1.5 });
+    const s = sim as unknown as { foodCapacity: Float64Array; foodRegrow: Float64Array };
+    let growing = 0;
+    for (let c = 0; c < s.foodCapacity.length; c++) {
+      const fertility = s.foodCapacity[c]! / sim.config.foodCap;
+      if (fertility > 0) {
+        growing++;
+        expect(fertility).toBeGreaterThanOrEqual(1.5);
+        expect(s.foodRegrow[c]! / sim.config.foodRegrowPerTick).toBeCloseTo(fertility, 9);
+      } else {
+        expect(s.foodRegrow[c]).toBe(0);
+        expect(sim.food[c]).toBe(0);
+      }
+    }
+    expect(growing / s.foodCapacity.length).toBeGreaterThan(0.05);
+    expect(growing / s.foodCapacity.length).toBeLessThan(0.3);
+    sim.run(500);
+    for (let c = 0; c < s.foodCapacity.length; c++) if (s.foodCapacity[c] === 0) expect(sim.food[c]).toBe(0);
+  }, 60_000);
+
+  it("the place reflex: founders turn toward the best remembered place elsewhere", () => {
+    const sim = new Simulation(8, { ...learners, placeReflex: 1 });
+    const found = sim.describe(0).brain!.links.some((l) => l.from === INPUT.placeSide && l.to === OUTPUT_START + OUTPUT.turn && l.weight > 0);
+    expect(found).toBe(true);
+    const plain = new Simulation(8, learners);
+    expect(plain.describe(0).brain!.links.some((l) => l.from === INPUT.placeSide)).toBe(false);
+  });
+
   it("with learning off, nothing is kept for it", () => {
     const sim = new Simulation(8, { ...learners, brainLearning: 0, learnSenses: 0, placeMemory: 0, workingMemory: 0 });
     expect(inside(sim).learnDelta.length).toBe(0);

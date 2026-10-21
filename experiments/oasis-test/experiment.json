@@ -1,0 +1,16 @@
+{
+  "name": "oasis-test",
+  "question": "In a world where food sits in oases far beyond sensing range and moves between them in a fixed yearly round, can learning, place memory and working memory pay off at all (bigger, longer-lived populations; more food gathered, especially by older animals; the genes rising; memory used above chance)? Does place memory need a starting reflex to get going, and does it need learning?",
+  "base": "oasis-test",
+  "ticks": 200000,
+  "seeds": "1-8",
+  "arms": {
+    "control": {},
+    "reflex": { "placeReflex": 1 },
+    "place-reflex-only": { "placeReflex": 1, "brainLearning": 0, "learnSenses": 0, "workingMemory": 0 },
+    "reflex-no-learning": { "placeReflex": 1, "brainLearning": 0 },
+    "no-place": { "placeMemory": 0 },
+    "none": { "brainLearning": 0, "learnSenses": 0, "placeMemory": 0, "workingMemory": 0 }
+  },
+  "measures": ["all"]
+}

@@ -33,6 +33,11 @@ export interface SimConfig {
   fertilityVariation: number;
   /** Size of one fertile or barren patch, in food cells. Must divide the grid evenly. */
   fertilityScale: number;
+  /**
+   * Ground less fertile than this (1 = average fertility) holds and grows no plants at all, so plants
+   * grow only in patches, oases, with barren land between them. 0 = off. Needs fertilityVariation.
+   */
+  barrenBelow: number;
 
   // --- Soil, bodies and decay (the matter loop) ---
   /** Soil nutrients in every cell at the start. Plants turn nutrients into food. */
@@ -1121,6 +1126,12 @@ export interface SimConfig {
   placeCostCoeff: number;
   /** The first generation's place memory gene. */
   initialPlaceMemory: number;
+  /**
+   * 0 = off, 1 = founders start with a place reflex: turn toward the best remembered place elsewhere
+   * (like brainFounderReflex does for smell). Evolution can keep, change or lose it. Without it, the
+   * place sense only helps once a brain happens to wire it to steering.
+   */
+  placeReflex: number;
 
   // --- Working memory (Phase 8f, off by default; needs brains with memory) ---
   /**
@@ -1192,6 +1203,7 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   initialFoodFraction: 1,
   fertilityVariation: 0.9,
   fertilityScale: 8,
+  barrenBelow: 0,
 
   initialNutrientPerCell: 30,
   nutrientHalfSaturation: 2,
@@ -1645,6 +1657,7 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   placeRange: 64,
   placeCostCoeff: 0.0005,
   initialPlaceMemory: 0,
+  placeReflex: 0,
   workingMemory: 0,
   wmKeepMax: 0.99,
   wmCostCoeff: 0.0003,
@@ -2036,6 +2049,8 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (c.placeMinMeal < 0 || c.placeMergeRadius < 0 || c.placeCostCoeff < 0) problems.push("placeMinMeal, placeMergeRadius and placeCostCoeff cannot be negative");
   if (c.placeRange <= 0) problems.push("placeRange must be positive");
   if (c.initialPlaceMemory < 0 || c.initialPlaceMemory > 1) problems.push("initialPlaceMemory must be between 0 and 1");
+  if (![0, 1].includes(c.placeReflex)) problems.push("placeReflex must be 0 or 1");
+  if (c.placeReflex === 1 && c.placeMemory !== 1) problems.push("placeReflex needs placeMemory 1");
   if (![0, 1].includes(c.workingMemory)) problems.push("workingMemory must be 0 or 1");
   if (c.workingMemory === 1 && (c.brainMode === 0 || c.brainMemory !== 1)) problems.push("workingMemory needs brains with memory (brainMode 1 or 2, brainMemory 1)");
   if (c.wmKeepMax < 0 || c.wmKeepMax >= 1) problems.push("wmKeepMax must be at least 0 and below 1");
@@ -2063,6 +2078,8 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (c.sizeMin <= 0) problems.push("sizeMin must be positive");
   if (c.metabolismMin <= 0) problems.push("metabolismMin must be positive");
   if (c.fertilityVariation < 0 || c.fertilityVariation >= 1) problems.push("fertilityVariation must be from 0 up to (but not including) 1");
+  if (c.barrenBelow < 0 || c.barrenBelow >= 2) problems.push("barrenBelow must be from 0 up to (but not including) 2");
+  if (c.barrenBelow > 0 && c.fertilityVariation === 0) problems.push("barrenBelow needs fertilityVariation above 0 (without it every cell is equally fertile)");
   if (c.biteSizeBlend < 0 || c.biteSizeBlend > 1) problems.push("biteSizeBlend must be between 0 and 1");
   if (c.contestStrength < 0 || c.contestStrength > 2) problems.push("contestStrength must be between 0 and 2");
   if (!Number.isInteger(c.fertilityScale) || c.fertilityScale < 1) problems.push("fertilityScale must be a whole number of cells, 1 or more");

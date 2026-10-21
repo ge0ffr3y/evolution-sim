@@ -2201,7 +2201,8 @@ export class Simulation {
         const top = lattice[ly * lw + lx]! * (1 - sx) + lattice[ly * lw + x1]! * sx;
         const bottom = lattice[y1 * lw + lx]! * (1 - sx) + lattice[y1 * lw + x1]! * sx;
         const noise = top * (1 - sy) + bottom * sy; // 0 to 1
-        const fertility = 1 + c.fertilityVariation * (2 * noise - 1);
+        let fertility = 1 + c.fertilityVariation * (2 * noise - 1);
+        if (fertility < c.barrenBelow) fertility = 0; // barren ground: no plants at all (only oases grow)
         this.foodCapacity[cy * gw + cx] = c.foodCap * fertility;
         this.foodRegrow[cy * gw + cx] = c.foodRegrowPerTick * fertility;
       }
@@ -2608,6 +2609,10 @@ export class Simulation {
     if (c.brainFounderReflex > 0) {
       // Founders start with a reflex: turn toward the side where plants are richer.
       count = setConnection(this.brainFrom, this.brainTo, this.brainWeight, base, count, INPUT.smellPlantSide, OUTPUT_START + OUTPUT.turn, FOUNDER_REFLEX_WEIGHT);
+    }
+    if (c.placeReflex === 1 && this.placeOn) {
+      // Founders also turn toward the best place they remember elsewhere (so the place sense can pay from the start).
+      count = setConnection(this.brainFrom, this.brainTo, this.brainWeight, base, count, INPUT.placeSide, OUTPUT_START + OUTPUT.turn, FOUNDER_REFLEX_WEIGHT);
     }
     if (c.brainFounderReflex > 1) {
       // And a pull toward things smaller than themselves: turn toward them, and speed up when one is dead ahead.
