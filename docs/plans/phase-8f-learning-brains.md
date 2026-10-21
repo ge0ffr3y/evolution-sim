@@ -250,3 +250,28 @@ These features will only pay in a world where remembering beats sensing: food or
 - **Knowing where to go changes the body.** In every reflex arm, size and speed come off their lower limits and armor goes to its lower limit. Costs per animal rise from 0.027 to about 0.068. Travellers evolve bigger, faster bodies.
 - Populations here are small (80 to 135) and form a single species; both extinctions were on the harshest map (seed 7), in arms without the reflex.
 - The lifetime-learning signature (older animals gathering more than younger ones) still does not appear.
+
+## The place reflex in the grand world (2026-10-21)
+
+**Cloud run:** `reflex-grand`, 4 arms × 8 seeds × 300,000 ticks, one 32-core machine, about 12 minutes, about 25 cents. The arms: the grand world as is; with place memory; with place memory and the reflex; with every ability and the reflex.
+
+- **No world died out, and no effect holds up except the wiring.** Brains steer by the place sense at 0.24 to 0.38 connections per input, against 0.02 (holds up in all three arms).
+- **The place gene is selected down when founders have the reflex** (0.30 to 0.15, on every seed). Without the reflex it holds near 0.25.
+  - In the grand world plants grow almost everywhere, so a pull toward "the best place elsewhere" mostly takes animals away from food they could smell where they are.
+  - In the oasis world, the same pull is what keeps them alive.
+- Trends, not certain with 8 seeds:
+  - with the reflex, more species (3.7 against 2.6) and Shannon diversity (1.03 against 0.80);
+  - with every ability, food gathered up about 30%, and bigger, faster bodies (size 0.41 against 0.35, speed 1.42 against 1.28), as in the oasis world;
+  - colonies up from 2% to 3.5% of cells (a red flag in the report; not followed up).
+
+## Phase 8f conclusion
+
+- **Place memory is a real advantage where food lies beyond sensing range.** In the oasis world it raises populations by about 65%, more than doubles the food gathered, and changes the bodies that evolve (bigger and faster, for travelling). It needs brains that steer by it; the founders' place reflex gets that started.
+- **In the grand world, sensing is enough:** food is everywhere, so place memory gives no measurable advantage, and with the reflex it is selected down.
+- **Lifetime learning and working memory** (both designs) are kept by evolution at moderate levels but show no advantage in any world tested. The lifetime-learning signature never appears. Brains stay tiny (5 to 10 working connections), so there is little to learn with.
+- **All Phase 8f features stay off by default and out of the grand-world preset.**
+- `learning-test` and `oasis-test` remain as test worlds for whoever picks this up again. Ideas for later:
+  - teaching;
+  - bigger or cheaper brains;
+  - worlds with predictable danger;
+  - longer runs, so evolution can wire the place sense without a reflex.
