@@ -1,4 +1,4 @@
-import { GENE, GENE_COUNT, GENES, INPUT, LEARN_SLOTS, OUTPUT, OUTPUT_START, type CostBreakdown, type Simulation, type SimStats } from "@evo/sim-core";
+import { BIOME, GENE, GENE_COUNT, GENES, INPUT, LEARN_SLOTS, OUTPUT, OUTPUT_START, type CostBreakdown, type Simulation, type SimStats } from "@evo/sim-core";
 
 /**
  * Things an experiment can record. Each measure only READS the world (a test checks that recording
@@ -95,6 +95,43 @@ function between(groups: Map<number, number[]>): number {
 
 const gene = (sim: Simulation, i: number, g: number): number => sim.genes[i * GENE_COUNT + g]!;
 
+/**
+ * Land masses: separate pieces of land (cells that are not water, joined side to side, wrapping at
+ * the edges), worked out once per world from its fixed terrain map. Without terrain, everything is
+ * one land mass. (Floods come and go and are ignored: this is the lasting geography.)
+ */
+const landMassCache = new WeakMap<Simulation, Int32Array>();
+function landMasses(sim: Simulation): Int32Array {
+  const cached = landMassCache.get(sim);
+  if (cached) return cached;
+  const s = inside(sim);
+  const gw = sim.gridWidth;
+  const cells = s.foodCapacity.length;
+  const gh = cells / gw;
+  const id = new Int32Array(cells).fill(-1);
+  const land = (c: number): boolean => s.biome.length === 0 || s.biome[c] !== BIOME.water;
+  let next = 0;
+  for (let c = 0; c < cells; c++) {
+    if (id[c] !== -1 || !land(c)) continue;
+    const stack = [c];
+    id[c] = next;
+    while (stack.length) {
+      const k = stack.pop()!;
+      const x = k % gw;
+      const y = (k - x) / gw;
+      for (const n of [y * gw + ((x + 1) % gw), y * gw + ((x + gw - 1) % gw), ((y + 1) % gh) * gw + x, ((y + gh - 1) % gh) * gw + x]) {
+        if (id[n] === -1 && land(n)) {
+          id[n] = next;
+          stack.push(n);
+        }
+      }
+    }
+    next++;
+  }
+  landMassCache.set(sim, id);
+  return id;
+}
+
 /** Late-half rate of a running total per 1,000 ticks, divided by the late-half average population. */
 const perAnimal = (rows: Row[], key: string): number | null => {
   const rate = lateRate(rows, key);
@@ -146,9 +183,13 @@ export const MEASURES: Record<string, Measure> = {
     },
     summarize: (rows) => {
       const late = lateRows(rows);
+      const firstMixed = rows.find((r) => r.mixedEaters! >= 5);
       return {
         meatEatersLate: lateMean(rows, "meatEaters"),
         shareOfTimeWith5PlusMeatEaters: late.length ? round(late.filter((r) => r.meatEaters! >= 5).length / late.length, 3) : null,
+        mixedEatersLate: lateMean(rows, "mixedEaters"),
+        shareOfTimeWith5PlusMixedEaters: late.length ? round(late.filter((r) => r.mixedEaters! >= 5).length / late.length, 3) : null,
+        firstMixedEatersAt: firstMixed ? firstMixed.tick! : null,
       };
     },
   },
@@ -587,6 +628,62 @@ export const MEASURES: Record<string, Measure> = {
       for (const g of ["memory", "home", "learnSenses", "place", "baseline", "gates"]) out[`wired_${g}_late`] = lateMean(rows, `wired_${g}`);
       return out;
     },
+  },
+
+  dominance: {
+    describe: "how much one species takes over: the share of animals in the biggest species, and how many species hold at least 10% of the animals (needs species tracking)",
+    sample: ({ sim }) => {
+      const counts = new Map<number, number>();
+      let n = 0;
+      for (let i = 0; i < sim.count; i++) {
+        const sp = sim.speciesOf(i);
+        if (sp <= 0) continue;
+        counts.set(sp, (counts.get(sp) ?? 0) + 1);
+        n++;
+      }
+      if (n === 0) return { dominance: NaN, bigSpecies: 0 };
+      let biggest = 0;
+      let big = 0;
+      for (const k of counts.values()) {
+        if (k > biggest) biggest = k;
+        if (k >= 0.1 * n) big++;
+      }
+      return { dominance: round(biggest / n, 4), bigSpecies: big };
+    },
+    summarize: (rows) => ({ dominanceLate: lateMean(rows, "dominance"), bigSpeciesLate: lateMean(rows, "bigSpecies") }),
+  },
+
+  landMasses: {
+    describe: "how different the animals on separate land masses are: the share of gene variation that lies between land masses (0 = alike, 1 = entirely different), over the land masses with at least 10 animals, and how many such land masses there are",
+    sample: ({ sim }) => {
+      const mass = landMasses(sim);
+      const cs = sim.config.foodCellSize;
+      const of = new Int32Array(sim.count);
+      const sizes = new Map<number, number>();
+      for (let i = 0; i < sim.count; i++) {
+        const m = mass[Math.floor(sim.y[i]! / cs) * sim.gridWidth + Math.floor(sim.x[i]! / cs)]!;
+        of[i] = m;
+        sizes.set(m, (sizes.get(m) ?? 0) + 1);
+      }
+      const populated = [...sizes].filter(([m, k]) => m >= 0 && k >= 10).map(([m]) => m);
+      if (populated.length < 2) return { landMassDifference: NaN, populatedLandMasses: populated.length };
+      const keep = new Set(populated);
+      const active = inside(sim).activeGene;
+      let sum = 0;
+      let genes = 0;
+      GENES.forEach((_, g) => {
+        if (!active[g] || g === GENE.hue || g === GENE.mutationRate) return;
+        const groups = new Map<number, number[]>();
+        for (let i = 0; i < sim.count; i++) if (keep.has(of[i]!)) (groups.get(of[i]!) ?? groups.set(of[i]!, []).get(of[i]!)!).push(gene(sim, i, g));
+        const b = between(groups);
+        if (!Number.isNaN(b)) {
+          sum += b;
+          genes++;
+        }
+      });
+      return { landMassDifference: genes ? round(sum / genes, 4) : NaN, populatedLandMasses: populated.length };
+    },
+    summarize: (rows) => ({ landMassDifferenceLate: lateMean(rows, "landMassDifference"), populatedLandMassesLate: lateMean(rows, "populatedLandMasses") }),
   },
 
   traits: {

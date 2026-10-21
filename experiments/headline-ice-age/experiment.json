@@ -1,0 +1,16 @@
+{
+  "name": "headline-ice-age",
+  "question": "Does an ice age raise or lower long-term diversity? One ice age strikes at tick 200,000 (at today's severity, 50% colder and twice as cold); diversity before it (ticks 100,000 to 200,000) and long after it (400,000 to 600,000) is compared with worlds that have no catastrophes at all. An answer: species alive and Shannon diversity after recovery against the control, with 95% ranges, and how many worlds survive each severity.",
+  "base": "grand-world",
+  "baseChanges": { "catastropheEvery": 0 },
+  "ticks": 600000,
+  "seeds": "501-516",
+  "sampleEvery": 2000,
+  "arms": {
+    "control": { "catastropheKind": 0 },
+    "ice-age-03": { "catastropheKind": 1, "catastropheAt": 200000, "iceAgeCooling": 0.3 },
+    "ice-age-045": { "catastropheKind": 1, "catastropheAt": 200000, "iceAgeCooling": 0.45 },
+    "ice-age-06": { "catastropheKind": 1, "catastropheAt": 200000, "iceAgeCooling": 0.6 }
+  },
+  "measures": ["all"]
+}

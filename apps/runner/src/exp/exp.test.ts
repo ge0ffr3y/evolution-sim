@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import { Simulation } from "@evo/sim-core";
 import { checkExperiment, jobsOf, type Experiment } from "./experiment";
 import { runJob, statusOf } from "./job";
-import { sampleWorld, MEASURES, lastQuarterTrend } from "./measures";
+import { sampleWorld, summarizeRun, MEASURES, lastQuarterTrend } from "./measures";
 import { draftSettings, dosesExperiment, armName } from "./audit";
 import { compare } from "./report";
 import type { JobResult } from "./job";
@@ -82,6 +82,21 @@ describe("measures", () => {
       if (t % 25 === 0) sampleWorld(watched, all);
     }
     expect(watched.fingerprint()).toBe(plain.fingerprint());
+  }, 60_000);
+
+  it("dominance and land-mass difference stay in range, and the mixed-eater timing is summarized", () => {
+    const sim = new Simulation(4, { worldWidth: 256, worldHeight: 256, initialOrganisms: 300, terrainMode: 1, terrainWaterFraction: 0.4, speciesEvery: 100 });
+    sim.run(3000);
+    const row = sampleWorld(sim, ["dominance", "landMasses", "classes"]);
+    expect(row.dominance).toBeGreaterThan(0);
+    expect(row.dominance).toBeLessThanOrEqual(1);
+    expect(row.populatedLandMasses).toBeGreaterThanOrEqual(1);
+    if (!Number.isNaN(row.landMassDifference)) {
+      expect(row.landMassDifference).toBeGreaterThanOrEqual(0);
+      expect(row.landMassDifference).toBeLessThanOrEqual(1);
+    }
+    const summary = summarizeRun([row, { ...row, tick: 3100, mixedEaters: 7 }], sim, ["classes"]);
+    expect(summary.firstMixedEatersAt).toBe(row.mixedEaters! >= 5 ? row.tick : 3100);
   }, 60_000);
 
   it("the end-of-run trend is the change over the last quarter, relative to its level", () => {
