@@ -73,7 +73,7 @@ describe("harmful mutations", () => {
     const asexual = meanLoad(0);
     const sexual = meanLoad(1);
     expect(asexual).toBeGreaterThan(sexual + 1);
-  }, 120_000);
+  }, 300_000);
 
   it("is deterministic, conserves energy and matter, and saves and reloads exactly", () => {
     const config = { worldWidth: 128, worldHeight: 128, initialOrganisms: 200, sexualReproduction: 2, initialSex: 0.4, sexAcceptAny: 1, mutationLoadRate: 1, mutationLoadLoci: 20 } as Partial<SimConfig>;

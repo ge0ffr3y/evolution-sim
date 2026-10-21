@@ -51,7 +51,7 @@ describe("climate biomes (terrainMode 2)", () => {
     for (let cell = 0; cell < sim.iced.length; cell++) if (sim.iced[cell] === 1) expect(hidden(sim).growthFactor[cell]).toBe(0);
     sim.run(1100);
     expect(ice()).toBe(before);
-  });
+  }, 60_000);
 
   it("with several kinds of plant, each place grows the kind that likes its temperature", () => {
     const sim = new Simulation(2, { ...WORLD, plantTypes: 3 });

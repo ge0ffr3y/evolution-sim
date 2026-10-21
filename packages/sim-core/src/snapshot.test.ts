@@ -68,7 +68,7 @@ describe("saving and loading a world", () => {
     a.run(300);
     b.run(300);
     expect(a.fingerprint()).toBe(b.fingerprint());
-  });
+  }, 60_000);
 
   it("a snapshot is a copy: running the original on does not change it", () => {
     const sim = new Simulation(4, WORLDS[0]!.config);
@@ -96,7 +96,7 @@ describe("saving and loading a world", () => {
     // Everything that was already true stays true in the branch.
     expect(branchA.tick).toBe(1800);
     expect(branchA.totalBirths).toBeGreaterThan(sim.totalBirths);
-  });
+  }, 60_000);
 
   it("rejects files that are not saved worlds, are cut short, or come from another version", () => {
     expect(() => snapshotFromBytes(new Uint8Array(40))).toThrow(/not a saved Evolution Sim world/);

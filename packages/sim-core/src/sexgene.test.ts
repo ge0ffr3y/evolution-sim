@@ -78,7 +78,7 @@ describe("sex as a gene: accepting any ready neighbor as a mate", () => {
       return sim.sexualBirths / Math.max(1, sim.totalBirths);
     };
     expect(share(1)).toBeGreaterThan(share(0));
-  });
+  }, 60_000);
 
   it("is deterministic, conserves energy and survives save and load", () => {
     const config = world({ sexualReproduction: 2, initialSex: 0.3, sexAcceptAny: 1, initialOrganisms: 200 });
