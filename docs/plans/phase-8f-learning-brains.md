@@ -115,3 +115,37 @@ It is a new mechanism, not an experiment, so I suggest it gets its own branch an
 - Likely reason: brains are tiny (6 to 10 connections, mostly "smell food, turn toward it"), and following the nose is good enough in both worlds. Even when food moves with the seasons, smell points straight to it. Learning only pays when the world holds information the senses do not give directly: food beyond smelling range, patterns in time, or things that must be found out by trying.
 
 **Proposed next step:** build place memory before working memory. Remembering good feeding places beyond smelling range gives memory something to hold and learning a reason to exist. Working memory alone would change little while there is nothing worth remembering.
+
+## Step 2 result: place memory (built 2026-10-21)
+
+**Built (off by default; 688 tests pass):**
+- `placeMemory` and the 30th gene, `placeMemory`: up to 4 remembered feeding places. Any gene above 0 gives at least one place; a gene of 1 gives `placeSlotsMax`.
+- How remembering works:
+  - a meal of at least `placeMinMeal` (as a share of the energy needed to breed) refreshes the remembered place it was eaten at (keeping the better value), or replaces the weakest memory;
+  - every memory fades by `placeFade` each tick (0.999: half gone in about 700 ticks).
+- The three place inputs reserved in step 1 now point to the best remembered place other than where the animal stands: ahead, to the left, and how far (scaled by `placeRange`).
+- Each place it can hold costs `placeCostCoeff` upkeep on the brain line. Memories are not inherited.
+- Remembered places are saved by name with the world, moved with the animal and cleared at birth.
+- Tests check the gene-to-places rule, the remembering rule step by step, the sense, the cost, exact save and load, and the energy books.
+- The test world preset now uses place memory (starting gene 0.1, with founder spread). The step 1 experiment file pins it off (`baseChanges`), so it still describes what ran.
+- **Reproducibility check:** the test world without place memory reproduced step 1's control exactly (population 381, average age 820, the same wiring), on a different machine, a day later.
+
+**Cloud runs (8 seeds each; about 50 cents together):**
+- `place-test`, 200,000 ticks: everything on; without place memory; place memory without learning; neither (and no learning senses); free place memory.
+- `place-grand`, 300,000 ticks: the grand world as is; with place memory; with place memory, learning and its senses.
+
+| | Test world | Grand world |
+|---|---|---|
+| Place memory gene | starts 0.36, rises to about 0.48 at tick 150,000, ends about 0.41 (0.20 to 0.77 across seeds); about 2 places held, almost all filled | starts 0.30, falls slowly to about 0.20 (0.05 to 0.57 across seeds); about 1.4 places held, almost all filled |
+| Place sense wired (per input; chance level about 0.02 to 0.05) | 0.18 to 0.22 | **0.25 with place memory alone (holds up)**; 0.10 with learning too |
+| Memory wired | 0.07 with place memory and learning, against 0.02 to 0.03 otherwise (not certain with 8 seeds) | **0.12 with place memory and learning, against 0.035 (holds up): the first time brains use their memory above chance** |
+| Diversity | species and Shannon diversity lower without learning (holds up); Shannon 0.53 with everything on, against 0.26 without place memory (not certain) | Shannon 0.77 with place memory, against 0.56 (not certain) |
+| Food gathered | no change that holds up; old animals gather less than young (0.73 to 0.82) in every arm | up 10 to 24% with place memory and learning (borderline); old animals gather less than young (0.87 to 0.92) |
+| Population, lifespan | no change that holds up | no change that holds up; more kills, more turnover (not certain) |
+
+**What it means:**
+- Place memory gives memory and learning something to work with. Brains wire to the place sense far above chance in both worlds.
+- With place memory and learning together, the grand world's brains start using their memory cells, which nothing had done before.
+- The place gene is kept in the test world, where food moves with the seasons. In the grand world it slowly declines but persists: it is worth something there, but not much more than it costs.
+- Still missing: the lifetime-learning signature. Older animals never gather more food than younger ones.
+- Diversity and food gathered lean upward, but 8 seeds cannot confirm it. A 16-seed confirmation run would settle these.
