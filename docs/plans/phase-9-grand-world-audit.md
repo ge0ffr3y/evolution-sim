@@ -220,6 +220,20 @@ Control: population 764 (638 to 874), about 2 species, plants standing at 5% of 
 4. Overgrazing halves what the world grows: leave it, or soften it?
 5. 4 seeds for stage 2 as planned (about $6, finds large effects only), or 8 (about $12)?
 
+**Owner's decisions (2026-10-20) and their check.**
+- The decisions:
+  - turn on climate drift, gently (±0.05 over 150,000 ticks);
+  - make disease able to spread (sickness costs 1× upkeep instead of 30×; strains match a wider range of hosts, 0.15);
+  - soften overgrazing slightly (`overgrazePenalty` 0.7 to 0.55: grazed-out ground regrows at no less than 45% of normal);
+  - leave disasters as they are.
+- The check: `experiments/audit-1b-preset-changes`, 5 arms × 8 seeds × 300,000 ticks, 15 minutes in the cloud, about 32 cents. Results with 95% ranges:
+  - **No world died out.** The new grand world holds **11% more animals** than the old one (878 against 792; range +7 to +166).
+  - **Disease now spreads and stays under control:** 14 to 25% sick in every world, sickness 11% of all costs, and the lowest population in each world higher than before (331 against 278).
+  - **Softer overgrazing** (against the new world with the old setting): population +25% (878 against 701), species alive 3.4 against 2.2, Shannon diversity 0.98 against 0.60, animals alive now 25% older on average (972 against 776 ticks; borderline).
+  - **Against the old world, average age is unchanged** (972 against 965): the longer life from softer grazing is roughly cancelled by the disease that now spreads.
+  - Sex is unchanged (about 14% of births with two parents).
+  - Species and diversity are up with drift and disease too, but for each alone the change is within the noise.
+
 ### Stage 2: turn every setting down and up (4 seeds x 100,000 ticks, about 640 arms)
 
 Each of the about 320 grand-world settings at half and at double (or halfway to each end), one at a time. 4 seeds is enough to spot big effects and cliffs, not small ones; anything flagged gets more seeds in stage 4. The output is a map of which settings the grand world is sensitive to, which barely matter, and where a small change causes a collapse.
