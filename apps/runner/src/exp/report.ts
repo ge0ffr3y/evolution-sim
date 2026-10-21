@@ -106,6 +106,7 @@ export function collectResults(exp: Experiment): Map<string, Map<number, JobResu
   for (const job of jobsOf(exp)) {
     const r = readResult(exp, job);
     if (!r || (r.tick < exp.ticks && r.extinctAt === null)) continue;
+    r.rows = []; // the report needs only each run's summary; dropping the rows keeps a 2,000-run experiment in memory
     if (!results.has(job.arm)) results.set(job.arm, new Map());
     results.get(job.arm)!.set(job.seed, r);
   }

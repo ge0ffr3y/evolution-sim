@@ -238,6 +238,56 @@ Control: population 764 (638 to 874), about 2 species, plants standing at 5% of 
 
 Each of the about 320 grand-world settings at half and at double (or halfway to each end), one at a time. 4 seeds is enough to spot big effects and cliffs, not small ones; anything flagged gets more seeds in stage 4. The output is a map of which settings the grand world is sensitive to, which barely matter, and where a small change causes a collapse.
 
+**Stage 2 result (2026-10-21, the updated grand world; 291 settings × down and up × 4 fresh seeds, 301 to 304; 2,280 runs of 100,000 ticks; one c8g.8xlarge, 4.55 hours, about $5.81; report in `experiments/audit-2-doses/report.md`).**
+
+With only 4 seeds, changes of 10 to 30% can be chance, so the reading below leans on changes whose 95% range excludes no change. The ranking used here is `scratchpad/sensitivity.mjs`, applied to `results/comparisons.csv`.
+
+1. **Climate is the fragile part: the only collapses.** Each of these killed worlds:
+   - halving the base temperature (0.75 to 0.375; one world died within 3,079 ticks);
+   - halving the temperature range plants tolerate (0.6 to 0.3; 2 of 4 worlds died);
+   - doubling ice-age cooling (0.3 to 0.6).
+
+   Doubling those values is harmless, so the grand world sits near a cliff on the cold side.
+2. **158 settings move something that holds up; 133 move nothing measurable.** The most influential (number of key measures changed) are:
+   - the core energy economy: energy per unit of food (11), armor's movement cost (10), weapons' limit (10), sensing cost (9);
+   - the hunting rules: reach (8), the largest prey relative to the hunter (8), the pause between kills (8), the plant eater's penalty for fighting (8);
+   - brain mutation (9);
+   - weather strength (9);
+   - terrain layout (8);
+   - plant quality (8);
+   - the energy needed to breed (8);
+   - body limits for speed and metabolism (7).
+3. **The second feeding level is tied to plant quality.** Whatever makes plants a poorer food raises meat in the diet (+200 to +330%) and feeding levels (to about 1.9), at a cost in population (-35 to -55%). That holds for plant quality, plant digestion, starting soil nutrient, the diet specialization penalty, energy per food, body nutrient, and a longer hunter reach. This is the strongest lever there is for a food web.
+4. **Weather strength sits at a peak for population:** halving and doubling it both cost about a third of the population (both hold up), while raising meat and feeding levels.
+5. **What barely matters (no change that holds up):**
+   - nearly every detail of the disaster events (fire, storm, flood, volcano, blight, outbreak and good-year sizes, lengths and frequencies);
+   - colony and cell-type details;
+   - the herd bonus;
+   - sharing;
+   - brain chemistry and home-memory details;
+   - weather drift;
+   - scent trails;
+   - the old catastrophe settings.
+
+   This matches stage 1, where those mechanisms showed no clear effect. Also the mutation-rate floor and rare big mutations, when halved or doubled around today's values: their effect is in being switched on, not in their exact size.
+6. **Settings confirmed to do nothing in this world:**
+   - `turnStd`, `steerGain` (only for worlds without brains);
+   - `brainHidden` (only for fixed-layout brains);
+   - `initialStamina`, `staminaMax` (stamina is off; the settings list should mark them idle);
+   - `maxOrganisms` (never reached).
+7. **Units quirk:**
+   - Plant food is set per food cell, not per area, so halving `foodCellSize` makes four times the cells and nearly triples the population.
+   - World size scales as expected (4 times the area, 4 times the animals).
+
+   These are not exploits, but anyone changing cell size should rescale `foodCap` and `foodRegrowPerTick`.
+
+Tooling: the comparison report ran out of memory on 2,280 runs (it loaded every run's full timeline). It now keeps only each run's summary. The first download also failed once on 1.6 GB and worked on the second try.
+
+**Open for the owner:**
+- whether to add a guard against the cold-side cliff (for example, a milder default for plant temperature tolerance);
+- whether to use plant quality as the deliberate lever for a food web;
+- a 16-seed confirmation of the shortlist (stage 4 style) before any change.
+
 ### Stage 3: candidates to join the grand world (8 seeds x 200,000 ticks, about 16 arms)
 
 Each built-but-off feature added on its own:
