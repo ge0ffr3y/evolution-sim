@@ -222,3 +222,31 @@ The likely reasons:
 - in both worlds, following the nose is nearly as good as anything memory could add.
 
 These features will only pay in a world where remembering beats sensing: food or danger that is predictable but out of sensing range, or patterns in time.
+
+## The oasis test: can these abilities pay at all? (2026-10-21)
+
+**World (`configs/oasis-test.json`):**
+- New setting `barrenBelow` (off by default): ground less fertile than this holds and grows no plants. With fertility variation 0.9, a fine fertility map (`fertilityScale` 4) and `barrenBelow` 1.5, a 256 world has 5 to 9 oases covering 12 to 16% of the ground, 30 to 100 units apart. Smell only compares the cells beside an animal (about 8 units).
+- Each oasis grows one of three kinds of plant, peaking at different times of year (growing almost nothing out of season), so food moves from oasis to oasis in a fixed yearly round. Every animal digests every kind, and the climate is even. There is no home signal.
+- Every ability is on, each gene starting at 0.1 with founder spread.
+- On the laptop, the place gene fell without help. Likely a chicken-and-egg problem: the place sense pays only once a brain steers by it, and that wiring pays only once the sense exists.
+- So a new optional setting, `placeReflex` (off by default): founders start with "turn toward the best remembered place elsewhere", like the existing smell reflex. Evolution can keep, change or lose it.
+
+**Cloud run (`oasis-test`, 6 arms × 8 seeds × 200,000 ticks, one 16-core machine, about 4 minutes, a few cents). Compared with "none" (no abilities); 95% ranges:**
+
+| Arm | Population | Food gathered, young / old | Place sense wired (chance about 0.02 to 0.07) | Place gene at the end |
+|---|---|---|---|---|
+| None | 80 | 0.036 / 0.034 | 0.02 | - |
+| Everything on, no reflex | 78 (seed 7 died out) | 0.050 / 0.046 | 0.14 (holds up) | 0.46 (up from 0.35) |
+| Everything on, with reflex | **129 (holds up)** | **0.102 / 0.087 (holds up)** | **0.33 (holds up)** | 0.35 |
+| Place memory and reflex only | **130 (holds up)** | **0.097 / 0.093 (holds up)** | **0.36 (holds up)** | 0.43 |
+| Reflex, no learning | **135 (holds up)** | **0.094 / 0.085 (holds up)** | **0.34 (holds up)** | 0.39 |
+| No place memory | 86 (seed 7 died out) | 0.041 / 0.040 | 0.05 | - |
+
+**What it means:**
+- **Place memory pays when food lies beyond sensing range, as long as brains steer by it.** With the reflex, populations are about 65% larger and animals gather 2.5 to 2.8 times as much food, on every seed. The place gene holds at 0.35 to 0.43.
+- **Evolution favours place memory even without the reflex** (the gene rises from 0.35 to 0.46, and the sense becomes wired at 7 times chance). But 200,000 ticks is not enough for that to pay off in population.
+- **Learning and working memory add nothing on top.** Place memory with the reflex alone does as well as everything together. Memory cells are wired at chance or close to it in every arm.
+- **Knowing where to go changes the body.** In every reflex arm, size and speed come off their lower limits and armor goes to its lower limit. Costs per animal rise from 0.027 to about 0.068. Travellers evolve bigger, faster bodies.
+- Populations here are small (80 to 135) and form a single species; both extinctions were on the harshest map (seed 7), in arms without the reflex.
+- The lifetime-learning signature (older animals gathering more than younger ones) still does not appear.
