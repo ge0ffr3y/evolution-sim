@@ -1070,6 +1070,35 @@ export interface SimConfig {
   speciesCrashDrop: number;
   speciesCrashWindow: number;
 
+  // --- Learning brains (Phase 8f, off by default; need brains) ---
+  /**
+   * 0 = off: a brain's wiring is fixed at birth. 1 = on: connections change during life, guided by
+   * reward. After each thought, a connection that was recently active (its two ends firing together)
+   * is strengthened when things went better than usual and weakened when they went worse, by
+   * learnRateMax x the learning gene. What is learned is not inherited, and learning costs upkeep.
+   */
+  brainLearning: number;
+  /**
+   * 0 = off, 1 = on: the senses that make learning and memory worth having. How energy changed
+   * since the last thought, how surprising that was, the time of year, and what the brain did
+   * last time. (Each reads 0 when off.)
+   */
+  learnSenses: number;
+  /** The most a connection can change per thought, at full surprise and a learning gene of 1. */
+  learnRateMax: number;
+  /** How much of a connection's record of recent activity is kept from one thought to the next (0 to 1). */
+  learnTraceDecay: number;
+  /** The most learning can add to or take from one connection's inherited strength. */
+  learnLimit: number;
+  /** How quickly the sense of "how things usually go" follows recent results (0 to 1 per thought). */
+  learnBaselineRate: number;
+  /** Upkeep for the learning machinery: this x the learning gene, per tick (on the brain line). */
+  learnCostCoeff: number;
+  /** Energy change since the last thought, as a share of the energy needed to breed, is multiplied by this to make the reward signal (then capped at -1 to 1). */
+  learnSenseScale: number;
+  /** The first generation's learning gene. */
+  initialLearning: number;
+
   // --- Sprinting and stamina (only with brains) ---
   /**
    * 0 = off: brains can run flat out for as long as they like (paying the energy), and the
@@ -1560,6 +1589,15 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   speciesSampleEvery: 500,
   speciesCrashDrop: 0.4,
   speciesCrashWindow: 2000,
+  brainLearning: 0,
+  learnSenses: 0,
+  learnRateMax: 0.1,
+  learnTraceDecay: 0.8,
+  learnLimit: 2,
+  learnBaselineRate: 0.05,
+  learnCostCoeff: 0.002,
+  learnSenseScale: 20,
+  initialLearning: 0,
   sprintFatigue: 0,
   staminaRegen: 0.1,
   staminaRestBonus: 1,
@@ -1933,6 +1971,13 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
       problems.push("speciesSampleEvery must be a multiple of speciesEvery");
     }
   }
+  if (![0, 1].includes(c.brainLearning)) problems.push("brainLearning must be 0 or 1");
+  if (![0, 1].includes(c.learnSenses)) problems.push("learnSenses must be 0 or 1");
+  if ((c.brainLearning === 1 || c.learnSenses === 1) && c.brainMode === 0) problems.push("learning and its senses need brains (set brainMode to 1 or 2)");
+  if (c.learnRateMax < 0 || c.learnLimit < 0 || c.learnCostCoeff < 0 || c.learnSenseScale < 0) problems.push("learnRateMax, learnLimit, learnCostCoeff and learnSenseScale cannot be negative");
+  if (c.learnTraceDecay < 0 || c.learnTraceDecay >= 1) problems.push("learnTraceDecay must be at least 0 and below 1");
+  if (c.learnBaselineRate <= 0 || c.learnBaselineRate > 1) problems.push("learnBaselineRate must be above 0 and at most 1");
+  if (c.initialLearning < 0 || c.initialLearning > 1) problems.push("initialLearning must be between 0 and 1");
   if (![0, 1].includes(c.sprintFatigue)) problems.push("sprintFatigue must be 0 or 1");
   if (c.staminaMin < 0) problems.push("staminaMin cannot be negative");
   if (c.staminaRegen < 0 || c.staminaRestBonus < 0 || c.staminaCostCoeff < 0) problems.push("stamina regen, rest bonus and cost cannot be negative");

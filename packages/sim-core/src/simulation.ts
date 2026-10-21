@@ -27,6 +27,10 @@ import {
   OUTPUT,
   OUTPUT_COUNT,
   MEMORY_COUNT,
+  LEARN_SLOTS,
+  applyLearning,
+  learnedWeights,
+  updateTraces,
   OUTPUT_START,
   RAY_CHANNELS,
   RAY_COUNT,
@@ -588,6 +592,25 @@ export class Simulation {
   /** Brain memory (what each brain wrote last time, MEMORY_COUNT numbers per organism) and the place each organism calls home. */
   private readonly memoryOn: boolean;
   private readonly memState: Float32Array;
+  /**
+   * Learning brains (Phase 8f). learnOn: connections change during life; learnSensesOn: the learning
+   * senses are offered; either one needs the reward bookkeeping (trackOn). For the first LEARN_SLOTS
+   * connections of each brain: what has been learned (learnDelta, added to the inherited weight) and a
+   * fading record of recent activity (learnTrace). Per organism: its usual reward (learnAvg), its
+   * energy at its last thought (learnPrevE, -1 before its first), and the energy it has handed to
+   * young or to neighbors since then (learnSpent: giving is not counted as a loss when judging how
+   * things went, or animals would learn not to breed).
+   */
+  private readonly learnOn: boolean;
+  private readonly learnSensesOn: boolean;
+  private readonly trackOn: boolean;
+  private readonly learnDelta: Float32Array;
+  private readonly learnTrace: Float32Array;
+  private readonly learnAvg: Float32Array;
+  private readonly learnPrevE: Float64Array;
+  private readonly learnSpent: Float64Array;
+  /** Scratch: the weights a learning brain thinks with (inherited plus learned). */
+  private readonly learnWeights = new Float32Array(CONN_MAX);
   /** Chemical signals: four per organism (reward, stress, bond, calm), plus what has happened to the organism since it last thought. */
   private readonly chemOn: boolean;
   private readonly bodyChemOn: boolean;
@@ -1017,6 +1040,7 @@ export class Simulation {
         (k === GENE.generosity && c.shareRate > 0) ||
         (k === GENE.toxicity && c.toxinStrength > 0) ||
         (k === GENE.signal && c.signaling === 1 && c.multicellular === 1 && c.brainMode > 0) ||
+        (k === GENE.learning && c.brainLearning === 1 && c.brainMode > 0) ||
         ((k === GENE.stressResponse || k === GENE.calmResponse) && c.brainMode > 0 && c.chemicals === 1 && c.chemBodyEffects === 1),
     );
     this.kinLimitSq = c.kinDistance * c.kinDistance;
@@ -1078,6 +1102,14 @@ export class Simulation {
     this.torpid = new Float32Array(this.torporOn ? n : 0);
     this.memoryOn = c.brainMode > 0 && c.brainMemory === 1;
     this.memState = new Float32Array(this.memoryOn ? n * MEMORY_COUNT : 0);
+    this.learnOn = c.brainMode > 0 && c.brainLearning === 1;
+    this.learnSensesOn = c.brainMode > 0 && c.learnSenses === 1;
+    this.trackOn = this.learnOn || this.learnSensesOn;
+    this.learnDelta = new Float32Array(this.learnOn ? n * LEARN_SLOTS : 0);
+    this.learnTrace = new Float32Array(this.learnOn ? n * LEARN_SLOTS : 0);
+    this.learnAvg = new Float32Array(this.trackOn ? n : 0);
+    this.learnPrevE = new Float64Array(this.trackOn ? n : 0);
+    this.learnSpent = new Float64Array(this.trackOn ? n : 0);
     this.chemOn = c.brainMode > 0 && c.chemicals === 1;
     this.bodyChemOn = this.chemOn && c.chemBodyEffects === 1;
     this.chem = new Float32Array(this.chemOn ? n * 4 : 0);
@@ -1112,7 +1144,7 @@ export class Simulation {
     }
     this.species = new Uint32Array(c.speciesEvery > 0 ? n : 0);
     // Species, like compatibility, ignore tolerance of relatives: it is a behavior setting, not a kind of body.
-    const speciesGenes = this.activeGene.map((on, k) => on && k !== GENE.tolerance && k !== GENE.sex && k !== GENE.stressResponse && k !== GENE.calmResponse && k !== GENE.generosity && k !== GENE.signal);
+    const speciesGenes = this.activeGene.map((on, k) => on && k !== GENE.tolerance && k !== GENE.sex && k !== GENE.stressResponse && k !== GENE.calmResponse && k !== GENE.generosity && k !== GENE.signal && k !== GENE.learning);
     this.tracker = c.speciesEvery > 0 ? new SpeciesTracker(c, this.ranges, speciesGenes) : null;
     const staminaOrganisms = this.staminaOn ? n : 0;
     this.stamina = new Float32Array(staminaOrganisms);
@@ -1200,6 +1232,7 @@ export class Simulation {
     founder[GENE.calmResponse] = c.initialCalmResponse;
     founder[GENE.toxicity] = c.initialToxicity;
     founder[GENE.signal] = c.initialSignal;
+    founder[GENE.learning] = c.initialLearning;
     founder[GENE.generosity] = c.initialShare;
     for (let i = 0; i < c.initialOrganisms; i++) {
       let fx = this.rng.range(0, c.worldWidth);
@@ -1215,7 +1248,7 @@ export class Simulation {
       if (c.founderSpread > 0 || c.sexFounderSpread > 0) {
         // Standing variety: the newer genes that are switched on start a random amount above their starting value.
         // (The mate-seeking gene can have its own amount, sexFounderSpread; -1 means it follows founderSpread.)
-        for (const gene of [GENE.tolerance, GENE.sex, GENE.fat, GENE.torpor, GENE.palate, GENE.stressResponse, GENE.calmResponse, GENE.generosity, GENE.toxicity, GENE.signal]) {
+        for (const gene of [GENE.tolerance, GENE.sex, GENE.fat, GENE.torpor, GENE.palate, GENE.stressResponse, GENE.calmResponse, GENE.generosity, GENE.toxicity, GENE.signal, GENE.learning]) {
           const spread = gene === GENE.sex && c.sexFounderSpread >= 0 ? c.sexFounderSpread : c.founderSpread;
           if (this.activeGene[gene] && spread > 0) this.genes[index * GENE_COUNT + gene] = clamp01(this.genes[index * GENE_COUNT + gene]! + spread * this.rng.next());
         }
@@ -2180,6 +2213,16 @@ export class Simulation {
       this.fertilityLuck[i] = this.rollLuck();
     }
     if (this.memoryOn) this.memState.fill(0, i * MEMORY_COUNT, (i + 1) * MEMORY_COUNT);
+    if (this.learnOn) {
+      // A newborn has learned nothing yet (what its parents learned is not inherited).
+      this.learnDelta.fill(0, i * LEARN_SLOTS, (i + 1) * LEARN_SLOTS);
+      this.learnTrace.fill(0, i * LEARN_SLOTS, (i + 1) * LEARN_SLOTS);
+    }
+    if (this.trackOn) {
+      this.learnAvg[i] = 0;
+      this.learnPrevE[i] = -1;
+      this.learnSpent[i] = 0;
+    }
     if (this.chemOn) {
       this.chem.fill(0, i * 4, i * 4 + 4);
       this.chem[i * 4 + 3] = 0.5; // a newborn starts out neither calm nor stressed
@@ -2586,9 +2629,11 @@ export class Simulation {
     let senses = 0;
     let readsChem = false;
     const base = i * CONN_MAX;
+    const learning = this.learnOn && this.genes[i * GENE_COUNT + GENE.learning]! > 0;
     for (let k = 0; k < this.brainCount[i]!; k++) {
       const w = this.brainWeight[base + k]!;
-      if (w < c.brainPruneBelow && w > -c.brainPruneBelow) continue;
+      // A weak connection can still be strengthened by learning, so its sense must be worked out too.
+      if (w < c.brainPruneBelow && w > -c.brainPruneBelow && !(learning && k < LEARN_SLOTS)) continue;
       const source = this.brainFrom[base + k]!;
       if (source >= INPUT_COUNT) continue; // hidden units read other inputs, which are counted on their own
       if (source >= INPUT.chemReward && source <= INPUT.chemCalm) readsChem = true;
@@ -2598,7 +2643,12 @@ export class Simulation {
       else senses |= SENSE_BODY;
     }
     this.brainSenses[i] = senses;
-    this.brainCost[i] = c.brainBaseCost + c.brainCostPerNeuron * size.hidden + c.brainCostPerConnection * size.connections + (readsChem && this.chemOn ? c.chemicalsCost : 0);
+    this.brainCost[i] =
+      c.brainBaseCost +
+      c.brainCostPerNeuron * size.hidden +
+      c.brainCostPerConnection * size.connections +
+      (readsChem && this.chemOn ? c.chemicalsCost : 0) +
+      (this.learnOn ? c.learnCostCoeff * this.genes[i * GENE_COUNT + GENE.learning]! : 0); // the learning machinery
   }
 
   /** Which kind of plant grows in each cell (empty when there is only one kind). Fixed for the whole run. */
@@ -3043,9 +3093,49 @@ export class Simulation {
     inputs[INPUT.bias] = 1;
     inputs[INPUT.noise] = ((Math.imul(this.tick + 1, 0x9e3779b1) ^ Math.imul(this.id[i]!, 0x85ebca6b)) >>> 0) / 2147483648 - 1;
 
+    const count = this.brainCount[i]!;
+    let learning = false;
+    if (this.trackOn) {
+      // How did things go since the last thought? The energy change (counting what was handed to
+      // young or neighbors as kept), as a share of what it needs to breed, scaled and capped.
+      const now = this.energy[i]! + (this.fatOn ? this.fatStore[i]! : 0);
+      const before = this.learnPrevE[i]!;
+      const reward = before < 0 ? 0 : clampUnit(((now + this.learnSpent[i]! - before) / this.threshold[i]!) * c.learnSenseScale);
+      // Surprise: better (+) or worse (-) than usual. Then "usual" moves a little toward this result.
+      const usual = this.learnAvg[i]!;
+      const surprise = clampUnit(reward - usual);
+      this.learnAvg[i] = usual + c.learnBaselineRate * (reward - usual);
+      this.learnPrevE[i] = now;
+      this.learnSpent[i] = 0;
+      if (this.learnSensesOn) {
+        inputs[INPUT.energyChange] = reward;
+        inputs[INPUT.surprise] = surprise;
+        if (c.yearLength > 0) {
+          inputs[INPUT.yearA] = smoothWave(this.tick / c.yearLength);
+          inputs[INPUT.yearB] = smoothWave(this.tick / c.yearLength + 0.25);
+        }
+        inputs[INPUT.lastTurn] = this.outTurn[i]!;
+        inputs[INPUT.lastSpeed] = this.outSpeed[i]!;
+      }
+      if (this.learnOn) {
+        const rate = c.learnRateMax * this.genes[i * GENE_COUNT + GENE.learning]!;
+        if (rate > 0) {
+          learning = true;
+          // Whatever was active before this outcome is strengthened (or weakened) in proportion to the surprise.
+          if (surprise !== 0) applyLearning(this.learnDelta, this.learnTrace, i * LEARN_SLOTS, count, rate * surprise, c.learnLimit);
+        }
+      }
+    }
+
     const hidden = this.thinkHidden;
     const outputs = this.thinkOutputs;
-    evaluateBrain(this.brainFrom, this.brainTo, this.brainWeight, i * CONN_MAX, this.brainCount[i]!, c.brainPruneBelow, inputs, hidden, outputs);
+    if (learning) {
+      learnedWeights(this.brainWeight, i * CONN_MAX, count, this.learnDelta, i * LEARN_SLOTS, this.learnWeights);
+      evaluateBrain(this.brainFrom, this.brainTo, this.learnWeights, i * CONN_MAX, count, c.brainPruneBelow, inputs, hidden, outputs, 0);
+      updateTraces(this.brainFrom, this.brainTo, i * CONN_MAX, count, this.learnTrace, i * LEARN_SLOTS, c.learnTraceDecay, inputs, hidden, outputs);
+    } else {
+      evaluateBrain(this.brainFrom, this.brainTo, this.brainWeight, i * CONN_MAX, count, c.brainPruneBelow, inputs, hidden, outputs);
+    }
     this.outTurn[i] = outputs[OUTPUT.turn]!;
     this.outSpeed[i] = outputs[OUTPUT.speed]!;
     this.outAttack[i] = outputs[OUTPUT.attack]!;
@@ -3250,6 +3340,7 @@ export class Simulation {
       const each = gift / this.giftCount;
       for (let r = 0; r < this.giftCount; r++) delta[this.giftPick[r]!] = delta[this.giftPick[r]!]! + each * c.shareEfficiency;
       delta[i] = delta[i]! - gift;
+      if (this.trackOn) this.learnSpent[i] = this.learnSpent[i]! + gift;
       lost += gift * (1 - c.shareEfficiency);
       given += gift;
     }
@@ -4532,6 +4623,10 @@ export class Simulation {
           else nutrient[cell] = nutrient[cell]! - body;
           this.energy[a] = this.energy[a]! - eachA;
           this.energy[b] = this.energy[b]! - eachB;
+          if (this.trackOn) {
+            this.learnSpent[a] = this.learnSpent[a]! + eachA;
+            this.learnSpent[b] = this.learnSpent[b]! + eachB;
+          }
           this.energy[child] = store;
           this.totalBirths++;
           this.sexualBirths++;
@@ -4578,6 +4673,7 @@ export class Simulation {
           if (this.nutrientOn) this.nutrientStore[child] = this.provision(parent, body, 1);
           else nutrient[cell] = nutrient[cell]! - body;
           this.energy[parent] = this.energy[parent]! - each;
+          if (this.trackOn) this.learnSpent[parent] = this.learnSpent[parent]! + each;
           this.energy[child] = store;
           this.totalBirths++;
           if (this.bondsOn) this.maybeAttach(parent, child);
@@ -4740,6 +4836,15 @@ export class Simulation {
       this.brainWeight.copyWithin(target, source, source + count);
       if (this.memoryOn) this.memState.copyWithin(to * MEMORY_COUNT, from * MEMORY_COUNT, (from + 1) * MEMORY_COUNT);
       if (this.chemOn) this.chem.copyWithin(to * 4, from * 4, from * 4 + 4);
+      if (this.learnOn) {
+        this.learnDelta.copyWithin(to * LEARN_SLOTS, from * LEARN_SLOTS, (from + 1) * LEARN_SLOTS);
+        this.learnTrace.copyWithin(to * LEARN_SLOTS, from * LEARN_SLOTS, (from + 1) * LEARN_SLOTS);
+      }
+      if (this.trackOn) {
+        this.learnAvg[to] = this.learnAvg[from]!;
+        this.learnPrevE[to] = this.learnPrevE[from]!;
+        this.learnSpent[to] = this.learnSpent[from]!;
+      }
     }
   }
 
@@ -4771,6 +4876,15 @@ export class Simulation {
     organism("brainTo", this.brainTo, CONN_MAX);
     organism("brainWeight", this.brainWeight, CONN_MAX);
     if (this.memoryOn) organism("memState", this.memState, MEMORY_COUNT);
+    if (this.learnOn) {
+      organism("learnDelta", this.learnDelta, LEARN_SLOTS);
+      organism("learnTrace", this.learnTrace, LEARN_SLOTS);
+    }
+    if (this.trackOn) {
+      organism("learnAvg", this.learnAvg);
+      organism("learnPrevE", this.learnPrevE);
+      organism("learnSpent", this.learnSpent);
+    }
     if (this.chemOn) organism("chem", this.chem, 4);
     // The land and the scent trails, in full.
     for (const [name, array] of this.landArrays()) arrays[name] = array.slice();
@@ -4926,6 +5040,15 @@ export class Simulation {
       take("brainWeight", this.brainWeight);
     }
     if (this.memoryOn) take("memState", this.memState);
+    if (this.learnOn) {
+      take("learnDelta", this.learnDelta);
+      take("learnTrace", this.learnTrace);
+    }
+    if (this.trackOn) {
+      take("learnAvg", this.learnAvg);
+      take("learnPrevE", this.learnPrevE);
+      take("learnSpent", this.learnSpent);
+    }
     if (this.chemOn) take("chem", this.chem);
     // (Fire scars came a little after fires did; a world saved in between simply has none.)
     for (const [name, array] of this.landArrays()) if (name !== "fireScar" || snapshot.arrays[name]) take(name, array);
@@ -5010,6 +5133,7 @@ export class Simulation {
       case "generosity":
       case "toxicity":
       case "signal":
+      case "learning":
         return this.genes[i * GENE_COUNT + GENE[name]]!;
       case "lifespan": {
         const range = this.ranges.lifespan;

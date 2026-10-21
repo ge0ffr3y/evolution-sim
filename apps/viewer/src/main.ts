@@ -279,6 +279,7 @@ const GENE_LABELS: Record<GeneName, string> = {
   generosity: "Generosity (share of spare energy given to hungry neighbors)",
   toxicity: "Toxicity (how poisonous the body is to eat)",
   signal: "Signaling (shares what it senses with bonded cells)",
+  learning: "Learning (how fast its brain changes with experience during its life)",
 };
 
 function traitText(gene: GeneName, value: number): string {
