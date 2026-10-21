@@ -33,6 +33,11 @@ export interface SimConfig {
   fertilityVariation: number;
   /** Size of one fertile or barren patch, in food cells. Must divide the grid evenly. */
   fertilityScale: number;
+  /**
+   * Ground less fertile than this (1 = average fertility) holds and grows no plants at all, so plants
+   * grow only in patches, oases, with barren land between them. 0 = off. Needs fertilityVariation.
+   */
+  barrenBelow: number;
 
   // --- Soil, bodies and decay (the matter loop) ---
   /** Soil nutrients in every cell at the start. Plants turn nutrients into food. */
@@ -1070,6 +1075,80 @@ export interface SimConfig {
   speciesCrashDrop: number;
   speciesCrashWindow: number;
 
+  // --- Learning brains (Phase 8f, off by default; need brains) ---
+  /**
+   * 0 = off: a brain's wiring is fixed at birth. 1 = on: connections change during life, guided by
+   * reward. After each thought, a connection that was recently active (its two ends firing together)
+   * is strengthened when things went better than usual and weakened when they went worse, by
+   * learnRateMax x the learning gene. What is learned is not inherited, and learning costs upkeep.
+   */
+  brainLearning: number;
+  /**
+   * 0 = off, 1 = on: the senses that make learning and memory worth having. How energy changed
+   * since the last thought, how surprising that was, the time of year, and what the brain did
+   * last time. (Each reads 0 when off.)
+   */
+  learnSenses: number;
+  /** The most a connection can change per thought, at full surprise and a learning gene of 1. */
+  learnRateMax: number;
+  /** How much of a connection's record of recent activity is kept from one thought to the next (0 to 1). */
+  learnTraceDecay: number;
+  /** The most learning can add to or take from one connection's inherited strength. */
+  learnLimit: number;
+  /** How quickly the sense of "how things usually go" follows recent results (0 to 1 per thought). */
+  learnBaselineRate: number;
+  /** Upkeep for the learning machinery: this x the learning gene, per tick (on the brain line). */
+  learnCostCoeff: number;
+  /** Energy change since the last thought, as a share of the energy needed to breed, is multiplied by this to make the reward signal (then capped at -1 to 1). */
+  learnSenseScale: number;
+  /** The first generation's learning gene. */
+  initialLearning: number;
+
+  // --- Place memory (Phase 8f, off by default; needs brains) ---
+  /**
+   * 0 = off, 1 = on: an animal remembers a few good feeding places (how many is set by the place
+   * memory gene, up to placeSlotsMax), and senses which way, and how far, the best one it remembers
+   * elsewhere is. A good meal refreshes the remembered place it was eaten at, or replaces the weakest
+   * memory; every memory fades. Each place it can hold costs upkeep. Memories are not inherited.
+   */
+  placeMemory: number;
+  /** The most places one animal can remember (1 to 4), at a place memory gene of 1. */
+  placeSlotsMax: number;
+  /** Each tick, a remembered place keeps this share of its value (0.999: half gone in about 700 ticks). */
+  placeFade: number;
+  /** A meal must be at least this share of the energy needed to breed to be worth remembering. */
+  placeMinMeal: number;
+  /** A meal this close to a remembered place (world units) counts as that place. */
+  placeMergeRadius: number;
+  /** The best-place sense reads "far" (1) at this distance (world units). */
+  placeRange: number;
+  /** Upkeep per place it can remember, per tick (on the brain line). */
+  placeCostCoeff: number;
+  /** The first generation's place memory gene. */
+  initialPlaceMemory: number;
+  /**
+   * 0 = off, 1 = founders start with a place reflex: turn toward the best remembered place elsewhere
+   * (like brainFounderReflex does for smell). Evolution can keep, change or lose it. Without it, the
+   * place sense only helps once a brain happens to wire it to steering.
+   */
+  placeReflex: number;
+
+  // --- Working memory (Phase 8f, off by default; needs brains with memory) ---
+  /**
+   * 0 = off: with brainMemory, every brain has all four memory cells for free, and each thought
+   * overwrites them. 1 = on: the working memory gene sets how many cells a brain can use (any gene
+   * above 0 gives one, a gene of 1 gives all four; the rest read 0), each costing upkeep, and the
+   * brain decides each thought whether to overwrite a cell or hold it, with one "hold" output
+   * (gate) per cell: 0 or above overwrites, below 0 holds, keeping up to wmKeepMax of the old value.
+   */
+  workingMemory: number;
+  /** The most of its old value a held memory cell keeps in one thought (with its gate fully at hold). */
+  wmKeepMax: number;
+  /** Upkeep per usable memory cell, per tick (on the brain line). */
+  wmCostCoeff: number;
+  /** The first generation's working memory gene. */
+  initialWorkingMemory: number;
+
   // --- Sprinting and stamina (only with brains) ---
   /**
    * 0 = off: brains can run flat out for as long as they like (paying the energy), and the
@@ -1124,6 +1203,7 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   initialFoodFraction: 1,
   fertilityVariation: 0.9,
   fertilityScale: 8,
+  barrenBelow: 0,
 
   initialNutrientPerCell: 30,
   nutrientHalfSaturation: 2,
@@ -1560,6 +1640,28 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   speciesSampleEvery: 500,
   speciesCrashDrop: 0.4,
   speciesCrashWindow: 2000,
+  brainLearning: 0,
+  learnSenses: 0,
+  learnRateMax: 0.1,
+  learnTraceDecay: 0.8,
+  learnLimit: 2,
+  learnBaselineRate: 0.05,
+  learnCostCoeff: 0.002,
+  learnSenseScale: 20,
+  initialLearning: 0,
+  placeMemory: 0,
+  placeSlotsMax: 4,
+  placeFade: 0.999,
+  placeMinMeal: 0.005,
+  placeMergeRadius: 8,
+  placeRange: 64,
+  placeCostCoeff: 0.0005,
+  initialPlaceMemory: 0,
+  placeReflex: 0,
+  workingMemory: 0,
+  wmKeepMax: 0.99,
+  wmCostCoeff: 0.0003,
+  initialWorkingMemory: 0,
   sprintFatigue: 0,
   staminaRegen: 0.1,
   staminaRestBonus: 1,
@@ -1933,6 +2035,27 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
       problems.push("speciesSampleEvery must be a multiple of speciesEvery");
     }
   }
+  if (![0, 1].includes(c.brainLearning)) problems.push("brainLearning must be 0 or 1");
+  if (![0, 1].includes(c.learnSenses)) problems.push("learnSenses must be 0 or 1");
+  if ((c.brainLearning === 1 || c.learnSenses === 1) && c.brainMode === 0) problems.push("learning and its senses need brains (set brainMode to 1 or 2)");
+  if (c.learnRateMax < 0 || c.learnLimit < 0 || c.learnCostCoeff < 0 || c.learnSenseScale < 0) problems.push("learnRateMax, learnLimit, learnCostCoeff and learnSenseScale cannot be negative");
+  if (c.learnTraceDecay < 0 || c.learnTraceDecay >= 1) problems.push("learnTraceDecay must be at least 0 and below 1");
+  if (c.learnBaselineRate <= 0 || c.learnBaselineRate > 1) problems.push("learnBaselineRate must be above 0 and at most 1");
+  if (c.initialLearning < 0 || c.initialLearning > 1) problems.push("initialLearning must be between 0 and 1");
+  if (![0, 1].includes(c.placeMemory)) problems.push("placeMemory must be 0 or 1");
+  if (c.placeMemory === 1 && c.brainMode === 0) problems.push("placeMemory needs brains (set brainMode to 1 or 2)");
+  if (!Number.isInteger(c.placeSlotsMax) || c.placeSlotsMax < 1 || c.placeSlotsMax > 4) problems.push("placeSlotsMax must be a whole number from 1 to 4");
+  if (c.placeFade <= 0 || c.placeFade > 1) problems.push("placeFade must be above 0 and at most 1");
+  if (c.placeMinMeal < 0 || c.placeMergeRadius < 0 || c.placeCostCoeff < 0) problems.push("placeMinMeal, placeMergeRadius and placeCostCoeff cannot be negative");
+  if (c.placeRange <= 0) problems.push("placeRange must be positive");
+  if (c.initialPlaceMemory < 0 || c.initialPlaceMemory > 1) problems.push("initialPlaceMemory must be between 0 and 1");
+  if (![0, 1].includes(c.placeReflex)) problems.push("placeReflex must be 0 or 1");
+  if (c.placeReflex === 1 && c.placeMemory !== 1) problems.push("placeReflex needs placeMemory 1");
+  if (![0, 1].includes(c.workingMemory)) problems.push("workingMemory must be 0 or 1");
+  if (c.workingMemory === 1 && (c.brainMode === 0 || c.brainMemory !== 1)) problems.push("workingMemory needs brains with memory (brainMode 1 or 2, brainMemory 1)");
+  if (c.wmKeepMax < 0 || c.wmKeepMax >= 1) problems.push("wmKeepMax must be at least 0 and below 1");
+  if (c.wmCostCoeff < 0) problems.push("wmCostCoeff cannot be negative");
+  if (c.initialWorkingMemory < 0 || c.initialWorkingMemory > 1) problems.push("initialWorkingMemory must be between 0 and 1");
   if (![0, 1].includes(c.sprintFatigue)) problems.push("sprintFatigue must be 0 or 1");
   if (c.staminaMin < 0) problems.push("staminaMin cannot be negative");
   if (c.staminaRegen < 0 || c.staminaRestBonus < 0 || c.staminaCostCoeff < 0) problems.push("stamina regen, rest bonus and cost cannot be negative");
@@ -1955,6 +2078,8 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (c.sizeMin <= 0) problems.push("sizeMin must be positive");
   if (c.metabolismMin <= 0) problems.push("metabolismMin must be positive");
   if (c.fertilityVariation < 0 || c.fertilityVariation >= 1) problems.push("fertilityVariation must be from 0 up to (but not including) 1");
+  if (c.barrenBelow < 0 || c.barrenBelow >= 2) problems.push("barrenBelow must be from 0 up to (but not including) 2");
+  if (c.barrenBelow > 0 && c.fertilityVariation === 0) problems.push("barrenBelow needs fertilityVariation above 0 (without it every cell is equally fertile)");
   if (c.biteSizeBlend < 0 || c.biteSizeBlend > 1) problems.push("biteSizeBlend must be between 0 and 1");
   if (c.contestStrength < 0 || c.contestStrength > 2) problems.push("contestStrength must be between 0 and 2");
   if (!Number.isInteger(c.fertilityScale) || c.fertilityScale < 1) problems.push("fertilityScale must be a whole number of cells, 1 or more");

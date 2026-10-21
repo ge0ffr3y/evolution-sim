@@ -99,10 +99,26 @@ export const INPUT = {
   colonyFoodAhead: VISION_INPUTS + 44,
   colonyFoodSide: VISION_INPUTS + 45,
   colonyFoodNear: VISION_INPUTS + 46,
-  bias: VISION_INPUTS + 47,
-  noise: VISION_INPUTS + 48,
+  /**
+   * Learning senses (Phase 8f, learnSenses): how energy changed since the last thought (the reward,
+   * -1 to 1), how much better or worse that was than usual (surprise), the time of year (two waves a
+   * quarter of a year apart, so together they say where in the year it is), and what the brain did
+   * last time (its turn and speed outputs).
+   */
+  energyChange: VISION_INPUTS + 47,
+  surprise: VISION_INPUTS + 48,
+  yearA: VISION_INPUTS + 49,
+  yearB: VISION_INPUTS + 50,
+  lastTurn: VISION_INPUTS + 51,
+  lastSpeed: VISION_INPUTS + 52,
+  /** The best feeding place it remembers (place memory, a later Phase 8f step): ahead, to the left, how far. 0 until then. */
+  placeAhead: VISION_INPUTS + 53,
+  placeSide: VISION_INPUTS + 54,
+  placeDistance: VISION_INPUTS + 55,
+  bias: VISION_INPUTS + 56,
+  noise: VISION_INPUTS + 57,
 } as const;
-export const INPUT_COUNT = VISION_INPUTS + 49;
+export const INPUT_COUNT = VISION_INPUTS + 58;
 /**
  * Every brain layout so far, oldest first, so a saved world from any of them can be renumbered.
  * Each step inserted its new inputs at `insertedAt` (where the bias input was), so nodes below
@@ -112,6 +128,8 @@ export const BRAIN_LAYOUTS: readonly { inputs: number; slots: number; insertedAt
   { inputs: VISION_INPUTS + 32, slots: 512, insertedAt: 0 }, // Phase 8b
   { inputs: VISION_INPUTS + 43, slots: 576, insertedAt: VISION_INPUTS + 30 }, // Phase 8e O1/O2: nutrient, ground, water, thirst
   { inputs: VISION_INPUTS + 49, slots: 640, insertedAt: VISION_INPUTS + 41 }, // Phase 8e O3: colony senses
+  { inputs: VISION_INPUTS + 58, slots: 704, insertedAt: VISION_INPUTS + 47 }, // Phase 8f: learning senses and place memory
+  { inputs: VISION_INPUTS + 58, slots: 768, insertedAt: VISION_INPUTS + 58 }, // Phase 8f: four memory gate outputs (added after the other outputs, so no node moved)
 ];
 /** The node number in today's layout of a node saved with an older layout (identified by its input count). */
 export function renumberOldNode(node: number, savedInputs: number): number {
@@ -129,15 +147,26 @@ export const MEMORY_COUNT = 4;
 export const HIDDEN_MAX = 16;
 export const HIDDEN_START = INPUT_COUNT;
 export const OUTPUT_START = INPUT_COUNT + HIDDEN_MAX;
-export const OUTPUT = { turn: 0, speed: 1, attack: 2, memory0: 3, memory1: 4, memory2: 5, memory3: 6 } as const;
-export const OUTPUT_COUNT = 7;
+/**
+ * Outputs. gate0 to gate3 (Phase 8f working memory) say how much of each memory cell to hold
+ * instead of overwriting: 0 or above means overwrite (what every brain did before), below 0 means
+ * hold, up to wmKeepMax at -1. They come last, so adding them moved no other node.
+ */
+export const OUTPUT = { turn: 0, speed: 1, attack: 2, memory0: 3, memory1: 4, memory2: 5, memory3: 6, gate0: 7, gate1: 8, gate2: 9, gate3: 10 } as const;
+export const OUTPUT_COUNT = 11;
 export const NODE_COUNT = OUTPUT_START + OUTPUT_COUNT;
 
 /**
  * Most connections one brain can hold. A fully wired fixed-layout brain needs
- * hidden x (INPUT_COUNT + OUTPUT_COUNT) of them (608 for 8 hidden units).
+ * hidden x (INPUT_COUNT + OUTPUT_COUNT) of them (712 for 8 hidden units).
  */
-export const CONN_MAX = 640;
+export const CONN_MAX = 768;
+/**
+ * Learning (Phase 8f) keeps a record of recent activity and a learned change for this many of a
+ * brain's connections (its first ones). Evolved brains use 8 to 12, so this is plenty, and it keeps
+ * the memory a full world needs small.
+ */
+export const LEARN_SLOTS = 64;
 /** Weights are kept within this range. */
 export const WEIGHT_LIMIT = 4;
 
@@ -198,13 +227,22 @@ export function inputLabel(index: number): string {
     [INPUT.colonyFoodAhead]: "colony food: ahead",
     [INPUT.colonyFoodSide]: "colony food: left",
     [INPUT.colonyFoodNear]: "colony food: how strong",
+    [INPUT.energyChange]: "energy change (reward)",
+    [INPUT.surprise]: "surprise",
+    [INPUT.yearA]: "time of year 1",
+    [INPUT.yearB]: "time of year 2",
+    [INPUT.lastTurn]: "last turn",
+    [INPUT.lastSpeed]: "last speed",
+    [INPUT.placeAhead]: "best place: ahead",
+    [INPUT.placeSide]: "best place: left",
+    [INPUT.placeDistance]: "best place: how far",
     [INPUT.bias]: "bias",
     [INPUT.noise]: "noise",
   };
   return names[index] ?? `input ${index}`;
 }
 
-export const OUTPUT_LABELS = ["turn left", "speed", "attack", "write memory 1", "write memory 2", "write memory 3", "write memory 4"] as const;
+export const OUTPUT_LABELS = ["turn left", "speed", "attack", "write memory 1", "write memory 2", "write memory 3", "write memory 4", "hold memory 1", "hold memory 2", "hold memory 3", "hold memory 4"] as const;
 
 /** A smooth squashing function between -1 and 1, built from exact arithmetic only. */
 export function soft(x: number): number {
@@ -225,12 +263,14 @@ export function evaluateBrain(
   inputs: Float64Array,
   hidden: Float64Array,
   outputs: Float64Array,
+  /** Where this brain's weights start in `weight`, if not at `base` (a learning brain passes its own working copy). */
+  weightBase = base,
 ): void {
   hidden.fill(0);
   outputs.fill(0);
   // Pass 1: everything feeding a hidden unit comes from an input.
   for (let c = 0; c < count; c++) {
-    const w = weight[base + c]!;
+    const w = weight[weightBase + c]!;
     if (w < prune && w > -prune) continue;
     const target = to[base + c]!;
     if (target < OUTPUT_START) hidden[target - HIDDEN_START] = hidden[target - HIDDEN_START]! + inputs[from[base + c]!]! * w;
@@ -238,7 +278,7 @@ export function evaluateBrain(
   for (let h = 0; h < HIDDEN_MAX; h++) hidden[h] = soft(hidden[h]!);
   // Pass 2: outputs gather from inputs and from hidden units.
   for (let c = 0; c < count; c++) {
-    const w = weight[base + c]!;
+    const w = weight[weightBase + c]!;
     if (w < prune && w > -prune) continue;
     const target = to[base + c]!;
     if (target >= OUTPUT_START) {
@@ -248,6 +288,61 @@ export function evaluateBrain(
     }
   }
   for (let o = 0; o < OUTPUT_COUNT; o++) outputs[o] = soft(outputs[o]!);
+}
+
+/**
+ * Learning, part 1: the weights a learning brain actually thinks with are its inherited weights
+ * plus what it has learned (for its first LEARN_SLOTS connections). Written into `out` from 0.
+ */
+export function learnedWeights(weight: Float32Array, base: number, count: number, delta: Float32Array, deltaBase: number, out: Float32Array): void {
+  const learnable = count < LEARN_SLOTS ? count : LEARN_SLOTS;
+  for (let c = 0; c < count; c++) out[c] = c < learnable ? weight[base + c]! + delta[deltaBase + c]! : weight[base + c]!;
+}
+
+/**
+ * Learning, part 2, before a thought: each connection changes by `step` (learning rate times
+ * surprise) times its record of recent activity, so whatever was active just before a better
+ * (or worse) than usual outcome is strengthened (or weakened). Capped at plus or minus `limit`.
+ */
+export function applyLearning(delta: Float32Array, trace: Float32Array, at: number, count: number, step: number, limit: number): void {
+  const learnable = count < LEARN_SLOTS ? count : LEARN_SLOTS;
+  for (let c = 0; c < learnable; c++) {
+    const d = delta[at + c]! + step * trace[at + c]!;
+    delta[at + c] = d > limit ? limit : d < -limit ? -limit : d;
+  }
+}
+
+/**
+ * Learning, part 3, after a thought: each connection's record of recent activity fades by `keep`
+ * and adds how active its two ends were together this time (source value times target value).
+ */
+export function updateTraces(from: Uint8Array, to: Uint8Array, base: number, count: number, trace: Float32Array, at: number, keep: number, inputs: Float64Array, hidden: Float64Array, outputs: Float64Array): void {
+  const learnable = count < LEARN_SLOTS ? count : LEARN_SLOTS;
+  for (let c = 0; c < learnable; c++) {
+    const source = from[base + c]!;
+    const target = to[base + c]!;
+    const pre = source < INPUT_COUNT ? inputs[source]! : hidden[source - HIDDEN_START]!;
+    const post = target < OUTPUT_START ? hidden[target - HIDDEN_START]! : outputs[target - OUTPUT_START]!;
+    trace[at + c] = trace[at + c]! * keep + pre * post;
+  }
+}
+
+/**
+ * Working memory (Phase 8f): after a thought, each usable memory cell is updated as its gate says.
+ * A gate of 0 or above overwrites the cell with what the brain writes now (as every brain did before
+ * gates). A gate below 0 holds: the cell keeps -gate x keepMax of its old value and takes the rest
+ * from what is written. Cells the brain cannot use are cleared.
+ */
+export function carryMemory(memory: Float32Array, at: number, outputs: Float64Array, cells: number, keepMax: number): void {
+  for (let k = 0; k < MEMORY_COUNT; k++) {
+    if (k >= cells) {
+      memory[at + k] = 0;
+      continue;
+    }
+    const gate = outputs[OUTPUT.gate0 + k]!;
+    const keep = gate < 0 ? -gate * keepMax : 0;
+    memory[at + k] = keep * memory[at + k]! + (1 - keep) * outputs[OUTPUT.memory0 + k]!;
+  }
 }
 
 export interface BrainSize {

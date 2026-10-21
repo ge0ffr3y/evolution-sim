@@ -1,0 +1,1655 @@
+{
+  "name": "audit-2-doses",
+  "question": "Which settings is the grand world (with 15% mending) sensitive to, which barely matter, and where does a change of half or double cause a collapse?",
+  "base": "grand-world",
+  "baseChanges": {
+    "mutationLoadMend": 0.15
+  },
+  "ticks": 100000,
+  "seeds": "1-4",
+  "arms": {
+    "control": {},
+    "world-size-down": {
+      "worldWidth": 256,
+      "worldHeight": 256,
+      "initialOrganisms": 150
+    },
+    "world-size-up": {
+      "worldWidth": 1024,
+      "worldHeight": 1024,
+      "initialOrganisms": 2400
+    },
+    "food-cell-size-down": {
+      "foodCellSize": 4
+    },
+    "food-cell-size-up": {
+      "foodCellSize": 16
+    },
+    "food-cap-down": {
+      "foodCap": 5
+    },
+    "food-cap-up": {
+      "foodCap": 20
+    },
+    "food-regrow-per-tick-down": {
+      "foodRegrowPerTick": 0.06
+    },
+    "food-regrow-per-tick-up": {
+      "foodRegrowPerTick": 0.24
+    },
+    "initial-food-fraction-down": {
+      "initialFoodFraction": 0.5
+    },
+    "fertility-variation-down": {
+      "fertilityVariation": 0.45
+    },
+    "fertility-variation-up": {
+      "fertilityVariation": 0.95
+    },
+    "fertility-scale-down": {
+      "fertilityScale": 4
+    },
+    "fertility-scale-up": {
+      "fertilityScale": 16
+    },
+    "initial-nutrient-per-cell-down": {
+      "initialNutrientPerCell": 15
+    },
+    "initial-nutrient-per-cell-up": {
+      "initialNutrientPerCell": 60
+    },
+    "nutrient-half-saturation-down": {
+      "nutrientHalfSaturation": 1
+    },
+    "nutrient-half-saturation-up": {
+      "nutrientHalfSaturation": 4
+    },
+    "body-matter-per-size-down": {
+      "bodyMatterPerSize": 0.5
+    },
+    "body-matter-per-size-up": {
+      "bodyMatterPerSize": 2
+    },
+    "body-energy-per-size-down": {
+      "bodyEnergyPerSize": 2
+    },
+    "body-energy-per-size-up": {
+      "bodyEnergyPerSize": 8
+    },
+    "meat-decay-rate-down": {
+      "meatDecayRate": 0.005
+    },
+    "meat-decay-rate-up": {
+      "meatDecayRate": 0.02
+    },
+    "detritus-mineralize-rate-down": {
+      "detritusMineralizeRate": 0.005
+    },
+    "detritus-mineralize-rate-up": {
+      "detritusMineralizeRate": 0.02
+    },
+    "initial-organisms-down": {
+      "initialOrganisms": 300
+    },
+    "initial-organisms-up": {
+      "initialOrganisms": 1200
+    },
+    "max-organisms-down": {
+      "maxOrganisms": 15000
+    },
+    "max-organisms-up": {
+      "maxOrganisms": 60000
+    },
+    "initial-size-down": {
+      "initialSize": 0.5
+    },
+    "initial-size-up": {
+      "initialSize": 2
+    },
+    "initial-speed-down": {
+      "initialSpeed": 0.5
+    },
+    "initial-speed-up": {
+      "initialSpeed": 2
+    },
+    "initial-metabolism-down": {
+      "initialMetabolism": 0.5
+    },
+    "initial-metabolism-up": {
+      "initialMetabolism": 2
+    },
+    "initial-mutation-rate-down": {
+      "initialMutationRate": 0.005
+    },
+    "initial-mutation-rate-up": {
+      "initialMutationRate": 0.02
+    },
+    "initial-stamina-down": {
+      "initialStamina": 5
+    },
+    "initial-stamina-up": {
+      "initialStamina": 20
+    },
+    "initial-thermal-down": {
+      "initialThermal": 0.25
+    },
+    "initial-thermal-up": {
+      "initialThermal": 0.75
+    },
+    "initial-lifespan-down": {
+      "initialLifespan": 4000
+    },
+    "initial-lifespan-up": {
+      "initialLifespan": 16000
+    },
+    "initial-litter-up": {
+      "initialLitter": 2
+    },
+    "initial-energy-fraction-down": {
+      "initialEnergyFraction": 0.3
+    },
+    "initial-energy-fraction-up": {
+      "initialEnergyFraction": 0.8
+    },
+    "size-min-down": {
+      "sizeMin": 0.15
+    },
+    "size-min-up": {
+      "sizeMin": 0.6
+    },
+    "size-max-down": {
+      "sizeMax": 2
+    },
+    "size-max-up": {
+      "sizeMax": 8
+    },
+    "speed-min-down": {
+      "speedMin": 0.05
+    },
+    "speed-min-up": {
+      "speedMin": 0.2
+    },
+    "speed-max-down": {
+      "speedMax": 2
+    },
+    "speed-max-up": {
+      "speedMax": 8
+    },
+    "sense-range-max-down": {
+      "senseRangeMax": 8
+    },
+    "sense-range-max-up": {
+      "senseRangeMax": 32
+    },
+    "metabolism-min-down": {
+      "metabolismMin": 0.25
+    },
+    "metabolism-min-up": {
+      "metabolismMin": 1
+    },
+    "metabolism-max-down": {
+      "metabolismMax": 1
+    },
+    "metabolism-max-up": {
+      "metabolismMax": 4
+    },
+    "mutation-rate-min-down": {
+      "mutationRateMin": 0.0005
+    },
+    "mutation-rate-min-up": {
+      "mutationRateMin": 0.002
+    },
+    "mutation-rate-max-down": {
+      "mutationRateMax": 0.025
+    },
+    "mutation-rate-max-up": {
+      "mutationRateMax": 0.1
+    },
+    "diet-max-down": {
+      "dietMax": 0.5
+    },
+    "attack-max-down": {
+      "attackMax": 1
+    },
+    "attack-max-up": {
+      "attackMax": 4
+    },
+    "armor-max-down": {
+      "armorMax": 1
+    },
+    "armor-max-up": {
+      "armorMax": 4
+    },
+    "stamina-max-down": {
+      "staminaMax": 15
+    },
+    "stamina-max-up": {
+      "staminaMax": 60
+    },
+    "thermal-max-down": {
+      "thermalMax": 0.5
+    },
+    "lifespan-min-down": {
+      "lifespanMin": 500
+    },
+    "lifespan-min-up": {
+      "lifespanMin": 2000
+    },
+    "lifespan-max-down": {
+      "lifespanMax": 15000
+    },
+    "lifespan-max-up": {
+      "lifespanMax": 60000
+    },
+    "litter-max-down": {
+      "litterMax": 2
+    },
+    "litter-max-up": {
+      "litterMax": 8
+    },
+    "meta-mutation-std-down": {
+      "metaMutationStd": 0.025
+    },
+    "meta-mutation-std-up": {
+      "metaMutationStd": 0.1
+    },
+    "turn-std-down": {
+      "turnStd": 0.15
+    },
+    "turn-std-up": {
+      "turnStd": 0.6
+    },
+    "steer-gain-down": {
+      "steerGain": 1.5
+    },
+    "steer-gain-up": {
+      "steerGain": 6
+    },
+    "bite-rate-down": {
+      "biteRate": 0.5
+    },
+    "bite-rate-up": {
+      "biteRate": 2
+    },
+    "bite-size-blend-down": {
+      "biteSizeBlend": 0.5
+    },
+    "contest-strength-down": {
+      "contestStrength": 1
+    },
+    "energy-per-food-down": {
+      "energyPerFood": 0.5
+    },
+    "energy-per-food-up": {
+      "energyPerFood": 2
+    },
+    "basal-cost-coeff-down": {
+      "basalCostCoeff": 0.025
+    },
+    "basal-cost-coeff-up": {
+      "basalCostCoeff": 0.1
+    },
+    "move-cost-coeff-down": {
+      "moveCostCoeff": 0.005
+    },
+    "move-cost-coeff-up": {
+      "moveCostCoeff": 0.02
+    },
+    "sense-cost-coeff-down": {
+      "senseCostCoeff": 0.00025
+    },
+    "sense-cost-coeff-up": {
+      "senseCostCoeff": 0.001
+    },
+    "diet-specialization-down": {
+      "dietSpecialization": 0.25
+    },
+    "diet-specialization-up": {
+      "dietSpecialization": 1
+    },
+    "attack-cost-coeff-down": {
+      "attackCostCoeff": 0.005
+    },
+    "attack-cost-coeff-up": {
+      "attackCostCoeff": 0.02
+    },
+    "attack-attempt-cost-down": {
+      "attackAttemptCost": 0.125
+    },
+    "attack-attempt-cost-up": {
+      "attackAttemptCost": 0.5
+    },
+    "armor-cost-coeff-down": {
+      "armorCostCoeff": 0.005
+    },
+    "armor-cost-coeff-up": {
+      "armorCostCoeff": 0.02
+    },
+    "armor-move-factor-down": {
+      "armorMoveFactor": 0.25
+    },
+    "armor-move-factor-up": {
+      "armorMoveFactor": 1
+    },
+    "armor-base-down": {
+      "armorBase": 0.125
+    },
+    "armor-base-up": {
+      "armorBase": 0.5
+    },
+    "attack-threshold-down": {
+      "attackThreshold": 0.025
+    },
+    "attack-threshold-up": {
+      "attackThreshold": 0.1
+    },
+    "reach-base-down": {
+      "reachBase": 0.75
+    },
+    "reach-base-up": {
+      "reachBase": 3
+    },
+    "reach-per-size-down": {
+      "reachPerSize": 0.5
+    },
+    "reach-per-size-up": {
+      "reachPerSize": 2
+    },
+    "prey-max-size-ratio-down": {
+      "preyMaxSizeRatio": 0.625
+    },
+    "prey-max-size-ratio-up": {
+      "preyMaxSizeRatio": 2.5
+    },
+    "herbivore-attack-penalty-down": {
+      "herbivoreAttackPenalty": 2
+    },
+    "herbivore-attack-penalty-up": {
+      "herbivoreAttackPenalty": 8
+    },
+    "kill-cooldown-down": {
+      "killCooldown": 10
+    },
+    "kill-cooldown-up": {
+      "killCooldown": 40
+    },
+    "brain-hidden-down": {
+      "brainHidden": 4
+    },
+    "brain-hidden-up": {
+      "brainHidden": 16
+    },
+    "brain-water-range-down": {
+      "brainWaterRange": 32
+    },
+    "brain-water-range-up": {
+      "brainWaterRange": 128
+    },
+    "brain-vision-range-down": {
+      "brainVisionRange": 3
+    },
+    "brain-vision-range-up": {
+      "brainVisionRange": 12
+    },
+    "brain-every-down": {
+      "brainEvery": 1
+    },
+    "brain-every-up": {
+      "brainEvery": 4
+    },
+    "brain-turn-max-down": {
+      "brainTurnMax": 0.25
+    },
+    "brain-turn-max-up": {
+      "brainTurnMax": 1
+    },
+    "brain-turn-noise-down": {
+      "brainTurnNoise": 0.05
+    },
+    "brain-turn-noise-up": {
+      "brainTurnNoise": 0.2
+    },
+    "brain-still-eat-bonus-down": {
+      "brainStillEatBonus": 0.25
+    },
+    "brain-still-eat-bonus-up": {
+      "brainStillEatBonus": 1
+    },
+    "brain-attack-gate-down": {
+      "brainAttackGate": -0.25
+    },
+    "brain-attack-gate-up": {
+      "brainAttackGate": -1
+    },
+    "brain-weight-mutation-prob-down": {
+      "brainWeightMutationProb": 0.015
+    },
+    "brain-weight-mutation-prob-up": {
+      "brainWeightMutationProb": 0.06
+    },
+    "brain-weight-mutation-std-down": {
+      "brainWeightMutationStd": 0.2
+    },
+    "brain-weight-mutation-std-up": {
+      "brainWeightMutationStd": 0.8
+    },
+    "brain-weight-zero-prob-down": {
+      "brainWeightZeroProb": 0.15
+    },
+    "brain-weight-zero-prob-up": {
+      "brainWeightZeroProb": 0.6
+    },
+    "brain-prune-below-down": {
+      "brainPruneBelow": 0.025
+    },
+    "brain-prune-below-up": {
+      "brainPruneBelow": 0.1
+    },
+    "brain-add-connection-prob-down": {
+      "brainAddConnectionProb": 0.04
+    },
+    "brain-add-connection-prob-up": {
+      "brainAddConnectionProb": 0.16
+    },
+    "brain-add-node-prob-down": {
+      "brainAddNodeProb": 0.015
+    },
+    "brain-add-node-prob-up": {
+      "brainAddNodeProb": 0.06
+    },
+    "brain-remove-connection-prob-down": {
+      "brainRemoveConnectionProb": 0.015
+    },
+    "brain-remove-connection-prob-up": {
+      "brainRemoveConnectionProb": 0.06
+    },
+    "brain-remove-node-prob-down": {
+      "brainRemoveNodeProb": 0.005
+    },
+    "brain-remove-node-prob-up": {
+      "brainRemoveNodeProb": 0.02
+    },
+    "home-range-down": {
+      "homeRange": 32
+    },
+    "home-range-up": {
+      "homeRange": 128
+    },
+    "home-memory-decay-down": {
+      "homeMemoryDecay": 0.998
+    },
+    "home-memory-decay-up": {
+      "homeMemoryDecay": 0.9995
+    },
+    "home-memory-min-down": {
+      "homeMemoryMin": 0.0025
+    },
+    "home-memory-min-up": {
+      "homeMemoryMin": 0.01
+    },
+    "chem-decay-down": {
+      "chemDecay": 0.9
+    },
+    "chem-decay-up": {
+      "chemDecay": 0.975
+    },
+    "chem-reward-gain-down": {
+      "chemRewardGain": 10
+    },
+    "chem-reward-gain-up": {
+      "chemRewardGain": 40
+    },
+    "chem-stress-hit-down": {
+      "chemStressHit": 0.25
+    },
+    "chem-stress-hit-up": {
+      "chemStressHit": 1
+    },
+    "chem-stress-sick-down": {
+      "chemStressSick": 0.025
+    },
+    "chem-stress-sick-up": {
+      "chemStressSick": 0.1
+    },
+    "chem-stress-hunger-down": {
+      "chemStressHunger": 0.05
+    },
+    "chem-stress-hunger-up": {
+      "chemStressHunger": 0.2
+    },
+    "chem-hunger-below-down": {
+      "chemHungerBelow": 0.15
+    },
+    "chem-hunger-below-up": {
+      "chemHungerBelow": 0.6
+    },
+    "chem-bond-gain-down": {
+      "chemBondGain": 0.05
+    },
+    "chem-bond-gain-up": {
+      "chemBondGain": 0.2
+    },
+    "chem-calm-rate-down": {
+      "chemCalmRate": 0.01
+    },
+    "chem-calm-rate-up": {
+      "chemCalmRate": 0.04
+    },
+    "chemicals-cost-down": {
+      "chemicalsCost": 0.00025
+    },
+    "chemicals-cost-up": {
+      "chemicalsCost": 0.001
+    },
+    "chem-stress-speed-down": {
+      "chemStressSpeed": 0.25
+    },
+    "chem-stress-speed-up": {
+      "chemStressSpeed": 1
+    },
+    "chem-stress-upkeep-down": {
+      "chemStressUpkeep": 0.25
+    },
+    "chem-stress-upkeep-up": {
+      "chemStressUpkeep": 1
+    },
+    "chem-calm-saving-down": {
+      "chemCalmSaving": 0.15
+    },
+    "chem-calm-saving-up": {
+      "chemCalmSaving": 0.6
+    },
+    "chem-calm-slow-down": {
+      "chemCalmSlow": 0.15
+    },
+    "chem-calm-slow-up": {
+      "chemCalmSlow": 0.6
+    },
+    "brain-base-cost-down": {
+      "brainBaseCost": 0.0005
+    },
+    "brain-base-cost-up": {
+      "brainBaseCost": 0.002
+    },
+    "brain-cost-per-neuron-down": {
+      "brainCostPerNeuron": 0.00025
+    },
+    "brain-cost-per-neuron-up": {
+      "brainCostPerNeuron": 0.001
+    },
+    "brain-cost-per-connection-down": {
+      "brainCostPerConnection": 0.00005
+    },
+    "brain-cost-per-connection-up": {
+      "brainCostPerConnection": 0.0002
+    },
+    "terrain-scale-down": {
+      "terrainScale": 4
+    },
+    "terrain-scale-up": {
+      "terrainScale": 16
+    },
+    "terrain-water-fraction-down": {
+      "terrainWaterFraction": 0.125
+    },
+    "terrain-water-fraction-up": {
+      "terrainWaterFraction": 0.5
+    },
+    "terrain-mountain-fraction-down": {
+      "terrainMountainFraction": 0.05
+    },
+    "terrain-mountain-fraction-up": {
+      "terrainMountainFraction": 0.2
+    },
+    "terrain-desert-fraction-down": {
+      "terrainDesertFraction": 0.125
+    },
+    "terrain-desert-fraction-up": {
+      "terrainDesertFraction": 0.5
+    },
+    "terrain-forest-fraction-down": {
+      "terrainForestFraction": 0.15
+    },
+    "terrain-forest-fraction-up": {
+      "terrainForestFraction": 0.6
+    },
+    "terrain-growth-forest-down": {
+      "terrainGrowthForest": 0.65
+    },
+    "terrain-growth-forest-up": {
+      "terrainGrowthForest": 2.6
+    },
+    "terrain-growth-desert-down": {
+      "terrainGrowthDesert": 0.15
+    },
+    "terrain-growth-desert-up": {
+      "terrainGrowthDesert": 0.6
+    },
+    "terrain-growth-mountain-down": {
+      "terrainGrowthMountain": 0.2
+    },
+    "terrain-growth-mountain-up": {
+      "terrainGrowthMountain": 0.8
+    },
+    "terrain-move-forest-down": {
+      "terrainMoveForest": 0.7
+    },
+    "terrain-move-forest-up": {
+      "terrainMoveForest": 2.8
+    },
+    "terrain-move-desert-down": {
+      "terrainMoveDesert": 0.6
+    },
+    "terrain-move-desert-up": {
+      "terrainMoveDesert": 2.4
+    },
+    "terrain-move-mountain-down": {
+      "terrainMoveMountain": 1.5
+    },
+    "terrain-move-mountain-up": {
+      "terrainMoveMountain": 6
+    },
+    "base-temperature-down": {
+      "baseTemperature": 0.375
+    },
+    "base-temperature-up": {
+      "baseTemperature": 0.875
+    },
+    "latitude-cooling-down": {
+      "latitudeCooling": 0.225
+    },
+    "latitude-cooling-up": {
+      "latitudeCooling": 0.9
+    },
+    "mountain-cooling-down": {
+      "mountainCooling": 0.1
+    },
+    "mountain-cooling-up": {
+      "mountainCooling": 0.4
+    },
+    "plant-temp-optimum-down": {
+      "plantTempOptimum": 0.325
+    },
+    "plant-temp-optimum-up": {
+      "plantTempOptimum": 0.825
+    },
+    "plant-temp-tolerance-down": {
+      "plantTempTolerance": 0.3
+    },
+    "plant-temp-tolerance-up": {
+      "plantTempTolerance": 1.2
+    },
+    "latitude-light-down": {
+      "latitudeLight": 0.2
+    },
+    "latitude-light-up": {
+      "latitudeLight": 0.8
+    },
+    "day-length-down": {
+      "dayLength": 75
+    },
+    "day-length-up": {
+      "dayLength": 300
+    },
+    "day-night-depth-down": {
+      "dayNightDepth": 0.25
+    },
+    "day-night-depth-up": {
+      "dayNightDepth": 1
+    },
+    "year-length-down": {
+      "yearLength": 1500
+    },
+    "year-length-up": {
+      "yearLength": 6000
+    },
+    "season-growth-swing-down": {
+      "seasonGrowthSwing": 0.3
+    },
+    "season-growth-swing-up": {
+      "seasonGrowthSwing": 0.8
+    },
+    "season-temp-swing-down": {
+      "seasonTempSwing": 0.1
+    },
+    "season-temp-swing-up": {
+      "seasonTempSwing": 0.4
+    },
+    "climate-drift-amplitude-down": {
+      "climateDriftAmplitude": 0.075
+    },
+    "climate-drift-amplitude-up": {
+      "climateDriftAmplitude": 0.3
+    },
+    "thermal-cost-coeff-down": {
+      "thermalCostCoeff": 0.75
+    },
+    "thermal-cost-coeff-up": {
+      "thermalCostCoeff": 3
+    },
+    "thermal-tolerance-down": {
+      "thermalTolerance": 0.05
+    },
+    "thermal-tolerance-up": {
+      "thermalTolerance": 0.2
+    },
+    "weather-amplitude-down": {
+      "weatherAmplitude": 0.06
+    },
+    "weather-amplitude-up": {
+      "weatherAmplitude": 0.24
+    },
+    "weather-scale-down": {
+      "weatherScale": 4
+    },
+    "weather-scale-up": {
+      "weatherScale": 16
+    },
+    "weather-drift-ticks-down": {
+      "weatherDriftTicks": 200
+    },
+    "weather-drift-ticks-up": {
+      "weatherDriftTicks": 800
+    },
+    "weather-drift-y-ticks-down": {
+      "weatherDriftYTicks": 750
+    },
+    "weather-drift-y-ticks-up": {
+      "weatherDriftYTicks": 3000
+    },
+    "weather-morph-period-down": {
+      "weatherMorphPeriod": 15000
+    },
+    "weather-morph-period-up": {
+      "weatherMorphPeriod": 60000
+    },
+    "year-variability-down": {
+      "yearVariability": 0.125
+    },
+    "year-variability-up": {
+      "yearVariability": 0.5
+    },
+    "torpor-saving-down": {
+      "torporSaving": 0.35
+    },
+    "torpor-saving-up": {
+      "torporSaving": 0.85
+    },
+    "torpor-below-growth-down": {
+      "torporBelowGrowth": 0.175
+    },
+    "torpor-below-growth-up": {
+      "torporBelowGrowth": 0.7
+    },
+    "torpor-upkeep-down": {
+      "torporUpkeep": 0.05
+    },
+    "torpor-upkeep-up": {
+      "torporUpkeep": 0.2
+    },
+    "torpor-sleep-at-down": {
+      "torporSleepAt": 0.25
+    },
+    "torpor-sleep-at-up": {
+      "torporSleepAt": 1
+    },
+    "plant-types-down": {
+      "plantTypes": 2
+    },
+    "plant-types-up": {
+      "plantTypes": 6
+    },
+    "plant-type-scale-down": {
+      "plantTypeScale": 4
+    },
+    "plant-type-scale-up": {
+      "plantTypeScale": 16
+    },
+    "plant-type-phase-down": {
+      "plantTypePhase": 0.5
+    },
+    "plant-type-temp-spread-down": {
+      "plantTypeTempSpread": 0.05
+    },
+    "plant-type-temp-spread-up": {
+      "plantTypeTempSpread": 0.2
+    },
+    "plant-palate-width-down": {
+      "plantPalateWidth": 0.25
+    },
+    "plant-palate-width-up": {
+      "plantPalateWidth": 1
+    },
+    "plant-palate-floor-down": {
+      "plantPalateFloor": 0.05
+    },
+    "plant-palate-floor-up": {
+      "plantPalateFloor": 0.2
+    },
+    "founder-spread-down": {
+      "founderSpread": 0.3
+    },
+    "founder-spread-up": {
+      "founderSpread": 0.8
+    },
+    "share-rate-down": {
+      "shareRate": 0.2
+    },
+    "share-rate-up": {
+      "shareRate": 0.8
+    },
+    "share-above-down": {
+      "shareAbove": 0.3
+    },
+    "share-above-up": {
+      "shareAbove": 0.8
+    },
+    "share-accept-below-down": {
+      "shareAcceptBelow": 0.45
+    },
+    "share-accept-below-up": {
+      "shareAcceptBelow": 0.95
+    },
+    "share-range-down": {
+      "shareRange": 3
+    },
+    "share-range-up": {
+      "shareRange": 12
+    },
+    "share-recipients-down": {
+      "shareRecipients": 1
+    },
+    "share-recipients-up": {
+      "shareRecipients": 4
+    },
+    "share-efficiency-down": {
+      "shareEfficiency": 0.45
+    },
+    "share-efficiency-up": {
+      "shareEfficiency": 0.95
+    },
+    "mutation-load-rate-down": {
+      "mutationLoadRate": 1.5
+    },
+    "mutation-load-rate-up": {
+      "mutationLoadRate": 6
+    },
+    "mutation-load-mend-down": {
+      "mutationLoadMend": 0.075
+    },
+    "mutation-load-mend-up": {
+      "mutationLoadMend": 0.3
+    },
+    "mutation-load-cost-down": {
+      "mutationLoadCost": 0.02
+    },
+    "mutation-load-cost-up": {
+      "mutationLoadCost": 0.08
+    },
+    "luck-spread-down": {
+      "luckSpread": 0.04
+    },
+    "luck-spread-up": {
+      "luckSpread": 0.16
+    },
+    "luck-limit-down": {
+      "luckLimit": 1.25
+    },
+    "luck-limit-up": {
+      "luckLimit": 5
+    },
+    "erosion-rate-down": {
+      "erosionRate": 0.000005
+    },
+    "erosion-rate-up": {
+      "erosionRate": 0.00002
+    },
+    "erosion-below-down": {
+      "erosionBelow": 0.005
+    },
+    "erosion-below-up": {
+      "erosionBelow": 0.02
+    },
+    "erosion-recover-above-down": {
+      "erosionRecoverAbove": 0.05
+    },
+    "erosion-recover-above-up": {
+      "erosionRecoverAbove": 0.2
+    },
+    "erosion-recovery-down": {
+      "erosionRecovery": 0.00002
+    },
+    "erosion-recovery-up": {
+      "erosionRecovery": 0.00008
+    },
+    "erosion-min-down": {
+      "erosionMin": 0.2
+    },
+    "erosion-min-up": {
+      "erosionMin": 0.8
+    },
+    "fouling-down": {
+      "fouling": 0.005
+    },
+    "fouling-up": {
+      "fouling": 0.02
+    },
+    "foul-decay-down": {
+      "foulDecay": 0.005
+    },
+    "foul-decay-up": {
+      "foulDecay": 0.02
+    },
+    "foul-free-down": {
+      "foulFree": 1
+    },
+    "foul-free-up": {
+      "foulFree": 4
+    },
+    "foul-growth-effect-down": {
+      "foulGrowthEffect": 0.1
+    },
+    "foul-growth-effect-up": {
+      "foulGrowthEffect": 0.4
+    },
+    "foul-disease-effect-down": {
+      "foulDiseaseEffect": 0.15
+    },
+    "foul-disease-effect-up": {
+      "foulDiseaseEffect": 0.6
+    },
+    "overgraze-damage-down": {
+      "overgrazeDamage": 0.0015
+    },
+    "overgraze-damage-up": {
+      "overgrazeDamage": 0.006
+    },
+    "overgraze-below-down": {
+      "overgrazeBelow": 0.005
+    },
+    "overgraze-below-up": {
+      "overgrazeBelow": 0.02
+    },
+    "overgraze-heal-down": {
+      "overgrazeHeal": 0.0005
+    },
+    "overgraze-heal-up": {
+      "overgrazeHeal": 0.002
+    },
+    "overgraze-penalty-down": {
+      "overgrazePenalty": 0.35
+    },
+    "overgraze-penalty-up": {
+      "overgrazePenalty": 0.85
+    },
+    "catastrophe-every-down": {
+      "catastropheEvery": 75000
+    },
+    "catastrophe-every-up": {
+      "catastropheEvery": 300000
+    },
+    "catastrophe-length-down": {
+      "catastropheLength": 7500
+    },
+    "catastrophe-length-up": {
+      "catastropheLength": 30000
+    },
+    "ice-age-cooling-down": {
+      "iceAgeCooling": 0.15
+    },
+    "ice-age-cooling-up": {
+      "iceAgeCooling": 0.6
+    },
+    "drought-severity-down": {
+      "droughtSeverity": 0.4
+    },
+    "drought-severity-up": {
+      "droughtSeverity": 0.9
+    },
+    "meteor-radius-down": {
+      "meteorRadius": 20
+    },
+    "meteor-radius-up": {
+      "meteorRadius": 80
+    },
+    "ev-fire-every-down": {
+      "evFireEvery": 10000
+    },
+    "ev-fire-every-up": {
+      "evFireEvery": 40000
+    },
+    "ev-fire-radius-min-down": {
+      "evFireRadiusMin": 3
+    },
+    "ev-fire-radius-min-up": {
+      "evFireRadiusMin": 12
+    },
+    "ev-fire-radius-max-down": {
+      "evFireRadiusMax": 7
+    },
+    "ev-fire-radius-max-up": {
+      "evFireRadiusMax": 28
+    },
+    "ev-fire-spread-min-down": {
+      "evFireSpreadMin": 0.025
+    },
+    "ev-fire-spread-min-up": {
+      "evFireSpreadMin": 0.1
+    },
+    "ev-fire-spread-max-down": {
+      "evFireSpreadMax": 0.2
+    },
+    "ev-fire-spread-max-up": {
+      "evFireSpreadMax": 0.8
+    },
+    "ev-fire-length-min-down": {
+      "evFireLengthMin": 100
+    },
+    "ev-fire-length-min-up": {
+      "evFireLengthMin": 400
+    },
+    "ev-fire-length-max-down": {
+      "evFireLengthMax": 400
+    },
+    "ev-fire-length-max-up": {
+      "evFireLengthMax": 1600
+    },
+    "ev-fire-cell-burn-down": {
+      "evFireCellBurn": 2
+    },
+    "ev-fire-cell-burn-up": {
+      "evFireCellBurn": 6
+    },
+    "ev-fire-recover-down": {
+      "evFireRecover": 1500
+    },
+    "ev-fire-recover-up": {
+      "evFireRecover": 6000
+    },
+    "ev-fire-dry-weight-down": {
+      "evFireDryWeight": 0.25
+    },
+    "ev-fire-dry-weight-up": {
+      "evFireDryWeight": 1
+    },
+    "ev-storm-every-down": {
+      "evStormEvery": 10000
+    },
+    "ev-storm-every-up": {
+      "evStormEvery": 40000
+    },
+    "ev-storm-radius-min-down": {
+      "evStormRadiusMin": 15
+    },
+    "ev-storm-radius-min-up": {
+      "evStormRadiusMin": 60
+    },
+    "ev-storm-radius-max-down": {
+      "evStormRadiusMax": 40
+    },
+    "ev-storm-radius-max-up": {
+      "evStormRadiusMax": 160
+    },
+    "ev-storm-push-min-down": {
+      "evStormPushMin": 0.01
+    },
+    "ev-storm-push-min-up": {
+      "evStormPushMin": 0.04
+    },
+    "ev-storm-push-max-down": {
+      "evStormPushMax": 0.05
+    },
+    "ev-storm-push-max-up": {
+      "evStormPushMax": 0.2
+    },
+    "ev-storm-length-min-down": {
+      "evStormLengthMin": 50
+    },
+    "ev-storm-length-min-up": {
+      "evStormLengthMin": 200
+    },
+    "ev-storm-length-max-down": {
+      "evStormLengthMax": 200
+    },
+    "ev-storm-length-max-up": {
+      "evStormLengthMax": 800
+    },
+    "ev-storm-move-cost-down": {
+      "evStormMoveCost": 1.25
+    },
+    "ev-storm-move-cost-up": {
+      "evStormMoveCost": 3
+    },
+    "ev-storm-soil-share-down": {
+      "evStormSoilShare": 0.0005
+    },
+    "ev-storm-soil-share-up": {
+      "evStormSoilShare": 0.002
+    },
+    "ev-flood-every-down": {
+      "evFloodEvery": 40000
+    },
+    "ev-flood-every-up": {
+      "evFloodEvery": 160000
+    },
+    "ev-flood-radius-min-down": {
+      "evFloodRadiusMin": 10
+    },
+    "ev-flood-radius-min-up": {
+      "evFloodRadiusMin": 40
+    },
+    "ev-flood-radius-max-down": {
+      "evFloodRadiusMax": 30
+    },
+    "ev-flood-radius-max-up": {
+      "evFloodRadiusMax": 120
+    },
+    "ev-flood-length-min-down": {
+      "evFloodLengthMin": 250
+    },
+    "ev-flood-length-min-up": {
+      "evFloodLengthMin": 1000
+    },
+    "ev-flood-length-max-down": {
+      "evFloodLengthMax": 1250
+    },
+    "ev-flood-length-max-up": {
+      "evFloodLengthMax": 5000
+    },
+    "ev-volcano-every-down": {
+      "evVolcanoEvery": 50000
+    },
+    "ev-volcano-every-up": {
+      "evVolcanoEvery": 200000
+    },
+    "ev-volcano-radius-min-down": {
+      "evVolcanoRadiusMin": 3
+    },
+    "ev-volcano-radius-min-up": {
+      "evVolcanoRadiusMin": 12
+    },
+    "ev-volcano-radius-max-down": {
+      "evVolcanoRadiusMax": 7
+    },
+    "ev-volcano-radius-max-up": {
+      "evVolcanoRadiusMax": 28
+    },
+    "ev-volcano-cooling-min-down": {
+      "evVolcanoCoolingMin": 0.015
+    },
+    "ev-volcano-cooling-min-up": {
+      "evVolcanoCoolingMin": 0.06
+    },
+    "ev-volcano-cooling-max-down": {
+      "evVolcanoCoolingMax": 0.05
+    },
+    "ev-volcano-cooling-max-up": {
+      "evVolcanoCoolingMax": 0.2
+    },
+    "ev-volcano-length-min-down": {
+      "evVolcanoLengthMin": 750
+    },
+    "ev-volcano-length-min-up": {
+      "evVolcanoLengthMin": 3000
+    },
+    "ev-volcano-length-max-down": {
+      "evVolcanoLengthMax": 2000
+    },
+    "ev-volcano-length-max-up": {
+      "evVolcanoLengthMax": 8000
+    },
+    "ev-volcano-boost-down": {
+      "evVolcanoBoost": 0.25
+    },
+    "ev-volcano-boost-up": {
+      "evVolcanoBoost": 1
+    },
+    "ev-volcano-boost-reach-down": {
+      "evVolcanoBoostReach": 2
+    },
+    "ev-volcano-boost-reach-up": {
+      "evVolcanoBoostReach": 8
+    },
+    "ev-volcano-boost-fade-down": {
+      "evVolcanoBoostFade": 0.00005
+    },
+    "ev-volcano-boost-fade-up": {
+      "evVolcanoBoostFade": 0.0002
+    },
+    "ev-blight-every-down": {
+      "evBlightEvery": 25000
+    },
+    "ev-blight-every-up": {
+      "evBlightEvery": 100000
+    },
+    "ev-blight-growth-min-down": {
+      "evBlightGrowthMin": 0.15
+    },
+    "ev-blight-growth-min-up": {
+      "evBlightGrowthMin": 0.6
+    },
+    "ev-blight-growth-max-down": {
+      "evBlightGrowthMax": 0.35
+    },
+    "ev-blight-growth-max-up": {
+      "evBlightGrowthMax": 0.85
+    },
+    "ev-blight-length-min-down": {
+      "evBlightLengthMin": 500
+    },
+    "ev-blight-length-min-up": {
+      "evBlightLengthMin": 2000
+    },
+    "ev-blight-length-max-down": {
+      "evBlightLengthMax": 2000
+    },
+    "ev-blight-length-max-up": {
+      "evBlightLengthMax": 8000
+    },
+    "ev-outbreak-every-down": {
+      "evOutbreakEvery": 25000
+    },
+    "ev-outbreak-every-up": {
+      "evOutbreakEvery": 100000
+    },
+    "ev-outbreak-radius-down": {
+      "evOutbreakRadius": 12.5
+    },
+    "ev-outbreak-radius-up": {
+      "evOutbreakRadius": 50
+    },
+    "ev-outbreak-hosts-down": {
+      "evOutbreakHosts": 10
+    },
+    "ev-outbreak-hosts-up": {
+      "evOutbreakHosts": 40
+    },
+    "ev-outbreak-duration-mult-down": {
+      "evOutbreakDurationMult": 1
+    },
+    "ev-outbreak-duration-mult-up": {
+      "evOutbreakDurationMult": 4
+    },
+    "ev-good-year-every-down": {
+      "evGoodYearEvery": 20000
+    },
+    "ev-good-year-every-up": {
+      "evGoodYearEvery": 80000
+    },
+    "ev-good-year-boost-min-down": {
+      "evGoodYearBoostMin": 1.15
+    },
+    "ev-good-year-boost-max-down": {
+      "evGoodYearBoostMax": 1.4
+    },
+    "ev-good-year-boost-max-up": {
+      "evGoodYearBoostMax": 3.6
+    },
+    "ev-good-year-length-min-down": {
+      "evGoodYearLengthMin": 1000
+    },
+    "ev-good-year-length-min-up": {
+      "evGoodYearLengthMin": 4000
+    },
+    "ev-good-year-length-max-down": {
+      "evGoodYearLengthMax": 2000
+    },
+    "ev-good-year-length-max-up": {
+      "evGoodYearLengthMax": 8000
+    },
+    "aging-coeff-down": {
+      "agingCoeff": 1.5
+    },
+    "aging-coeff-up": {
+      "agingCoeff": 6
+    },
+    "aging-prime-fraction-down": {
+      "agingPrimeFraction": 0.25
+    },
+    "aging-prime-fraction-up": {
+      "agingPrimeFraction": 0.75
+    },
+    "aging-repair-coeff-down": {
+      "agingRepairCoeff": 0.15
+    },
+    "aging-repair-coeff-up": {
+      "agingRepairCoeff": 0.6
+    },
+    "kin-distance-down": {
+      "kinDistance": 0.025
+    },
+    "kin-distance-up": {
+      "kinDistance": 0.1
+    },
+    "meat-gorge-up": {
+      "meatGorge": 2
+    },
+    "tolerance-cost-coeff-down": {
+      "toleranceCostCoeff": 0.0015
+    },
+    "tolerance-cost-coeff-up": {
+      "toleranceCostCoeff": 0.006
+    },
+    "herd-bonus-down": {
+      "herdBonus": 0.15
+    },
+    "herd-bonus-up": {
+      "herdBonus": 0.6
+    },
+    "herd-range-down": {
+      "herdRange": 4
+    },
+    "herd-range-up": {
+      "herdRange": 16
+    },
+    "herd-cap-down": {
+      "herdCap": 2.5
+    },
+    "herd-cap-up": {
+      "herdCap": 10
+    },
+    "disease-transmission-down": {
+      "diseaseTransmission": 0.25
+    },
+    "disease-transmission-up": {
+      "diseaseTransmission": 1
+    },
+    "disease-contact-range-down": {
+      "diseaseContactRange": 1.5
+    },
+    "disease-contact-range-up": {
+      "diseaseContactRange": 6
+    },
+    "disease-width-down": {
+      "diseaseWidth": 0.025
+    },
+    "disease-width-up": {
+      "diseaseWidth": 0.1
+    },
+    "disease-duration-down": {
+      "diseaseDuration": 100
+    },
+    "disease-duration-up": {
+      "diseaseDuration": 400
+    },
+    "disease-immunity-down": {
+      "diseaseImmunity": 300
+    },
+    "disease-immunity-up": {
+      "diseaseImmunity": 1200
+    },
+    "disease-cost-down": {
+      "diseaseCost": 15
+    },
+    "disease-cost-up": {
+      "diseaseCost": 60
+    },
+    "disease-intro-every-down": {
+      "diseaseIntroEvery": 10000
+    },
+    "disease-intro-every-up": {
+      "diseaseIntroEvery": 40000
+    },
+    "disease-mutation-prob-down": {
+      "diseaseMutationProb": 0.25
+    },
+    "disease-mutation-prob-up": {
+      "diseaseMutationProb": 1
+    },
+    "disease-drift-down": {
+      "diseaseDrift": 0.25
+    },
+    "disease-drift-up": {
+      "diseaseDrift": 1
+    },
+    "camo-scale-down": {
+      "camoScale": 4
+    },
+    "camo-scale-up": {
+      "camoScale": 16
+    },
+    "camo-detect-min-down": {
+      "camoDetectMin": 0.1
+    },
+    "camo-detect-min-up": {
+      "camoDetectMin": 0.4
+    },
+    "camo-glance-down": {
+      "camoGlance": 10
+    },
+    "camo-glance-up": {
+      "camoGlance": 40
+    },
+    "camo-learning-down": {
+      "camoLearning": 0.5
+    },
+    "camo-learning-up": {
+      "camoLearning": 2
+    },
+    "camo-learn-rate-down": {
+      "camoLearnRate": 0.15
+    },
+    "camo-learn-rate-up": {
+      "camoLearnRate": 0.6
+    },
+    "bond-links-max-down": {
+      "bondLinksMax": 2
+    },
+    "bond-links-max-up": {
+      "bondLinksMax": 6
+    },
+    "colony-max-down": {
+      "colonyMax": 8
+    },
+    "colony-max-up": {
+      "colonyMax": 32
+    },
+    "bond-rest-length-down": {
+      "bondRestLength": 0.75
+    },
+    "bond-rest-length-up": {
+      "bondRestLength": 3
+    },
+    "bond-stiffness-down": {
+      "bondStiffness": 0.25
+    },
+    "bond-stiffness-up": {
+      "bondStiffness": 1
+    },
+    "bond-iterations-down": {
+      "bondIterations": 1
+    },
+    "bond-iterations-up": {
+      "bondIterations": 4
+    },
+    "bond-share-down": {
+      "bondShare": 0.05
+    },
+    "bond-share-up": {
+      "bondShare": 0.2
+    },
+    "bond-align-down": {
+      "bondAlign": 0.15
+    },
+    "bond-align-up": {
+      "bondAlign": 0.6
+    },
+    "initial-bond-down": {
+      "initialBond": 0.075
+    },
+    "initial-bond-up": {
+      "initialBond": 0.3
+    },
+    "type-feeder-bite-down": {
+      "typeFeederBite": 1
+    },
+    "type-feeder-bite-up": {
+      "typeFeederBite": 4
+    },
+    "type-feeder-speed-down": {
+      "typeFeederSpeed": 0.2
+    },
+    "type-feeder-speed-up": {
+      "typeFeederSpeed": 0.8
+    },
+    "type-mover-speed-down": {
+      "typeMoverSpeed": 1
+    },
+    "type-mover-speed-up": {
+      "typeMoverSpeed": 4
+    },
+    "type-mover-bite-down": {
+      "typeMoverBite": 0.2
+    },
+    "type-mover-bite-up": {
+      "typeMoverBite": 0.8
+    },
+    "type-photo-gain-down": {
+      "typePhotoGain": 0.025
+    },
+    "type-photo-gain-up": {
+      "typePhotoGain": 0.1
+    },
+    "type-photo-bite-down": {
+      "typePhotoBite": 0.15
+    },
+    "type-photo-bite-up": {
+      "typePhotoBite": 0.6
+    },
+    "type-photo-speed-down": {
+      "typePhotoSpeed": 0.25
+    },
+    "type-photo-speed-up": {
+      "typePhotoSpeed": 1
+    },
+    "type-armor-defense-down": {
+      "typeArmorDefense": 1.5
+    },
+    "type-armor-defense-up": {
+      "typeArmorDefense": 6
+    },
+    "type-armor-speed-down": {
+      "typeArmorSpeed": 0.25
+    },
+    "type-armor-speed-up": {
+      "typeArmorSpeed": 1
+    },
+    "type-armor-upkeep-down": {
+      "typeArmorUpkeep": 0.6
+    },
+    "type-armor-upkeep-up": {
+      "typeArmorUpkeep": 2.4
+    },
+    "type-sensor-range-down": {
+      "typeSensorRange": 2
+    },
+    "type-sensor-range-up": {
+      "typeSensorRange": 8
+    },
+    "type-sensor-bite-down": {
+      "typeSensorBite": 0.25
+    },
+    "type-sensor-bite-up": {
+      "typeSensorBite": 1
+    },
+    "type-sensor-speed-down": {
+      "typeSensorSpeed": 0.35
+    },
+    "type-sensor-speed-up": {
+      "typeSensorSpeed": 1.4
+    },
+    "colony-defense-share-down": {
+      "colonyDefenseShare": 0.25
+    },
+    "colony-defense-share-up": {
+      "colonyDefenseShare": 1
+    },
+    "sex-wait-limit-down": {
+      "sexWaitLimit": 100
+    },
+    "sex-wait-limit-up": {
+      "sexWaitLimit": 400
+    },
+    "mate-ready-fraction-down": {
+      "mateReadyFraction": 0.3
+    },
+    "mate-ready-fraction-up": {
+      "mateReadyFraction": 0.8
+    },
+    "sex-founder-spread-down": {
+      "sexFounderSpread": 0.5
+    },
+    "mate-range-down": {
+      "mateRange": 3
+    },
+    "mate-range-up": {
+      "mateRange": 12
+    },
+    "mate-distance-down": {
+      "mateDistance": 0.125
+    },
+    "mate-distance-up": {
+      "mateDistance": 0.5
+    },
+    "mate-diet-limit-down": {
+      "mateDietLimit": 0.5
+    },
+    "macro-mutation-std-down": {
+      "macroMutationStd": 0.15
+    },
+    "macro-mutation-std-up": {
+      "macroMutationStd": 0.6
+    },
+    "macro-mutation-genes-down": {
+      "macroMutationGenes": 2
+    },
+    "macro-mutation-genes-up": {
+      "macroMutationGenes": 6
+    },
+    "kill-ownership-ticks-down": {
+      "killOwnershipTicks": 15
+    },
+    "kill-ownership-ticks-up": {
+      "killOwnershipTicks": 60
+    },
+    "kill-ownership-leak-down": {
+      "killOwnershipLeak": 0.05
+    },
+    "kill-ownership-leak-up": {
+      "killOwnershipLeak": 0.2
+    },
+    "scent-deposit-down": {
+      "scentDeposit": 0.5
+    },
+    "scent-deposit-up": {
+      "scentDeposit": 2
+    },
+    "scent-decay-down": {
+      "scentDecay": 0.025
+    },
+    "scent-decay-up": {
+      "scentDecay": 0.1
+    },
+    "scent-cell-size-down": {
+      "scentCellSize": 2
+    },
+    "scent-cell-size-up": {
+      "scentCellSize": 8
+    },
+    "repro-threshold-per-size-down": {
+      "reproThresholdPerSize": 15
+    },
+    "repro-threshold-per-size-up": {
+      "reproThresholdPerSize": 60
+    },
+    "offspring-energy-fraction-down": {
+      "offspringEnergyFraction": 0.25
+    },
+    "offspring-energy-fraction-up": {
+      "offspringEnergyFraction": 0.75
+    }
+  },
+  "measures": [
+    "all"
+  ]
+}

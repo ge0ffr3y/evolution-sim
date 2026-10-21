@@ -5,7 +5,10 @@ import { join, resolve } from "node:path";
 import { Simulation } from "@evo/sim-core";
 import { checkExperiment, jobsOf, type Experiment } from "./experiment";
 import { runJob, statusOf } from "./job";
-import { sampleWorld, MEASURES } from "./measures";
+import { sampleWorld, MEASURES, lastQuarterTrend } from "./measures";
+import { draftSettings, dosesExperiment, armName } from "./audit";
+import { compare } from "./report";
+import type { JobResult } from "./job";
 import { makespan, planMachines } from "./estimate";
 import { buildLaunchRequest, buildUserData } from "./cloud";
 
@@ -66,6 +69,80 @@ describe("measures", () => {
       if (t % 25 === 0) sampleWorld(watched, all);
     }
     expect(watched.fingerprint()).toBe(plain.fingerprint());
+  });
+
+  it("recording never changes what happens in a busy world either (brains, disease, colonies, climate)", () => {
+    const busy = { worldWidth: 128, worldHeight: 128, initialOrganisms: 150, terrainMode: 1, climateMode: 1, thermalCostCoeff: 1.5, brainMode: 2, diseaseTransmission: 0.5, diseaseIntroEvery: 100, multicellular: 1, cellTypes: 1, initialBond: 0.3, mutationLoadRate: 3, mutationLoadModel: 1, overgrazeDamage: 0.003, fouling: 0.01, erosionRate: 1e-5 };
+    const plain = new Simulation(5, busy);
+    const watched = new Simulation(5, busy);
+    const all = Object.keys(MEASURES);
+    for (let t = 0; t < 300; t++) {
+      plain.step();
+      watched.step();
+      if (t % 25 === 0) sampleWorld(watched, all);
+    }
+    expect(watched.fingerprint()).toBe(plain.fingerprint());
+  }, 60_000);
+
+  it("the end-of-run trend is the change over the last quarter, relative to its level", () => {
+    // Flat for three quarters, then rising from 100 to 130 over the last quarter: about +26% of its average there (115).
+    const rows = Array.from({ length: 41 }, (_, k) => ({ tick: k * 100, population: k < 30 ? 100 : 100 + (k - 30) * 3 }));
+    expect(lastQuarterTrend(rows, "population")).toBeCloseTo(0.26, 1);
+    expect(lastQuarterTrend(rows.map((r) => ({ ...r, population: 50 })), "population")).toBe(0);
+  });
+
+  it('"all" records every measure, and baseChanges reach every arm', () => {
+    const exp = tiny({ measures: ["all"], baseChanges: { foodRegrowPerTick: 0.1 } });
+    expect(exp.measures).toEqual(Object.keys(MEASURES));
+    expect(exp.armConfigs.control!.foodRegrowPerTick).toBe(0.1);
+    expect(exp.armConfigs.crowded!.foodRegrowPerTick).toBe(0.1);
+    expect(exp.armConfigs.crowded!.initialOrganisms).toBe(160);
+  });
+});
+
+describe("the audit's settings list and its experiment", () => {
+  const list = draftSettings(repoRoot, "grand-world", { mutationLoadMend: 0.15 });
+
+  it("covers every setting, and gives a reason for each one it does not test", () => {
+    expect(list.settings.length).toBeGreaterThan(400);
+    for (const s of list.settings) {
+      if (s.test) expect(s.down ?? s.up).not.toBeNull();
+      else expect(s.reason.length).toBeGreaterThan(5);
+    }
+    const byKey = new Map(list.settings.map((s) => [s.key, s]));
+    expect(byKey.get("brainMode")!.test).toBe(false); // a switch
+    expect(byKey.get("speciesEvery")!.test).toBe(false); // only watches
+    expect(byKey.get("biomeGrowthDesert")!.test).toBe(false); // climate biomes are off in this world
+    const noDrift = draftSettings(repoRoot, "grand-world", { climateDriftPeriod: 0 });
+    expect(noDrift.settings.find((x) => x.key === "climateDriftAmplitude")!.test).toBe(false); // drift needs a cycle length
+    expect(byKey.get("basalCostCoeff")!.down).toEqual({ basalCostCoeff: 0.025 });
+    expect(byKey.get("chemDecay")!.down).toEqual({ chemDecay: 0.9 }); // half as long, not half the share
+    expect(byKey.get("worldSize")!.up).toEqual({ worldWidth: 1024, worldHeight: 1024, initialOrganisms: 2400 });
+  });
+
+  it("makes a valid experiment with a control and a down and an up arm per setting", () => {
+    const folder = mkdtempSync(join(tmpdir(), "evo-doses-"));
+    folders.push(folder);
+    const raw = dosesExperiment(list, { name: "doses-test", ticks: 1000, seeds: "1-2" });
+    const exp = checkExperiment(raw, folder, repoRoot);
+    expect(exp.arms.control).toEqual({});
+    expect(exp.arms[armName("basalCostCoeff", "up")]).toEqual({ basalCostCoeff: 0.1 });
+    expect(exp.armConfigs.control!.mutationLoadMend).toBe(0.15);
+    const tested = list.settings.filter((s) => s.test);
+    expect(Object.keys(exp.arms).length).toBe(1 + tested.reduce((n, s) => n + (s.down ? 1 : 0) + (s.up ? 1 : 0), 0));
+  });
+});
+
+describe("the comparison report", () => {
+  const run = (seed: number, value: number): JobResult => ({ arm: "a", seed, tick: 10, targetTicks: 10, extinctAt: null, wallSeconds: 1, ticksPerSecond: 1, fingerprint: 0, summary: { x: value }, rows: [] });
+
+  it("compares seed by seed: the average change and its 95% range", () => {
+    const arm = new Map([[1, run(1, 12)], [2, run(2, 14)], [3, run(3, 16)]]);
+    const control = new Map([[1, run(1, 10)], [2, run(2, 11)], [3, run(3, 12)]]);
+    const c = compare("a", "x", arm, control)!;
+    expect(c.change).toBeCloseTo(3, 10); // changes 2, 3, 4
+    expect(c.high - c.change).toBeCloseTo((4.303 * 1) / Math.sqrt(3), 3); // t(2) x sd 1 / sqrt(3)
+    expect(c.noiseUnits).toBeCloseTo(3, 10); // control spread is 1
   });
 });
 

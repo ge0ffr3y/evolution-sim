@@ -90,3 +90,9 @@ It should name `evolution-sim-runner`.
 ## Removing it all later
 
 Terminate any machines tagged `Project=evolution-sim`, then delete the bucket, the access key, the user, and the role with its instance profile.
+
+## The account's core limit
+
+AWS caps how many cores an account may run at once. For C-family machines (c7g, c8g) this account's limit is **32** (the quota "Running On-Demand Standard (A, C, D, H, I, M, R, T, Z) instances", found in the AWS console under Service Quotas > Amazon EC2). The runner never plans a machine bigger than this (`MAX_VCPUS` in `apps/runner/src/exp/estimate.ts`).
+
+To run bigger batches faster (for example 64 worlds at once), the owner can request a higher value in Service Quotas. It is free to ask, and AWS usually answers within a day. After it is granted, raise `MAX_VCPUS` to match. A higher quota is only a ceiling: the spending guard and the $50 budget still apply.

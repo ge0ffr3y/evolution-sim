@@ -1,20 +1,28 @@
 import { spawn } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
-import { join, resolve } from "node:path";
-import { jobsOf, loadExperiment, type Experiment, type Job } from "./experiment";
+import { basename, join, relative, resolve } from "node:path";
+import { buildArms, jobsOf, loadExperiment, type Experiment, type Job } from "./experiment";
 import { resultsDir, runJob, statusOf } from "./job";
 import { estimate, measureSpeeds, type Estimate } from "./estimate";
 import { MEASURES } from "./measures";
 import { cloudCommand } from "./cloud";
+import { draftSettings, dosesExperiment, type SettingsList } from "./audit";
+import { collectResults, writeReport } from "./report";
 
 const USAGE = `Evolution Sim experiments
 
-  npm run exp -- check    <experiment folder>   check the experiment file and list its jobs
+  npm run exp -- check    <experiment folder>   check the experiment file and list its jobs (--build: also build every arm's world)
   npm run exp -- estimate <experiment folder>   how long it will take and what it would cost in the cloud
   npm run exp -- run      <experiment folder>   run it here, resuming anything unfinished [--jobs N] [--ticks N]
   npm run exp -- status   <experiment folder>   what is done, running and left
   npm run exp -- measures                       list the measures an experiment can record
+  npm run exp -- report   <experiment folder>   compare every arm with the control (--control <arm>, default "control"): writes report.md
+
+  npm run exp -- settings <preset> --out <file> [--changes name=value,name=value]
+                                                draft the audit's list of settings (which are turned down and up, and how)
+  npm run exp -- make-doses <list file> <folder> [--ticks 100000] [--seeds 1-4]
+                                                write the down-and-up experiment from a reviewed list
 
   npm run exp -- cloud launch <folder> [--confirm] [--type c7g.4xlarge] [--ticks N]
   npm run exp -- cloud status
@@ -95,7 +103,10 @@ async function runHere(exp: Experiment, jobs: Job[], workers: number, ticks: str
   // A status file for anyone watching (it is uploaded with the results on a cloud machine).
   const writeStatus = (): void => {
     const lines = statusOf(exp, jobs);
-    writeFileSync(join(resultsDir(exp), "status.json"), JSON.stringify({ updatedAt: new Date().toISOString(), ticks: exp.ticks, jobs: lines.map((l) => ({ id: l.job.id, state: l.state, tick: l.tick, ticksPerSecond: l.ticksPerSecond })) }));
+    // Written to a temporary file and renamed, so an upload never catches it half-written.
+    const path = join(resultsDir(exp), "status.json");
+    writeFileSync(`${path}.tmp`, JSON.stringify({ updatedAt: new Date().toISOString(), ticks: exp.ticks, jobs: lines.map((l) => ({ id: l.job.id, state: l.state, tick: l.tick, ticksPerSecond: l.ticksPerSecond })) }));
+    renameSync(`${path}.tmp`, path);
   };
   mkdirSync(resultsDir(exp), { recursive: true });
   writeStatus();
@@ -154,6 +165,11 @@ async function main(): Promise<void> {
       console.log(`  base world ${exp.base}, ${exp.ticks.toLocaleString("en-US")} ticks, ${Object.keys(exp.arms).length} arms x ${exp.seedList.length} seeds = ${jobs.length} jobs (${exp.lane} lane)`);
       console.log(`  sample every ${exp.sampleEvery} ticks; save every ${exp.checkpointEvery} ticks or ${exp.checkpointMinutes} minutes`);
       console.log(`  measures: ${exp.measures.join(", ")}`);
+      if (options.build === true) {
+        const failures = buildArms(exp);
+        console.log(failures.length ? `  ${failures.length} arm(s) cannot start:\n    ${failures.join("\n    ")}` : `  every arm's world builds and runs`);
+        if (failures.length) process.exit(1);
+      }
       return;
     }
     case "estimate": {
@@ -177,6 +193,51 @@ async function main(): Promise<void> {
     }
     case "measures": {
       for (const [name, m] of Object.entries(MEASURES)) console.log(`  ${name.padEnd(20)} ${m.describe}`);
+      return;
+    }
+    case "report": {
+      const exp = load(positional[0], options.ticks);
+      const control = typeof options.control === "string" ? options.control : "control";
+      if (!(control in exp.arms)) fail(`there is no arm called "${control}" (arms: ${Object.keys(exp.arms).join(", ")}); choose one with --control`);
+      const { flags } = writeReport({ exp, control, results: collectResults(exp) });
+      console.log(`Wrote ${relative(here, join(exp.folder, "report.md"))} (${flags} red flags) and results/comparisons.csv.`);
+      return;
+    }
+    case "settings": {
+      const base = positional[0];
+      if (!base || typeof options.out !== "string") fail("settings needs a preset name and --out <file>");
+      const changes: Record<string, number> = {};
+      if (typeof options.changes === "string") {
+        for (const pair of options.changes.split(",")) {
+          const [name, value] = pair.split("=");
+          if (!name || value === undefined || Number.isNaN(Number(value))) fail(`--changes: "${pair}" is not name=value`);
+          changes[name] = Number(value);
+        }
+      }
+      const list = draftSettings(repoRoot, base, changes);
+      const out = resolve(here, options.out);
+      writeFileSync(out, `${JSON.stringify(list, null, 2)}\n`);
+      const tested = list.settings.filter((x) => x.test);
+      const arms = tested.reduce((n, x) => n + (x.down ? 1 : 0) + (x.up ? 1 : 0), 0);
+      console.log(`${list.settings.length} settings: ${tested.length} turned down and up (${arms} arms), ${list.settings.length - tested.length} not. Written to ${options.out}.`);
+      const reasons = new Map<string, number>();
+      for (const x of list.settings) if (!x.test) reasons.set(x.reason, (reasons.get(x.reason) ?? 0) + 1);
+      for (const [reason, n] of [...reasons].sort((a, b) => b[1] - a[1])) console.log(`  ${String(n).padStart(3)}  ${reason}`);
+      return;
+    }
+    case "make-doses": {
+      const [listFile, folder] = positional;
+      if (!listFile || !folder) fail("make-doses needs the settings list file and the experiment folder to write");
+      const list = JSON.parse(readFileSync(resolve(here, listFile), "utf8")) as SettingsList;
+      const dir = resolve(here, folder);
+      const file = join(dir, "experiment.json");
+      if (existsSync(file) && options.force !== true) fail(`${folder}/experiment.json already exists (add --force to replace it)`);
+      const ticks = typeof options.ticks === "string" ? Number(options.ticks) : 100000;
+      const seeds = typeof options.seeds === "string" ? options.seeds : "1-4";
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(file, `${JSON.stringify(dosesExperiment(list, { name: basename(dir), ticks, seeds }), null, 2)}\n`);
+      const exp = load(folder, undefined); // check it like any other experiment
+      console.log(`Wrote ${folder}/experiment.json: ${Object.keys(exp.arms).length} arms x ${exp.seedList.length} seeds = ${jobsOf(exp).length} jobs of ${ticks.toLocaleString("en-US")} ticks.`);
       return;
     }
     case "job": {
@@ -205,4 +266,11 @@ async function main(): Promise<void> {
   }
 }
 
-if (process.argv[1] && import.meta.filename === resolve(process.argv[1])) await main();
+if (process.argv[1] && import.meta.filename === resolve(process.argv[1])) {
+  try {
+    await main();
+  } catch (error) {
+    console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(1);
+  }
+}

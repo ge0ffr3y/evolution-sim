@@ -1,0 +1,30 @@
+{
+  "name": "place-test",
+  "question": "In a world where food moves with the seasons, does place memory evolve (the gene rises from a low start), do animals use it (brains wired to the place sense and to memory above chance), and does it help them (food gathered, especially by older animals; population)? Does it need learning?",
+  "base": "learning-test",
+  "baseChanges": {
+    "workingMemory": 0
+  },
+  "ticks": 200000,
+  "seeds": "1-8",
+  "arms": {
+    "control": {},
+    "no-place": {
+      "placeMemory": 0
+    },
+    "place-no-learning": {
+      "brainLearning": 0
+    },
+    "none": {
+      "placeMemory": 0,
+      "brainLearning": 0,
+      "learnSenses": 0
+    },
+    "free-place": {
+      "placeCostCoeff": 0
+    }
+  },
+  "measures": [
+    "all"
+  ]
+}

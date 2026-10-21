@@ -39,7 +39,15 @@ function aws(args: string[], { json = true, region }: { json?: boolean; region?:
   const full = [...args, "--profile", PROFILE];
   if (region) full.push("--region", region);
   if (json) full.push("--output", "json");
-  const out = execFileSync("aws", full, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  let out: string;
+  try {
+    out = execFileSync("aws", full, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  } catch (error) {
+    // Show AWS's own message, not a stack trace, with a pointer for the one limit we know about.
+    const message = String((error as { stderr?: string }).stderr ?? error).trim();
+    const hint = message.includes("VcpuLimitExceeded") ? `\n(The account's on-demand core limit is lower than this machine needs; MAX_VCPUS in estimate.ts must match it. See infra/aws/README.md.)` : "";
+    throw new Error(`aws ${args.slice(0, 2).join(" ")} failed: ${message}${hint}`);
+  }
   if (!json) return out;
   return out.trim() ? JSON.parse(out) : null;
 }

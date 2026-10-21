@@ -6,7 +6,7 @@ import type { SimConfig } from "./config";
  * worked out from the genes ("phenotype mapping") by stretching each gene
  * across that trait's allowed range from the config.
  */
-export const GENES = ["size", "speed", "senseRange", "metabolism", "hue", "mutationRate", "diet", "attack", "armor", "stamina", "thermal", "lifespan", "litter", "bond", "plan1", "plan2", "plan3", "stick", "tolerance", "sex", "fat", "torpor", "palate", "stressResponse", "calmResponse", "generosity", "toxicity", "signal"] as const;
+export const GENES = ["size", "speed", "senseRange", "metabolism", "hue", "mutationRate", "diet", "attack", "armor", "stamina", "thermal", "lifespan", "litter", "bond", "plan1", "plan2", "plan3", "stick", "tolerance", "sex", "fat", "torpor", "palate", "stressResponse", "calmResponse", "generosity", "toxicity", "signal", "learning", "placeMemory", "workingMemory"] as const;
 export type GeneName = (typeof GENES)[number];
 export const GENE_COUNT = GENES.length;
 
@@ -49,6 +49,9 @@ export const GENE = {
   generosity: 25,
   toxicity: 26,
   signal: 27,
+  learning: 28,
+  placeMemory: 29,
+  workingMemory: 30,
 } as const satisfies Record<GeneName, number>;
 
 /** Real-world values for every gene, e.g. { size: 1.2, speed: 0.8, ... }. */
@@ -101,6 +104,12 @@ export function traitRanges(c: SimConfig): Record<GeneName, TraitRange> {
     toxicity: { min: 0, max: 1 },
     // How strongly a cell shares what it senses with the cells it is bonded to: plain 0 to 1.
     signal: { min: 0, max: 1 },
+    // How fast its brain's connections change with experience during its life (0 = never learns): plain 0 to 1.
+    learning: { min: 0, max: 1 },
+    // How many good feeding places it can remember (0 up to placeSlotsMax): plain 0 to 1.
+    placeMemory: { min: 0, max: 1 },
+    // How much its brain can hold in mind: how many memory cells it can use (the brain decides what to hold): plain 0 to 1.
+    workingMemory: { min: 0, max: 1 },
   };
 }
 

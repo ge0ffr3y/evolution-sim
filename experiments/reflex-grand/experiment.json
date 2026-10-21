@@ -1,0 +1,14 @@
+{
+  "name": "reflex-grand",
+  "question": "In the grand world, does place memory with the founders' place reflex help as it did in the oasis world (population, food gathered, body size and speed), and do learning and working memory add anything on top?",
+  "base": "grand-world",
+  "ticks": 300000,
+  "seeds": "1-8",
+  "arms": {
+    "control": {},
+    "place": { "placeMemory": 1 },
+    "place-reflex": { "placeMemory": 1, "placeReflex": 1 },
+    "everything-reflex": { "placeMemory": 1, "placeReflex": 1, "brainLearning": 1, "learnSenses": 1, "workingMemory": 1 }
+  },
+  "measures": ["all"]
+}
