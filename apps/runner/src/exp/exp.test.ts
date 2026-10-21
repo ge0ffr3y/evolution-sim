@@ -10,7 +10,7 @@ import { draftSettings, dosesExperiment, armName } from "./audit";
 import { compare } from "./report";
 import type { JobResult } from "./job";
 import { makespan, planMachines } from "./estimate";
-import { buildLaunchRequest, buildUserData } from "./cloud";
+import { buildLaunchRequest, buildUserData, remainingWorst, vcpusOf } from "./cloud";
 
 const repoRoot = resolve(import.meta.dirname, "..", "..", "..", "..");
 const folders: string[] = [];
@@ -252,5 +252,23 @@ describe("cloud requests (checked without touching AWS)", () => {
     const tags = (req.TagSpecifications as { Tags: { Key: string; Value: string }[] }[])[0]!.Tags;
     expect(tags).toContainEqual({ Key: "Project", Value: "evolution-sim" });
     expect(Buffer.from(req.UserData as string, "base64").toString()).toBe(userData);
+    const tagged = buildLaunchRequest({ imageId: "ami-1", instanceType: "c8g.8xlarge", userData, name: "tiny-test", runId: "r1", hardStopMinutes: 90 });
+    expect((tagged.TagSpecifications as { Tags: { Key: string; Value: string }[] }[])[0]!.Tags).toContainEqual({ Key: "HardStopMinutes", Value: "90" });
+  });
+
+  it("a running machine's remaining worst cost runs to its backstop (hard stop plus 10 minutes), then nothing", () => {
+    const launched = "2026-10-21T00:00:00.000Z";
+    const t0 = Date.parse(launched);
+    expect(remainingWorst({ launched, hardStopMinutes: 50 }, 1.2, t0)).toBeCloseTo(1.2, 9); // 60 minutes left at $1.20/hour
+    expect(remainingWorst({ launched, hardStopMinutes: 50 }, 1.2, t0 + 30 * 60000)).toBeCloseTo(0.6, 9);
+    expect(remainingWorst({ launched, hardStopMinutes: 50 }, 1.2, t0 + 90 * 60000)).toBe(0);
+    expect(vcpusOf("c8g.8xlarge")).toBe(32);
+  });
+
+  it("plans only machines that fit in the cores left free by running experiments", () => {
+    const exp = tiny();
+    const plan = planMachines(exp, new Array(120).fill(1800), undefined, 16);
+    for (const o of plan.options) expect(o.vcpus).toBeLessThanOrEqual(16);
+    expect(() => planMachines(exp, [100], undefined, 1)).toThrow(/No machine fits/);
   });
 });

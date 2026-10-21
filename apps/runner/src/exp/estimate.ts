@@ -29,9 +29,9 @@ export const SIZES: { size: string; vcpus: number; memoryGb: number }[] = [
   { size: "16xlarge", vcpus: 64, memoryGb: 128 },
 ];
 /**
- * The most cores this AWS account may run at once on C-family machines (the quota "Running
- * On-Demand Standard instances", 32 as of 2026-10-20). Plans never pick a bigger machine. Raise it
- * here only after AWS has raised the quota (see infra/aws/README.md).
+ * The fallback for the most cores this AWS account may run at once on C-family machines (the quota
+ * "Running On-Demand Standard instances"). A launch reads the real quota when the runner's AWS user
+ * is allowed to (servicequotas:GetServiceQuota), and uses this only when it cannot.
  */
 export const MAX_VCPUS = 32;
 /** Allowance for populations growing during a run (worlds get slower as they fill up). */
@@ -118,9 +118,10 @@ export function makespan(seconds: number[], workers: number): number {
 }
 
 /** Every machine size the lane allows, what it would take and cost, and the pick: the cheapest that finishes about as quickly as the fastest. */
-export function planMachines(exp: Experiment, jobSeconds: number[], families: MachineFamily[] = FAMILIES): { options: MachineOption[]; pick: MachineOption } {
+export function planMachines(exp: Experiment, jobSeconds: number[], families: MachineFamily[] = FAMILIES, maxVcpus = MAX_VCPUS): { options: MachineOption[]; pick: MachineOption } {
   const options: MachineOption[] = [];
-  const sizes = SIZES.filter((s) => s.vcpus <= (exp.lane === "long" ? Math.min(8, MAX_VCPUS) : MAX_VCPUS));
+  const sizes = SIZES.filter((s) => s.vcpus <= (exp.lane === "long" ? Math.min(8, maxVcpus) : maxVcpus));
+  if (sizes.length === 0) throw new Error(`No machine fits in the ${maxVcpus} cores free right now (other experiments are using the rest). Wait for one to finish.`);
   for (const f of families) {
     for (const s of sizes) {
       // One world per core. The uploads every 5 minutes are light enough to share the cores (the first cloud runs showed no slowdown).
@@ -143,7 +144,7 @@ export function planMachines(exp: Experiment, jobSeconds: number[], families: Ma
 const round = (x: number, places: number): number => Math.round(x * 10 ** places) / 10 ** places;
 
 /** The full estimate for the unfinished part of an experiment. */
-export function estimate(exp: Experiment, jobs: Job[], speeds: Record<string, number>, families: MachineFamily[] = FAMILIES): Estimate {
+export function estimate(exp: Experiment, jobs: Job[], speeds: Record<string, number>, families: MachineFamily[] = FAMILIES, maxVcpus = MAX_VCPUS): Estimate {
   const jobSeconds = jobs.map((job) => {
     const r = readResult(exp, job);
     const p = readProgress(exp, job);
@@ -152,7 +153,7 @@ export function estimate(exp: Experiment, jobs: Job[], speeds: Record<string, nu
     return { job, seconds: remaining / speeds[job.arm]! };
   });
   const todo = jobSeconds.filter((j) => j.seconds > 0).map((j) => j.seconds);
-  const plan = planMachines(exp, todo.length ? todo : [0], families);
+  const plan = planMachines(exp, todo.length ? todo : [0], families, maxVcpus);
   return {
     jobSeconds,
     coreHours: round(todo.reduce((a, b) => a + b, 0) / 3600, 2),

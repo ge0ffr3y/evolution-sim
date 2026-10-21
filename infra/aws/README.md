@@ -95,4 +95,9 @@ Terminate any machines tagged `Project=evolution-sim`, then delete the bucket, t
 
 AWS caps how many cores an account may run at once. For C-family machines (c7g, c8g) this account's limit is **32** (the quota "Running On-Demand Standard (A, C, D, H, I, M, R, T, Z) instances", found in the AWS console under Service Quotas > Amazon EC2). The runner never plans a machine bigger than this (`MAX_VCPUS` in `apps/runner/src/exp/estimate.ts`).
 
-To run bigger batches faster (for example 64 worlds at once), the owner can request a higher value in Service Quotas. It is free to ask, and AWS usually answers within a day. After it is granted, raise `MAX_VCPUS` to match. A higher quota is only a ceiling: the spending guard and the $50 budget still apply.
+To run bigger batches faster (for example 64 worlds at once), the owner can request a higher value in Service Quotas. It is free to ask, and AWS usually answers within a day. (Requested: 192, on 2026-10-21.)
+
+How the runner uses it:
+- **The limit:** each launch reads the quota itself when the runner's user may (`servicequotas:GetServiceQuota`, a read-only permission now in `runner-user-policy.json`; update the inline policy in the console to add it). Otherwise it uses `MAX_VCPUS` (32).
+- **Running several at once:** it subtracts the cores used by experiment machines already running, so several experiments can run side by side within the limit.
+- **Budget:** each machine is tagged with its hard stop. The spending guard adds what running machines can still cost to the new machine's worst case, before allowing a launch under the $50 monthly cap.

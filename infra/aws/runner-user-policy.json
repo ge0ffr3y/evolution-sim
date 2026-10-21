@@ -8,7 +8,8 @@
         "ec2:GetConsoleOutput",
         "ssm:GetParameters",
         "ssm:GetParameter",
-        "pricing:GetProducts"
+        "pricing:GetProducts",
+        "servicequotas:GetServiceQuota"
       ],
       "Resource": "*"
     },
