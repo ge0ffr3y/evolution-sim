@@ -308,6 +308,32 @@ With about 700 comparisons, a few will look important by pure chance. So every r
 
 **Owner's decision (2026-10-21):** `nutrientMode` 2, `mutationRateMin` 0.01 and `macroMutationProb` 0.005 are now in the grand-world preset. The audit experiments before this commit (stages 0, 1, 1b, 3 and 4) ran earlier versions of the preset; their `base: grand-world` means the preset as it was at their commit, which git history keeps.
 
+**New long baseline (2026-10-21; `audit-0b-baseline`, 16 fresh seeds 201 to 216 × 1,000,000 ticks; one c8g.8xlarge, 59 minutes, about $1.25; none died out; report in `experiments/audit-0b-baseline/report.md`).** The updated grand world against the grand world before this morning's three additions (* = the 95% range excludes no change):
+
+| | Before the additions | Updated grand world |
+|---|---|---|
+| Population | 759 (lowest 222) | +6%, lowest +20% |
+| Species alive | 2.4 | **2.3 times as many*** (about 5 to 6) |
+| Shannon diversity | 0.69 | **+90%*** |
+| Feeding levels | 1.00 | **+65%***: mixed eaters persist through the whole run (median 10 to 30, up to 159) |
+| Meat in the diet | 1.7% | **5.3 times as much*** |
+| Kills per 1,000 ticks | 112 | **8 times as many*** (starving falls from 87% of deaths to 41%) |
+| Births with two parents | 18% | **45%*** (although the sex gene sits low; to understand) |
+| Worn ground | 55% | **-51%*** (soil health 0.79 to 0.89, against 0.63) |
+| Average age, deaths per animal | 1,272 ticks, 1.03 | **-33%*, +87%*** (faster turnover) |
+| Cost per animal | 0.034 | +86%* |
+| Animals short of nutrient | - | 23% at tick 50,000, levelling off at 38 to 44% |
+
+**What it means:**
+- **The updated grand world is stable over a million ticks.** No world died out, and no measure is still drifting the same way on every seed over the last quarter.
+- **It is far richer:**
+  - about twice the species, with mixed eaters a lasting second feeding level;
+  - five times the meat and eight times the kills;
+  - two-parent births up from 18% to 45%;
+  - much healthier soil.
+- **No lasting meat-eating group yet.** Individuals reach a diet of 1.0 (rare big mutations), but none founds a group. The meat-eating question is still open.
+- **The world now serves as the normal range** for stage 2 and the headline experiments.
+
 ### Stage 5 (optional, after stage 4): settings working together
 
 The settings that mattered most (perhaps 20 to 30) varied all at once, in random combinations spread evenly across their ranges (about 400 runs). This finds pairs that only matter together (for example camouflage and kinship, which O4 suggested compound). It is worth doing only if stages 1 to 4 leave the grand world unexplained.
