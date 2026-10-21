@@ -80,3 +80,38 @@ It is a new mechanism, not an experiment, so I suggest it gets its own branch an
 1. Start with learning rate plus the new senses, then add working memory, place memory and teaching one at a time (recommended)? Or build several at once?
 2. Teaching (passing learned knowledge to young): include it as the last step, or leave it out for now?
 3. Phase name and branch: Phase 8f (recommended), or part of Phase 9?
+
+## Step 1 result: the learning gene and the learning senses (built 2026-10-21)
+
+**Built (all off by default; 685 tests pass):**
+- `brainLearning`: reward-guided learning during life, with the 29th gene, `learning`. Its upkeep is on the brain line. Learned changes are kept for the first 64 connections and are not inherited.
+- `learnSenses`: energy change since the last thought, surprise, the time of year (two inputs) and the last turn and speed. Three place inputs are reserved and read 0 until place memory exists.
+- Brain layout: 78 inputs and 704 connection slots. Brain-world reference fingerprints were re-recorded; brains-off ones are unchanged.
+- The reward counts energy handed to young or neighbors as kept, so animals do not learn not to breed.
+- Tests:
+  - a hand-built brain wired the wrong way round learns the right way from reward alone (right on all of its last 100 tries);
+  - learning keeps the energy books exact;
+  - saving and loading part-way gives the same future, learned changes included;
+  - newborns start with nothing learned.
+- New measures: `learning` (how much each brain has learned; food gathered per tick by age) and `brainUse` (how often brains are wired to memory, home and the new senses, against inputs that are always 0).
+- New preset: `learning-test` (a 256 world where the best food moves with the seasons in a fixed yearly pattern).
+
+**Cloud runs (8 seeds each; about 35 cents together):**
+- `learning-test`, 200,000 ticks: learning and senses on; without learning; without the senses; without either; and with learning that costs nothing.
+- `learning-grand`, 300,000 ticks: the grand world as is; with learning and its senses; with the senses only.
+
+| | Test world | Grand world |
+|---|---|---|
+| Learning gene | starts about 0.35, slips to about 0.28 by tick 25,000, then holds (0.10 to 0.42 across seeds) | starts about 0.30, rises to about 0.42 by tick 10,000, then holds (0.16 to 0.65 across seeds) |
+| How much brains learn (sum of learned changes) | 0.09 to 0.12 per brain | 0.35 per brain |
+| New senses wired (per input; chance level about 0.04 to 0.05) | 0.11 with learning on | 0.09 with learning, 0.14 with the senses only (holds up) |
+| Memory wired | at chance (0.02 to 0.07) in every arm | at chance (0.02 to 0.05) in every arm |
+| Population, lifespan, species, food gathered | no change that holds up, except more species without the senses (+0.9) | no change that holds up |
+| Food gathered by the old against the young | 0.7 to 0.8 in every arm | about 0.9 in every arm |
+
+**What it means:**
+- The machinery works. Animals learn, evolution keeps the learning gene (it rises a little in the grand world despite its cost), and brains adopt the new senses.
+- But learning brings no advantage that shows: old animals never gather more than the young, and memory stays unused.
+- Likely reason: brains are tiny (6 to 10 connections, mostly "smell food, turn toward it"), and following the nose is good enough in both worlds. Even when food moves with the seasons, smell points straight to it. Learning only pays when the world holds information the senses do not give directly: food beyond smelling range, patterns in time, or things that must be found out by trying.
+
+**Proposed next step:** build place memory before working memory. Remembering good feeding places beyond smelling range gives memory something to hold and learning a reason to exist. Working memory alone would change little while there is nothing worth remembering.
