@@ -288,6 +288,35 @@ Tooling: the comparison report ran out of memory on 2,280 runs (it loaded every 
 - whether to use plant quality as the deliberate lever for a food web;
 - a 16-seed confirmation of the shortlist (stage 4 style) before any change.
 
+**Stage 2 shortlist, confirmed (2026-10-21; `audit-4b-shortlist`, 16 fresh seeds 401 to 416 × 200,000 ticks, 12 arms; one c8g.8xlarge, 48 minutes, about $1.02; report in `experiments/audit-4b-shortlist/report.md`).** Changes against the grand world (* = the 95% range excludes no change). The control here: 905 animals, 5.5 species, feeding levels 1.49, 34% two-parent births.
+
+| Setting (normal value) | Worlds that died out | Effect |
+|---|---|---|
+| Base temperature 0.375 (0.75) | **7 of 16** | population -59%*, lowest -90%*, species -63%* |
+| Base temperature 0.6 | 0 | lowest -32%*, Shannon -22%* |
+| Plant temperature tolerance 0.3 (0.6) | 1 of 16 | population -33%*, lowest -53%*, species -40%* |
+| Plant temperature tolerance 0.45 | 0 | feeding levels -23%*, kills -37%*; population unchanged |
+| Ice-age cooling 0.6 (0.3) | **5 of 16** (each when an ice age struck) | lowest -40%*; otherwise unchanged |
+| Ice-age cooling 0.45 | 0 | lowest -28%*, species -18%* |
+| Plant quality limit 1 (2) | 0 | feeding levels +30%*, meat +88%*, kills +49%*; population -47%*, lives -57%*, species -31%* |
+| Plant digestion 0.01 (0.02) | 0 | feeding levels +34%*, meat +104%*, kills +66%*; population -48%*, lives -61%*, species -42%* |
+| Mixed-diet penalty 0.25 (0.5) | 0 | feeding levels +23%*, meat +42%*; species -30%*; population -14% |
+| Weather 0.06 (0.12) | 0 | deaths -23%*, meat -24%*, kills -30%*; population +9% |
+| Weather 0.24 | 0 | no change that holds up |
+
+**What it means:**
+- **The cold-side cliff is real and confirmed.** A world at base temperature 0.375 dies in about half the seeds, and ice ages twice as cold kill about a third of worlds when they strike.
+- **Today's values have a margin.** At 0.6 (20% colder) or with ice ages 50% colder, nothing dies, though the worst times get worse.
+- **Plant tolerance halved is harmful (one death); cut by a quarter, it is mild.**
+- **Poorer plant food reliably builds the food web, but it is a trade, not a free gain.** It brings more feeding levels, about twice the meat and up to two thirds more kills. In exchange there are about half the animals, lives under half as long and a third fewer species.
+- **Weather is not a peak for population.** Stage 2's finding with 4 seeds was chance: halving the weather changes the population by little (+9%), and doubling it changes nothing.
+
+**Recommendation:**
+- Keep the grand-world defaults.
+- Both the cold-side cliff and the plant-quality trade make good headline experiments:
+  - "How severe can an ice age be before the world dies, and what does it do to diversity?"
+  - "Does poorer plant food give longer food chains but fewer species?"
+
 ### Stage 3: candidates to join the grand world (8 seeds x 200,000 ticks, about 16 arms)
 
 Each built-but-off feature added on its own:
