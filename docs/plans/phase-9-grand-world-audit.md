@@ -256,6 +256,35 @@ Each built-but-off feature added on its own:
 
 The question for each is whether the world gets richer (more feeding levels, more species, steadier populations) or merely harder.
 
+**Order changed (2026-10-21):** stage 3 runs before stage 2, because stage 3 decides what joins the grand world, and stage 2's map of sensitivity only makes sense for the world we keep.
+
+**Stage 3 result (2026-10-21, one c8g.8xlarge, about 33 minutes, about 70 cents; 24 arms × 8 seeds × 200,000 ticks, none died out; report in `experiments/audit-3-candidates/report.md`).** Each feature was added alone to the grand world (with today's mending, drift, disease and softer overgrazing). Changes against the control (* = the 95% range excludes no change):
+
+| Candidate | What it does to the grand world |
+|---|---|
+| **Nutrients through food, level 2** | **A second feeding level on every seed: feeding levels 1.0 to 1.6*.** A lasting class of mixed eaters (diet gene up to 0.51; diet and attack come off their lower limits). Meat in the diet +141%*, kills +93%*, births with two parents +156%* (22 to 54% of births, against 5 to 26%), colonies x3*, worn ground -67%*. The price: population -31%*, lives -31%*, costs per animal x2.3*. |
+| Nutrients through food, level 1 | Births with two parents +142%*; a second feeding level on 3 of 8 seeds; otherwise little change. |
+| **Mutation-rate floor 0.01** | **Population +18%* and steadier (832 to 1,093 on every seed, against 472 to 1,115), costs per animal -21%*.** Species +27% and diversity +20% (not certain). More animals hungry (23%, against 17%). The evolved rate sits just above the floor (0.013 to 0.015). |
+| Mutation-rate floor 0.005 | Little change (more animals hungry). |
+| **Rare big mutations** | **Highest diet ever 0.30 to 0.76*:** some individuals become true meat eaters for a while, though no meat-eating group lasts. Colonies +76%*. |
+| Climate biomes | Worn ground x4.8*; nothing gained. With drinking: population -37%*, lowest population -56%*, diversity -64%*. |
+| Bigger meals | Population -33%, lives -32%*, deaths +55%*, species -45%*, diversity -64%*. |
+| Colony upkeep savings | Diversity -42%*, sickness -61%*, colonies +65%*. |
+| Compounding harmful mutations | Diversity -50%*. |
+| Toxicity, hunger overriding kin restraint, hunter's eye | Meat in the diet roughly halved* and kills cut by 46 to 67%*. |
+| Colony protection, shared senses, contact bonding (colonies x2*), fat, stamina, mating by diet | No change that holds up (fat and stamina lean negative). |
+| Learning, place memory, working memory, all three | No change that holds up, except more colonies with place memory (x2*). |
+
+**Proposal:**
+1. **Candidates to join:** nutrients level 2 (the first steady second feeding level, much more sex), the mutation-rate floor of 0.01 (bigger, steadier populations), and possibly rare big mutations (diet exploration, which may let meat eaters take hold alongside nutrients level 2).
+2. **Before changing the preset, confirm the combination** on 16 fresh seeds (stage 4): the grand world against each alone, nutrients level 2 with the floor, and those two with big mutations. This checks that they work together and that the gains are not chance.
+3. **Leave out:**
+   - climate biomes, alone or with drinking (land wears out, diversity falls);
+   - bigger meals, colony upkeep savings and compounding harm (diversity falls);
+   - toxicity, hunger overriding kin restraint and the hunter's eye (they cut hunting);
+   - fat and stamina;
+   - the learning-brain features (no advantage here; see Phase 8f).
+
 ### Stage 4: confirm (16 fresh seeds x 200,000 ticks, the flagged arms)
 
 With about 700 comparisons, a few will look important by pure chance. So every red flag and every promising finding is re-run on 16 new seeds before anything is changed. Only what holds up there becomes a fix or a preset change.
