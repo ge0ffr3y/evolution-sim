@@ -240,7 +240,7 @@ Each of the about 320 grand-world settings at half and at double (or halfway to 
 
 **Stage 2 result (2026-10-21, the updated grand world; 291 settings × down and up × 4 fresh seeds, 301 to 304; 2,280 runs of 100,000 ticks; one c8g.8xlarge, 4.55 hours, about $5.81; report in `experiments/audit-2-doses/report.md`).**
 
-With only 4 seeds, changes of 10 to 30% can be chance, so the reading below leans on changes whose 95% range excludes no change. The ranking used here is `scratchpad/sensitivity.mjs`, applied to `results/comparisons.csv`.
+With only 4 seeds, changes of 10 to 30% can be chance, so the reading below leans on changes whose 95% range excludes no change. The ranking used here is `node apps/runner/scripts/sensitivity.mjs experiments/audit-2-doses/results/comparisons.csv` (also in that folder: `scorecard.mjs`, each arm against the control at a glance, and `timeline.mjs`, a long run over time).
 
 1. **Climate is the fragile part: the only collapses.** Each of these killed worlds:
    - halving the base temperature (0.75 to 0.375; one world died within 3,079 ticks);
