@@ -538,7 +538,7 @@ export const MEASURES: Record<string, Measure> = {
         intakeOld: rate(2),
         placeCapacity: sim.count ? round(capacity / sim.count, 3) : 0,
         placesFilled: sim.count ? round(filled / sim.count, 3) : 0,
-        memoryCells: s.wmCells.length && sim.count ? round(s.wmCells.reduce((a, b) => a + b, 0) / sim.count, 3) : NaN,
+        memoryCells: s.wmCells.length && sim.count ? round(s.wmCells.subarray(0, sim.count).reduce((a, b) => a + b, 0) / sim.count, 3) : NaN, // (only the living: the array is sized for the most animals a world can hold)
       };
     },
     summarize: (rows) => {

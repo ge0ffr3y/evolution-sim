@@ -149,3 +149,36 @@ It is a new mechanism, not an experiment, so I suggest it gets its own branch an
 - The place gene is kept in the test world, where food moves with the seasons. In the grand world it slowly declines but persists: it is worth something there, but not much more than it costs.
 - Still missing: the lifetime-learning signature. Older animals never gather more food than younger ones.
 - Diversity and food gathered lean upward, but 8 seeds cannot confirm it. A 16-seed confirmation run would settle these.
+
+## Step 3 result: working memory (built 2026-10-21)
+
+**Built (off by default; 690 tests pass):**
+- `workingMemory` and the 31st gene, `workingMemory`. It needs brains with memory (`brainMemory` 1).
+- The gene sets how many of the four memory cells a brain can use (any gene above 0 gives one; a gene of 1 gives all four; the rest read 0).
+- It also sets how much of a cell's old value carries over each thought: the gene × `wmKeepMax` (0.95). The rest is what the brain writes now.
+- Each usable cell costs `wmCostCoeff` on the brain line.
+- Tests check the carry-over rule, the gene-to-cells rule, that unusable cells stay at 0, the cost, and (through the shared test world) determinism, the energy books and exact save and load.
+- The test world preset now uses working memory (starting gene 0.1); the step 1 and step 2 experiment files pin it off.
+- Measure fix after the runs: the cells-per-brain measure added up past the living animals (it reported about 5 of a possible 4). Only the measure was wrong, not the simulation. It now counts only the living; from the gene, the real figure in these runs is about 2 cells.
+
+**Cloud runs (8 seeds each; about 45 cents together):**
+- `wm-test`: everything on; without working memory; without learning; cells only (no carry-over); free working memory.
+- `wm-grand`: the grand world as is; with place memory and learning; with all three.
+
+| | Test world | Grand world |
+|---|---|---|
+| Working memory gene | rises from 0.35 to about 0.46 (peak 0.56 at tick 100,000; 0.11 to 0.87 across seeds) | holds near 0.30 (0.04 to 0.65 across seeds) |
+| Memory wired (per input; chance level about 0.02 to 0.05) | 0.036, at chance (0.07 without working memory; not certain) | **0.023, at chance: adding working memory undoes the gain from place memory and learning (0.116)** |
+| Learning gene | 0.38 (0.45 without working memory) | **0.17 with working memory, against 0.39 without** |
+| Food gathered by the old | no change that holds up | **0.060 with all three, against 0.047 in the plain grand world (+27%; holds up)** |
+| Kills per 1,000 ticks | no change that holds up | **530 with all three, against 273 (holds up)** |
+| Population, lifespan, diversity | no change that holds up; free working memory leans toward longer lives and fewer kills | no change that holds up; species 2.9 against 2.2 and Shannon 0.79 against 0.56 (not certain) |
+| Old against young (food gathered) | 0.70 to 0.78 in every arm | 0.87 to 0.92 in every arm |
+
+**What it means:**
+- Working memory is kept by evolution (it rises in the test world), and the grand world with all three abilities gathers more food and hunts more.
+- But this design does not get brains to use memory more. In the grand world it undid the memory use that place memory and learning had produced.
+- Likely reason: brains were using memory as a one-step echo of what they had just written, and slow carry-over blurs that echo.
+- It also seems to replace learning: the learning gene falls by half when working memory is present.
+- **Better design to consider:** let the brain choose, each thought, how much of each cell to keep and how much to overwrite (a "write" output per cell, like the gating in real working memory), with the gene setting how many cells there are. That means another brain-layout change (four new outputs).
+- Still missing: the lifetime-learning signature (older animals never gather more than younger ones).
