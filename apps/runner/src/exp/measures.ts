@@ -447,7 +447,7 @@ export const MEASURES: Record<string, Measure> = {
       for (let i = 0; i < sim.count && s.bondsOn; i++) {
         if (s.bondCount(i) === 0) continue;
         inColony++;
-        counts[s.cellType[i]!]!++;
+        counts[s.cellType.length ? s.cellType[i]! : 0]!++; // without cell types every cell is a generalist
       }
       const names = ["generalist", "feeder", "mover", "photo", "armor", "sensor"];
       const out: Row = {};

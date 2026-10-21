@@ -1,0 +1,15 @@
+{
+  "name": "audit-1b-preset-changes",
+  "question": "With slow climate drift, a disease that can spread (cost 1, wider matching) and slightly softer overgrazing, does the grand world stay healthy (no collapse, disease not wiping things out), do animals live longer, and what does each change do on its own?",
+  "base": "grand-world",
+  "ticks": 300000,
+  "seeds": "1-8",
+  "arms": {
+    "control": {},
+    "before": { "climateDriftPeriod": 0, "diseaseWidth": 0.05, "diseaseCost": 30, "overgrazePenalty": 0.7 },
+    "no-drift": { "climateDriftPeriod": 0 },
+    "old-disease": { "diseaseWidth": 0.05, "diseaseCost": 30 },
+    "old-grazing": { "overgrazePenalty": 0.7 }
+  },
+  "measures": ["all"]
+}

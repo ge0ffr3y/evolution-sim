@@ -69,6 +69,7 @@ export function idleReason(key: string, group: string, c: SimConfig): string {
   }
   if (group.startsWith("Terrain") && c.terrainMode === 0) return off("terrain");
   if (group.startsWith("Climate (off") && c.climateMode === 0) return off("climate");
+  if (key === "climateDriftAmplitude" && c.climateDriftPeriod === 0) return off("climate drift (climateDriftPeriod 0)");
   if (group.startsWith("Weather")) {
     if (key.startsWith("weather") && c.weatherAmplitude === 0) return off("weather");
     if ((key.startsWith("fat") || key === "initialFat") && c.fatDepositRate === 0) return off("the fat reserve");

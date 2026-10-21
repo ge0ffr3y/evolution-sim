@@ -113,6 +113,8 @@ describe("the audit's settings list and its experiment", () => {
     expect(byKey.get("brainMode")!.test).toBe(false); // a switch
     expect(byKey.get("speciesEvery")!.test).toBe(false); // only watches
     expect(byKey.get("biomeGrowthDesert")!.test).toBe(false); // climate biomes are off in this world
+    const noDrift = draftSettings(repoRoot, "grand-world", { climateDriftPeriod: 0 });
+    expect(noDrift.settings.find((x) => x.key === "climateDriftAmplitude")!.test).toBe(false); // drift needs a cycle length
     expect(byKey.get("basalCostCoeff")!.down).toEqual({ basalCostCoeff: 0.025 });
     expect(byKey.get("chemDecay")!.down).toEqual({ chemDecay: 0.9 }); // half as long, not half the share
     expect(byKey.get("worldSize")!.up).toEqual({ worldWidth: 1024, worldHeight: 1024, initialOrganisms: 2400 });
