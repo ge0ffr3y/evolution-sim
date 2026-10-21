@@ -69,7 +69,9 @@ The audited grand world (Phase 9 audit, devlog 16), 16 fresh seeds per setup. Ea
 - **Disease lowers sex,** against the Red Queen idea that parasites favour it: two-parent births are 43% without disease and 33% with it. Its other costs are real too: lives a third shorter and a population a sixth smaller.
 - **The wider disease** is not worse than today's. Its population is even slightly larger, and none of its differences from today's disease are large.
 
-## 4. Do geographic barriers produce more species? (first attempt: inconclusive)
+## 4. Do geographic barriers produce more species?
+
+### 4a. First attempt: more sea (inconclusive)
 
 **Experiment:** `headline-barriers`, 500,000 ticks, seeds 701 to 716. Seas covering 10%, 25% (today's) and 40% of the map. About 73 minutes in the cloud, about 78 cents.
 
@@ -85,4 +87,24 @@ The audited grand world (Phase 9 audit, devlog 16), 16 fresh seeds per setup. Ea
 
 (* holds up)
 
-**Proposed follow-up:** add two straight water channels that cut the world into two halves that cannot reach each other (`terrainBarrierWidth` 2, as in the Two continents preset), against the same world without them. About 32 runs of 500,000 ticks, about 50 cents. The land-mass measure then shows how far the two halves drift apart.
+### 4b. The follow-up: a world cut into two halves
+
+**Experiment:** `headline-barriers-2`, 500,000 ticks, seeds 1001 to 1016. The grand world cut into two halves by two straight water channels animals cannot cross (`terrainBarrierWidth` 2, as in the Two continents preset), against the same world uncut. About 31 minutes in the cloud, about 65 cents.
+
+**Answer: yes, barriers make the world more varied.** The two halves evolve apart, no single species takes over as much, and diversity rises. The number of species alive rises a little, but not by enough to be certain with 16 seeds.
+
+| | One connected world | Two halves |
+|---|---|---|
+| Land masses with 10 or more animals | 1.0 | **2.0*** |
+| Share of animals in the biggest species | 46% | **36%*** |
+| Species holding at least 10% of the animals | 3.1 | **3.8*** |
+| Shannon diversity | 1.28 | **1.54*** (+20%) |
+| Species alive | 5.3 | 6.2 (+18%, not certain) |
+| Species ever | 25.6 | 27.8 |
+| Population | 878 | **759*** (-14%) |
+
+(* holds up)
+
+- **The halves drift apart.** The share of gene variation lying between the two halves (0 = alike, 1 = entirely different) rises from 0.10 at tick 10,000 to about 0.23 to 0.26 by tick 50,000 to 100,000 (up to 0.42 in one world). It then eases back to about 0.17 by tick 500,000, perhaps because both halves face the same climate and pressures.
+- **Fewer animals:** the channels take up land, and each half is a smaller habitat.
+- **Together with experiment 1:** isolation by geography (here) and isolation by mating (sex for everyone, experiment 1) both make the world more varied. Mating isolation does it much more strongly, with 2.4 times the species.
