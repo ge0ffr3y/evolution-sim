@@ -332,6 +332,8 @@ const SENSE_VISION = 1;
 const SENSE_SMELL = 2;
 const SENSE_BODY = 4;
 const SENSE_SOCIAL = 8;
+/** Room for this many remembered feeding places per animal (placeSlotsMax can allow fewer). */
+const PLACE_SLOTS = 4;
 /** Room for this many bonds per cell (the config can allow fewer). */
 const BOND_SLOTS = 6;
 
@@ -609,6 +611,15 @@ export class Simulation {
   private readonly learnAvg: Float32Array;
   private readonly learnPrevE: Float64Array;
   private readonly learnSpent: Float64Array;
+  /**
+   * Place memory (Phase 8f): up to PLACE_SLOTS remembered feeding places per animal (position and a
+   * fading value; value 0 = empty), and how many it can hold (from its gene, cached at birth).
+   */
+  private readonly placeOn: boolean;
+  private readonly placeX: Float32Array;
+  private readonly placeY: Float32Array;
+  private readonly placeVal: Float32Array;
+  private readonly placeSlots: Uint8Array;
   /** Scratch: the weights a learning brain thinks with (inherited plus learned). */
   private readonly learnWeights = new Float32Array(CONN_MAX);
   /** Chemical signals: four per organism (reward, stress, bond, calm), plus what has happened to the organism since it last thought. */
@@ -1041,6 +1052,7 @@ export class Simulation {
         (k === GENE.toxicity && c.toxinStrength > 0) ||
         (k === GENE.signal && c.signaling === 1 && c.multicellular === 1 && c.brainMode > 0) ||
         (k === GENE.learning && c.brainLearning === 1 && c.brainMode > 0) ||
+        (k === GENE.placeMemory && c.placeMemory === 1 && c.brainMode > 0) ||
         ((k === GENE.stressResponse || k === GENE.calmResponse) && c.brainMode > 0 && c.chemicals === 1 && c.chemBodyEffects === 1),
     );
     this.kinLimitSq = c.kinDistance * c.kinDistance;
@@ -1110,6 +1122,11 @@ export class Simulation {
     this.learnAvg = new Float32Array(this.trackOn ? n : 0);
     this.learnPrevE = new Float64Array(this.trackOn ? n : 0);
     this.learnSpent = new Float64Array(this.trackOn ? n : 0);
+    this.placeOn = c.brainMode > 0 && c.placeMemory === 1;
+    this.placeX = new Float32Array(this.placeOn ? n * PLACE_SLOTS : 0);
+    this.placeY = new Float32Array(this.placeOn ? n * PLACE_SLOTS : 0);
+    this.placeVal = new Float32Array(this.placeOn ? n * PLACE_SLOTS : 0);
+    this.placeSlots = new Uint8Array(this.placeOn ? n : 0);
     this.chemOn = c.brainMode > 0 && c.chemicals === 1;
     this.bodyChemOn = this.chemOn && c.chemBodyEffects === 1;
     this.chem = new Float32Array(this.chemOn ? n * 4 : 0);
@@ -1144,7 +1161,7 @@ export class Simulation {
     }
     this.species = new Uint32Array(c.speciesEvery > 0 ? n : 0);
     // Species, like compatibility, ignore tolerance of relatives: it is a behavior setting, not a kind of body.
-    const speciesGenes = this.activeGene.map((on, k) => on && k !== GENE.tolerance && k !== GENE.sex && k !== GENE.stressResponse && k !== GENE.calmResponse && k !== GENE.generosity && k !== GENE.signal && k !== GENE.learning);
+    const speciesGenes = this.activeGene.map((on, k) => on && k !== GENE.tolerance && k !== GENE.sex && k !== GENE.stressResponse && k !== GENE.calmResponse && k !== GENE.generosity && k !== GENE.signal && k !== GENE.learning && k !== GENE.placeMemory);
     this.tracker = c.speciesEvery > 0 ? new SpeciesTracker(c, this.ranges, speciesGenes) : null;
     const staminaOrganisms = this.staminaOn ? n : 0;
     this.stamina = new Float32Array(staminaOrganisms);
@@ -1233,6 +1250,7 @@ export class Simulation {
     founder[GENE.toxicity] = c.initialToxicity;
     founder[GENE.signal] = c.initialSignal;
     founder[GENE.learning] = c.initialLearning;
+    founder[GENE.placeMemory] = c.initialPlaceMemory;
     founder[GENE.generosity] = c.initialShare;
     for (let i = 0; i < c.initialOrganisms; i++) {
       let fx = this.rng.range(0, c.worldWidth);
@@ -1248,7 +1266,7 @@ export class Simulation {
       if (c.founderSpread > 0 || c.sexFounderSpread > 0) {
         // Standing variety: the newer genes that are switched on start a random amount above their starting value.
         // (The mate-seeking gene can have its own amount, sexFounderSpread; -1 means it follows founderSpread.)
-        for (const gene of [GENE.tolerance, GENE.sex, GENE.fat, GENE.torpor, GENE.palate, GENE.stressResponse, GENE.calmResponse, GENE.generosity, GENE.toxicity, GENE.signal, GENE.learning]) {
+        for (const gene of [GENE.tolerance, GENE.sex, GENE.fat, GENE.torpor, GENE.palate, GENE.stressResponse, GENE.calmResponse, GENE.generosity, GENE.toxicity, GENE.signal, GENE.learning, GENE.placeMemory]) {
           const spread = gene === GENE.sex && c.sexFounderSpread >= 0 ? c.sexFounderSpread : c.founderSpread;
           if (this.activeGene[gene] && spread > 0) this.genes[index * GENE_COUNT + gene] = clamp01(this.genes[index * GENE_COUNT + gene]! + spread * this.rng.next());
         }
@@ -2223,6 +2241,7 @@ export class Simulation {
       this.learnPrevE[i] = -1;
       this.learnSpent[i] = 0;
     }
+    if (this.placeOn) this.placeVal.fill(0, i * PLACE_SLOTS, (i + 1) * PLACE_SLOTS); // remembers nowhere yet
     if (this.chemOn) {
       this.chem.fill(0, i * 4, i * 4 + 4);
       this.chem[i * 4 + 3] = 0.5; // a newborn starts out neither calm nor stressed
@@ -2619,6 +2638,60 @@ export class Simulation {
     this.refreshBrain(child);
   }
 
+  /** How many feeding places organism i can remember: any place memory gene above 0 gives at least one, a gene of 1 gives placeSlotsMax. */
+  private placeCapacity(i: number): number {
+    const gene = this.genes[i * GENE_COUNT + GENE.placeMemory]!;
+    return gene > 0 ? Math.min(this.config.placeSlotsMax, Math.ceil(gene * this.config.placeSlotsMax)) : 0;
+  }
+
+  /** Squared distance between two points in the wrapped world. */
+  private wrappedDistSq(ax: number, ay: number, bx: number, by: number): number {
+    const W = this.config.worldWidth;
+    const H = this.config.worldHeight;
+    let dx = bx - ax;
+    let dy = by - ay;
+    if (dx > W / 2) dx -= W;
+    else if (dx < -W / 2) dx += W;
+    if (dy > H / 2) dy -= H;
+    else if (dy < -H / 2) dy += H;
+    return dx * dx + dy * dy;
+  }
+
+  /**
+   * Place memory, once a tick: every memory fades a little, and a good enough meal either refreshes
+   * the remembered place it was eaten at (keeping the better value) or replaces the weakest memory.
+   */
+  private rememberPlace(i: number, meal: number): void {
+    const c = this.config;
+    const k = this.placeSlots[i]!;
+    if (k === 0) return;
+    const base = i * PLACE_SLOTS;
+    const val = this.placeVal;
+    for (let j = 0; j < k; j++) val[base + j] = val[base + j]! * c.placeFade;
+    if (meal < c.placeMinMeal) return;
+    const x = this.x[i]!;
+    const y = this.y[i]!;
+    const mergeSq = c.placeMergeRadius * c.placeMergeRadius;
+    let weakest = 0;
+    for (let j = 0; j < k; j++) {
+      const v = val[base + j]!;
+      if (v > 0 && this.wrappedDistSq(x, y, this.placeX[base + j]!, this.placeY[base + j]!) <= mergeSq) {
+        if (meal >= v) {
+          this.placeX[base + j] = x;
+          this.placeY[base + j] = y;
+          val[base + j] = meal;
+        }
+        return;
+      }
+      if (v < val[base + weakest]!) weakest = j;
+    }
+    if (meal > val[base + weakest]!) {
+      this.placeX[base + weakest] = x;
+      this.placeY[base + weakest] = y;
+      val[base + weakest] = meal;
+    }
+  }
+
   /** Work out how big organism i's brain really is, and what it costs to run. */
   private refreshBrain(i: number): void {
     const c = this.config;
@@ -2648,7 +2721,9 @@ export class Simulation {
       c.brainCostPerNeuron * size.hidden +
       c.brainCostPerConnection * size.connections +
       (readsChem && this.chemOn ? c.chemicalsCost : 0) +
-      (this.learnOn ? c.learnCostCoeff * this.genes[i * GENE_COUNT + GENE.learning]! : 0); // the learning machinery
+      (this.learnOn ? c.learnCostCoeff * this.genes[i * GENE_COUNT + GENE.learning]! : 0) + // the learning machinery
+      (this.placeOn ? c.placeCostCoeff * this.placeCapacity(i) : 0); // room to remember places
+    if (this.placeOn) this.placeSlots[i] = this.placeCapacity(i);
   }
 
   /** Which kind of plant grows in each cell (empty when there is only one kind). Fixed for the whole run. */
@@ -3015,6 +3090,34 @@ export class Simulation {
         inputs[INPUT.homeAhead] = (dx * hx + dy * hy) / distance;
         inputs[INPUT.homeSide] = (hx * dy - hy * dx) / distance;
         inputs[INPUT.homeDistance] = Math.min(1, distance / c.homeRange);
+      }
+    }
+    // Place memory: which way, and how far, is the best feeding place it remembers somewhere other than here?
+    if (this.placeOn && this.placeSlots[i]! > 0) {
+      const base = i * PLACE_SLOTS;
+      const mergeSq = c.placeMergeRadius * c.placeMergeRadius;
+      let best = -1;
+      let bestVal = 0;
+      for (let j = 0; j < this.placeSlots[i]!; j++) {
+        const v = this.placeVal[base + j]!;
+        if (v > bestVal && this.wrappedDistSq(x, y, this.placeX[base + j]!, this.placeY[base + j]!) > mergeSq) {
+          best = j;
+          bestVal = v;
+        }
+      }
+      if (best >= 0) {
+        const W = c.worldWidth;
+        const H = c.worldHeight;
+        let dx = this.placeX[base + best]! - x;
+        let dy = this.placeY[base + best]! - y;
+        if (dx > W / 2) dx -= W;
+        else if (dx < -W / 2) dx += W;
+        if (dy > H / 2) dy -= H;
+        else if (dy < -H / 2) dy += H;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        inputs[INPUT.placeAhead] = (dx * hx + dy * hy) / distance;
+        inputs[INPUT.placeSide] = (hx * dy - hy * dx) / distance;
+        inputs[INPUT.placeDistance] = Math.min(1, distance / c.placeRange);
       }
     }
     // Memory: what the brain wrote to its memory cells last time it thought.
@@ -4295,6 +4398,7 @@ export class Simulation {
         }
         this.homeValue[i] = best;
       }
+      if (this.placeOn) this.rememberPlace(i, (plantGain + meatGain) / this.threshold[i]!);
       let energy = this.energy[i]! + plantGain + meatGain;
       if (this.typeOn) {
         // A photosynthesizing cell collects sunlight directly (the only new energy that enters the world, so it goes in the ledger as sunlight).
@@ -4845,6 +4949,12 @@ export class Simulation {
         this.learnPrevE[to] = this.learnPrevE[from]!;
         this.learnSpent[to] = this.learnSpent[from]!;
       }
+      if (this.placeOn) {
+        this.placeX.copyWithin(to * PLACE_SLOTS, from * PLACE_SLOTS, (from + 1) * PLACE_SLOTS);
+        this.placeY.copyWithin(to * PLACE_SLOTS, from * PLACE_SLOTS, (from + 1) * PLACE_SLOTS);
+        this.placeVal.copyWithin(to * PLACE_SLOTS, from * PLACE_SLOTS, (from + 1) * PLACE_SLOTS);
+        this.placeSlots[to] = this.placeSlots[from]!;
+      }
     }
   }
 
@@ -4884,6 +4994,12 @@ export class Simulation {
       organism("learnAvg", this.learnAvg);
       organism("learnPrevE", this.learnPrevE);
       organism("learnSpent", this.learnSpent);
+    }
+    if (this.placeOn) {
+      organism("placeX", this.placeX, PLACE_SLOTS);
+      organism("placeY", this.placeY, PLACE_SLOTS);
+      organism("placeVal", this.placeVal, PLACE_SLOTS);
+      organism("placeSlots", this.placeSlots);
     }
     if (this.chemOn) organism("chem", this.chem, 4);
     // The land and the scent trails, in full.
@@ -5049,6 +5165,12 @@ export class Simulation {
       take("learnPrevE", this.learnPrevE);
       take("learnSpent", this.learnSpent);
     }
+    if (this.placeOn) {
+      take("placeX", this.placeX);
+      take("placeY", this.placeY);
+      take("placeVal", this.placeVal);
+      take("placeSlots", this.placeSlots);
+    }
     if (this.chemOn) take("chem", this.chem);
     // (Fire scars came a little after fires did; a world saved in between simply has none.)
     for (const [name, array] of this.landArrays()) if (name !== "fireScar" || snapshot.arrays[name]) take(name, array);
@@ -5134,6 +5256,7 @@ export class Simulation {
       case "toxicity":
       case "signal":
       case "learning":
+      case "placeMemory":
         return this.genes[i * GENE_COUNT + GENE[name]]!;
       case "lifespan": {
         const range = this.ranges.lifespan;

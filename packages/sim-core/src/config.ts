@@ -1099,6 +1099,29 @@ export interface SimConfig {
   /** The first generation's learning gene. */
   initialLearning: number;
 
+  // --- Place memory (Phase 8f, off by default; needs brains) ---
+  /**
+   * 0 = off, 1 = on: an animal remembers a few good feeding places (how many is set by the place
+   * memory gene, up to placeSlotsMax), and senses which way, and how far, the best one it remembers
+   * elsewhere is. A good meal refreshes the remembered place it was eaten at, or replaces the weakest
+   * memory; every memory fades. Each place it can hold costs upkeep. Memories are not inherited.
+   */
+  placeMemory: number;
+  /** The most places one animal can remember (1 to 4), at a place memory gene of 1. */
+  placeSlotsMax: number;
+  /** Each tick, a remembered place keeps this share of its value (0.999: half gone in about 700 ticks). */
+  placeFade: number;
+  /** A meal must be at least this share of the energy needed to breed to be worth remembering. */
+  placeMinMeal: number;
+  /** A meal this close to a remembered place (world units) counts as that place. */
+  placeMergeRadius: number;
+  /** The best-place sense reads "far" (1) at this distance (world units). */
+  placeRange: number;
+  /** Upkeep per place it can remember, per tick (on the brain line). */
+  placeCostCoeff: number;
+  /** The first generation's place memory gene. */
+  initialPlaceMemory: number;
+
   // --- Sprinting and stamina (only with brains) ---
   /**
    * 0 = off: brains can run flat out for as long as they like (paying the energy), and the
@@ -1598,6 +1621,14 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   learnCostCoeff: 0.002,
   learnSenseScale: 20,
   initialLearning: 0,
+  placeMemory: 0,
+  placeSlotsMax: 4,
+  placeFade: 0.999,
+  placeMinMeal: 0.005,
+  placeMergeRadius: 8,
+  placeRange: 64,
+  placeCostCoeff: 0.0005,
+  initialPlaceMemory: 0,
   sprintFatigue: 0,
   staminaRegen: 0.1,
   staminaRestBonus: 1,
@@ -1978,6 +2009,13 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (c.learnTraceDecay < 0 || c.learnTraceDecay >= 1) problems.push("learnTraceDecay must be at least 0 and below 1");
   if (c.learnBaselineRate <= 0 || c.learnBaselineRate > 1) problems.push("learnBaselineRate must be above 0 and at most 1");
   if (c.initialLearning < 0 || c.initialLearning > 1) problems.push("initialLearning must be between 0 and 1");
+  if (![0, 1].includes(c.placeMemory)) problems.push("placeMemory must be 0 or 1");
+  if (c.placeMemory === 1 && c.brainMode === 0) problems.push("placeMemory needs brains (set brainMode to 1 or 2)");
+  if (!Number.isInteger(c.placeSlotsMax) || c.placeSlotsMax < 1 || c.placeSlotsMax > 4) problems.push("placeSlotsMax must be a whole number from 1 to 4");
+  if (c.placeFade <= 0 || c.placeFade > 1) problems.push("placeFade must be above 0 and at most 1");
+  if (c.placeMinMeal < 0 || c.placeMergeRadius < 0 || c.placeCostCoeff < 0) problems.push("placeMinMeal, placeMergeRadius and placeCostCoeff cannot be negative");
+  if (c.placeRange <= 0) problems.push("placeRange must be positive");
+  if (c.initialPlaceMemory < 0 || c.initialPlaceMemory > 1) problems.push("initialPlaceMemory must be between 0 and 1");
   if (![0, 1].includes(c.sprintFatigue)) problems.push("sprintFatigue must be 0 or 1");
   if (c.staminaMin < 0) problems.push("staminaMin cannot be negative");
   if (c.staminaRegen < 0 || c.staminaRestBonus < 0 || c.staminaCostCoeff < 0) problems.push("stamina regen, rest bonus and cost cannot be negative");

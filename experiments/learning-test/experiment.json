@@ -2,14 +2,28 @@
   "name": "learning-test",
   "question": "In a world where food moves with the seasons, does lifetime learning evolve (the learning gene rises from a low start), do learners gather more food as they age, do brains start using memory and the new senses, and which parts (learning, its senses, its cost) matter?",
   "base": "learning-test",
+  "baseChanges": {
+    "placeMemory": 0
+  },
   "ticks": 200000,
   "seeds": "1-8",
   "arms": {
     "control": {},
-    "no-learning": { "brainLearning": 0 },
-    "no-senses": { "learnSenses": 0 },
-    "neither": { "brainLearning": 0, "learnSenses": 0 },
-    "free-learning": { "learnCostCoeff": 0 }
+    "no-learning": {
+      "brainLearning": 0
+    },
+    "no-senses": {
+      "learnSenses": 0
+    },
+    "neither": {
+      "brainLearning": 0,
+      "learnSenses": 0
+    },
+    "free-learning": {
+      "learnCostCoeff": 0
+    }
   },
-  "measures": ["all"]
+  "measures": [
+    "all"
+  ]
 }

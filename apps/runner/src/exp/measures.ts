@@ -43,6 +43,8 @@ type Internals = {
   threshold: Float32Array;
   age: Uint32Array;
   learnDelta: Float32Array;
+  placeVal: Float32Array;
+  placeSlots: Uint8Array;
   plantTaken: Float32Array | Float64Array;
   meatTaken: Float32Array | Float64Array;
 };
@@ -504,7 +506,7 @@ export const MEASURES: Record<string, Measure> = {
   },
 
   learning: {
-    describe: "learning during life: how much the average brain has learned, and food gathered per tick by age (young under 250 ticks, middle 250 to 1,000, old over 1,000; rising with age is the sign of learning)",
+    describe: "learning during life: how much the average brain has learned, food gathered per tick by age (young under 250 ticks, middle 250 to 1,000, old over 1,000; rising with age is the sign of learning), and place memory (places it can hold, places remembered)",
     sample: ({ sim }) => {
       const s = inside(sim);
       let learned = 0;
@@ -519,12 +521,28 @@ export const MEASURES: Record<string, Measure> = {
         counts[band] = counts[band]! + 1;
       }
       const rate = (b: number): number => (counts[b]! ? round(sums[b]! / counts[b]!, 5) : NaN);
-      return { learnedChange: sim.count ? round(learned / sim.count, 4) : 0, intakeYoung: rate(0), intakeMiddle: rate(1), intakeOld: rate(2) };
+      // Place memory: how many places animals can hold, and how many they actually remember.
+      let capacity = 0;
+      let filled = 0;
+      if (s.placeSlots.length) {
+        for (let i = 0; i < sim.count; i++) {
+          capacity += s.placeSlots[i]!;
+          for (let j = 0; j < 4; j++) if (s.placeVal[i * 4 + j]! > 0) filled++;
+        }
+      }
+      return {
+        learnedChange: sim.count ? round(learned / sim.count, 4) : 0,
+        intakeYoung: rate(0),
+        intakeMiddle: rate(1),
+        intakeOld: rate(2),
+        placeCapacity: sim.count ? round(capacity / sim.count, 3) : 0,
+        placesFilled: sim.count ? round(filled / sim.count, 3) : 0,
+      };
     },
     summarize: (rows) => {
       const young = lateMean(rows, "intakeYoung");
       const old = lateMean(rows, "intakeOld");
-      return { learnedChangeLate: lateMean(rows, "learnedChange"), intakeYoungLate: young, intakeMiddleLate: lateMean(rows, "intakeMiddle"), intakeOldLate: old, intakeOldOverYoungLate: young && old !== null ? round(old / young, 4) : null };
+      return { placeCapacityLate: lateMean(rows, "placeCapacity"), placesFilledLate: lateMean(rows, "placesFilled"), learnedChangeLate: lateMean(rows, "learnedChange"), intakeYoungLate: young, intakeMiddleLate: lateMean(rows, "intakeMiddle"), intakeOldLate: old, intakeOldOverYoungLate: young && old !== null ? round(old / young, 4) : null };
     },
   },
 

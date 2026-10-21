@@ -19,9 +19,11 @@ const learners: Partial<SimConfig> = {
   initialLearning: 0.3,
   founderSpread: 0.6,
   learnRateMax: 0.2,
+  placeMemory: 1,
+  initialPlaceMemory: 0.3,
 };
 
-type Inside = { learnDelta: Float32Array; learnTrace: Float32Array; learnPrevE: Float64Array; brainCost: Float32Array; age: Uint32Array; traceInputs: Float64Array };
+type Inside = { learnDelta: Float32Array; learnTrace: Float32Array; learnPrevE: Float64Array; brainCost: Float32Array; age: Uint32Array; traceInputs: Float64Array; placeVal: Float32Array; placeSlots: Uint8Array; placeX: Float32Array };
 const inside = (sim: Simulation): Inside => sim as unknown as Inside;
 
 describe("the learning rule (pure functions)", () => {
@@ -164,12 +166,86 @@ describe("learning in a world", () => {
       expect(inputs[k]!).toBeGreaterThanOrEqual(-1);
       expect(inputs[k]!).toBeLessThanOrEqual(1);
     }
-    expect(inputs[INPUT.placeAhead]).toBe(0); // place memory is not built yet
+  }, 60_000);
+
+  it("place memory: the gene sets how many places, animals remember good meals, memories are saved, and the sense points to the best one elsewhere", () => {
+    const sim = new Simulation(8, learners);
+    sim.run(1500);
+    const s = inside(sim);
+    let remembering = 0;
+    for (let i = 0; i < sim.count; i++) {
+      const gene = sim.genes[i * GENE_COUNT + GENE.placeMemory]!;
+      const expected = gene > 0 ? Math.min(4, Math.ceil(gene * 4)) : 0;
+      expect(s.placeSlots[i]).toBe(expected);
+      let filled = 0;
+      for (let j = 0; j < 4; j++) if (s.placeVal[i * 4 + j]! > 0) filled++;
+      expect(filled).toBeLessThanOrEqual(expected);
+      if (filled > 0) remembering++;
+      if (s.age[i] === 0) expect(filled).toBe(0); // a newborn remembers nowhere
+    }
+    expect(remembering).toBeGreaterThan(sim.count / 4);
+    // Remembered places are saved and loaded exactly.
+    const before = Float32Array.from(s.placeVal);
+    const quiet = Simulation.load(snapshotFromBytes(snapshotToBytes(sim.save())));
+    expect(Array.from(inside(quiet).placeVal.slice(0, quiet.count * 4))).toEqual(Array.from(before.slice(0, sim.count * 4)));
+    // The sense: find an animal with a remembered place away from where it stands, and watch it think.
+    let watched = -1;
+    for (let i = 0; i < sim.count && watched < 0; i++) {
+      for (let j = 0; j < s.placeSlots[i]!; j++) {
+        const dx = s.placeX[i * 4 + j]! - sim.x[i]!;
+        if (s.placeVal[i * 4 + j]! > 0 && Math.abs(dx) > 20 && Math.abs(dx) < 100) watched = i;
+      }
+    }
+    expect(watched).toBeGreaterThanOrEqual(0);
+    sim.traceId = sim.describe(watched).id;
+    sim.run(2);
+    const inputs = s.traceInputs;
+    const d = inputs[INPUT.placeDistance]!;
+    expect(Math.abs(inputs[INPUT.placeAhead]!) + Math.abs(inputs[INPUT.placeSide]!) + d).toBeGreaterThan(0);
+    expect(d).toBeLessThanOrEqual(1);
+  }, 60_000);
+
+  it("the remembering rule: store, refresh, fade, and replace the weakest when full", () => {
+    const sim = new Simulation(8, { ...learners, placeFade: 0.5, placeMinMeal: 0.01, placeMergeRadius: 8 });
+    const s = sim as unknown as Inside & { rememberPlace(i: number, meal: number): void; placeY: Float32Array };
+    s.placeSlots[0] = 2;
+    s.placeVal.fill(0, 0, 4);
+    const at = (x: number, y: number): void => {
+      sim.x[0] = x;
+      sim.y[0] = y;
+    };
+    at(10, 10);
+    s.rememberPlace(0, 0.4); // first good meal: remembered
+    expect(s.placeVal[0]).toBeCloseTo(0.4, 6);
+    expect(s.placeX[0]).toBe(10);
+    at(12, 10);
+    s.rememberPlace(0, 0.1); // a smaller meal at the same place: the memory only fades
+    expect(s.placeVal[0]).toBeCloseTo(0.2, 6);
+    expect(s.placeX[0]).toBe(10);
+    at(60, 10);
+    s.rememberPlace(0, 0.3); // somewhere else: the second slot
+    expect(s.placeVal[1]).toBeCloseTo(0.3, 6);
+    at(100, 100);
+    s.rememberPlace(0, 0.005); // too small to remember: both just fade
+    expect(s.placeVal[0]).toBeCloseTo(0.05, 6);
+    expect(s.placeVal[1]).toBeCloseTo(0.15, 6);
+    s.rememberPlace(0, 0.12); // full: replaces the weakest (the first place)
+    expect([s.placeX[0], s.placeY[0]]).toEqual([100, 100]);
+    expect(s.placeVal[0]).toBeCloseTo(0.12, 6);
+    expect(s.placeX[1]).toBe(60);
+  });
+
+  it("each place an animal can remember costs upkeep on the brain line", () => {
+    const sim = new Simulation(8, { ...learners, placeCostCoeff: 0.01 });
+    sim.run(300);
+    const s = inside(sim);
+    for (let i = 0; i < sim.count; i++) expect(s.brainCost[i]!).toBeGreaterThanOrEqual(0.01 * s.placeSlots[i]! + sim.config.brainBaseCost - 1e-7);
   }, 60_000);
 
   it("with learning off, nothing is kept for it", () => {
-    const sim = new Simulation(8, { ...learners, brainLearning: 0, learnSenses: 0 });
+    const sim = new Simulation(8, { ...learners, brainLearning: 0, learnSenses: 0, placeMemory: 0 });
     expect(inside(sim).learnDelta.length).toBe(0);
     expect(inside(sim).learnPrevE.length).toBe(0);
+    expect(inside(sim).placeVal.length).toBe(0);
   });
 });

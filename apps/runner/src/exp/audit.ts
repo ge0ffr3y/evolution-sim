@@ -121,6 +121,10 @@ export function idleReason(key: string, group: string, c: SimConfig): string {
     if (c.brainLearning === 0 && c.learnSenses === 0 && key !== "brainLearning" && key !== "learnSenses") return off("learning");
     if (c.brainLearning === 0 && key !== "brainLearning" && key !== "learnSenses" && key !== "learnSenseScale" && key !== "learnBaselineRate") return off("learning (brainLearning)");
   }
+  if (group.startsWith("Place memory")) {
+    if (c.brainMode === 0) return off("brains");
+    if (c.placeMemory === 0 && key !== "placeMemory") return off("place memory");
+  }
   if (group.startsWith("Sprinting") && (c.sprintFatigue === 0 || c.brainMode === 0) && key !== "sprintFatigue") return off("stamina");
   if (group.startsWith("Kill ownership") && key === "killOwnershipLeak" && c.killOwnershipTicks === 0) return off("kill ownership");
   return "";
