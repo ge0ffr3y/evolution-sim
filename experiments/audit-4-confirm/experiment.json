@@ -1,0 +1,15 @@
+{
+  "name": "audit-4-confirm",
+  "question": "On 16 fresh seeds, do Stage 3's best candidates hold up (nutrients level 2: a second feeding level and more sex; a mutation-rate floor of 0.01: bigger, steadier populations), do they work together, and does adding rare big mutations let true meat eaters take hold?",
+  "base": "grand-world",
+  "ticks": 200000,
+  "seeds": "101-116",
+  "arms": {
+    "control": {},
+    "nutrients-2": { "nutrientMode": 2 },
+    "mutation-floor-01": { "mutationRateMin": 0.01 },
+    "both": { "nutrientMode": 2, "mutationRateMin": 0.01 },
+    "both-big-mutations": { "nutrientMode": 2, "mutationRateMin": 0.01, "macroMutationProb": 0.005 }
+  },
+  "measures": ["all"]
+}
