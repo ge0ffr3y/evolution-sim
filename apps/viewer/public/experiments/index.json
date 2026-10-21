@@ -8,5 +8,10 @@
     "name": "headline-sex",
     "question": "Does sex speed up the arrival of new feeding levels? Worlds where every animal splits in two, where sex is a gene (today's grand world), and where every animal must find a mate. An answer: when mixed eaters (5 or more) first appear and how much of the time they are present, the highest diet reached, and meat in the diet, against today's world, with 95% ranges.",
     "file": "headline-sex.json"
+  },
+  {
+    "name": "headline-ice-age",
+    "question": "Does an ice age raise or lower long-term diversity? One ice age strikes at tick 200,000 (at today's severity, 50% colder and twice as cold); diversity before it (ticks 100,000 to 200,000) and long after it (400,000 to 600,000) is compared with worlds that have no catastrophes at all. An answer: species alive and Shannon diversity after recovery against the control, with 95% ranges, and how many worlds survive each severity.",
+    "file": "headline-ice-age.json"
   }
 ]

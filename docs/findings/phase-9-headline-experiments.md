@@ -24,3 +24,21 @@ The audited grand world (Phase 9 audit, devlog 16), 16 fresh seeds per setup. Ea
 - **Lasting:** without sex they become a steady second feeding level (present 76% of the time). With sex for everyone, they almost never last (5%). Sex blends a would-be meat eater's genes back into the plant-eating majority, so a split in diet cannot hold. This is the gene-mixing explanation proposed in Phase 8e (O4), now confirmed.
 - **Species:** sex for everyone gives 2.4 times as many species. Mates must be genetically close (`mateDistance`), which splits the population into separate breeding groups, the textbook way new species form. Without sex, there are fewer, broader species.
 - **The trade:** asexual worlds have more feeding levels but fewer species, smaller populations and lives almost half as long. Worlds where everyone must mate have more species, bigger populations and longer lives, but a single feeding level.
+
+## 2. Does an ice age raise or lower long-term diversity?
+
+**Experiment:** `headline-ice-age`, 600,000 ticks, seeds 501 to 516. Random catastrophes are switched off in every setup. One ice age at tick 200,000 (lasting 15,000 ticks) at three severities: today's cooling (0.3), 50% colder (0.45) and twice as cold (0.6). The control has no ice age. About 70 minutes in the cloud, about $1.45 (one world was finished on a second, tiny machine after the first reached its hard stop).
+
+**Answer: it depends on the severity. A mild or moderate ice age leaves no lasting mark on diversity; a severe one is a mass extinction that leaves the survivors less diverse.**
+
+| Ice age | Worlds surviving | Lowest population | Population during the ice age (before: about 980) | Species after recovery (ticks 400,000 to 600,000; control 5.3) | Shannon after (control 1.27) |
+|---|---|---|---|---|---|
+| Today's severity (0.3) | 16 of 16 | -34%* | 751 | 5.6 | 1.39 |
+| 50% colder (0.45) | 16 of 16 | -75%* | 573 | 5.8 | 1.33 |
+| Twice as cold (0.6) | **9 of 16** | -97%* | 438 | **4.2** | **1.04** |
+
+(* holds up. Species and Shannon after recovery are averaged over the surviving worlds. Over all worlds, including those that died, the severe ice age gives species -24%* and Shannon -21%*.)
+
+- **Mild and moderate ice ages:** the population falls by a quarter to a half, then fully recovers. Species and diversity afterwards lean slightly higher than in worlds without an ice age, but no difference holds up with 16 seeds.
+- **A severe ice age:** 7 of 16 worlds died out within about 6,000 ticks of it striking. The survivors recovered their numbers but stayed less diverse, with about 20% fewer species.
+- This matches the audit's cold-side cliff: the grand world copes well with moderate cold, then fails sharply.
