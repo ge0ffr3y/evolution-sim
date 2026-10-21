@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Simulation } from "@evo/sim-core";
@@ -8,6 +8,7 @@ import { runJob, statusOf } from "./job";
 import { sampleWorld, summarizeRun, MEASURES, lastQuarterTrend } from "./measures";
 import { draftSettings, dosesExperiment, armName } from "./audit";
 import { compare } from "./report";
+import { exportExperiment, writeExport } from "./export";
 import type { JobResult } from "./job";
 import { makespan, planMachines } from "./estimate";
 import { buildLaunchRequest, buildUserData, remainingWorst, vcpusOf } from "./cloud";
@@ -146,6 +147,24 @@ describe("the audit's settings list and its experiment", () => {
     const tested = list.settings.filter((s) => s.test);
     expect(Object.keys(exp.arms).length).toBe(1 + tested.reduce((n, s) => n + (s.down ? 1 : 0) + (s.up ? 1 : 0), 0));
   });
+});
+
+describe("exporting for the analysis page", () => {
+  it("writes each run's key results and each arm's average timeline, and indexes it", async () => {
+    const exp = tiny({ ticks: 400, measures: ["all"] });
+    for (const job of jobsOf(exp)) await runJob(exp, job);
+    const data = exportExperiment(exp, "control");
+    expect(data.runs.length).toBe(4);
+    expect(Object.keys(data.series).sort()).toEqual(["control", "crowded"]);
+    expect(data.series.control!.tick[0]).toBe(0);
+    expect(data.series.control!.mean.population!.length).toBe(data.series.control!.tick.length);
+    expect(typeof data.runs[0]!.summary.meanPopulationLate).toBe("number");
+    const out = join(exp.folder, "public");
+    writeExport(data, out);
+    writeExport(data, out); // a second export of the same experiment replaces its entry
+    const index = JSON.parse(readFileSync(join(out, "index.json"), "utf8")) as { name: string }[];
+    expect(index.map((e) => e.name)).toEqual(["tiny-test"]);
+  }, 60_000);
 });
 
 describe("the comparison report", () => {

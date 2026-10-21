@@ -456,3 +456,74 @@ label {
 .timeline .event-tick {
   white-space: nowrap;
 }
+
+/* Experiment results page (analysis.html) */
+.analysis {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 16px 40px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr); /* let wide charts scroll inside their panel instead of widening the page */
+  gap: 16px;
+}
+.analysis-panel {
+  min-width: 0;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+.analysis-panel h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+.analysis .question {
+  font-size: 1rem;
+  margin: 10px 0 6px;
+}
+.analysis .muted {
+  color: var(--muted);
+}
+.analysis .small {
+  font-size: 0.85rem;
+}
+.chart-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.chart-head h2 {
+  margin-right: auto;
+}
+.compare {
+  overflow-x: auto;
+}
+.setups {
+  margin: 8px 0 0;
+  padding-left: 0;
+  list-style: none;
+  font-size: 0.9rem;
+}
+.setups li {
+  margin: 3px 0;
+}
+.swatch-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.page-header a {
+  color: var(--accent);
+}
+#timeline {
+  overflow-x: auto;
+}
+.chart-head select {
+  max-width: 100%;
+}

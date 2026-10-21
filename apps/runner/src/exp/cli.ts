@@ -9,6 +9,7 @@ import { MEASURES } from "./measures";
 import { cloudCommand } from "./cloud";
 import { draftSettings, dosesExperiment, type SettingsList } from "./audit";
 import { collectResults, writeReport } from "./report";
+import { exportExperiment, writeExport } from "./export";
 
 const USAGE = `Evolution Sim experiments
 
@@ -18,6 +19,7 @@ const USAGE = `Evolution Sim experiments
   npm run exp -- status   <experiment folder>   what is done, running and left
   npm run exp -- measures                       list the measures an experiment can record
   npm run exp -- report   <experiment folder>   compare every arm with the control (--control <arm>, default "control"): writes report.md
+  npm run exp -- export   <experiment folder>   write a small summary for the viewer's analysis page (--control <arm>; --out <dir>)
 
   npm run exp -- settings <preset> --out <file> [--changes name=value,name=value]
                                                 draft the audit's list of settings (which are turned down and up, and how)
@@ -201,6 +203,16 @@ async function main(): Promise<void> {
       if (!(control in exp.arms)) fail(`there is no arm called "${control}" (arms: ${Object.keys(exp.arms).join(", ")}); choose one with --control`);
       const { flags } = writeReport({ exp, control, results: collectResults(exp) });
       console.log(`Wrote ${relative(here, join(exp.folder, "report.md"))} (${flags} red flags) and results/comparisons.csv.`);
+      return;
+    }
+    case "export": {
+      const exp = load(positional[0], options.ticks);
+      const control = typeof options.control === "string" ? options.control : "control";
+      if (!(control in exp.arms)) fail(`there is no arm called "${control}" (arms: ${Object.keys(exp.arms).join(", ")}); choose one with --control`);
+      const out = typeof options.out === "string" ? resolve(here, options.out) : join(repoRoot, "apps", "viewer", "public", "experiments");
+      const data = exportExperiment(exp, control);
+      const file = writeExport(data, out);
+      console.log(`Exported ${data.runs.length} runs of ${exp.name} to ${relative(here, file)} (${Math.round(JSON.stringify(data).length / 1024)} KB).`);
       return;
     }
     case "settings": {

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Evolution Sim: experiment results</title>
+  </head>
+  <body>
+    <header class="page-header">
+      <h1>Experiment results</h1>
+      <p>Each experiment runs the same worlds (seeds) under different setups and compares them. <a href="./">Back to the world viewer</a></p>
+    </header>
+
+    <main class="analysis">
+      <section class="analysis-panel">
+        <label class="inline-label">Experiment <select id="experiment"></select></label>
+        <p id="question" class="question"></p>
+        <p id="facts" class="muted small"></p>
+        <details>
+          <summary>Setups</summary>
+          <ul id="setups" class="setups"></ul>
+        </details>
+      </section>
+
+      <section class="analysis-panel">
+        <div class="chart-head">
+          <h2>Compare the setups</h2>
+          <label class="inline-label">Measure <select id="measure"></select></label>
+          <button id="save-compare" type="button">Save as image</button>
+        </div>
+        <div id="compare" class="compare"></div>
+        <p class="muted small">
+          Each small dot is one world (seed). The bigger dot is the average, with its 95% range. On the right, the change against
+          the control, compared seed by seed; <strong>holds up</strong> means the 95% range of the change excludes no change.
+          Measures are taken over the second half of each run unless named otherwise.
+        </p>
+      </section>
+
+      <section class="analysis-panel">
+        <div class="chart-head">
+          <h2>Over time</h2>
+          <label class="inline-label">Measure <select id="series"></select></label>
+          <label class="inline-label"><input id="bands" type="checkbox" /> show lowest and highest world</label>
+          <button id="save-time" type="button">Save as image</button>
+        </div>
+        <div id="timeline"></div>
+        <p class="muted small">Each line is a setup's average across its worlds. Worlds that died out drop out from that point on.</p>
+      </section>
+    </main>
+
+    <script type="module" src="/src/analysis.ts"></script>
+  </body>
+</html>
