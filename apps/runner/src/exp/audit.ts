@@ -116,6 +116,11 @@ export function idleReason(key: string, group: string, c: SimConfig): string {
   if (group.startsWith("Cross-lineage bonding") && (c.contactBonding === 0 || c.multicellular === 0) && key !== "contactBonding") return off("contact bonding");
   if (group.startsWith("Cell types") && (c.cellTypes === 0 || c.multicellular === 0) && key !== "cellTypes") return off("cell types");
   if (group.startsWith("Sexual reproduction") && c.sexualReproduction === 0 && !key.startsWith("macroMutation") && key !== "sexualReproduction") return off("sexual reproduction");
+  if (group.startsWith("Learning brains")) {
+    if (c.brainMode === 0) return off("brains");
+    if (c.brainLearning === 0 && c.learnSenses === 0 && key !== "brainLearning" && key !== "learnSenses") return off("learning");
+    if (c.brainLearning === 0 && key !== "brainLearning" && key !== "learnSenses" && key !== "learnSenseScale" && key !== "learnBaselineRate") return off("learning (brainLearning)");
+  }
   if (group.startsWith("Sprinting") && (c.sprintFatigue === 0 || c.brainMode === 0) && key !== "sprintFatigue") return off("stamina");
   if (group.startsWith("Kill ownership") && key === "killOwnershipLeak" && c.killOwnershipTicks === 0) return off("kill ownership");
   return "";

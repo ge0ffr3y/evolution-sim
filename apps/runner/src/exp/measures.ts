@@ -1,4 +1,4 @@
-import { GENE, GENE_COUNT, GENES, type CostBreakdown, type Simulation, type SimStats } from "@evo/sim-core";
+import { GENE, GENE_COUNT, GENES, INPUT, LEARN_SLOTS, type CostBreakdown, type Simulation, type SimStats } from "@evo/sim-core";
 
 /**
  * Things an experiment can record. Each measure only READS the world (a test checks that recording
@@ -42,6 +42,9 @@ type Internals = {
   energy: Float32Array | Float64Array;
   threshold: Float32Array;
   age: Uint32Array;
+  learnDelta: Float32Array;
+  plantTaken: Float32Array | Float64Array;
+  meatTaken: Float32Array | Float64Array;
 };
 const inside = (sim: Simulation): Internals => sim as unknown as Internals;
 
@@ -500,6 +503,65 @@ export const MEASURES: Record<string, Measure> = {
     },
   },
 
+  learning: {
+    describe: "learning during life: how much the average brain has learned, and food gathered per tick by age (young under 250 ticks, middle 250 to 1,000, old over 1,000; rising with age is the sign of learning)",
+    sample: ({ sim }) => {
+      const s = inside(sim);
+      let learned = 0;
+      const sums = [0, 0, 0];
+      const counts = [0, 0, 0];
+      for (let i = 0; i < sim.count; i++) {
+        if (s.learnDelta.length) for (let k = 0; k < LEARN_SLOTS; k++) learned += Math.abs(s.learnDelta[i * LEARN_SLOTS + k]!);
+        const age = s.age[i]!;
+        if (age < 50) continue; // too young to say
+        const band = age < 250 ? 0 : age < 1000 ? 1 : 2;
+        sums[band] = sums[band]! + (s.plantTaken[i]! + s.meatTaken[i]!) / age;
+        counts[band] = counts[band]! + 1;
+      }
+      const rate = (b: number): number => (counts[b]! ? round(sums[b]! / counts[b]!, 5) : NaN);
+      return { learnedChange: sim.count ? round(learned / sim.count, 4) : 0, intakeYoung: rate(0), intakeMiddle: rate(1), intakeOld: rate(2) };
+    },
+    summarize: (rows) => {
+      const young = lateMean(rows, "intakeYoung");
+      const old = lateMean(rows, "intakeOld");
+      return { learnedChangeLate: lateMean(rows, "learnedChange"), intakeYoungLate: young, intakeMiddleLate: lateMean(rows, "intakeMiddle"), intakeOldLate: old, intakeOldOverYoungLate: young && old !== null ? round(old / young, 4) : null };
+    },
+  },
+
+  brainUse: {
+    describe: "how often evolved brains are wired to memory, home and the learning senses, against inputs that are always 0 in this world (the baseline for wiring by chance): working connections per input",
+    sample: ({ sim }) => {
+      const c = sim.config;
+      const groups: Record<string, number[]> = {
+        memory: [INPUT.memory0, INPUT.memory1, INPUT.memory2, INPUT.memory3],
+        home: [INPUT.homeAhead, INPUT.homeSide, INPUT.homeDistance],
+        learnSenses: [INPUT.energyChange, INPUT.surprise, INPUT.yearA, INPUT.yearB, INPUT.lastTurn, INPUT.lastSpeed],
+        place: [INPUT.placeAhead, INPUT.placeSide, INPUT.placeDistance],
+      };
+      // Inputs that read 0 for everyone in this world: any wiring to them is chance (or drift).
+      const zero: number[] = [];
+      if (!(c.signaling === 1 && c.multicellular === 1)) zero.push(INPUT.colonyThreatAhead, INPUT.colonyThreatSide, INPUT.colonyThreatNear, INPUT.colonyFoodAhead, INPUT.colonyFoodSide, INPUT.colonyFoodNear);
+      if (c.drinking === 0) zero.push(INPUT.thirst);
+      if (c.nutrientMode === 0) zero.push(INPUT.nutrientStore);
+      if (c.nutrientMode < 2) zero.push(INPUT.plantRichHere, INPUT.plantRichAhead, INPUT.plantRichSide);
+      groups.baseline = zero;
+      const out: Row = {};
+      if (c.brainMode === 0 || sim.count === 0) return out;
+      const counts: Record<string, number> = {};
+      for (let i = 0; i < sim.count; i++) {
+        const links = sim.describe(i).brain?.links ?? [];
+        for (const l of links) for (const [g, ins] of Object.entries(groups)) if (ins.includes(l.from)) counts[g] = (counts[g] ?? 0) + 1;
+      }
+      for (const [g, ins] of Object.entries(groups)) out[`wired_${g}`] = ins.length ? round((counts[g] ?? 0) / sim.count / ins.length, 4) : NaN;
+      return out;
+    },
+    summarize: (rows) => {
+      const out: Record<string, number | null> = {};
+      for (const g of ["memory", "home", "learnSenses", "place", "baseline"]) out[`wired_${g}_late`] = lateMean(rows, `wired_${g}`);
+      return out;
+    },
+  },
+
   traits: {
     describe: "the average of every gene that is in use",
     sample: ({ sim, stats }) => {
@@ -529,7 +591,7 @@ export function sampleWorld(sim: Simulation, measures: string[]): Row {
  * share of its level then (from a straight-line fit, so one odd sample does not decide it).
  * Near 0 means it has settled.
  */
-export const TREND_KEYS = ["population", "mutationLoad", "dietMean", "dietMax", "sexGene", "colonyShare", "sickShare", "wornShare", "soilHealthMean", "foulMean", "grazingMean", "plantFill", "shannon", "brainConnections", "cost_total", "cost_load", "hungryShare"];
+export const TREND_KEYS = ["learnedChange", "population", "mutationLoad", "dietMean", "dietMax", "sexGene", "colonyShare", "sickShare", "wornShare", "soilHealthMean", "foulMean", "grazingMean", "plantFill", "shannon", "brainConnections", "cost_total", "cost_load", "hungryShare"];
 
 /** Change across the last quarter of the rows (straight-line fit), relative to the mean level there. */
 export function lastQuarterTrend(rows: Row[], key: string): number | null {
