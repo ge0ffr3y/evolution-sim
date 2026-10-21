@@ -289,6 +289,23 @@ The question for each is whether the world gets richer (more feeding levels, mor
 
 With about 700 comparisons, a few will look important by pure chance. So every red flag and every promising finding is re-run on 16 new seeds before anything is changed. Only what holds up there becomes a fix or a preset change.
 
+**Stage 4 result (2026-10-21; 16 fresh seeds, 101 to 116, × 200,000 ticks, 5 arms; one c8g.8xlarge, about 21 minutes, about 45 cents; none died out; report in `experiments/audit-4-confirm/report.md`).** Changes against the grand world (* = the 95% range excludes no change):
+
+| | Population | Species | Shannon | Feeding levels | Meat in the diet | Kills | Two-parent births | Colonies | Cost per animal |
+|---|---|---|---|---|---|---|---|---|---|
+| Grand world (values) | 864 | 2.6 | 0.75 | 1.03 | 4.1% | 478 | 12% | 2.5% | 0.053 |
+| Nutrients level 2 | -18% | +9% | -1% | **+37%*** | **+114%*** | **+94%*** | **+209%*** | +58%* | +93%* |
+| Mutation floor 0.01 | **+19%*** (896 to 1,201 on every seed) | +20% | +14% | -1% | -1% | -15% | +17% | +30%* | -21%* |
+| **Both** | -1% | **+74%*** (4.5) | **+53%*** | **+59%*** (1.63) | **+113%*** | **+150%*** | **+172%*** | +85%* | +50%* |
+| Both + rare big mutations | +2% | **+97%*** (5.1) | **+65%*** | **+43%*** | **+85%*** | **+98%*** | **+194%*** | +71%* | +34%* |
+
+**What it means:**
+- **Stage 3's findings hold on fresh seeds.** Nutrients level 2 gives a second feeding level (mixed eaters), about twice the meat and kills, and three times the sex. The mutation floor gives bigger, steadier populations.
+- **Together they are better than either alone.** The floor's population gain offsets the nutrients' loss, so the population is unchanged. The number of species alive nearly doubles (2.6 to 4.5), Shannon diversity rises by half, feeding levels reach 1.6, and two-parent births nearly triple. Animals die younger (deaths +41%) and cost more to run.
+- **Rare big mutations** raise species further (5.1) and let individuals reach a diet of 0.81. Still no lasting meat-eating group in any world (no world kept 5 or more meat eaters at any time).
+
+**Recommendation:** put `nutrientMode` 2 and `mutationRateMin` 0.01 into the grand-world preset. Rare big mutations (`macroMutationProb` 0.005) are a smaller, optional addition: more species, but a slightly weaker second feeding level than the pair alone.
+
 ### Stage 5 (optional, after stage 4): settings working together
 
 The settings that mattered most (perhaps 20 to 30) varied all at once, in random combinations spread evenly across their ranges (about 400 runs). This finds pairs that only matter together (for example camouflage and kinship, which O4 suggested compound). It is worth doing only if stages 1 to 4 leave the grand world unexplained.
