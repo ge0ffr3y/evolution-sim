@@ -1,0 +1,22 @@
+{
+  "name": "audit-4b-shortlist",
+  "question": "On 16 fresh seeds, does Stage 2's shortlist hold up: where does the cold-side cliff begin (base temperature, plant temperature tolerance, ice-age cooling), does poorer plant food reliably build a food web (more meat, more feeding levels) and at what cost, and is today's weather strength a peak for population?",
+  "base": "grand-world",
+  "ticks": 200000,
+  "seeds": "401-416",
+  "arms": {
+    "control": {},
+    "base-temperature-0375": { "baseTemperature": 0.375 },
+    "base-temperature-06": { "baseTemperature": 0.6 },
+    "plant-tolerance-03": { "plantTempTolerance": 0.3 },
+    "plant-tolerance-045": { "plantTempTolerance": 0.45 },
+    "ice-age-cooling-06": { "iceAgeCooling": 0.6 },
+    "ice-age-cooling-045": { "iceAgeCooling": 0.45 },
+    "plant-quality-max-1": { "plantQualityMax": 1 },
+    "plant-assimilation-001": { "plantAssimilation": 0.01 },
+    "diet-specialization-025": { "dietSpecialization": 0.25 },
+    "weather-006": { "weatherAmplitude": 0.06 },
+    "weather-024": { "weatherAmplitude": 0.24 }
+  },
+  "measures": ["all"]
+}

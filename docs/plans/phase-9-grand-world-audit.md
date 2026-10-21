@@ -1,4 +1,53 @@
-# Phase 9 plan, part 2: the grand-world audit (approved 2026-10-20: baseline with 15% mending, recommended run lengths and order)
+# Phase 9 plan, part 2: the grand-world audit (done 2026-10-21)
+
+## Audit summary (done 2026-10-21)
+
+About $11 of cloud time over two days, about 3,200 simulated worlds.
+
+**What changed in the grand world, each on evidence:**
+1. 15% repair of harmful mutations (without it, 9 of 16 worlds died out in a million ticks).
+2. Disease that can spread: sickness costs 1 times upkeep instead of 30, and strains match a wider range of hosts. Before, the sick starved in about 6 ticks and disease never spread.
+3. Gentle climate drift (it was never switched on).
+4. Slightly softer overgrazing, which on its own halved what the world grows.
+5. Nutrients through food (level 2).
+6. A mutation-rate floor of 0.01.
+7. Rare big mutations.
+
+**The result, over a million ticks on 16 fresh seeds:**
+- stable: no world died out, and nothing still drifting at the end;
+- about twice the species, and 90% more diversity;
+- a lasting second feeding level of mixed eaters;
+- five times the meat and eight times the kills;
+- births with two parents up from 18% to 45%;
+- half the worn ground;
+- faster turnover (lives a third shorter);
+- the same population.
+
+**What we learned about the world:**
+- **Climate is its fragile side.** A world 20% colder holds, but one at half the base temperature dies in about half the seeds, and ice ages twice as cold kill a third.
+- **Poorer plant food is the lever for a food web,** at the price of animals, lifespan and species.
+- **Most fine details barely matter.** 133 of 291 settings change nothing measurable when halved or doubled. Most disaster, colony, herd, sharing and brain-chemistry details are in that group.
+- **None of the 14 mechanisms that seemed to do nothing is broken.** Most are too weak in a sparse, overgrazed world; climate drift was off; memory was unused.
+- Food is set per food cell, not per area (changing the cell size changes the total food).
+
+**What we learned about method:**
+- **Four seeds find big effects but also false ones** (the weather "peak", and the first "memory used" result). Every claim here was confirmed on 16 fresh seeds before anything changed.
+- Seeds vary a lot in the grand world, so effects under about 15% need 16 or more seeds.
+
+**Open questions:**
+- No lasting meat-eating group yet. Individuals reach a pure meat diet, but none founds a group.
+- The sex gene sits low, yet 45% of births have two parents.
+- Switching off kin restraint cut hunting by three quarters.
+- Some worlds settle with far more plants standing than others.
+- Learning brains need a world that rewards them (Phase 8f).
+
+**Tools built:**
+- experiment files, cloud runs on demand, and exact resume;
+- the measures library, including the cost breakdown, causes of death and genes at their limits;
+- the settings list and down-and-up generator;
+- the comparison report;
+- `apps/runner/scripts/` (scorecard, sensitivity ranking, timeline).
+
 
 **Goal:** before any long runs or headline experiments, test every factor that plays into the grand world, find what is broken, too strong, too weak, doing nothing, or drifting, and decide what the grand world should contain. Everything runs in the cloud (c8g, on demand); the laptop only builds and checks the tools.
 
@@ -238,6 +287,85 @@ Control: population 764 (638 to 874), about 2 species, plants standing at 5% of 
 
 Each of the about 320 grand-world settings at half and at double (or halfway to each end), one at a time. 4 seeds is enough to spot big effects and cliffs, not small ones; anything flagged gets more seeds in stage 4. The output is a map of which settings the grand world is sensitive to, which barely matter, and where a small change causes a collapse.
 
+**Stage 2 result (2026-10-21, the updated grand world; 291 settings × down and up × 4 fresh seeds, 301 to 304; 2,280 runs of 100,000 ticks; one c8g.8xlarge, 4.55 hours, about $5.81; report in `experiments/audit-2-doses/report.md`).**
+
+With only 4 seeds, changes of 10 to 30% can be chance, so the reading below leans on changes whose 95% range excludes no change. The ranking used here is `node apps/runner/scripts/sensitivity.mjs experiments/audit-2-doses/results/comparisons.csv` (also in that folder: `scorecard.mjs`, each arm against the control at a glance, and `timeline.mjs`, a long run over time).
+
+1. **Climate is the fragile part: the only collapses.** Each of these killed worlds:
+   - halving the base temperature (0.75 to 0.375; one world died within 3,079 ticks);
+   - halving the temperature range plants tolerate (0.6 to 0.3; 2 of 4 worlds died);
+   - doubling ice-age cooling (0.3 to 0.6).
+
+   Doubling those values is harmless, so the grand world sits near a cliff on the cold side.
+2. **158 settings move something that holds up; 133 move nothing measurable.** The most influential (number of key measures changed) are:
+   - the core energy economy: energy per unit of food (11), armor's movement cost (10), weapons' limit (10), sensing cost (9);
+   - the hunting rules: reach (8), the largest prey relative to the hunter (8), the pause between kills (8), the plant eater's penalty for fighting (8);
+   - brain mutation (9);
+   - weather strength (9);
+   - terrain layout (8);
+   - plant quality (8);
+   - the energy needed to breed (8);
+   - body limits for speed and metabolism (7).
+3. **The second feeding level is tied to plant quality.** Whatever makes plants a poorer food raises meat in the diet (+200 to +330%) and feeding levels (to about 1.9), at a cost in population (-35 to -55%). That holds for plant quality, plant digestion, starting soil nutrient, the diet specialization penalty, energy per food, body nutrient, and a longer hunter reach. This is the strongest lever there is for a food web.
+4. **Weather strength sits at a peak for population:** halving and doubling it both cost about a third of the population (both hold up), while raising meat and feeding levels.
+5. **What barely matters (no change that holds up):**
+   - nearly every detail of the disaster events (fire, storm, flood, volcano, blight, outbreak and good-year sizes, lengths and frequencies);
+   - colony and cell-type details;
+   - the herd bonus;
+   - sharing;
+   - brain chemistry and home-memory details;
+   - weather drift;
+   - scent trails;
+   - the old catastrophe settings.
+
+   This matches stage 1, where those mechanisms showed no clear effect. Also the mutation-rate floor and rare big mutations, when halved or doubled around today's values: their effect is in being switched on, not in their exact size.
+6. **Settings confirmed to do nothing in this world:**
+   - `turnStd`, `steerGain` (only for worlds without brains);
+   - `brainHidden` (only for fixed-layout brains);
+   - `initialStamina`, `staminaMax` (stamina is off; the settings list should mark them idle);
+   - `maxOrganisms` (never reached).
+7. **Units quirk:**
+   - Plant food is set per food cell, not per area, so halving `foodCellSize` makes four times the cells and nearly triples the population.
+   - World size scales as expected (4 times the area, 4 times the animals).
+
+   These are not exploits, but anyone changing cell size should rescale `foodCap` and `foodRegrowPerTick`.
+
+Tooling: the comparison report ran out of memory on 2,280 runs (it loaded every run's full timeline). It now keeps only each run's summary. The first download also failed once on 1.6 GB and worked on the second try.
+
+**Open for the owner:**
+- whether to add a guard against the cold-side cliff (for example, a milder default for plant temperature tolerance);
+- whether to use plant quality as the deliberate lever for a food web;
+- a 16-seed confirmation of the shortlist (stage 4 style) before any change.
+
+**Stage 2 shortlist, confirmed (2026-10-21; `audit-4b-shortlist`, 16 fresh seeds 401 to 416 × 200,000 ticks, 12 arms; one c8g.8xlarge, 48 minutes, about $1.02; report in `experiments/audit-4b-shortlist/report.md`).** Changes against the grand world (* = the 95% range excludes no change). The control here: 905 animals, 5.5 species, feeding levels 1.49, 34% two-parent births.
+
+| Setting (normal value) | Worlds that died out | Effect |
+|---|---|---|
+| Base temperature 0.375 (0.75) | **7 of 16** | population -59%*, lowest -90%*, species -63%* |
+| Base temperature 0.6 | 0 | lowest -32%*, Shannon -22%* |
+| Plant temperature tolerance 0.3 (0.6) | 1 of 16 | population -33%*, lowest -53%*, species -40%* |
+| Plant temperature tolerance 0.45 | 0 | feeding levels -23%*, kills -37%*; population unchanged |
+| Ice-age cooling 0.6 (0.3) | **5 of 16** (each when an ice age struck) | lowest -40%*; otherwise unchanged |
+| Ice-age cooling 0.45 | 0 | lowest -28%*, species -18%* |
+| Plant quality limit 1 (2) | 0 | feeding levels +30%*, meat +88%*, kills +49%*; population -47%*, lives -57%*, species -31%* |
+| Plant digestion 0.01 (0.02) | 0 | feeding levels +34%*, meat +104%*, kills +66%*; population -48%*, lives -61%*, species -42%* |
+| Mixed-diet penalty 0.25 (0.5) | 0 | feeding levels +23%*, meat +42%*; species -30%*; population -14% |
+| Weather 0.06 (0.12) | 0 | deaths -23%*, meat -24%*, kills -30%*; population +9% |
+| Weather 0.24 | 0 | no change that holds up |
+
+**What it means:**
+- **The cold-side cliff is real and confirmed.** A world at base temperature 0.375 dies in about half the seeds, and ice ages twice as cold kill about a third of worlds when they strike.
+- **Today's values have a margin.** At 0.6 (20% colder) or with ice ages 50% colder, nothing dies, though the worst times get worse.
+- **Plant tolerance halved is harmful (one death); cut by a quarter, it is mild.**
+- **Poorer plant food reliably builds the food web, but it is a trade, not a free gain.** It brings more feeding levels, about twice the meat and up to two thirds more kills. In exchange there are about half the animals, lives under half as long and a third fewer species.
+- **Weather is not a peak for population.** Stage 2's finding with 4 seeds was chance: halving the weather changes the population by little (+9%), and doubling it changes nothing.
+
+**Recommendation:**
+- Keep the grand-world defaults.
+- Both the cold-side cliff and the plant-quality trade make good headline experiments:
+  - "How severe can an ice age be before the world dies, and what does it do to diversity?"
+  - "Does poorer plant food give longer food chains but fewer species?"
+
 ### Stage 3: candidates to join the grand world (8 seeds x 200,000 ticks, about 16 arms)
 
 Each built-but-off feature added on its own:
@@ -307,6 +435,32 @@ With about 700 comparisons, a few will look important by pure chance. So every r
 **Recommendation:** put `nutrientMode` 2 and `mutationRateMin` 0.01 into the grand-world preset. Rare big mutations (`macroMutationProb` 0.005) are a smaller, optional addition: more species, but a slightly weaker second feeding level than the pair alone.
 
 **Owner's decision (2026-10-21):** `nutrientMode` 2, `mutationRateMin` 0.01 and `macroMutationProb` 0.005 are now in the grand-world preset. The audit experiments before this commit (stages 0, 1, 1b, 3 and 4) ran earlier versions of the preset; their `base: grand-world` means the preset as it was at their commit, which git history keeps.
+
+**New long baseline (2026-10-21; `audit-0b-baseline`, 16 fresh seeds 201 to 216 × 1,000,000 ticks; one c8g.8xlarge, 59 minutes, about $1.25; none died out; report in `experiments/audit-0b-baseline/report.md`).** The updated grand world against the grand world before this morning's three additions (* = the 95% range excludes no change):
+
+| | Before the additions | Updated grand world |
+|---|---|---|
+| Population | 759 (lowest 222) | +6%, lowest +20% |
+| Species alive | 2.4 | **2.3 times as many*** (about 5 to 6) |
+| Shannon diversity | 0.69 | **+90%*** |
+| Feeding levels | 1.00 | **+65%***: mixed eaters persist through the whole run (median 10 to 30, up to 159) |
+| Meat in the diet | 1.7% | **5.3 times as much*** |
+| Kills per 1,000 ticks | 112 | **8 times as many*** (starving falls from 87% of deaths to 41%) |
+| Births with two parents | 18% | **45%*** (although the sex gene sits low; to understand) |
+| Worn ground | 55% | **-51%*** (soil health 0.79 to 0.89, against 0.63) |
+| Average age, deaths per animal | 1,272 ticks, 1.03 | **-33%*, +87%*** (faster turnover) |
+| Cost per animal | 0.034 | +86%* |
+| Animals short of nutrient | - | 23% at tick 50,000, levelling off at 38 to 44% |
+
+**What it means:**
+- **The updated grand world is stable over a million ticks.** No world died out, and no measure is still drifting the same way on every seed over the last quarter.
+- **It is far richer:**
+  - about twice the species, with mixed eaters a lasting second feeding level;
+  - five times the meat and eight times the kills;
+  - two-parent births up from 18% to 45%;
+  - much healthier soil.
+- **No lasting meat-eating group yet.** Individuals reach a diet of 1.0 (rare big mutations), but none founds a group. The meat-eating question is still open.
+- **The world now serves as the normal range** for stage 2 and the headline experiments.
 
 ### Stage 5 (optional, after stage 4): settings working together
 

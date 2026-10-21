@@ -2,11 +2,9 @@
   "name": "audit-2-doses",
   "question": "Which settings is the grand world (with 15% mending) sensitive to, which barely matter, and where does a change of half or double cause a collapse?",
   "base": "grand-world",
-  "baseChanges": {
-    "mutationLoadMend": 0.15
-  },
+  "baseChanges": {},
   "ticks": 100000,
-  "seeds": "1-4",
+  "seeds": "301-304",
   "arms": {
     "control": {},
     "world-size-down": {
@@ -118,9 +116,6 @@
     "initial-metabolism-up": {
       "initialMetabolism": 2
     },
-    "initial-mutation-rate-down": {
-      "initialMutationRate": 0.005
-    },
     "initial-mutation-rate-up": {
       "initialMutationRate": 0.02
     },
@@ -194,10 +189,7 @@
       "metabolismMax": 4
     },
     "mutation-rate-min-down": {
-      "mutationRateMin": 0.0005
-    },
-    "mutation-rate-min-up": {
-      "mutationRateMin": 0.002
+      "mutationRateMin": 0.005
     },
     "mutation-rate-max-down": {
       "mutationRateMax": 0.025
@@ -715,11 +707,17 @@
     "season-temp-swing-up": {
       "seasonTempSwing": 0.4
     },
+    "climate-drift-period-down": {
+      "climateDriftPeriod": 75000
+    },
+    "climate-drift-period-up": {
+      "climateDriftPeriod": 300000
+    },
     "climate-drift-amplitude-down": {
-      "climateDriftAmplitude": 0.075
+      "climateDriftAmplitude": 0.025
     },
     "climate-drift-amplitude-up": {
-      "climateDriftAmplitude": 0.3
+      "climateDriftAmplitude": 0.1
     },
     "thermal-cost-coeff-down": {
       "thermalCostCoeff": 0.75
@@ -977,10 +975,10 @@
       "overgrazeHeal": 0.002
     },
     "overgraze-penalty-down": {
-      "overgrazePenalty": 0.35
+      "overgrazePenalty": 0.275
     },
     "overgraze-penalty-up": {
-      "overgrazePenalty": 0.85
+      "overgrazePenalty": 0.775
     },
     "catastrophe-every-down": {
       "catastropheEvery": 75000
@@ -1011,6 +1009,72 @@
     },
     "meteor-radius-up": {
       "meteorRadius": 80
+    },
+    "plant-quality-half-down": {
+      "plantQualityHalf": 15
+    },
+    "plant-quality-half-up": {
+      "plantQualityHalf": 60
+    },
+    "plant-quality-max-down": {
+      "plantQualityMax": 1
+    },
+    "plant-quality-max-up": {
+      "plantQualityMax": 4
+    },
+    "plant-assimilation-down": {
+      "plantAssimilation": 0.01
+    },
+    "plant-assimilation-up": {
+      "plantAssimilation": 0.04
+    },
+    "meat-assimilation-down": {
+      "meatAssimilation": 0.4
+    },
+    "meat-assimilation-up": {
+      "meatAssimilation": 0.9
+    },
+    "nutrient-turnover-down": {
+      "nutrientTurnover": 0.001
+    },
+    "nutrient-turnover-up": {
+      "nutrientTurnover": 0.004
+    },
+    "nutrient-store-cap-down": {
+      "nutrientStoreCap": 1.5
+    },
+    "nutrient-store-cap-up": {
+      "nutrientStoreCap": 6
+    },
+    "provision-share-down": {
+      "provisionShare": 0.125
+    },
+    "provision-share-up": {
+      "provisionShare": 0.5
+    },
+    "deficiency-below-down": {
+      "deficiencyBelow": 0.25
+    },
+    "deficiency-below-up": {
+      "deficiencyBelow": 1
+    },
+    "deficiency-cost-down": {
+      "deficiencyCost": 0.15
+    },
+    "deficiency-cost-up": {
+      "deficiencyCost": 0.6
+    },
+    "nutrient-root-uptake-down": {
+      "nutrientRootUptake": 0.001
+    },
+    "nutrient-root-uptake-up": {
+      "nutrientRootUptake": 0.004
+    },
+    "founder-nutrient-down": {
+      "founderNutrient": 0.5
+    },
+    "founder-nutrient-up": {
+      "founderNutrient": 2
     },
     "ev-fire-every-down": {
       "evFireEvery": 10000
@@ -1361,10 +1425,10 @@
       "diseaseContactRange": 6
     },
     "disease-width-down": {
-      "diseaseWidth": 0.025
+      "diseaseWidth": 0.075
     },
     "disease-width-up": {
-      "diseaseWidth": 0.1
+      "diseaseWidth": 0.3
     },
     "disease-duration-down": {
       "diseaseDuration": 100
@@ -1379,10 +1443,10 @@
       "diseaseImmunity": 1200
     },
     "disease-cost-down": {
-      "diseaseCost": 15
+      "diseaseCost": 0.5
     },
     "disease-cost-up": {
-      "diseaseCost": 60
+      "diseaseCost": 2
     },
     "disease-intro-every-down": {
       "diseaseIntroEvery": 10000
@@ -1593,6 +1657,12 @@
     },
     "mate-diet-limit-down": {
       "mateDietLimit": 0.5
+    },
+    "macro-mutation-prob-down": {
+      "macroMutationProb": 0.0025
+    },
+    "macro-mutation-prob-up": {
+      "macroMutationProb": 0.01
     },
     "macro-mutation-std-down": {
       "macroMutationStd": 0.15

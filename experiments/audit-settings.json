@@ -1,8 +1,6 @@
 {
   "base": "grand-world",
-  "baseChanges": {
-    "mutationLoadMend": 0.15
-  },
+  "baseChanges": {},
   "note": "Drafted by `npm run exp -- settings`, then reviewed. test: false means the setting is not turned down and up, for the reason given. down and up are the exact changes each arm makes.",
   "settings": [
     {
@@ -97,6 +95,15 @@
       "up": {
         "fertilityScale": 16
       }
+    },
+    {
+      "key": "barrenBelow",
+      "group": "Food (plants)",
+      "value": 0,
+      "test": false,
+      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
+      "down": null,
+      "up": null
     },
     {
       "key": "initialNutrientPerCell",
@@ -256,9 +263,7 @@
       "value": 0.01,
       "test": true,
       "reason": "",
-      "down": {
-        "initialMutationRate": 0.005
-      },
+      "down": null,
       "up": {
         "initialMutationRate": 0.02
       }
@@ -456,15 +461,13 @@
     {
       "key": "mutationRateMin",
       "group": "Trait limits: each gene (0 to 1) is stretched across its trait's range",
-      "value": 0.001,
+      "value": 0.01,
       "test": true,
       "reason": "",
       "down": {
-        "mutationRateMin": 0.0005
+        "mutationRateMin": 0.005
       },
-      "up": {
-        "mutationRateMin": 0.002
-      }
+      "up": null
     },
     {
       "key": "mutationRateMax",
@@ -1767,23 +1770,27 @@
     {
       "key": "climateDriftPeriod",
       "group": "Climate (off by default)",
-      "value": 0,
-      "test": false,
-      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
-      "down": null,
-      "up": null
+      "value": 150000,
+      "test": true,
+      "reason": "",
+      "down": {
+        "climateDriftPeriod": 75000
+      },
+      "up": {
+        "climateDriftPeriod": 300000
+      }
     },
     {
       "key": "climateDriftAmplitude",
       "group": "Climate (off by default)",
-      "value": 0.15,
+      "value": 0.05,
       "test": true,
       "reason": "",
       "down": {
-        "climateDriftAmplitude": 0.075
+        "climateDriftAmplitude": 0.025
       },
       "up": {
-        "climateDriftAmplitude": 0.3
+        "climateDriftAmplitude": 0.1
       }
     },
     {
@@ -2580,14 +2587,14 @@
     {
       "key": "overgrazePenalty",
       "group": "Overgrazing (off by default)",
-      "value": 0.7,
+      "value": 0.55,
       "test": true,
       "reason": "",
       "down": {
-        "overgrazePenalty": 0.35
+        "overgrazePenalty": 0.275
       },
       "up": {
-        "overgrazePenalty": 0.85
+        "overgrazePenalty": 0.775
       }
     },
     {
@@ -3270,7 +3277,7 @@
     {
       "key": "nutrientMode",
       "group": "Nutrients through food (Phase 8e O1, off by default)",
-      "value": 0,
+      "value": 2,
       "test": false,
       "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
       "down": null,
@@ -3280,100 +3287,144 @@
       "key": "plantQualityHalf",
       "group": "Nutrients through food (Phase 8e O1, off by default)",
       "value": 30,
-      "test": false,
-      "reason": "nutrients through food is off in this world",
-      "down": null,
-      "up": null
+      "test": true,
+      "reason": "",
+      "down": {
+        "plantQualityHalf": 15
+      },
+      "up": {
+        "plantQualityHalf": 60
+      }
     },
     {
       "key": "plantQualityMax",
       "group": "Nutrients through food (Phase 8e O1, off by default)",
       "value": 2,
-      "test": false,
-      "reason": "nutrients through food is off in this world",
-      "down": null,
-      "up": null
+      "test": true,
+      "reason": "",
+      "down": {
+        "plantQualityMax": 1
+      },
+      "up": {
+        "plantQualityMax": 4
+      }
     },
     {
       "key": "plantAssimilation",
       "group": "Nutrients through food (Phase 8e O1, off by default)",
       "value": 0.02,
-      "test": false,
-      "reason": "nutrients through food is off in this world",
-      "down": null,
-      "up": null
+      "test": true,
+      "reason": "",
+      "down": {
+        "plantAssimilation": 0.01
+      },
+      "up": {
+        "plantAssimilation": 0.04
+      }
     },
     {
       "key": "meatAssimilation",
       "group": "Nutrients through food (Phase 8e O1, off by default)",
       "value": 0.8,
-      "test": false,
-      "reason": "nutrients through food is off in this world",
-      "down": null,
-      "up": null
+      "test": true,
+      "reason": "",
+      "down": {
+        "meatAssimilation": 0.4
+      },
+      "up": {
+        "meatAssimilation": 0.9
+      }
     },
     {
       "key": "nutrientTurnover",
       "group": "Nutrients through food (Phase 8e O1, off by default)",
       "value": 0.002,
-      "test": false,
-      "reason": "nutrients through food is off in this world",
-      "down": null,
-      "up": null
+      "test": true,
+      "reason": "",
+      "down": {
+        "nutrientTurnover": 0.001
+      },
+      "up": {
+        "nutrientTurnover": 0.004
+      }
     },
     {
       "key": "nutrientStoreCap",
       "group": "Nutrients through food (Phase 8e O1, off by default)",
       "value": 3,
-      "test": false,
-      "reason": "nutrients through food is off in this world",
-      "down": null,
-      "up": null
+      "test": true,
+      "reason": "",
+      "down": {
+        "nutrientStoreCap": 1.5
+      },
+      "up": {
+        "nutrientStoreCap": 6
+      }
     },
     {
       "key": "provisionShare",
       "group": "Nutrients through food (Phase 8e O1, off by default)",
       "value": 0.25,
-      "test": false,
-      "reason": "nutrients through food is off in this world",
-      "down": null,
-      "up": null
+      "test": true,
+      "reason": "",
+      "down": {
+        "provisionShare": 0.125
+      },
+      "up": {
+        "provisionShare": 0.5
+      }
     },
     {
       "key": "deficiencyBelow",
       "group": "Nutrients through food (Phase 8e O1, off by default)",
       "value": 0.5,
-      "test": false,
-      "reason": "nutrients through food is off in this world",
-      "down": null,
-      "up": null
+      "test": true,
+      "reason": "",
+      "down": {
+        "deficiencyBelow": 0.25
+      },
+      "up": {
+        "deficiencyBelow": 1
+      }
     },
     {
       "key": "deficiencyCost",
       "group": "Nutrients through food (Phase 8e O1, off by default)",
       "value": 0.3,
-      "test": false,
-      "reason": "nutrients through food is off in this world",
-      "down": null,
-      "up": null
+      "test": true,
+      "reason": "",
+      "down": {
+        "deficiencyCost": 0.15
+      },
+      "up": {
+        "deficiencyCost": 0.6
+      }
     },
     {
       "key": "nutrientRootUptake",
       "group": "Nutrients through food (Phase 8e O1, off by default)",
       "value": 0.002,
-      "test": false,
-      "reason": "nutrients through food is off in this world",
-      "down": null,
-      "up": null
+      "test": true,
+      "reason": "",
+      "down": {
+        "nutrientRootUptake": 0.001
+      },
+      "up": {
+        "nutrientRootUptake": 0.004
+      }
     },
     {
       "key": "founderNutrient",
       "group": "Nutrients through food (Phase 8e O1, off by default)",
       "value": 1,
-      "test": false,
-      "reason": "nutrients through food is off in this world",
-      "down": null,
-      "up": null
+      "test": true,
+      "reason": "",
+      "down": {
+        "founderNutrient": 0.5
+      },
+      "up": {
+        "founderNutrient": 2
+      }
     },
     {
       "key": "evIceAgeEvery",
@@ -4285,14 +4336,14 @@
     {
       "key": "diseaseWidth",
       "group": "Disease (off by default)",
-      "value": 0.05,
+      "value": 0.15,
       "test": true,
       "reason": "",
       "down": {
-        "diseaseWidth": 0.025
+        "diseaseWidth": 0.075
       },
       "up": {
-        "diseaseWidth": 0.1
+        "diseaseWidth": 0.3
       }
     },
     {
@@ -4324,14 +4375,14 @@
     {
       "key": "diseaseCost",
       "group": "Disease (off by default)",
-      "value": 30,
+      "value": 1,
       "test": true,
       "reason": "",
       "down": {
-        "diseaseCost": 15
+        "diseaseCost": 0.5
       },
       "up": {
-        "diseaseCost": 60
+        "diseaseCost": 2
       }
     },
     {
@@ -4891,11 +4942,15 @@
     {
       "key": "macroMutationProb",
       "group": "Sexual reproduction (off by default)",
-      "value": 0,
-      "test": false,
-      "reason": "0 here (off or none), and half or double of 0 is still 0: a candidate for stage 3 if it is worth trying",
-      "down": null,
-      "up": null
+      "value": 0.005,
+      "test": true,
+      "reason": "",
+      "down": {
+        "macroMutationProb": 0.0025
+      },
+      "up": {
+        "macroMutationProb": 0.01
+      }
     },
     {
       "key": "macroMutationStd",
@@ -4983,6 +5038,204 @@
       "value": 2000,
       "test": false,
       "reason": "only watches the world; cannot change what happens",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "brainLearning",
+      "group": "Learning brains (Phase 8f, off by default; need brains)",
+      "value": 0,
+      "test": false,
+      "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "learnSenses",
+      "group": "Learning brains (Phase 8f, off by default; need brains)",
+      "value": 0,
+      "test": false,
+      "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "learnRateMax",
+      "group": "Learning brains (Phase 8f, off by default; need brains)",
+      "value": 0.1,
+      "test": false,
+      "reason": "learning is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "learnTraceDecay",
+      "group": "Learning brains (Phase 8f, off by default; need brains)",
+      "value": 0.8,
+      "test": false,
+      "reason": "learning is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "learnLimit",
+      "group": "Learning brains (Phase 8f, off by default; need brains)",
+      "value": 2,
+      "test": false,
+      "reason": "learning is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "learnBaselineRate",
+      "group": "Learning brains (Phase 8f, off by default; need brains)",
+      "value": 0.05,
+      "test": false,
+      "reason": "learning is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "learnCostCoeff",
+      "group": "Learning brains (Phase 8f, off by default; need brains)",
+      "value": 0.002,
+      "test": false,
+      "reason": "learning is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "learnSenseScale",
+      "group": "Learning brains (Phase 8f, off by default; need brains)",
+      "value": 20,
+      "test": false,
+      "reason": "learning is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "initialLearning",
+      "group": "Learning brains (Phase 8f, off by default; need brains)",
+      "value": 0,
+      "test": false,
+      "reason": "learning is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "placeMemory",
+      "group": "Place memory (Phase 8f, off by default; needs brains)",
+      "value": 0,
+      "test": false,
+      "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "placeSlotsMax",
+      "group": "Place memory (Phase 8f, off by default; needs brains)",
+      "value": 4,
+      "test": false,
+      "reason": "place memory is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "placeFade",
+      "group": "Place memory (Phase 8f, off by default; needs brains)",
+      "value": 0.999,
+      "test": false,
+      "reason": "place memory is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "placeMinMeal",
+      "group": "Place memory (Phase 8f, off by default; needs brains)",
+      "value": 0.005,
+      "test": false,
+      "reason": "place memory is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "placeMergeRadius",
+      "group": "Place memory (Phase 8f, off by default; needs brains)",
+      "value": 8,
+      "test": false,
+      "reason": "place memory is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "placeRange",
+      "group": "Place memory (Phase 8f, off by default; needs brains)",
+      "value": 64,
+      "test": false,
+      "reason": "place memory is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "placeCostCoeff",
+      "group": "Place memory (Phase 8f, off by default; needs brains)",
+      "value": 0.0005,
+      "test": false,
+      "reason": "place memory is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "initialPlaceMemory",
+      "group": "Place memory (Phase 8f, off by default; needs brains)",
+      "value": 0,
+      "test": false,
+      "reason": "place memory is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "placeReflex",
+      "group": "Place memory (Phase 8f, off by default; needs brains)",
+      "value": 0,
+      "test": false,
+      "reason": "place memory is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "workingMemory",
+      "group": "Working memory (Phase 8f, off by default; needs brains with memory)",
+      "value": 0,
+      "test": false,
+      "reason": "a switch or mode: tested by switching it (stage 1 or 3), not by halving and doubling",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "wmKeepMax",
+      "group": "Working memory (Phase 8f, off by default; needs brains with memory)",
+      "value": 0.99,
+      "test": false,
+      "reason": "working memory is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "wmCostCoeff",
+      "group": "Working memory (Phase 8f, off by default; needs brains with memory)",
+      "value": 0.0003,
+      "test": false,
+      "reason": "working memory is off in this world",
+      "down": null,
+      "up": null
+    },
+    {
+      "key": "initialWorkingMemory",
+      "group": "Working memory (Phase 8f, off by default; needs brains with memory)",
+      "value": 0,
+      "test": false,
+      "reason": "working memory is off in this world",
       "down": null,
       "up": null
     },

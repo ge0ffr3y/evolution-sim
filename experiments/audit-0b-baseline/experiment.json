@@ -1,0 +1,12 @@
+{
+  "name": "audit-0b-baseline",
+  "question": "Over 1,000,000 ticks, does the updated grand world (nutrients through food, a mutation-rate floor, rare big mutations) settle down or keep drifting, what range does it span across 16 seeds, do true meat eaters emerge given time, and how does it compare with the grand world before those three changes?",
+  "base": "grand-world",
+  "ticks": 1000000,
+  "seeds": "201-216",
+  "arms": {
+    "grand": {},
+    "before": { "nutrientMode": 0, "mutationRateMin": 0.001, "macroMutationProb": 0 }
+  },
+  "measures": ["all"]
+}
