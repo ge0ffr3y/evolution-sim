@@ -1,4 +1,53 @@
-# Phase 9 plan, part 2: the grand-world audit (approved 2026-10-20: baseline with 15% mending, recommended run lengths and order)
+# Phase 9 plan, part 2: the grand-world audit (done 2026-10-21)
+
+## Audit summary (done 2026-10-21)
+
+About $11 of cloud time over two days, about 3,200 simulated worlds.
+
+**What changed in the grand world, each on evidence:**
+1. 15% repair of harmful mutations (without it, 9 of 16 worlds died out in a million ticks).
+2. Disease that can spread: sickness costs 1 times upkeep instead of 30, and strains match a wider range of hosts. Before, the sick starved in about 6 ticks and disease never spread.
+3. Gentle climate drift (it was never switched on).
+4. Slightly softer overgrazing, which on its own halved what the world grows.
+5. Nutrients through food (level 2).
+6. A mutation-rate floor of 0.01.
+7. Rare big mutations.
+
+**The result, over a million ticks on 16 fresh seeds:**
+- stable: no world died out, and nothing still drifting at the end;
+- about twice the species, and 90% more diversity;
+- a lasting second feeding level of mixed eaters;
+- five times the meat and eight times the kills;
+- births with two parents up from 18% to 45%;
+- half the worn ground;
+- faster turnover (lives a third shorter);
+- the same population.
+
+**What we learned about the world:**
+- **Climate is its fragile side.** A world 20% colder holds, but one at half the base temperature dies in about half the seeds, and ice ages twice as cold kill a third.
+- **Poorer plant food is the lever for a food web,** at the price of animals, lifespan and species.
+- **Most fine details barely matter.** 133 of 291 settings change nothing measurable when halved or doubled. Most disaster, colony, herd, sharing and brain-chemistry details are in that group.
+- **None of the 14 mechanisms that seemed to do nothing is broken.** Most are too weak in a sparse, overgrazed world; climate drift was off; memory was unused.
+- Food is set per food cell, not per area (changing the cell size changes the total food).
+
+**What we learned about method:**
+- **Four seeds find big effects but also false ones** (the weather "peak", and the first "memory used" result). Every claim here was confirmed on 16 fresh seeds before anything changed.
+- Seeds vary a lot in the grand world, so effects under about 15% need 16 or more seeds.
+
+**Open questions:**
+- No lasting meat-eating group yet. Individuals reach a pure meat diet, but none founds a group.
+- The sex gene sits low, yet 45% of births have two parents.
+- Switching off kin restraint cut hunting by three quarters.
+- Some worlds settle with far more plants standing than others.
+- Learning brains need a world that rewards them (Phase 8f).
+
+**Tools built:**
+- experiment files, cloud runs on demand, and exact resume;
+- the measures library, including the cost breakdown, causes of death and genes at their limits;
+- the settings list and down-and-up generator;
+- the comparison report;
+- `apps/runner/scripts/` (scorecard, sensitivity ranking, timeline).
+
 
 **Goal:** before any long runs or headline experiments, test every factor that plays into the grand world, find what is broken, too strong, too weak, doing nothing, or drifting, and decide what the grand world should contain. Everything runs in the cloud (c8g, on demand); the laptop only builds and checks the tools.
 
