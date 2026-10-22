@@ -204,6 +204,19 @@ function coreQuota(region: string): { cores: number; source: string } {
 }
 
 /**
+ * The hard stop, in minutes: the planned time with some room, or exactly --hours when given. The speed
+ * trial is short and can be far off for big worlds; --hours lets the owner approve a fixed run time (and
+ * so a fixed worst case) from real speeds of earlier runs. Worlds not finished by then save their
+ * progress, and a later launch carries them on.
+ */
+export function hardStopFor(plannedHours: number, hours: unknown): number {
+  if (hours === undefined) return Math.ceil(plannedHours * 60 * HARD_STOP_FACTOR);
+  const h = Number(hours);
+  if (hours === true || !Number.isFinite(h) || h <= 0 || h > 12) throw new Error(`--hours must be a number of hours above 0 and at most 12 (got ${String(hours)})`);
+  return Math.ceil(h * 60);
+}
+
+/**
  * Every launch must carry the most the owner approved (--max-cost, in dollars), and is refused if the
  * worst case it works out at launch time (its hard stop) is above that. Returns the problem, or null.
  */
@@ -275,13 +288,13 @@ export async function cloudCommand(positional: string[], options: Record<string,
         pick = chosen;
       }
       const price = livePrice(pick.type, region);
-      const hardStopMinutes = Math.ceil(pick.wallHours * 60 * HARD_STOP_FACTOR);
+      const hardStopMinutes = hardStopFor(pick.wallHours, options.hours);
       const expected = price * pick.wallHours;
       const worst = price * (hardStopMinutes + 10) / 60;
       console.log(ctx.describeEstimate(est));
       console.log(`\nLaunch plan: ${pick.type} on demand at $${price.toFixed(4)}/hour (live price), ${pick.workers} worlds at once.`);
       console.log(`  expected: about ${pick.wallHours.toFixed(1)} hours, about $${expected.toFixed(2)}`);
-      console.log(`  hard stop after ${(hardStopMinutes / 60).toFixed(1)} hours: at most about $${worst.toFixed(2)}`);
+      console.log(`  hard stop after ${(hardStopMinutes / 60).toFixed(1)} hours${options.hours === undefined ? "" : " (set by --hours; worlds not done by then save and can be carried on)"}: at most about $${worst.toFixed(2)}`);
       if (!options.confirm) {
         console.log(`\nNothing launched. To launch, add --confirm --max-cost ${Math.ceil(worst * 100) / 100} (the most the owner approved; it also checks this month's spending, which costs $0.01).`);
         return;

@@ -61,7 +61,7 @@ npm run sim -- --seed 5 --ticks 3000 --save w.evosnap     save the finished worl
 npm run sim -- --load w.evosnap --ticks 2000               carry on from a saved world (add --branch-seed N for a different random future)
 npm run gif -- --seed 12 --ticks 60000   render a time-lapse GIF of a run
 npm run exp -- check|estimate|run|status experiments/<name>   experiments from a file (Phase 9): saves progress, resumes, estimates cost
-npm run exp -- cloud launch experiments/<name> [--confirm --max-cost <dollars>]   run it on one on-demand AWS machine (never without the owner's yes; --max-cost is the approved worst case, and the launch is refused if its own worst case comes out higher; see infra/aws/README.md)
+npm run exp -- cloud launch experiments/<name> [--confirm --max-cost <dollars>]   run it on one on-demand AWS machine (never without the owner's yes; --max-cost is the approved worst case, and the launch is refused if its own worst case comes out higher; --hours H fixes the hard stop when the quick speed trial is off, e.g. from real speeds of earlier runs; see infra/aws/README.md)
 npm run exp -- cloud status | cloud fetch experiments/<name> | cloud stop
 npm run exp -- report experiments/<name>                       compare every arm with the control: report.md, red flags first
 npm run exp -- settings grand-world --changes mutationLoadMend=0.15 --out experiments/audit-settings.json   draft the audit's settings list

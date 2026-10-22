@@ -11,7 +11,7 @@ import { compare } from "./report";
 import { exportExperiment, writeExport } from "./export";
 import type { JobResult } from "./job";
 import { makespan, planMachines } from "./estimate";
-import { buildLaunchRequest, buildUserData, costCeilingProblem, remainingWorst, vcpusOf } from "./cloud";
+import { buildLaunchRequest, buildUserData, costCeilingProblem, hardStopFor, remainingWorst, vcpusOf } from "./cloud";
 
 const repoRoot = resolve(import.meta.dirname, "..", "..", "..", "..");
 const folders: string[] = [];
@@ -372,5 +372,15 @@ describe("the approved cost ceiling", () => {
     expect(costCeilingProblem(1.2, "cheap")).toMatch(/number of dollars/);
     expect(costCeilingProblem(2.02, "1.25")).toMatch(/Refusing.*2\.02.*1\.25/);
     expect(costCeilingProblem(1.2, "1.25")).toBeNull();
+  });
+});
+
+describe("the hard stop", () => {
+  it("is the planned time with room to spare, or exactly --hours", () => {
+    expect(hardStopFor(1, undefined)).toBe(78);
+    expect(hardStopFor(2.6, "1.5")).toBe(90);
+    expect(() => hardStopFor(1, "0")).toThrow(/--hours/);
+    expect(() => hardStopFor(1, true)).toThrow(/--hours/);
+    expect(() => hardStopFor(1, "20")).toThrow(/--hours/);
   });
 });
