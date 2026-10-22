@@ -326,3 +326,35 @@ Sex was left as it is. About an hour on a 32-core machine, about $1.40. All 40 w
 - **Tighter kin restraint cuts hunting**, against expectation (an animal spares fewer relatives, yet kills fall by more than half). Devlog 16 saw the same from the other side (switching kin restraint off cut hunting by three quarters). Not explained.
 - **Sex was not softened here**, and 7b found it a blocker on its own (no meat eaters in half the worlds). The setups that brought meat eaters back all removed it.
 - **A side effect worth keeping in mind:** the gentle combinations give more species (+30 to 48%) and lives about twice as long. That could be a better grand world in its own right, but it is a calmer one, and it needs a 16-seed check.
+
+### 7d. Confirmed on 16 seeds: a "hunters" grand world
+
+**Experiment:** `hunters-confirm` (made by `apps/runner/scripts/make-hunters.ts`), 300,000 ticks, 16 fresh seeds (1601 to 1616). Today's grand world against two versions without harmful mutations, sex and kin restraint (their settings put back to the simple world's):
+- one also without the whole climate, as in 7b;
+- one without only the seasons, keeping day and night, weather, drift, the cost of heat and cold, torpor and ice ages.
+
+About an hour on a 32-core machine, about $1.15.
+
+**Answer: without the climate, yes, reliably. Without only the seasons, no.**
+
+| | Today | Hunters, no climate | Hunters, no seasons |
+|---|---|---|---|
+| Worlds with 10+ meat eaters for most of the second half | 0 of 16 | **13 of 16** | 0 of 16 |
+| Worlds with any meat eaters (second half) | 0 of 16 | 15 of 16 | 4 of 16 (1 to 11) |
+| Meat eaters per world (second half) | 0 | 0 to 222, average 87 | 0 to 11 |
+| Feeding levels | 1.34 | **2.74*** | 1.71* |
+| Kills per 1,000 ticks | 758 | **4,401*** | 819 |
+| Mixed eaters | 16 | **161*** | |
+| Species alive | 5.5 | **7.1*** (+29%) | 3.7* (-32%) |
+| Species ever | 22 | **53*** | |
+| Share of animals in the biggest species | 44% | 38% | |
+| Population | 900 | **1,227*** (+36%) | 1,053* |
+| Lowest population | 356 | **600*** | |
+| Average age | 883 | **445*** (-50%) | 1,439* |
+| Deaths that are kills | 48% | **78%*** | |
+
+(* holds up, 16 seeds)
+
+- **The hunters' world is richer, not poorer:** a real food web (plant eaters, mixed eaters, meat eaters; 2.7 feeding levels), 29% more species alive, more than twice as many species over the run, a bigger and steadier population. The price is shorter lives (half as long; most deaths are kills now) and more disease (a denser world).
+- **Seasons were not the whole of the climate's effect in the grand world.** In the simple world only seasons mattered (7b), but here removing the seasons alone left meat eaters in 4 of 16 worlds at most 11 strong, and cost a third of the species. Something else in the climate also blocks them when combined with the rest: torpor (a dormant animal cannot attack), the cost of heat and cold, ice ages and droughts, or weather. Not yet split.
+- **What it gives up:** sex, harmful mutations, kin restraint, herds and sharing, and the climate (seasons, weather, day and night, ice ages, droughts, volcanoes, the cost of heat and cold, torpor). It is a different world, not a fix for the grand world.
