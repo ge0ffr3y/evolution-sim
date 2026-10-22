@@ -26,7 +26,7 @@ const USAGE = `Evolution Sim experiments
   npm run exp -- make-doses <list file> <folder> [--ticks 100000] [--seeds 1-4]
                                                 write the down-and-up experiment from a reviewed list
 
-  npm run exp -- cloud launch <folder> [--confirm] [--type c7g.4xlarge] [--ticks N]
+  npm run exp -- cloud launch <folder> [--confirm --max-cost <dollars>] [--type c7g.4xlarge] [--ticks N]
   npm run exp -- cloud status
   npm run exp -- cloud fetch  <folder>
   npm run exp -- cloud stop   [<folder>]

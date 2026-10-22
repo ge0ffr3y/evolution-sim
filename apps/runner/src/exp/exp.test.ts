@@ -11,7 +11,7 @@ import { compare } from "./report";
 import { exportExperiment, writeExport } from "./export";
 import type { JobResult } from "./job";
 import { makespan, planMachines } from "./estimate";
-import { buildLaunchRequest, buildUserData, remainingWorst, vcpusOf } from "./cloud";
+import { buildLaunchRequest, buildUserData, costCeilingProblem, remainingWorst, vcpusOf } from "./cloud";
 
 const repoRoot = resolve(import.meta.dirname, "..", "..", "..", "..");
 const folders: string[] = [];
@@ -362,5 +362,15 @@ describe("invasions (a ready-made group arrives part-way)", () => {
     const b = (await runJob(interrupted, job))!;
     expect(b.fingerprint).toBe(a.fingerprint);
     expect(b.rows).toEqual(a.rows);
+  });
+});
+
+describe("the approved cost ceiling", () => {
+  it("a launch needs the approved figure, and is refused when the launch-time worst case is above it", () => {
+    expect(costCeilingProblem(1.2, undefined)).toMatch(/--max-cost/);
+    expect(costCeilingProblem(1.2, true)).toMatch(/--max-cost/);
+    expect(costCeilingProblem(1.2, "cheap")).toMatch(/number of dollars/);
+    expect(costCeilingProblem(2.02, "1.25")).toMatch(/Refusing.*2\.02.*1\.25/);
+    expect(costCeilingProblem(1.2, "1.25")).toBeNull();
   });
 });
