@@ -214,3 +214,50 @@ About 20 minutes in the cloud, about 41 cents. All 32 worlds finished.
 - **Unlike same-size invaders, none grew after arriving.** A bigger hunter kills more often, but a body twice the size needs twice the energy before it can breed, while its prey stay small. Each kill covers half as much.
 - **Meat keeping in the cold again helped most:** it was the only setup with meat eaters in all four worlds 20,000 ticks on, though all were gone by 50,000.
 - **Conclusion of 6, 6b and 6c:** in the grand world a meat-eating life runs at about break-even. No single setting tried here, and neither bigger bodies nor stopping dilution by mating, gives the margin a meat-eating group needs to last. What remains untested: hunting behavior (invaders kept grazer brains), and the basic exchange rate of a kill (a body holds 4 units of energy per unit of size, while making one costs 30).
+
+## 7. Why does the simple world grow meat eaters and the grand world not?
+
+**Experiment:** `carnivore-bridge` (made by `apps/runner/scripts/make-bridge.mjs`), 200,000 ticks, seeds 1301 to 1304. The grand world's 74 settings were sorted into 15 groups. Each group was added alone to the simple (default) world, and the groups were also added one after another, a "ladder" whose last step is the full grand world. Ice ages, droughts and volcanoes need a climate and floods need terrain, so the disaster group's single-add arm brings climate and terrain along (and plant kinds brings climate). About 40 minutes on a 32-core machine, about 89 cents. All 120 worlds finished.
+
+**Answer: mostly the climate, then sex with harmful mutations, with nutrients and kin restraint thinning meat eaters along the way.**
+
+Meat eaters (diet above 0.75) in the second half of the run, per world, and the share of animals:
+
+| Added to the simple world, alone | Meat eaters per world | Share | Feeding levels |
+|---|---|---|---|
+| Nothing (the simple world) | 127, 31, 116, 132 | 22% | 2.58 |
+| Bigger world, more food | 501, 523, 499, 592 | 25% | 3.00 |
+| Nutrients through food | 10, 7, 20, 5 | 8% | 2.37 |
+| Mutation floor and rare big mutations | 64 to 102 | 21% | 2.89 |
+| Aging, litters, luck | 136 to 142 | 24% | 2.42 |
+| Land damage | 37 to 81 | 22% | 2.54 |
+| Terrain | 54 to 62 | 21% | 2.70 |
+| **Climate** | **0, 0, 0, 0** | **0%** | **1.00** |
+| Disasters (with climate and terrain) | 0, 0, 0, 0 | 0% | 1.00 |
+| Plant kinds (with climate) | 2, 0, 0, 0 | 0.2% | 1.12 |
+| **Kin restraint and herds** | **0, 0, 44, 0** | **3%** | **1.50** |
+| **Sex and harmful mutations** | **0, 0, 0, 0** | **0%** | **1.00** |
+| Disease | 5 to 128 | 19% | 2.31 |
+| Camouflage | 114 to 164 | 25% | 2.56 |
+| Colonies | 97 to 119 | 24% | 2.77 |
+| Brains | 91 to 171 | 31% | 2.80 |
+
+The ladder (each step adds a group to everything before it):
+
+| Step | Share that are meat eaters | Share with diet above 0.5 | Feeding levels |
+|---|---|---|---|
+| Simple world + bigger world | 25% | 35% | 3.00 |
+| + nutrients | 4% | 28% | 2.55 |
+| + mutation, life history, land damage, terrain | 5 to 6% | 20 to 28% | 2.84 to 2.89 |
+| **+ climate** | **0.3%** | 9% | 2.04 |
+| + disasters, plant kinds | 0.2 to 0.3% | 2 to 8% | 1.86 to 2.02 |
+| + kin restraint and herds | 2% (one world) | 3% | 2.24 |
+| **+ sex and harmful mutations** | **0%** | 0.1% | 1.97 |
+| + disease, camouflage, colonies, brains (= the grand world) | 0% | 0 to 0.3% | 1.33 to 1.99 |
+
+- **Climate alone erases meat eating** from the simple world: the average diet falls from 0.28 to 0.02 and kills from 3,600 to 21 per 1,000 ticks. This is the opposite of the idea that cold should favor meat eaters. Which part of the climate does it (seasons, the cost of heat and cold, torpor, day and night, weather, harsh years) is the next question.
+- **Sex with harmful mutations alone erases it too**, as devlog 14 found for the ratchet. Mending did not fix this in the simple world.
+- **Kin restraint and herds** (as devlog 10 found for herds) nearly erase it.
+- **Nutrients thin it** (meat eaters from 22% to 8% alone, 25% to 4% on the ladder) but push many animals into high mixed diets.
+- **Everything else is harmless or helps:** brains, colonies, camouflage, a bigger world and disease all leave meat eaters in place.
+- The report's three "too good to be true" flags are explained: a world four times the area holds about four times the animals, and simple worlds without predators hold two to three times as many (devlog 3).

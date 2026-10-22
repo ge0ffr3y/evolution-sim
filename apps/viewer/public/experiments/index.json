@@ -48,5 +48,10 @@
     "name": "carnivore-invasion-big",
     "question": "Can a ready-made group of meat eaters twice the size of their prey hold its own in the grand world? As carnivore-invasion, but each invader's body is also doubled (paid from its own energy and nutrient, topped up from the soil where it stands): at tick 100,000 one animal in twenty becomes an armed meat eater twice its old size, and the run continues to tick 200,000. Setups: today's grand world, no sex, diet-based mating, meat that keeps in the cold, weapons that get in the way of grazing, poorer plants (quality 1.5), and those changes (but not no-sex) together. An answer: in which setups meat eaters (diet above 0.75) are still there at the end, against the same-size invasion.",
     "file": "carnivore-invasion-big.json"
+  },
+  {
+    "name": "carnivore-bridge",
+    "question": "Why does the simple world grow meat eaters and the grand world not? Starting from the simple (default) world, each of the grand world's 15 feature groups is added alone (add-...), and the groups are also added one after another (ladder-...) until the last step is the full grand world. An answer: which group, alone or in combination, makes meat eaters (diet above 0.75, and above 0.5) disappear.",
+    "file": "carnivore-bridge.json"
   }
 ]
