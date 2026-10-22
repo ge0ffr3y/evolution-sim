@@ -851,6 +851,7 @@ export class Simulation {
     if (index === this.pickAttacker || this.killed[index] === 1 || (this.colonyInfoOn && this.config.colonyProtect === 1 ? this.colonyMass[index]! : this.size[index]!) > this.pickSizeLimit) return;
     if (this.camoOn && !this.detects(this.pickAttacker, index)) return; // never noticed it
     if (this.toxOn && this.avoidStrength[this.pickAttacker]! > 0 && this.avoids(this.pickAttacker, index)) return; // it remembers that this color was poison
+    if (this.config.spareFamily === 1 && this.isFamily(this.pickAttacker, index)) return; // its own parent or young
     // Nobody attacks a relative (or, with kinTolerance, nobody tolerant enough to count the target as one).
     let limitSq = this.kinToleranceOn ? this.toleranceSq[this.pickAttacker]! : this.kinLimitSq;
     const hungerBelow = this.config.kinHungerBelow;
@@ -868,6 +869,14 @@ export class Simulation {
       this.pickBestDistSq = distSq;
     }
   };
+
+  /** Is one of these two the other's parent (either parent, with sex)? Known by identity, not by genes. */
+  private isFamily(a: number, b: number): boolean {
+    const ia = this.id[a]!;
+    const ib = this.id[b]!;
+    if (this.parentId[a] === ib || this.parentId[b] === ia) return true;
+    return this.sexOn && (this.parent2Id[a] === ib || this.parent2Id[b] === ia);
+  }
 
   private seenScavenger = false;
   private seenKill = false;

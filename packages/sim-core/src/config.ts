@@ -867,6 +867,13 @@ export interface SimConfig {
    */
   kinHungerBelow: number;
   /**
+   * Spare your own parent and young (0 = off). With 1, an animal never attacks its own parent or its own
+   * offspring, recognized by who they are (as animals know their mother or litter), not by how alike their
+   * genes look. Babies are born on their parent's spot and hunters attack whoever is nearest, so without
+   * this a hunting family's first victims are its own members. Everyone else, relatives included, is fair game.
+   */
+  spareFamily: number;
+  /**
    * Gorging: meat bites are this many times bigger than plant bites would be (1 = the same). A hunter eats
    * most of its kill before it rots or others share it. Energy only changes hands faster; none is made.
    */
@@ -1647,6 +1654,7 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   mateDistance: 0.25,
   matePreference: 0,
   kinHungerBelow: 0,
+  spareFamily: 0,
   meatGorge: 1,
   meatColdKeep: 0,
   preyHungerDefense: 0,
@@ -2031,6 +2039,7 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (![0, 1, 2, 3].includes(c.matePreference)) problems.push("matePreference must be 0 (nearest), 1 (most similar genes), 2 (most similar color) or 3 (most similar diet)");
   if (!(c.mateDietLimit > 0 && c.mateDietLimit <= 1)) problems.push("mateDietLimit must be above 0 and at most 1");
   if (!(c.meatGorge >= 1)) problems.push("meatGorge must be at least 1");
+  if (c.spareFamily !== 0 && c.spareFamily !== 1) problems.push("spareFamily must be 0 (off) or 1 (never attack your own parent or offspring)");
   for (const [name, value] of [["meatColdKeep", c.meatColdKeep], ["preyHungerDefense", c.preyHungerDefense], ["weaponGrazeLoss", c.weaponGrazeLoss]] as const) {
     if (!(value >= 0 && value <= 1)) problems.push(`${name} must be between 0 and 1`);
   }
