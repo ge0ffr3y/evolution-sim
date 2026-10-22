@@ -871,6 +871,25 @@ export interface SimConfig {
    * most of its kill before it rots or others share it. Energy only changes hands faster; none is made.
    */
   meatGorge: number;
+  /**
+   * Meat keeps in the cold (0 = off; needs a climate). Where it is at or above the plants' best temperature
+   * (plantTempOptimum) meat rots at meatDecayRate; colder, the rate falls in proportion, down to
+   * (1 - meatColdKeep) of it where it is too cold for plants to grow (plantTempTolerance below the best).
+   * Carcasses last longer where plants are poor. Energy is only lost more slowly; none is made.
+   */
+  meatColdKeep: number;
+  /**
+   * Hungry prey defend less (0 = off). An attack's odds use the prey's defense times
+   * (1 - preyHungerDefense x (1 - fed)), where fed is the prey's energy as a share of what it needs to
+   * breed (at most 1). A starving animal (in winter, or where plants are poor) is easier to catch.
+   */
+  preyHungerDefense: number;
+  /**
+   * Weapons get in the way of grazing (0 = off): sharp teeth and claws grind plants poorly. Plant bites
+   * shrink by this x the attack gene (0 to 1), so an armed grazer loses grazing while a meat eater, which
+   * does not graze, loses nothing.
+   */
+  weaponGrazeLoss: number;
   /** Tolerance of the first generation (0 to 1). */
   initialTolerance: number;
   /** Energy per tick per unit of tolerance: recognizing relatives is a kind of sensing, so it is counted on the sensing line. */
@@ -1629,6 +1648,9 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   matePreference: 0,
   kinHungerBelow: 0,
   meatGorge: 1,
+  meatColdKeep: 0,
+  preyHungerDefense: 0,
+  weaponGrazeLoss: 0,
   mateDietLimit: 1,
   macroMutationProb: 0,
   macroMutationStd: 0.3,
@@ -2009,6 +2031,9 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (![0, 1, 2, 3].includes(c.matePreference)) problems.push("matePreference must be 0 (nearest), 1 (most similar genes), 2 (most similar color) or 3 (most similar diet)");
   if (!(c.mateDietLimit > 0 && c.mateDietLimit <= 1)) problems.push("mateDietLimit must be above 0 and at most 1");
   if (!(c.meatGorge >= 1)) problems.push("meatGorge must be at least 1");
+  for (const [name, value] of [["meatColdKeep", c.meatColdKeep], ["preyHungerDefense", c.preyHungerDefense], ["weaponGrazeLoss", c.weaponGrazeLoss]] as const) {
+    if (!(value >= 0 && value <= 1)) problems.push(`${name} must be between 0 and 1`);
+  }
   if (c.kinHungerBelow < 0 || c.kinHungerBelow > 1 || c.camoHunterEye < 0 || c.camoHunterEye > 1) problems.push("kinHungerBelow and camoHunterEye must be between 0 and 1");
   if (![0, 1].includes(c.camouflageMode)) problems.push("camouflageMode must be 0 or 1");
   if (c.camouflageMode === 1) {

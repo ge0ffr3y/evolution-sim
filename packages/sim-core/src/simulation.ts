@@ -2410,9 +2410,11 @@ export class Simulation {
     // blending smoothly in between.
     const k = c.contestStrength;
     const weight = k <= 1 ? bite * (1 - k + k * bite) : bite * bite * (2 - k + (k - 1) * bite);
-    this.plantBite[i] = bite * (1 - diet);
+    // Weapons get in the way of grazing: an armed animal takes smaller plant bites.
+    const grazing = (1 - diet) * (1 - c.weaponGrazeLoss * genes[g + GENE.attack]!);
+    this.plantBite[i] = bite * grazing;
     this.meatBite[i] = bite * diet * c.meatGorge; // (gorging: meat can be wolfed down in bigger bites)
-    this.plantWeight[i] = weight * (1 - diet);
+    this.plantWeight[i] = weight * grazing;
     this.meatWeight[i] = weight * diet;
     this.plantEff[i] = 1 - c.dietSpecialization * diet;
     this.meatEff[i] = 1 - c.dietSpecialization * (1 - diet);
@@ -2826,6 +2828,12 @@ export class Simulation {
   /** How much this cell can resist an attack: its own defense (and herd, if on), plus a share of its bonded neighbors' defense. */
   private defendedBy(prey: number): number {
     let defense = this.defense[prey]! * this.herdFactor(prey);
+    const hungerDefense = this.config.preyHungerDefense;
+    if (hungerDefense > 0) {
+      // A hungry animal defends itself less well.
+      const fed = this.energy[prey]! / this.threshold[prey]!;
+      defense *= 1 - hungerDefense * (1 - (fed < 0 ? 0 : fed > 1 ? 1 : fed));
+    }
     const share = this.config.colonyDefenseShare;
     if (this.bondsOn && share > 0) {
       for (let k = 0; k < BOND_SLOTS; k++) {
@@ -4566,6 +4574,7 @@ export class Simulation {
     const corpseEnergy = this.corpseEnergy;
     const detritus = this.detritus;
     const meatDecay = c.meatDecayRate;
+    const coldKeep = this.climateOn ? c.meatColdKeep : 0;
     const foulMean = this.foulOn ? this.meanFoul() : 0;
     const mineralize = c.detritusMineralizeRate;
     const halfSat = c.nutrientHalfSaturation;
@@ -4595,8 +4604,15 @@ export class Simulation {
 
       // Rot: the corpse's energy is lost as heat, its matter becomes detritus.
       if (corpseMatter[cell]! > 0 || corpseEnergy[cell]! > 0) {
-        const rottedEnergy = corpseEnergy[cell]! * meatDecay;
-        const rottedMatter = corpseMatter[cell]! * meatDecay;
+        let rot = meatDecay;
+        if (coldKeep > 0) {
+          // Meat keeps in the cold: the colder than the plants' best temperature, the slower it rots.
+          let cold = (c.plantTempOptimum - this.temperature[cell]!) / c.plantTempTolerance;
+          cold = cold < 0 ? 0 : cold > 1 ? 1 : cold;
+          rot = meatDecay * (1 - coldKeep * cold);
+        }
+        const rottedEnergy = corpseEnergy[cell]! * rot;
+        const rottedMatter = corpseMatter[cell]! * rot;
         corpseEnergy[cell] = corpseEnergy[cell]! - rottedEnergy;
         corpseMatter[cell] = corpseMatter[cell]! - rottedMatter;
         decayLoss += rottedEnergy;

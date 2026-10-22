@@ -1,0 +1,18 @@
+{
+  "name": "carnivore-screen",
+  "question": "What lets a lasting group of meat eaters (diet above 0.75) take hold in the grand world? A 4-seed screen of seven changes against today's grand world: diet-based mating (hunters mate with hunters), a stronger gut trade-off, richer carcasses, meat that keeps in the cold, hungry prey that defend less, weapons that get in the way of grazing, and all six together. Anything promising is confirmed on 16 fresh seeds.",
+  "base": "grand-world",
+  "ticks": 300000,
+  "seeds": "1101-1104",
+  "arms": {
+    "control": {},
+    "diet-mating": { "matePreference": 3, "mateDietLimit": 0.25 },
+    "gut-tradeoff": { "dietSpecialization": 0.8 },
+    "rich-carcasses": { "bodyEnergyPerSize": 8 },
+    "cold-meat": { "meatColdKeep": 0.8 },
+    "hungry-prey": { "preyHungerDefense": 0.6 },
+    "weapons-graze": { "weaponGrazeLoss": 0.6 },
+    "all-together": { "matePreference": 3, "mateDietLimit": 0.25, "dietSpecialization": 0.8, "bodyEnergyPerSize": 8, "meatColdKeep": 0.8, "preyHungerDefense": 0.6, "weaponGrazeLoss": 0.6 }
+  },
+  "measures": ["all"]
+}
