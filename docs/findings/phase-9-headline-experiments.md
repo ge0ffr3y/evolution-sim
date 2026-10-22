@@ -214,3 +214,147 @@ About 20 minutes in the cloud, about 41 cents. All 32 worlds finished.
 - **Unlike same-size invaders, none grew after arriving.** A bigger hunter kills more often, but a body twice the size needs twice the energy before it can breed, while its prey stay small. Each kill covers half as much.
 - **Meat keeping in the cold again helped most:** it was the only setup with meat eaters in all four worlds 20,000 ticks on, though all were gone by 50,000.
 - **Conclusion of 6, 6b and 6c:** in the grand world a meat-eating life runs at about break-even. No single setting tried here, and neither bigger bodies nor stopping dilution by mating, gives the margin a meat-eating group needs to last. What remains untested: hunting behavior (invaders kept grazer brains), and the basic exchange rate of a kill (a body holds 4 units of energy per unit of size, while making one costs 30).
+
+## 7. Why does the simple world grow meat eaters and the grand world not?
+
+**Experiment:** `carnivore-bridge` (made by `apps/runner/scripts/make-bridge.mjs`), 200,000 ticks, seeds 1301 to 1304. The grand world's 74 settings were sorted into 15 groups. Each group was added alone to the simple (default) world, and the groups were also added one after another, a "ladder" whose last step is the full grand world. Ice ages, droughts and volcanoes need a climate and floods need terrain, so the disaster group's single-add arm brings climate and terrain along (and plant kinds brings climate). About 40 minutes on a 32-core machine, about 89 cents. All 120 worlds finished.
+
+**Answer: mostly the climate, then sex with harmful mutations, with nutrients and kin restraint thinning meat eaters along the way.**
+
+Meat eaters (diet above 0.75) in the second half of the run, per world, and the share of animals:
+
+| Added to the simple world, alone | Meat eaters per world | Share | Feeding levels |
+|---|---|---|---|
+| Nothing (the simple world) | 127, 31, 116, 132 | 22% | 2.58 |
+| Bigger world, more food | 501, 523, 499, 592 | 25% | 3.00 |
+| Nutrients through food | 10, 7, 20, 5 | 8% | 2.37 |
+| Mutation floor and rare big mutations | 64 to 102 | 21% | 2.89 |
+| Aging, litters, luck | 136 to 142 | 24% | 2.42 |
+| Land damage | 37 to 81 | 22% | 2.54 |
+| Terrain | 54 to 62 | 21% | 2.70 |
+| **Climate** | **0, 0, 0, 0** | **0%** | **1.00** |
+| Disasters (with climate and terrain) | 0, 0, 0, 0 | 0% | 1.00 |
+| Plant kinds (with climate) | 2, 0, 0, 0 | 0.2% | 1.12 |
+| **Kin restraint and herds** | **0, 0, 44, 0** | **3%** | **1.50** |
+| **Sex and harmful mutations** | **0, 0, 0, 0** | **0%** | **1.00** |
+| Disease | 5 to 128 | 19% | 2.31 |
+| Camouflage | 114 to 164 | 25% | 2.56 |
+| Colonies | 97 to 119 | 24% | 2.77 |
+| Brains | 91 to 171 | 31% | 2.80 |
+
+The ladder (each step adds a group to everything before it):
+
+| Step | Share that are meat eaters | Share with diet above 0.5 | Feeding levels |
+|---|---|---|---|
+| Simple world + bigger world | 25% | 35% | 3.00 |
+| + nutrients | 4% | 28% | 2.55 |
+| + mutation, life history, land damage, terrain | 5 to 6% | 20 to 28% | 2.84 to 2.89 |
+| **+ climate** | **0.3%** | 9% | 2.04 |
+| + disasters, plant kinds | 0.2 to 0.3% | 2 to 8% | 1.86 to 2.02 |
+| + kin restraint and herds | 2% (one world) | 3% | 2.24 |
+| **+ sex and harmful mutations** | **0%** | 0.1% | 1.97 |
+| + disease, camouflage, colonies, brains (= the grand world) | 0% | 0 to 0.3% | 1.33 to 1.99 |
+
+- **Climate alone erases meat eating** from the simple world: the average diet falls from 0.28 to 0.02 and kills from 3,600 to 21 per 1,000 ticks. This is the opposite of the idea that cold should favor meat eaters. Which part of the climate does it (seasons, the cost of heat and cold, torpor, day and night, weather, harsh years) is the next question.
+- **Sex with harmful mutations alone erases it too**, as devlog 14 found for the ratchet. Mending did not fix this in the simple world.
+- **Kin restraint and herds** (as devlog 10 found for herds) nearly erase it.
+- **Nutrients thin it** (meat eaters from 22% to 8% alone, 25% to 4% on the ladder) but push many animals into high mixed diets.
+- **Everything else is harmless or helps:** brains, colonies, camouflage, a bigger world and disease all leave meat eaters in place.
+- The report's three "too good to be true" flags are explained: a world four times the area holds about four times the animals, and simple worlds without predators hold two to three times as many (devlog 3).
+
+### 7b. The culprits split apart, and taken out of the grand world
+
+**Experiment:** `carnivore-bridge-2` (grand-world setups made by `apps/runner/scripts/make-bridge-2.ts`), 200,000 ticks, seeds 1401 to 1404. The three culprit groups were split into their parts, each added alone to the simple world. Then the grand world was run with culprit groups taken out (their settings put back to the simple world's). About 20 minutes on a 32-core machine plus one world finished on a small one, about 30 cents.
+
+**Answer: no single setting is to blame. Seasons, harmful mutations, sex and kin restraint each thin meat eaters or make them hit-or-miss; together they erase them. Take all three groups out of the grand world and meat eaters come back in 3 of 4 worlds.**
+
+| Added to the simple world, alone | Meat eaters per world | Share | Feeding levels |
+|---|---|---|---|
+| Nothing (the simple world) | 96 to 112 | 23% | 2.85 |
+| A temperature map only | 85 to 98 | 25% | 2.76 |
+| Day and night | 70 to 96 | 25% | 2.46 |
+| Weather fronts | 73 to 96 | 24% | 2.61 |
+| The cost of heat and cold | 88 to 109 | 29% | 2.33 |
+| Slow climate drift | 32 to 106 | 24% | 2.69 |
+| **Seasons** | **74, 3, 60, 12** | **9%** | 1.70 |
+| Seasons with harsh years | 43, 5, 0, 76 | 8% | 1.54 |
+| Seasons with torpor | 71, 26, 0, 74 | 10% | 1.88 |
+| **Sex only** | **0, 130, 110, 0** | 13% | 1.85 |
+| **Harmful mutations only** | **0, 44, 0, 0** | **3%** | 1.34 |
+| Kin restraint only | 0, 74, 200, 90 | 25% | 1.88 |
+| Kin restraint with herds | 137, 0, 85, 66 | 20% | 1.76 |
+| Kin restraint with sharing | 0, 137, 75, 0 | 13% | 1.56 |
+
+| The grand world | Meat eaters per world | Share | Feeding levels | Kills per 1,000 ticks |
+|---|---|---|---|---|
+| As it is | 0, 0, 0, 0 | 0% | 1.55 | 717 |
+| Without the climate | 0, 0, 0, 0 | 0% | 1.98 | 2,232 |
+| Without sex and harmful mutations | 0, 0, 0, 0 | 0% | 1.83 | 1,569 |
+| Without kin restraint and herds | 0, 0, 0, 0 | 0% | 1.09 | 492 |
+| Without the climate, sex and harmful mutations | 0, 0, 0, 75 | 2% | 2.21 | 3,384 |
+| **Without all three** | **0, 85, 105, 89** | **6%** | **2.38** | **3,496** |
+
+- **Of the climate, only the seasons matter.** A temperature map, day and night, weather, the cost of heat and cold and slow drift leave meat eaters as they are. Seasons cut them by about 60% and make them hit-or-miss (3 to 74 per world). A likely reason, not yet tested: each winter the plant eaters crash, and a small group of hunters crashes with them, so it can drift to zero.
+- **Harmful mutations are the strongest single blocker** (meat eaters in 1 of 4 worlds). This fits devlog 14: would-be hunters are always a small group, and small groups pile up harmful mutations faster. Sex alone removes them in half the worlds, as gene mixing blends hunters back into the plant eaters (experiment 1).
+- **Kin restraint is hit-or-miss** (no meat eaters in 1 or 2 of 4 worlds, depending on what it is paired with).
+- **They add up.** Each one alone leaves a chance; the grand world stacks all of them, and the chance falls to zero. Taking out any one group does not help, two helps a little, all three brings meat eaters back in 3 of 4 worlds (about 6% of animals) with kills five times today's.
+- **The common thread is small numbers.** Every culprit hurts a small, sparse group more than a big one: seasonal crashes, the faster build-up of harmful mutations, being outnumbered when mating, sparing relatives that are most of the neighbors. A meat-eating group starts small, so it is the one these rules hit.
+
+### 7c. Gentler culprits are not enough
+
+**Experiment:** `gentle-culprits`, 300,000 ticks, seeds 1501 to 1504. Today's grand world against gentler versions of three culprits:
+- plants swinging less with the seasons (growth swing 0.4 and 0.2, against 0.6);
+- fewer harmful mutations (rate 1.5, against 3), or more mending (0.3 and 0.5, against 0.15);
+- tighter kin restraint (relatives only within 0.02, against 0.05), or hunger overriding it (below half fed);
+- two combinations.
+
+Sex was left as it is. About an hour on a 32-core machine, about $1.40. All 40 worlds finished.
+
+**Answer: no. None of the ten setups has a single meat eater, and none raises the average diet.** The gentler setups do change the world, but toward a calmer one, not a food web:
+
+| | Today | Seasons 0.4 | Tighter kin | Gentle, all three | Gentler, all three |
+|---|---|---|---|---|---|
+| Kills per 1,000 ticks | 1,050 | -51% | -57% | -59% | -60% |
+| Feeding levels | 1.64 | -10% | -35% | -33% | -26% |
+| Species alive | 5.3 | +16% | +21% | +30% | +48% |
+| Average age | 674 | +66% | +60% | +83% | **+115%*** |
+| Population | 821 | +15% | +17% | +13% | +18% |
+
+(4 seeds; * holds up. Fewer harmful mutations and more mending changed little.)
+
+- **Softening the culprits is not the same as removing them.** In 7b, taking all three groups out (with sex) brought meat eaters back in 3 of 4 worlds; here, gentler versions with sex kept bring none.
+- **Tighter kin restraint cuts hunting**, against expectation (an animal spares fewer relatives, yet kills fall by more than half). Devlog 16 saw the same from the other side (switching kin restraint off cut hunting by three quarters). Not explained.
+- **Sex was not softened here**, and 7b found it a blocker on its own (no meat eaters in half the worlds). The setups that brought meat eaters back all removed it.
+- **A side effect worth keeping in mind:** the gentle combinations give more species (+30 to 48%) and lives about twice as long. That could be a better grand world in its own right, but it is a calmer one, and it needs a 16-seed check.
+
+### 7d. Confirmed on 16 seeds: a "hunters" grand world
+
+**Experiment:** `hunters-confirm` (made by `apps/runner/scripts/make-hunters.ts`), 300,000 ticks, 16 fresh seeds (1601 to 1616). Today's grand world against two versions without harmful mutations, sex and kin restraint (their settings put back to the simple world's):
+- one also without the whole climate, as in 7b;
+- one without only the seasons, keeping day and night, weather, drift, the cost of heat and cold, torpor and ice ages.
+
+About an hour on a 32-core machine, about $1.15.
+
+**Answer: without the climate, yes, reliably. Without only the seasons, no.**
+
+| | Today | Hunters, no climate | Hunters, no seasons |
+|---|---|---|---|
+| Worlds with 10+ meat eaters for most of the second half | 0 of 16 | **13 of 16** | 0 of 16 |
+| Worlds with any meat eaters (second half) | 0 of 16 | 15 of 16 | 4 of 16 (1 to 11) |
+| Meat eaters per world (second half) | 0 | 0 to 222, average 87 | 0 to 11 |
+| Feeding levels | 1.34 | **2.74*** | 1.71* |
+| Kills per 1,000 ticks | 758 | **4,401*** | 819 |
+| Mixed eaters | 16 | **161*** | |
+| Species alive | 5.5 | **7.1*** (+29%) | 3.7* (-32%) |
+| Species ever | 22 | **53*** | |
+| Share of animals in the biggest species | 44% | 38% | |
+| Population | 900 | **1,227*** (+36%) | 1,053* |
+| Lowest population | 356 | **600*** | |
+| Average age | 883 | **445*** (-50%) | 1,439* |
+| Deaths that are kills | 48% | **78%*** | |
+
+(* holds up, 16 seeds)
+
+- **The hunters' world is richer, not poorer:** a real food web (plant eaters, mixed eaters, meat eaters; 2.7 feeding levels), 29% more species alive, more than twice as many species over the run, a bigger and steadier population. The price is shorter lives (half as long; most deaths are kills now) and more disease (a denser world).
+- **Seasons were not the whole of the climate's effect in the grand world.** In the simple world only seasons mattered (7b), but here removing the seasons alone left meat eaters in 4 of 16 worlds at most 11 strong, and cost a third of the species. Something else in the climate also blocks them when combined with the rest: torpor (a dormant animal cannot attack), the cost of heat and cold, ice ages and droughts, or weather. Not yet split.
+- **What it gives up:** sex, harmful mutations, kin restraint, herds and sharing, and the climate (seasons, weather, day and night, ice ages, droughts, volcanoes, the cost of heat and cold, torpor). It is a different world, not a fix for the grand world.
