@@ -1,0 +1,21 @@
+{
+  "name": "gentle-culprits",
+  "question": "Can the grand world keep its seasons, harmful mutations and kin restraint, only gentler, and still grow meat eaters? A 4-seed screen against today's grand world: plants swinging less with the seasons (growth swing 0.4 and 0.2, against 0.6); fewer harmful mutations (rate 1.5, against 3); more mending (0.3 and 0.5, against 0.15); tighter kin restraint (relatives only within 0.02, against 0.05); hunger overriding kin restraint (below half fed); and two combinations. An answer: meat eaters (diet above 0.75, and above 0.5), feeding levels and kills in each, and what each costs in species, sex and population. Anything promising is confirmed on 16 fresh seeds.",
+  "base": "grand-world",
+  "ticks": 300000,
+  "seeds": "1501-1504",
+  "sampleEvery": 1500,
+  "arms": {
+    "control": {},
+    "seasons-04": { "seasonGrowthSwing": 0.4 },
+    "seasons-02": { "seasonGrowthSwing": 0.2 },
+    "fewer-mutations": { "mutationLoadRate": 1.5 },
+    "mending-03": { "mutationLoadMend": 0.3 },
+    "mending-05": { "mutationLoadMend": 0.5 },
+    "kin-tight": { "kinDistance": 0.02 },
+    "kin-hunger": { "kinHungerBelow": 0.5 },
+    "gentle-all": { "seasonGrowthSwing": 0.4, "mutationLoadMend": 0.3, "kinDistance": 0.02 },
+    "gentler-all": { "seasonGrowthSwing": 0.2, "mutationLoadRate": 1.5, "mutationLoadMend": 0.5, "kinDistance": 0.02 }
+  },
+  "measures": ["all"]
+}
