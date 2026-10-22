@@ -194,3 +194,23 @@ About 20 minutes in the cloud, about 41 cents. All 32 worlds finished.
 - **Meat keeping in the cold helps a little:** it was the only setup with meat eaters in all four worlds 5,000 ticks on, but not for long.
 - **Hungry prey defending less backfires:** a newly converted meat eater is hungry, so it becomes easy prey itself, and three of four groups vanished within 500 ticks.
 - **So a meat-eating life here runs at about break-even.** A small group wanders up and down until it hits zero. To last, meat eaters need a clear margin. Note the invaders kept their grazers' brains and the same body size as their prey; real predators come with evolved hunting behavior and are often bigger than what they eat.
+
+### 6c. Bigger invaders (twice the size of their prey)
+
+**Experiment:** `carnivore-invasion-big`, as 6b (seeds 1201 to 1204, invasion at tick 100,000, run to 200,000), but each invader's body was also doubled. The bigger body was paid for from the animal's own energy and nutrient store, topped up from the soil and dead matter where it stood, so nothing was made. Seven setups (6b's, without hungry prey). About an hour on an 8-core machine, about 36 cents.
+
+**Answer: size gives no margin. Bigger meat eaters died out everywhere too, mostly faster.**
+
+| | 1,000 ticks after | 5,000 after | 20,000 after | 50,000 after |
+|---|---|---|---|---|
+| Today's grand world | 41, 5, 0, 15 | 20, 0, 0, 0 | 13, 0, 0, 0 | 0 everywhere |
+| No sex | 3, 25, 70, 15 | 0, 0, 18, 1 | 0 everywhere | 0 everywhere |
+| Diet-based mating | 11, 18, 49, 59 | 0, 0, 35, 56 | 0, 0, 8, 0 | 0 everywhere |
+| Meat keeps in the cold | 35, 49, 31, 92 | 48, 15, 18, 61 | 6, 19, 8, 12 | 0 everywhere |
+| Weapons get in the way of grazing | 37, 21, 1, 22 | 26, 12, 0, 7 | 0, 14, 0, 0 | 0, 20, 0, 0 |
+| Poorer plants | 0, 4, 28, 2 | 0, 0, 28, 0 | 0 everywhere | 0 everywhere |
+| All together | 0, 35, 1, 12 | 0, 8, 0, 0 | 0, 10, 0, 0 | 0 everywhere |
+
+- **Unlike same-size invaders, none grew after arriving.** A bigger hunter kills more often, but a body twice the size needs twice the energy before it can breed, while its prey stay small. Each kill covers half as much.
+- **Meat keeping in the cold again helped most:** it was the only setup with meat eaters in all four worlds 20,000 ticks on, though all were gone by 50,000.
+- **Conclusion of 6, 6b and 6c:** in the grand world a meat-eating life runs at about break-even. No single setting tried here, and neither bigger bodies nor stopping dilution by mating, gives the margin a meat-eating group needs to last. What remains untested: hunting behavior (invaders kept grazer brains), and the basic exchange rate of a kill (a body holds 4 units of energy per unit of size, while making one costs 30).
