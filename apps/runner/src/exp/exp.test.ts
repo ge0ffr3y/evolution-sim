@@ -291,3 +291,47 @@ describe("cloud requests (checked without touching AWS)", () => {
     expect(() => planMachines(exp, [100], undefined, 1)).toThrow(/No machine fits/);
   });
 });
+
+describe("invasions (a ready-made group arrives part-way)", () => {
+  const meatEaters = { atTick: 400, every: 10, genes: { diet: 0.95, attack: 0.6 } };
+
+  it("mistakes in the invasion are caught before anything runs", () => {
+    expect(() => tiny({ invasion: { ...meatEaters, atTick: 600 } })).toThrow(/atTick/);
+    expect(() => tiny({ invasion: { ...meatEaters, every: 0 } })).toThrow(/every/);
+    expect(() => tiny({ invasion: { ...meatEaters, genes: { size: 0.5 } } })).toThrow(/size/);
+    expect(() => tiny({ invasion: { ...meatEaters, genes: { claws: 0.5 } } })).toThrow(/unknown gene/);
+    expect(() => tiny({ invasion: { ...meatEaters, genes: { diet: 1.5 } } })).toThrow(/between 0 and 1/);
+    expect(tiny().invasion).toBeNull();
+  });
+
+  it("changes only the chosen animals' genes, and makes or destroys no energy or matter", async () => {
+    const { invade } = await import("./invasion");
+    const sim = new Simulation(2, { worldWidth: 128, worldHeight: 128, initialOrganisms: 200 });
+    sim.run(50);
+    const e0 = sim.energyAudit().total;
+    const m0 = sim.matterAudit().total;
+    const changed = invade(sim, meatEaters);
+    expect(changed).toBeGreaterThan(5);
+    expect(sim.energyAudit().total).toBe(e0);
+    expect(sim.matterAudit().total).toBe(m0);
+    let matching = 0;
+    for (let i = 0; i < sim.count; i++) if (sim.id[i]! % 10 === 0) matching += sim.diet[i] === Math.fround(0.95) ? 1 : 0;
+    expect(matching).toBe(changed);
+  });
+
+  it("a job stopped before the invasion and resumed matches one that ran straight through, and the invasion shows", async () => {
+    const straight = tiny({ invasion: meatEaters });
+    const job = jobsOf(straight)[0]!;
+    const a = (await runJob(straight, job))!;
+    const plain = (await runJob(tiny(), job))!;
+    expect(a.fingerprint).not.toBe(plain.fingerprint);
+    expect(a.rows.find((r) => r.tick === 450)!.dietOver75).toBeGreaterThan(0.05);
+
+    const interrupted = tiny({ invasion: meatEaters });
+    let calls = 0;
+    expect(await runJob(interrupted, job, { shouldStop: () => ++calls === 250 })).toBeNull();
+    const b = (await runJob(interrupted, job))!;
+    expect(b.fingerprint).toBe(a.fingerprint);
+    expect(b.rows).toEqual(a.rows);
+  });
+});

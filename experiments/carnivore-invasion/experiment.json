@@ -1,0 +1,20 @@
+{
+  "name": "carnivore-invasion",
+  "question": "Can a ready-made group of meat eaters hold its own in the grand world once it exists? At tick 100,000 one animal in twenty becomes an armed meat eater (diet gene 0.95, attack gene 0.6; nothing else changes), and the run continues to tick 200,000. Compared: today's grand world, no sex (so mating cannot dilute them), diet-based mating, meat that keeps in the cold, hungry prey that defend less, weapons that get in the way of grazing, poorer plants (quality 1.5), and diet-based mating plus the three new settings plus poorer plants together. An answer: in which setups meat eaters (diet above 0.75) are still there at the end, and how many.",
+  "base": "grand-world",
+  "ticks": 200000,
+  "seeds": "1201-1204",
+  "sampleEvery": 500,
+  "invasion": { "atTick": 100000, "every": 20, "genes": { "diet": 0.95, "attack": 0.6 } },
+  "arms": {
+    "control": {},
+    "asexual": { "sexualReproduction": 0 },
+    "diet-mating": { "matePreference": 3, "mateDietLimit": 0.25 },
+    "cold-meat": { "meatColdKeep": 0.8 },
+    "hungry-prey": { "preyHungerDefense": 0.6 },
+    "weapons-graze": { "weaponGrazeLoss": 0.6 },
+    "poor-plants": { "plantQualityMax": 1.5 },
+    "all-together": { "matePreference": 3, "mateDietLimit": 0.25, "meatColdKeep": 0.8, "preyHungerDefense": 0.6, "weaponGrazeLoss": 0.6, "plantQualityMax": 1.5 }
+  },
+  "measures": ["all"]
+}
