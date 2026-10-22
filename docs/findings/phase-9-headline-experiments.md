@@ -170,3 +170,27 @@ About 20 minutes in the cloud, about 41 cents. All 32 worlds finished.
 - **Making meat easier to get (cold keeping, hungry prey) feeds the mixed eaters**, not meat specialists. Cold keeping gave six times the mixed eaters and 79% more kills, but cost species.
 - **Making the in-between costly (weapons, gut) removes the mixed eaters and the armed grazers**, and nothing takes their place: hunting falls by about 40%.
 - **So the obstacle looks like the path, not the destination.** A meat eater needs several things at once (a high diet gene, weapons, hunting behavior), and every step on the way is worse than staying a grazer or a mixed eater. Whether a ready-made group of meat eaters could hold its own if it existed is not yet known.
+
+### 6b. Can a ready-made group of meat eaters hold its own? (invasion test)
+
+**Experiment:** `carnivore-invasion`, seeds 1201 to 1204. At tick 100,000, one animal in twenty (about 30 to 85 animals) became an armed meat eater: diet gene 0.95, attack gene 0.6, nothing else changed, brains included. The run continued to tick 200,000. Eight setups: today's grand world, no sex, diet-based mating, meat that keeps in the cold, hungry prey that defend less, weapons that get in the way of grazing, poorer plants (quality 1.5), and all but no sex together. About 35 minutes on an 8-core machine, about 18 cents.
+
+**Answer: they can make a living for a while, but in every setup and every world they die out.** Meat eaters left (diet above 0.75), seed by seed:
+
+| | 5,000 ticks after | 20,000 ticks after | 100,000 ticks after |
+|---|---|---|---|
+| Today's grand world | 64, 0, 0, 0 | 139, 0, 0, 0 | 0 everywhere |
+| No sex | 0, 0, 0, 5 | 0 everywhere | 0 everywhere |
+| Diet-based mating | 0, 0, 31, 59 | 0, 0, 7, 0 | 0 everywhere |
+| Meat keeps in the cold | 39, 44, 6, 31 | 1, 0, 0, 0 | 0 everywhere |
+| Hungry prey defend less | 0 everywhere | 0 everywhere | 0 everywhere |
+| Weapons get in the way of grazing | 30, 4, 0, 147 | 0, 0, 0, 27 | 0 everywhere |
+| Poorer plants | 0, 0, 32, 0 | 0 everywhere | 0 everywhere |
+| All together | 0, 0, 72, 1 | 0 everywhere | 0 everywhere |
+
+- **They can hunt and grow.** Several groups doubled or tripled in the first 1,000 ticks. In one world they held at about 140, a tenth of all animals, for about 90,000 ticks before vanishing.
+- **It is not a boom and bust.** Prey numbers swing with the seasons as before; they are not eaten down.
+- **It is not dilution by mating.** With no sex they died just as fast. Their diet does not drift into mixed eating either: every diet band above 0.25 empties along with them.
+- **Meat keeping in the cold helps a little:** it was the only setup with meat eaters in all four worlds 5,000 ticks on, but not for long.
+- **Hungry prey defending less backfires:** a newly converted meat eater is hungry, so it becomes easy prey itself, and three of four groups vanished within 500 ticks.
+- **So a meat-eating life here runs at about break-even.** A small group wanders up and down until it hits zero. To last, meat eaters need a clear margin. Note the invaders kept their grazers' brains and the same body size as their prey; real predators come with evolved hunting behavior and are often bigger than what they eat.
