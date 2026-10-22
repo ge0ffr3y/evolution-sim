@@ -1,0 +1,37 @@
+[
+  {
+    "name": "audit-4-confirm",
+    "question": "On 16 fresh seeds, do Stage 3's best candidates hold up (nutrients level 2: a second feeding level and more sex; a mutation-rate floor of 0.01: bigger, steadier populations), do they work together, and does adding rare big mutations let true meat eaters take hold?",
+    "file": "audit-4-confirm.json"
+  },
+  {
+    "name": "headline-sex",
+    "question": "Does sex speed up the arrival of new feeding levels? Worlds where every animal splits in two, where sex is a gene (today's grand world), and where every animal must find a mate. An answer: when mixed eaters (5 or more) first appear and how much of the time they are present, the highest diet reached, and meat in the diet, against today's world, with 95% ranges.",
+    "file": "headline-sex.json"
+  },
+  {
+    "name": "headline-ice-age",
+    "question": "Does an ice age raise or lower long-term diversity? One ice age strikes at tick 200,000 (at today's severity, 50% colder and twice as cold); diversity before it (ticks 100,000 to 200,000) and long after it (400,000 to 600,000) is compared with worlds that have no catastrophes at all. An answer: species alive and Shannon diversity after recovery against the control, with 95% ranges, and how many worlds survive each severity.",
+    "file": "headline-ice-age.json"
+  },
+  {
+    "name": "headline-disease",
+    "question": "Does disease stop one species taking over? Worlds with no disease, with today's disease, and with a disease that infects a wider range of hosts. An answer: the share of animals in the biggest species and Shannon diversity, against today's world, with 95% ranges.",
+    "file": "headline-disease.json"
+  },
+  {
+    "name": "headline-barriers",
+    "question": "Do geographic barriers produce more species? Seas covering 10%, 25% (today's) and 40% of the map. An answer: species alive and ever, Shannon diversity, and how different the animals on separate land masses are, against today's world, with 95% ranges.",
+    "file": "headline-barriers.json"
+  },
+  {
+    "name": "headline-barriers-2",
+    "question": "Do geographic barriers produce more species? The grand world cut into two halves by two straight water channels that animals cannot cross, against the same world uncut. An answer: species alive and ever, Shannon diversity, the share in the biggest species, and how far the two halves drift apart (the share of gene variation that lies between land masses), with 95% ranges.",
+    "file": "headline-barriers-2.json"
+  },
+  {
+    "name": "headline-plant-quality",
+    "question": "Does poorer plant food make longer food chains but fewer species, and given a million ticks, do true meat eaters (a lasting group with a diet above 0.75) take hold where plants are poor? Plant quality limits of 2 (today's), 1.5, 1 and 0.75. An answer: feeding levels, meat eaters, meat in the diet, species and population along the gradient, with 95% ranges.",
+    "file": "headline-plant-quality.json"
+  }
+]

@@ -1,0 +1,14 @@
+{
+  "name": "headline-plant-quality",
+  "question": "Does poorer plant food make longer food chains but fewer species, and given a million ticks, do true meat eaters (a lasting group with a diet above 0.75) take hold where plants are poor? Plant quality limits of 2 (today's), 1.5, 1 and 0.75. An answer: feeding levels, meat eaters, meat in the diet, species and population along the gradient, with 95% ranges.",
+  "base": "grand-world",
+  "ticks": 1000000,
+  "seeds": "901-916",
+  "arms": {
+    "control": {},
+    "quality-15": { "plantQualityMax": 1.5 },
+    "quality-10": { "plantQualityMax": 1 },
+    "quality-075": { "plantQualityMax": 0.75 }
+  },
+  "measures": ["all"]
+}

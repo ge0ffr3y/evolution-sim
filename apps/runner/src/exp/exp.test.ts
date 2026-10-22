@@ -1,16 +1,17 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Simulation } from "@evo/sim-core";
 import { checkExperiment, jobsOf, type Experiment } from "./experiment";
 import { runJob, statusOf } from "./job";
-import { sampleWorld, MEASURES, lastQuarterTrend } from "./measures";
+import { sampleWorld, summarizeRun, MEASURES, lastQuarterTrend } from "./measures";
 import { draftSettings, dosesExperiment, armName } from "./audit";
 import { compare } from "./report";
+import { exportExperiment, writeExport } from "./export";
 import type { JobResult } from "./job";
 import { makespan, planMachines } from "./estimate";
-import { buildLaunchRequest, buildUserData } from "./cloud";
+import { buildLaunchRequest, buildUserData, remainingWorst, vcpusOf } from "./cloud";
 
 const repoRoot = resolve(import.meta.dirname, "..", "..", "..", "..");
 const folders: string[] = [];
@@ -84,6 +85,21 @@ describe("measures", () => {
     expect(watched.fingerprint()).toBe(plain.fingerprint());
   }, 60_000);
 
+  it("dominance and land-mass difference stay in range, and the mixed-eater timing is summarized", () => {
+    const sim = new Simulation(4, { worldWidth: 256, worldHeight: 256, initialOrganisms: 300, terrainMode: 1, terrainWaterFraction: 0.4, speciesEvery: 100 });
+    sim.run(3000);
+    const row = sampleWorld(sim, ["dominance", "landMasses", "classes"]);
+    expect(row.dominance).toBeGreaterThan(0);
+    expect(row.dominance).toBeLessThanOrEqual(1);
+    expect(row.populatedLandMasses).toBeGreaterThanOrEqual(1);
+    if (!Number.isNaN(row.landMassDifference)) {
+      expect(row.landMassDifference).toBeGreaterThanOrEqual(0);
+      expect(row.landMassDifference).toBeLessThanOrEqual(1);
+    }
+    const summary = summarizeRun([row, { ...row, tick: 3100, mixedEaters: 7 }], sim, ["classes"]);
+    expect(summary.firstMixedEatersAt).toBe(row.mixedEaters! >= 5 ? row.tick : 3100);
+  }, 60_000);
+
   it("the end-of-run trend is the change over the last quarter, relative to its level", () => {
     // Flat for three quarters, then rising from 100 to 130 over the last quarter: about +26% of its average there (115).
     const rows = Array.from({ length: 41 }, (_, k) => ({ tick: k * 100, population: k < 30 ? 100 : 100 + (k - 30) * 3 }));
@@ -131,6 +147,24 @@ describe("the audit's settings list and its experiment", () => {
     const tested = list.settings.filter((s) => s.test);
     expect(Object.keys(exp.arms).length).toBe(1 + tested.reduce((n, s) => n + (s.down ? 1 : 0) + (s.up ? 1 : 0), 0));
   });
+});
+
+describe("exporting for the analysis page", () => {
+  it("writes each run's key results and each arm's average timeline, and indexes it", async () => {
+    const exp = tiny({ ticks: 400, measures: ["all"] });
+    for (const job of jobsOf(exp)) await runJob(exp, job);
+    const data = exportExperiment(exp, "control");
+    expect(data.runs.length).toBe(4);
+    expect(Object.keys(data.series).sort()).toEqual(["control", "crowded"]);
+    expect(data.series.control!.tick[0]).toBe(0);
+    expect(data.series.control!.mean.population!.length).toBe(data.series.control!.tick.length);
+    expect(typeof data.runs[0]!.summary.meanPopulationLate).toBe("number");
+    const out = join(exp.folder, "public");
+    writeExport(data, out);
+    writeExport(data, out); // a second export of the same experiment replaces its entry
+    const index = JSON.parse(readFileSync(join(out, "index.json"), "utf8")) as { name: string }[];
+    expect(index.map((e) => e.name)).toEqual(["tiny-test"]);
+  }, 60_000);
 });
 
 describe("the comparison report", () => {
@@ -237,5 +271,23 @@ describe("cloud requests (checked without touching AWS)", () => {
     const tags = (req.TagSpecifications as { Tags: { Key: string; Value: string }[] }[])[0]!.Tags;
     expect(tags).toContainEqual({ Key: "Project", Value: "evolution-sim" });
     expect(Buffer.from(req.UserData as string, "base64").toString()).toBe(userData);
+    const tagged = buildLaunchRequest({ imageId: "ami-1", instanceType: "c8g.8xlarge", userData, name: "tiny-test", runId: "r1", hardStopMinutes: 90 });
+    expect((tagged.TagSpecifications as { Tags: { Key: string; Value: string }[] }[])[0]!.Tags).toContainEqual({ Key: "HardStopMinutes", Value: "90" });
+  });
+
+  it("a running machine's remaining worst cost runs to its backstop (hard stop plus 10 minutes), then nothing", () => {
+    const launched = "2026-10-21T00:00:00.000Z";
+    const t0 = Date.parse(launched);
+    expect(remainingWorst({ launched, hardStopMinutes: 50 }, 1.2, t0)).toBeCloseTo(1.2, 9); // 60 minutes left at $1.20/hour
+    expect(remainingWorst({ launched, hardStopMinutes: 50 }, 1.2, t0 + 30 * 60000)).toBeCloseTo(0.6, 9);
+    expect(remainingWorst({ launched, hardStopMinutes: 50 }, 1.2, t0 + 90 * 60000)).toBe(0);
+    expect(vcpusOf("c8g.8xlarge")).toBe(32);
+  });
+
+  it("plans only machines that fit in the cores left free by running experiments", () => {
+    const exp = tiny();
+    const plan = planMachines(exp, new Array(120).fill(1800), undefined, 16);
+    for (const o of plan.options) expect(o.vcpus).toBeLessThanOrEqual(16);
+    expect(() => planMachines(exp, [100], undefined, 1)).toThrow(/No machine fits/);
   });
 });

@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { jobsOf, type Experiment } from "./experiment";
-import { estimate, measureSpeeds, FAMILIES, SIZES, type Estimate, type MachineOption } from "./estimate";
+import { estimate, measureSpeeds, FAMILIES, MAX_VCPUS, SIZES, type Estimate, type MachineOption } from "./estimate";
 import { statusOf } from "./job";
 
 /**
@@ -99,8 +99,10 @@ shutdown -h now
 }
 
 /** The request that starts the machine. Pure, so it can be checked by tests without touching AWS. */
-export function buildLaunchRequest(p: { imageId: string; instanceType: string; userData: string; name: string; runId: string }): Record<string, unknown> {
+export function buildLaunchRequest(p: { imageId: string; instanceType: string; userData: string; name: string; runId: string; hardStopMinutes?: number }): Record<string, unknown> {
   const tags = [TAG, { Key: "Experiment", Value: p.name }, { Key: "Run", Value: p.runId }, { Key: "Name", Value: `evolution-sim ${p.name}` }];
+  // The hard stop, so a later launch can count what this machine may still cost.
+  if (p.hardStopMinutes !== undefined) tags.push({ Key: "HardStopMinutes", Value: String(p.hardStopMinutes) });
   return {
     ImageId: p.imageId,
     InstanceType: p.instanceType,
@@ -169,6 +171,8 @@ interface Machine {
   launched: string;
   experiment: string;
   run: string;
+  /** Its hard stop in minutes from launch (0 for machines launched before this was tagged). */
+  hardStopMinutes: number;
 }
 
 function ourMachines(region: string): Machine[] {
@@ -178,9 +182,32 @@ function ourMachines(region: string): Machine[] {
   return out.Reservations.flatMap((r) =>
     r.Instances.map((i) => {
       const tag = (key: string): string => i.Tags?.find((t) => t.Key === key)?.Value ?? "";
-      return { id: i.InstanceId, type: i.InstanceType, state: i.State.Name, launched: i.LaunchTime, experiment: tag("Experiment"), run: tag("Run") };
+      return { id: i.InstanceId, type: i.InstanceType, state: i.State.Name, launched: i.LaunchTime, experiment: tag("Experiment"), run: tag("Run"), hardStopMinutes: Number(tag("HardStopMinutes")) || 0 };
     }),
   );
+}
+
+/** Cores a machine type has (from its size, e.g. c8g.8xlarge has 32). */
+export function vcpusOf(type: string): number {
+  const size = type.split(".")[1];
+  return SIZES.find((s) => s.size === size)?.vcpus ?? 0;
+}
+
+/** The account's core limit for C-family machines, read from AWS; the MAX_VCPUS fallback if the runner may not read it. */
+function coreQuota(region: string): { cores: number; source: string } {
+  try {
+    const out = aws(["service-quotas", "get-service-quota", "--service-code", "ec2", "--quota-code", "L-1216C47A"], { region }) as { Quota: { Value: number } };
+    return { cores: Math.floor(out.Quota.Value), source: "read from AWS" };
+  } catch {
+    return { cores: MAX_VCPUS, source: "fallback; the runner may not read the quota" };
+  }
+}
+
+/** The most a running machine can still cost before its backstop shuts it down (its hard stop plus 10 minutes). */
+export function remainingWorst(m: { launched: string; hardStopMinutes: number }, pricePerHour: number, now: number): number {
+  const hoursUp = (now - Date.parse(m.launched)) / 3600000;
+  const limitHours = m.hardStopMinutes > 0 ? (m.hardStopMinutes + 10) / 60 : 24; // (a machine without the tag is assumed to have up to a day left)
+  return pricePerHour * Math.max(0, limitHours - hoursUp);
 }
 
 function ensureBucket(bucket: string, region: string): void {
@@ -218,11 +245,17 @@ export async function cloudCommand(positional: string[], options: Record<string,
       // The code must be committed, so the machine runs exactly what is in git.
       const dirty = git(["status", "--porcelain", "--", "packages", "apps", "configs", relative(ctx.repoRoot, exp.folder)], ctx.repoRoot).trim();
       if (dirty) throw new Error(`Commit these first, so the machine runs exactly what is in git:\n${dirty}`);
-      const running = ourMachines(region).filter((m) => m.experiment === exp.name);
+      const machines = ourMachines(region);
+      const running = machines.filter((m) => m.experiment === exp.name);
       if (running.length) throw new Error(`A machine is already running ${exp.name} (${running.map((m) => m.id).join(", ")}). Wait for it, or stop it first.`);
+      // Several experiments can run at once: plan within the cores the others leave free.
+      const quota = coreQuota(region);
+      const inUse = machines.reduce((n, m) => n + vcpusOf(m.type), 0);
+      const free = quota.cores - inUse;
+      console.log(`Cores: ${quota.cores} allowed (${quota.source}), ${inUse} in use by ${machines.length} running machine(s), ${free} free.`);
 
       console.log("Measuring how fast each arm runs (a short trial here)...");
-      const est = estimate(exp, jobs, measureSpeeds(exp, jobs));
+      const est = estimate(exp, jobs, measureSpeeds(exp, jobs), FAMILIES, free);
       let pick: MachineOption = est.pick;
       if (typeof options.type === "string") {
         const chosen = est.options.find((o) => o.type === options.type);
@@ -242,8 +275,11 @@ export async function cloudCommand(positional: string[], options: Record<string,
         return;
       }
       const spent = monthSpend();
-      console.log(`  this month's AWS spend so far: $${spent.toFixed(2)} of the $${MONTHLY_CAP} cap`);
-      if (spent + worst > MONTHLY_CAP) throw new Error(`Refusing: $${spent.toFixed(2)} spent plus up to $${worst.toFixed(2)} would pass the $${MONTHLY_CAP} monthly cap.`);
+      // Machines already running can still cost up to their own hard stops: count that too.
+      const now = Date.now();
+      const committed = machines.reduce((sum, m) => sum + remainingWorst(m, livePrice(m.type, region), now), 0);
+      console.log(`  this month's AWS spend so far: $${spent.toFixed(2)} of the $${MONTHLY_CAP} cap; machines already running can cost up to $${committed.toFixed(2)} more`);
+      if (spent + committed + worst > MONTHLY_CAP) throw new Error(`Refusing: $${spent.toFixed(2)} spent, plus up to $${committed.toFixed(2)} for running machines, plus up to $${worst.toFixed(2)} for this one would pass the $${MONTHLY_CAP} monthly cap.`);
 
       const account = (aws(["sts", "get-caller-identity"]) as { Account: string }).Account;
       const bucket = bucketFor(account);
@@ -256,7 +292,7 @@ export async function cloudCommand(positional: string[], options: Record<string,
       const imageId = (aws(["ssm", "get-parameter", "--name", AMI_PARAMETER], { region }) as { Parameter: { Value: string } }).Parameter.Value;
       const userData = buildUserData({ bucket, region, name: exp.name, runId, workers: pick.workers, ticks: typeof options.ticks === "string" ? Number(options.ticks) : null, hardStopMinutes, nodeVersion: process.version, machine: pick.type });
       const request = join(dir, "launch.json");
-      writeFileSync(request, JSON.stringify(buildLaunchRequest({ imageId, instanceType: pick.type, userData, name: exp.name, runId })));
+      writeFileSync(request, JSON.stringify(buildLaunchRequest({ imageId, instanceType: pick.type, userData, name: exp.name, runId, hardStopMinutes })));
       const out = aws(["ec2", "run-instances", "--cli-input-json", `file://${request}`], { region }) as { Instances: { InstanceId: string }[] };
       rmSync(dir, { recursive: true });
       console.log(`\nLaunched ${out.Instances[0]!.InstanceId} (${pick.type}) for ${exp.name}, run ${runId}.`);
