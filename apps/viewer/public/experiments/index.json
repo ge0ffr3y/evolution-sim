@@ -33,5 +33,20 @@
     "name": "headline-plant-quality",
     "question": "Does poorer plant food make longer food chains but fewer species, and given a million ticks, do true meat eaters (a lasting group with a diet above 0.75) take hold where plants are poor? Plant quality limits of 2 (today's), 1.5, 1 and 0.75. An answer: feeding levels, meat eaters, meat in the diet, species and population along the gradient, with 95% ranges.",
     "file": "headline-plant-quality.json"
+  },
+  {
+    "name": "carnivore-screen",
+    "question": "What lets a lasting group of meat eaters (diet above 0.75) take hold in the grand world? A 4-seed screen of seven changes against today's grand world: diet-based mating (hunters mate with hunters), a stronger gut trade-off, richer carcasses, meat that keeps in the cold, hungry prey that defend less, weapons that get in the way of grazing, and all six together. Anything promising is confirmed on 16 fresh seeds.",
+    "file": "carnivore-screen.json"
+  },
+  {
+    "name": "carnivore-invasion",
+    "question": "Can a ready-made group of meat eaters hold its own in the grand world once it exists? At tick 100,000 one animal in twenty becomes an armed meat eater (diet gene 0.95, attack gene 0.6; nothing else changes), and the run continues to tick 200,000. Compared: today's grand world, no sex (so mating cannot dilute them), diet-based mating, meat that keeps in the cold, hungry prey that defend less, weapons that get in the way of grazing, poorer plants (quality 1.5), and diet-based mating plus the three new settings plus poorer plants together. An answer: in which setups meat eaters (diet above 0.75) are still there at the end, and how many.",
+    "file": "carnivore-invasion.json"
+  },
+  {
+    "name": "carnivore-invasion-big",
+    "question": "Can a ready-made group of meat eaters twice the size of their prey hold its own in the grand world? As carnivore-invasion, but each invader's body is also doubled (paid from its own energy and nutrient, topped up from the soil where it stands): at tick 100,000 one animal in twenty becomes an armed meat eater twice its old size, and the run continues to tick 200,000. Setups: today's grand world, no sex, diet-based mating, meat that keeps in the cold, weapons that get in the way of grazing, poorer plants (quality 1.5), and those changes (but not no-sex) together. An answer: in which setups meat eaters (diet above 0.75) are still there at the end, against the same-size invasion.",
+    "file": "carnivore-invasion-big.json"
   }
 ]

@@ -3,6 +3,7 @@ import { join, resolve } from "node:path";
 import { Simulation, makeConfig, parsePreset, parseConfigOverrides, type SimConfig } from "@evo/sim-core";
 import { MEASURES, expandMeasures } from "./measures";
 import { parseSeedList } from "../run";
+import { checkInvasion, type Invasion } from "./invasion";
 
 /**
  * An experiment file (experiments/<name>/experiment.json): one question, a base world, the
@@ -31,10 +32,13 @@ export interface ExperimentFile {
   measures: string[];
   /** "sweep" (many jobs on a big machine, the default) or "long" (up to 8 long jobs on a small machine). */
   lane?: "sweep" | "long";
+  /** Optional: at one tick, give every n-th animal new gene values (a ready-made group arrives). Same in every arm. */
+  invasion?: unknown;
 }
 
-export interface Experiment extends Required<Omit<ExperimentFile, "base">> {
+export interface Experiment extends Required<Omit<ExperimentFile, "base" | "invasion">> {
   base: string;
+  invasion: Invasion | null;
   folder: string;
   seedList: number[];
   /** The full config overrides for each arm: the base preset plus the arm's changes. */
@@ -67,7 +71,7 @@ export function loadExperiment(path: string, repoRoot: string): Experiment {
 export function checkExperiment(raw: unknown, folder: string, repoRoot: string): Experiment {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) throw new Error("An experiment must be a JSON object");
   const e = raw as Record<string, unknown>;
-  const known = ["name", "question", "base", "baseChanges", "ticks", "seeds", "sampleEvery", "checkpointEvery", "checkpointMinutes", "arms", "measures", "lane"];
+  const known = ["name", "question", "base", "baseChanges", "ticks", "seeds", "sampleEvery", "checkpointEvery", "checkpointMinutes", "arms", "measures", "lane", "invasion"];
   for (const key of Object.keys(e)) if (!known.includes(key)) throw new Error(`Unknown experiment field "${key}" (expected one of: ${known.join(", ")})`);
 
   if (typeof e.name !== "string" || !NAME.test(e.name)) throw new Error("name must be lower-case letters, digits and dashes, e.g. \"meat-eating-long\"");
@@ -126,6 +130,8 @@ export function checkExperiment(raw: unknown, folder: string, repoRoot: string):
   for (const m of e.measures) if (typeof m !== "string" || !(m in MEASURES || m === "all")) throw new Error(`Unknown measure "${String(m)}" (available: all, ${Object.keys(MEASURES).join(", ")})`);
   if (lane === "long" && seedList.length * Object.keys(arms).length > 8) throw new Error("the long lane runs at most 8 worlds at once (arms x seeds); use the sweep lane for more");
 
+  const invasion = e.invasion === undefined ? null : checkInvasion(e.invasion, ticks);
+
   return {
     name: e.name,
     question: e.question,
@@ -139,6 +145,7 @@ export function checkExperiment(raw: unknown, folder: string, repoRoot: string):
     arms: arms as Record<string, Record<string, number>>,
     measures: expandMeasures(e.measures as string[]),
     lane,
+    invasion,
     folder,
     seedList,
     armConfigs,
