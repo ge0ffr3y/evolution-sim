@@ -33,5 +33,10 @@
     "name": "headline-plant-quality",
     "question": "Does poorer plant food make longer food chains but fewer species, and given a million ticks, do true meat eaters (a lasting group with a diet above 0.75) take hold where plants are poor? Plant quality limits of 2 (today's), 1.5, 1 and 0.75. An answer: feeding levels, meat eaters, meat in the diet, species and population along the gradient, with 95% ranges.",
     "file": "headline-plant-quality.json"
+  },
+  {
+    "name": "carnivore-screen",
+    "question": "What lets a lasting group of meat eaters (diet above 0.75) take hold in the grand world? A 4-seed screen of seven changes against today's grand world: diet-based mating (hunters mate with hunters), a stronger gut trade-off, richer carcasses, meat that keeps in the cold, hungry prey that defend less, weapons that get in the way of grazing, and all six together. Anything promising is confirmed on 16 fresh seeds.",
+    "file": "carnivore-screen.json"
   }
 ]

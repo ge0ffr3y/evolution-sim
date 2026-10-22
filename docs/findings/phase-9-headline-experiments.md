@@ -140,3 +140,33 @@ The audited grand world (Phase 9 audit, devlog 16), 16 fresh seeds per setup. Ea
 - **A fast, armed, short life.** Animals evolve high metabolism (13% at the gene's upper limit, against almost none), more attack and armor, larger bodies, and twice as much sex (gene 0.17 against 0.08). Each animal burns about three times as much energy per tick. Deaths and births both double, about four in five deaths are kills (against 58%), and the hit rate of attacks doubles.
 - **Disease nearly vanishes** at the poorest levels, because there are a third as many animals to spread it.
 - **Together with the audit:** this confirms Stage 2's finding that plant quality is the strongest lever on the food web, and shows that its price is paid in species once it goes below 1.5.
+
+## 6. Follow-up: what would let meat eaters take hold? (4-seed screen)
+
+**Why:** no headline experiment produced a lasting group of meat eaters (diet above 0.75). A diagnostic run (`apps/runner/scripts/diet-ledger.ts`, 8 worlds) found:
+- almost all kills are made by armed plant eaters;
+- the rare animals eating mostly meat carry almost no weapons, so they only scavenge, and they die fast;
+- even on poor plants, mostly-meat eaters earn about half what grazers do.
+
+**Experiment:** `carnivore-screen`, 300,000 ticks, seeds 1101 to 1104. Seven changes to the grand world:
+- three existing settings: diet-based mating (`matePreference` 3, `mateDietLimit` 0.25), a stronger gut trade-off (`dietSpecialization` 0.8), richer carcasses (`bodyEnergyPerSize` 8);
+- three new ones: meat that keeps in the cold (`meatColdKeep` 0.8), hungry prey that defend less (`preyHungerDefense` 0.6), weapons that get in the way of grazing (`weaponGrazeLoss` 0.6);
+- all six together.
+
+About 20 minutes in the cloud, about 41 cents. All 32 worlds finished.
+
+**Answer: none of them.** Lasting meat eaters stayed at about zero in every setup, and animals with a diet above 0.5 stayed under 0.03%. The changes split into two groups:
+
+| | Today | Meat keeps in the cold | Hungry prey defend less | Weapons get in the way of grazing | Stronger gut trade-off | All together |
+|---|---|---|---|---|---|---|
+| Mixed eaters | 8 | 52 | 19 | 4 | 0.4 | 0.9 |
+| Share of time with 5+ mixed eaters | 33% | 88% | 63% | 21% | 2% | 7% |
+| Feeding levels | 1.33 | 1.88 | 1.63 | 1.21 | 1.02 | 1.08 |
+| Kills per 1,000 ticks | 775 | 1,390 | 1,120 | 484 | 659 | 465 |
+| Species alive | 5.7 | **4.0*** | 6.2 | 5.3 | 4.1 | 5.2 |
+
+(4 seeds; * holds up. Diet-based mating and richer carcasses changed little.)
+
+- **Making meat easier to get (cold keeping, hungry prey) feeds the mixed eaters**, not meat specialists. Cold keeping gave six times the mixed eaters and 79% more kills, but cost species.
+- **Making the in-between costly (weapons, gut) removes the mixed eaters and the armed grazers**, and nothing takes their place: hunting falls by about 40%.
+- **So the obstacle looks like the path, not the destination.** A meat eater needs several things at once (a high diet gene, weapons, hunting behavior), and every step on the way is worse than staying a grazer or a mixed eater. Whether a ready-made group of meat eaters could hold its own if it existed is not yet known.
