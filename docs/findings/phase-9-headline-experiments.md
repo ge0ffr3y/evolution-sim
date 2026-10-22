@@ -188,7 +188,7 @@ About 20 minutes in the cloud, about 41 cents. All 32 worlds finished.
 | Poorer plants | 0, 0, 32, 0 | 0 everywhere | 0 everywhere |
 | All together | 0, 0, 72, 1 | 0 everywhere | 0 everywhere |
 
-- **They can hunt and grow.** Several groups doubled or tripled in the first 1,000 ticks. In one world they held at about 140, a tenth of all animals, for about 90,000 ticks before vanishing.
+- **They can hunt and grow.** Several groups doubled or tripled in the first 1,000 ticks. In one world they grew to about 140, a tenth of all animals, 20,000 to 30,000 ticks after arriving, then dwindled (15 at 40,000) and were gone by 70,000.
 - **It is not a boom and bust.** Prey numbers swing with the seasons as before; they are not eaten down.
 - **It is not dilution by mating.** With no sex they died just as fast. Their diet does not drift into mixed eating either: every diet band above 0.25 empties along with them.
 - **Meat keeping in the cold helps a little:** it was the only setup with meat eaters in all four worlds 5,000 ticks on, but not for long.
