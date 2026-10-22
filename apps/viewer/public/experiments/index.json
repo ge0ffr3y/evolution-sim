@@ -53,5 +53,10 @@
     "name": "carnivore-bridge",
     "question": "Why does the simple world grow meat eaters and the grand world not? Starting from the simple (default) world, each of the grand world's 15 feature groups is added alone (add-...), and the groups are also added one after another (ladder-...) until the last step is the full grand world. An answer: which group, alone or in combination, makes meat eaters (diet above 0.75, and above 0.5) disappear.",
     "file": "carnivore-bridge.json"
+  },
+  {
+    "name": "carnivore-bridge-2",
+    "question": "Which part of the three culprits erases meat eaters, and does removing them bring meat eaters back to the grand world? Added alone to the simple world: the climate split into its parts (a temperature map only; seasons; seasons with harsh years; seasons with torpor; day and night; weather fronts; the cost of heat and cold; slow drift), sex and harmful mutations split (sex only; harmful mutations only), and kin split (kin restraint only; with herds; with sharing). Then the grand world with the culprit groups taken out. An answer: meat eaters (diet above 0.75, and above 0.5) in each.",
+    "file": "carnivore-bridge-2.json"
   }
 ]

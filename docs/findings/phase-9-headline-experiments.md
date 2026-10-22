@@ -261,3 +261,41 @@ The ladder (each step adds a group to everything before it):
 - **Nutrients thin it** (meat eaters from 22% to 8% alone, 25% to 4% on the ladder) but push many animals into high mixed diets.
 - **Everything else is harmless or helps:** brains, colonies, camouflage, a bigger world and disease all leave meat eaters in place.
 - The report's three "too good to be true" flags are explained: a world four times the area holds about four times the animals, and simple worlds without predators hold two to three times as many (devlog 3).
+
+### 7b. The culprits split apart, and taken out of the grand world
+
+**Experiment:** `carnivore-bridge-2` (grand-world setups made by `apps/runner/scripts/make-bridge-2.ts`), 200,000 ticks, seeds 1401 to 1404. The three culprit groups were split into their parts, each added alone to the simple world. Then the grand world was run with culprit groups taken out (their settings put back to the simple world's). About 20 minutes on a 32-core machine plus one world finished on a small one, about 30 cents.
+
+**Answer: no single setting is to blame. Seasons, harmful mutations, sex and kin restraint each thin meat eaters or make them hit-or-miss; together they erase them. Take all three groups out of the grand world and meat eaters come back in 3 of 4 worlds.**
+
+| Added to the simple world, alone | Meat eaters per world | Share | Feeding levels |
+|---|---|---|---|
+| Nothing (the simple world) | 96 to 112 | 23% | 2.85 |
+| A temperature map only | 85 to 98 | 25% | 2.76 |
+| Day and night | 70 to 96 | 25% | 2.46 |
+| Weather fronts | 73 to 96 | 24% | 2.61 |
+| The cost of heat and cold | 88 to 109 | 29% | 2.33 |
+| Slow climate drift | 32 to 106 | 24% | 2.69 |
+| **Seasons** | **74, 3, 60, 12** | **9%** | 1.70 |
+| Seasons with harsh years | 43, 5, 0, 76 | 8% | 1.54 |
+| Seasons with torpor | 71, 26, 0, 74 | 10% | 1.88 |
+| **Sex only** | **0, 130, 110, 0** | 13% | 1.85 |
+| **Harmful mutations only** | **0, 44, 0, 0** | **3%** | 1.34 |
+| Kin restraint only | 0, 74, 200, 90 | 25% | 1.88 |
+| Kin restraint with herds | 137, 0, 85, 66 | 20% | 1.76 |
+| Kin restraint with sharing | 0, 137, 75, 0 | 13% | 1.56 |
+
+| The grand world | Meat eaters per world | Share | Feeding levels | Kills per 1,000 ticks |
+|---|---|---|---|---|
+| As it is | 0, 0, 0, 0 | 0% | 1.55 | 717 |
+| Without the climate | 0, 0, 0, 0 | 0% | 1.98 | 2,232 |
+| Without sex and harmful mutations | 0, 0, 0, 0 | 0% | 1.83 | 1,569 |
+| Without kin restraint and herds | 0, 0, 0, 0 | 0% | 1.09 | 492 |
+| Without the climate, sex and harmful mutations | 0, 0, 0, 75 | 2% | 2.21 | 3,384 |
+| **Without all three** | **0, 85, 105, 89** | **6%** | **2.38** | **3,496** |
+
+- **Of the climate, only the seasons matter.** A temperature map, day and night, weather, the cost of heat and cold and slow drift leave meat eaters as they are. Seasons cut them by about 60% and make them hit-or-miss (3 to 74 per world). A likely reason, not yet tested: each winter the plant eaters crash, and a small group of hunters crashes with them, so it can drift to zero.
+- **Harmful mutations are the strongest single blocker** (meat eaters in 1 of 4 worlds). This fits devlog 14: would-be hunters are always a small group, and small groups pile up harmful mutations faster. Sex alone removes them in half the worlds, as gene mixing blends hunters back into the plant eaters (experiment 1).
+- **Kin restraint is hit-or-miss** (no meat eaters in 1 or 2 of 4 worlds, depending on what it is paired with).
+- **They add up.** Each one alone leaves a chance; the grand world stacks all of them, and the chance falls to zero. Taking out any one group does not help, two helps a little, all three brings meat eaters back in 3 of 4 worlds (about 6% of animals) with kills five times today's.
+- **The common thread is small numbers.** Every culprit hurts a small, sparse group more than a big one: seasonal crashes, the faster build-up of harmful mutations, being outnumbered when mating, sparing relatives that are most of the neighbors. A meat-eating group starts small, so it is the one these rules hit.
