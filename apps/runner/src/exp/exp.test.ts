@@ -310,13 +310,42 @@ describe("invasions (a ready-made group arrives part-way)", () => {
     sim.run(50);
     const e0 = sim.energyAudit().total;
     const m0 = sim.matterAudit().total;
-    const changed = invade(sim, meatEaters);
+    const { changed } = invade(sim, meatEaters);
     expect(changed).toBeGreaterThan(5);
     expect(sim.energyAudit().total).toBe(e0);
     expect(sim.matterAudit().total).toBe(m0);
     let matching = 0;
     for (let i = 0; i < sim.count; i++) if (sim.id[i]! % 10 === 0) matching += sim.diet[i] === Math.fround(0.95) ? 1 : 0;
     expect(matching).toBe(changed);
+  });
+
+  it("bigger invaders pay for their bigger bodies from their own energy and nutrient store, so the books balance", async () => {
+    const { invade } = await import("./invasion");
+    const world = { worldWidth: 128, worldHeight: 128, initialOrganisms: 300, nutrientMode: 2 } as const;
+    const sim = new Simulation(2, world);
+    sim.run(300);
+    const sizes = new Map<number, number>();
+    for (let i = 0; i < sim.count; i++) sizes.set(sim.id[i]!, sim.size[i]!);
+    const e0 = sim.energyAudit().total;
+    const m0 = sim.matterAudit().total;
+    const { changed, enlarged } = invade(sim, { ...meatEaters, sizeFactor: 2 });
+    expect(enlarged).toBeGreaterThan(0);
+    expect(enlarged).toBeLessThanOrEqual(changed);
+    expect(Math.abs(sim.energyAudit().total - e0) / e0).toBeLessThan(1e-12);
+    expect(Math.abs(sim.matterAudit().total - m0) / m0).toBeLessThan(1e-12);
+    let bigger = 0;
+    for (let i = 0; i < sim.count; i++) {
+      const before = sizes.get(sim.id[i]!)!;
+      if (sim.id[i]! % 10 !== 0) expect(sim.size[i]).toBe(before); // only the chosen ones change
+      else if (sim.size[i]! > before) {
+        bigger++;
+        expect(sim.size[i]! / before).toBeCloseTo(2, 4);
+      }
+    }
+    expect(bigger).toBe(enlarged);
+    // Without nutrient stores there is nothing to build the bigger body from.
+    expect(() => invade(new Simulation(2, { worldWidth: 64, worldHeight: 64, initialOrganisms: 20 }), { ...meatEaters, sizeFactor: 2 })).toThrow(/nutrientMode/);
+    expect(() => tiny({ invasion: { ...meatEaters, sizeFactor: 5 } })).toThrow(/sizeFactor/);
   });
 
   it("a job stopped before the invasion and resumed matches one that ran straight through, and the invasion shows", async () => {

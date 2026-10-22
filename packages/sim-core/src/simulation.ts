@@ -5591,6 +5591,11 @@ export class Simulation {
     return counts;
   }
 
+  /** The food-grid cell organism i stands in (read-only; for tools such as the experiment runner). */
+  cellIndexOf(i: number): number {
+    return this.cellOf[i]!;
+  }
+
   /** Index of the organism with this id, or -1 if it is not alive. */
   indexOfId(id: number): number {
     for (let i = 0; i < this.count; i++) if (this.id[i] === id) return i;
