@@ -299,3 +299,30 @@ The ladder (each step adds a group to everything before it):
 - **Kin restraint is hit-or-miss** (no meat eaters in 1 or 2 of 4 worlds, depending on what it is paired with).
 - **They add up.** Each one alone leaves a chance; the grand world stacks all of them, and the chance falls to zero. Taking out any one group does not help, two helps a little, all three brings meat eaters back in 3 of 4 worlds (about 6% of animals) with kills five times today's.
 - **The common thread is small numbers.** Every culprit hurts a small, sparse group more than a big one: seasonal crashes, the faster build-up of harmful mutations, being outnumbered when mating, sparing relatives that are most of the neighbors. A meat-eating group starts small, so it is the one these rules hit.
+
+### 7c. Gentler culprits are not enough
+
+**Experiment:** `gentle-culprits`, 300,000 ticks, seeds 1501 to 1504. Today's grand world against gentler versions of three culprits:
+- plants swinging less with the seasons (growth swing 0.4 and 0.2, against 0.6);
+- fewer harmful mutations (rate 1.5, against 3), or more mending (0.3 and 0.5, against 0.15);
+- tighter kin restraint (relatives only within 0.02, against 0.05), or hunger overriding it (below half fed);
+- two combinations.
+
+Sex was left as it is. About an hour on a 32-core machine, about $1.40. All 40 worlds finished.
+
+**Answer: no. None of the ten setups has a single meat eater, and none raises the average diet.** The gentler setups do change the world, but toward a calmer one, not a food web:
+
+| | Today | Seasons 0.4 | Tighter kin | Gentle, all three | Gentler, all three |
+|---|---|---|---|---|---|
+| Kills per 1,000 ticks | 1,050 | -51% | -57% | -59% | -60% |
+| Feeding levels | 1.64 | -10% | -35% | -33% | -26% |
+| Species alive | 5.3 | +16% | +21% | +30% | +48% |
+| Average age | 674 | +66% | +60% | +83% | **+115%*** |
+| Population | 821 | +15% | +17% | +13% | +18% |
+
+(4 seeds; * holds up. Fewer harmful mutations and more mending changed little.)
+
+- **Softening the culprits is not the same as removing them.** In 7b, taking all three groups out (with sex) brought meat eaters back in 3 of 4 worlds; here, gentler versions with sex kept bring none.
+- **Tighter kin restraint cuts hunting**, against expectation (an animal spares fewer relatives, yet kills fall by more than half). Devlog 16 saw the same from the other side (switching kin restraint off cut hunting by three quarters). Not explained.
+- **Sex was not softened here**, and 7b found it a blocker on its own (no meat eaters in half the worlds). The setups that brought meat eaters back all removed it.
+- **A side effect worth keeping in mind:** the gentle combinations give more species (+30 to 48%) and lives about twice as long. That could be a better grand world in its own right, but it is a calmer one, and it needs a 16-seed check.
