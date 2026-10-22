@@ -108,3 +108,35 @@ The audited grand world (Phase 9 audit, devlog 16), 16 fresh seeds per setup. Ea
 - **The halves drift apart.** The share of gene variation lying between the two halves (0 = alike, 1 = entirely different) rises from 0.10 at tick 10,000 to about 0.23 to 0.26 by tick 50,000 to 100,000 (up to 0.42 in one world). It then eases back to about 0.17 by tick 500,000, perhaps because both halves face the same climate and pressures.
 - **Fewer animals:** the channels take up land, and each half is a smaller habitat.
 - **Together with experiment 1:** isolation by geography (here) and isolation by mating (sex for everyone, experiment 1) both make the world more varied. Mating isolation does it much more strongly, with 2.4 times the species.
+
+## 5. Does poorer plant food make longer food chains but fewer species?
+
+**Experiment:** `headline-plant-quality`, 1,000,000 ticks, seeds 901 to 916. The most nutrient a unit of plant can hold (`plantQualityMax`) set to 2 (today's), 1.5, 1 and 0.75. All 64 worlds finished and none died out. About 1.7 hours on one 32-core machine, about $2.20.
+
+**Answer: yes to both, up to a point, but true meat eaters still do not take hold.** Poorer plants add a feeding level and four times as many mixed eaters. Below 1.5 they also cost species. The gain in feeding levels stops at a quality of 1, while the losses keep growing.
+
+| | Quality 2 (today) | 1.5 | 1 | 0.75 |
+|---|---|---|---|---|
+| Feeding levels | 1.59 | **1.90*** | **2.00*** | **2.00*** |
+| Mixed eaters | 29 | 61 | **134*** | **121*** |
+| Share of time with 5+ mixed eaters | 59% | **90%*** | **100%*** | **100%*** |
+| Meat in the diet | 8.9% | **11%*** | **16%*** | **18%*** |
+| Average diet gene | 0.08 | **0.13*** | **0.22*** | **0.24*** |
+| Share of animals with diet above 0.5 | 0.04% | 0.07% | **0.7%*** | **0.7%*** |
+| Lasting meat eaters (diet above 0.75) | 0.03 | 0.01 | 0.01 | 0.01 |
+| Species alive | 5.3 | 5.2 | **3.5*** (-34%) | **2.4*** (-54%) |
+| Shannon diversity | 1.28 | 1.27 | **0.96*** | **0.70*** |
+| Share in the biggest species | 47% | 47% | **56%*** | **65%*** |
+| Population | 814 | **617*** | **383*** | **286*** |
+| Average age | 848 | **523*** | **354*** | **373*** |
+| Share sick | 17% | 16% | **7%*** | **2%*** |
+
+(* holds up)
+
+- **1.5 is a free lunch for the food web.** It adds most of the extra feeding level (1.59 to 1.90), nine tenths of the time with a lasting group of mixed eaters, and a third more kills, with no loss of species or diversity. Many more species appear over the run (65 against 47). The costs are fewer animals (-24%) and lives about a third shorter.
+- **Below 1.5 the world narrows.** At 1 and 0.75 there are no more feeding levels to gain, but species fall by a third to a half and one species holds well over half the animals.
+- **Still no true meat eaters.** Even with a million ticks and the poorest plants, a lasting group with a diet above 0.75 never forms. Animals with a diet above 0.5 grow twentyfold but stay under 1%. Poor plants push the whole population toward mixed eating, not toward a separate hunting species.
+- **Nutrient, not energy, is now the limit.** Plants go uneaten (a third of capacity standing, against 9%; almost no worn ground), and fewer animals are hungry or starve. But more are short of nutrient (59% against 37%). Meat is rich in nutrient, which is why the diet shifts.
+- **A fast, armed, short life.** Animals evolve high metabolism (13% at the gene's upper limit, against almost none), more attack and armor, larger bodies, and twice as much sex (gene 0.17 against 0.08). Each animal burns about three times as much energy per tick. Deaths and births both double, about four in five deaths are kills (against 58%), and the hit rate of attacks doubles.
+- **Disease nearly vanishes** at the poorest levels, because there are a third as many animals to spread it.
+- **Together with the audit:** this confirms Stage 2's finding that plant quality is the strongest lever on the food web, and shows that its price is paid in species once it goes below 1.5.

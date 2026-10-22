@@ -28,5 +28,10 @@
     "name": "headline-barriers-2",
     "question": "Do geographic barriers produce more species? The grand world cut into two halves by two straight water channels that animals cannot cross, against the same world uncut. An answer: species alive and ever, Shannon diversity, the share in the biggest species, and how far the two halves drift apart (the share of gene variation that lies between land masses), with 95% ranges.",
     "file": "headline-barriers-2.json"
+  },
+  {
+    "name": "headline-plant-quality",
+    "question": "Does poorer plant food make longer food chains but fewer species, and given a million ticks, do true meat eaters (a lasting group with a diet above 0.75) take hold where plants are poor? Plant quality limits of 2 (today's), 1.5, 1 and 0.75. An answer: feeding levels, meat eaters, meat in the diet, species and population along the gradient, with 95% ranges.",
+    "file": "headline-plant-quality.json"
   }
 ]
