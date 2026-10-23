@@ -1,0 +1,29 @@
+{
+  "name": "margin-levers",
+  "question": "In the grand world, with no help, do meat eaters (diet above 0.75) evolve and last with the two margin levers the diet ledger points to: a fat reserve (banks surplus from a big meal for the lean days between kills; deposit rate 0.5, founders start with a fat gene of 0.3, as fat does not evolve from nothing) and more plant growth (0.18 and 0.24 per tick, against 0.12), so plant eaters breed faster and leave more surplus for hunters, and fat with 0.18 together. 300,000 ticks. An answer: worlds with a lasting group of meat eaters, feeding levels, kills, species and population.",
+  "base": "grand-world",
+  "ticks": 300000,
+  "seeds": "2011-2014",
+  "sampleEvery": 1500,
+  "arms": {
+    "control": {},
+    "fat": {
+      "fatDepositRate": 0.5,
+      "initialFat": 0.3
+    },
+    "food-018": {
+      "foodRegrowPerTick": 0.18
+    },
+    "food-024": {
+      "foodRegrowPerTick": 0.24
+    },
+    "fat-food-018": {
+      "fatDepositRate": 0.5,
+      "initialFat": 0.3,
+      "foodRegrowPerTick": 0.18
+    }
+  },
+  "measures": [
+    "all"
+  ]
+}

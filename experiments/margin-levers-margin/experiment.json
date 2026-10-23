@@ -1,0 +1,45 @@
+{
+  "name": "margin-levers-margin",
+  "question": "In the grand world, do the two margin levers the diet ledger points to: a fat reserve (banks surplus from a big meal for the lean days between kills; deposit rate 0.5, founders start with a fat gene of 0.3, as fat does not evolve from nothing) and more plant growth (0.18 and 0.24 per tick, against 0.12), so plant eaters breed faster and leave more surplus for hunters, and fat with 0.18 together. Margin test: one animal in twenty becomes an armed meat eater (with a fat gene of 0.5) at tick 100,000 and every 5,000 ticks after, measured with the diet ledger. An answer: meat eaters' births against deaths, income and costs, and how many remain 4,500 ticks after each arrival.",
+  "base": "grand-world",
+  "ticks": 150000,
+  "seeds": "2001-2004",
+  "sampleEvery": 500,
+  "invasion": {
+    "atTick": 100000,
+    "every": 20,
+    "genes": {
+      "diet": 0.95,
+      "attack": 0.6,
+      "fat": 0.5
+    },
+    "repeatEvery": 5000,
+    "until": 145000
+  },
+  "arms": {
+    "control": {},
+    "fat": {
+      "fatDepositRate": 0.5,
+      "initialFat": 0.3
+    },
+    "food-018": {
+      "foodRegrowPerTick": 0.18
+    },
+    "food-024": {
+      "foodRegrowPerTick": 0.24
+    },
+    "fat-food-018": {
+      "fatDepositRate": 0.5,
+      "initialFat": 0.3,
+      "foodRegrowPerTick": 0.18
+    }
+  },
+  "measures": [
+    "population",
+    "classes",
+    "dietSpread",
+    "kills",
+    "mutationLoad",
+    "dietLedger"
+  ]
+}
