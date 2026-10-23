@@ -105,3 +105,55 @@ describe("fat and relatedness", () => {
     expect(hidden(left).mateMask.length).toBe(hidden(counted).mateMask.length - 1);
   });
 });
+
+describe("fat pays for breeding (fatBreeding)", () => {
+  type H = { fatStore: Float64Array; sexMode: Uint8Array; mobilizeFat(i: number, level: number): number };
+  const h = (sim: Simulation): H => sim as unknown as H;
+
+  it("is off by default and checked", () => {
+    expect(DEFAULT_CONFIG.fatBreeding).toBe(0);
+    expect(() => new Simulation(1, { fatBreeding: 2 })).toThrow(/fatBreeding/);
+  });
+
+  it("tops energy up from fat to the level exactly when the two together reach it, losing nothing", () => {
+    const sim = new Simulation(1, { worldWidth: 64, worldHeight: 64, initialOrganisms: 1, fatDepositRate: 0.5, fatBreeding: 1 });
+    const t = sim.threshold[0]!;
+    sim.energy[0] = 0.7 * t;
+    h(sim).fatStore[0] = 0.5 * t;
+    expect(h(sim).mobilizeFat(0, t)).toBeCloseTo(t, 9);
+    expect(sim.energy[0]! + h(sim).fatStore[0]!).toBeCloseTo(1.2 * t, 9); // nothing made or lost
+    expect(h(sim).fatStore[0]).toBeCloseTo(0.2 * t, 9);
+    sim.energy[0] = 0.4 * t;
+    h(sim).fatStore[0] = 0.3 * t;
+    expect(h(sim).mobilizeFat(0, t)).toBeCloseTo(0.4 * t, 9); // not enough together: nothing moves
+    expect(h(sim).fatStore[0]).toBeCloseTo(0.3 * t, 9);
+  });
+
+  it("an animal seeking a mate banks nothing; without fatBreeding it would", () => {
+    const fatAfter = (fatBreeding: number): number => {
+      const sim = new Simulation(2, { worldWidth: 64, worldHeight: 64, initialOrganisms: 1, sexualReproduction: 2, fatDepositRate: 0.5, initialFat: 1, fatDepositAbove: 1, fatBreeding, speciesEvery: 0 });
+      sim.energy[0] = 1.5 * sim.threshold[0]!;
+      h(sim).sexMode[0] = 2; // looking for a mate (there is none)
+      h(sim).fatStore[0] = 0;
+      sim.step();
+      return h(sim).fatStore[0]!;
+    };
+    expect(fatAfter(0)).toBeGreaterThan(0);
+    expect(fatAfter(1)).toBe(0);
+  });
+
+  it("the books still balance with fat paying for breeding, with sex", () => {
+    const sim = new Simulation(7, { worldWidth: 128, worldHeight: 128, initialOrganisms: 200, speciesEvery: 0, sexualReproduction: 2, sexAcceptAny: 1, mateReadyFraction: 0.6, fatDepositRate: 0.5, initialFat: 0.5, fatDepositAbove: 1, fatProvision: 0.5, fatBreeding: 1 });
+    sim.run(20);
+    const e0 = sim.energyAudit().total;
+    const m0 = sim.matterAudit().total;
+    const L0 = { ...sim.ledger };
+    sim.run(2000);
+    const L = sim.ledger;
+    expect(sim.count).toBeGreaterThan(0);
+    const burned = (x: typeof L): number => x.basalBurned + x.movementBurned + x.sensingBurned + x.attackBurned + x.armorBurned + x.brainBurned;
+    const expected = e0 + (L.sunlightIn - L0.sunlightIn) - (burned(L) - burned(L0)) - (L.digestionLoss - L0.digestionLoss) - (L.decayLoss - L0.decayLoss);
+    expect(Math.abs(sim.energyAudit().total - expected) / expected).toBeLessThan(1e-9);
+    expect(Math.abs(sim.matterAudit().total - m0) / m0).toBeLessThan(1e-9);
+  }, 120_000);
+});

@@ -870,6 +870,17 @@ export class Simulation {
     }
   };
 
+  /** Fat as breeding capital: if energy and fat together reach `level`, move the shortfall out of fat (no loss). Returns the energy. */
+  private mobilizeFat(i: number, level: number): number {
+    const energy = this.energy[i]!;
+    const store = this.fatStore[i]!;
+    if (energy >= level || energy + store < level) return energy;
+    const moved = level - energy;
+    this.fatStore[i] = store - moved;
+    this.energy[i] = level;
+    return level;
+  }
+
   /** A newborn receives fat from a parent: into its reserve up to the cap, the rest as ordinary energy (nothing lost or made). */
   private giveFat(child: number, amount: number): void {
     const room = this.config.fatCap * this.threshold[child]! - this.fatStore[child]!;
@@ -4139,6 +4150,7 @@ export class Simulation {
     const energyPerFood = c.energyPerFood;
     const ledger = this.ledger;
     const brainMode = c.brainMode;
+    const fatBreeding = this.fatOn && c.fatBreeding === 1; // fat counts as breeding capital
     let attackers = 0;
     if (c.catastropheKind !== 0) this.catastropheCheck();
     // (Brains sense fouled ground compared with the average, so work the average out before anyone thinks.)
@@ -4473,7 +4485,8 @@ export class Simulation {
           if (draw > store) draw = store;
           store -= draw;
           energy += draw;
-        } else if (fraction > c.fatDepositAbove) {
+        } else if (fraction > c.fatDepositAbove && !(c.fatBreeding === 1 && this.sexGeneOn && this.sexMode[i] === 2)) {
+          // (With fatBreeding, an animal seeking a mate banks nothing: it is holding that energy to breed.)
           let amount = this.genes[i * GENE_COUNT + GENE.fat]! * c.fatDepositRate * (energy - c.fatDepositAbove * need);
           const room = (c.fatCap * need - store) / c.fatEfficiency;
           if (amount > room) amount = room > 0 ? room : 0;
@@ -4580,6 +4593,8 @@ export class Simulation {
       this.energy[i] = energy;
       this.age[i]!++;
 
+      // Fat pays for breeding: top energy up to the breeding level from fat if together they reach it.
+      if (fatBreeding && energy < this.threshold[i]!) energy = this.mobilizeFat(i, this.threshold[i]!);
       // Specialized cells are sterile: only generalist ("germ") cells reproduce.
       if (energy >= this.threshold[i]! && !(this.typeOn && this.cellType[i] !== 0)) this.parents[parentCount++] = i;
     }
@@ -4738,7 +4753,9 @@ export class Simulation {
         let partnerCount = 0;
         for (let i = 0; i < n; i++) {
           if (this.killed[i] === 1 || (this.typeOn && this.cellType[i] !== 0)) continue;
-          if (this.energy[i]! >= c.mateReadyFraction * this.threshold[i]!) this.partnerList[partnerCount++] = i;
+          const ready = c.mateReadyFraction * this.threshold[i]!;
+          if (fatBreeding && this.energy[i]! < ready) this.mobilizeFat(i, ready);
+          if (this.energy[i]! >= ready) this.partnerList[partnerCount++] = i;
         }
         pairCount = this.pairUp(mateList, mateCount, this.partnerList, partnerCount);
       } else {

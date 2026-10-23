@@ -415,6 +415,13 @@ export interface SimConfig {
    */
   fatRelated: number;
   /**
+   * Fat pays for breeding (0 = off): fat counts as breeding capital, as for animals that breed from stored
+   * reserves. An animal whose energy alone falls short of breeding (or of being ready to mate) but whose
+   * energy and fat together reach it moves the difference out of fat (no loss) and breeds or mates. While
+   * it is seeking a mate it banks nothing, so waiting does not drain its energy into fat and back.
+   */
+  fatBreeding: number;
+  /**
    * The torpor gene (the 22nd; needs a climate, and torporSaving above 0 turns it on): where plants are
    * growing at less than torporBelowGrowth of full speed an organism slows down in proportion to its
    * gene (a gene of 0.3 means 30% slower, and 30% less movement cost), and its upkeep falls by
@@ -1453,6 +1460,7 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   initialFat: 0,
   fatProvision: 0,
   fatRelated: 1,
+  fatBreeding: 0,
   torporSaving: 0,
   torporBelowGrowth: 0.35,
   torporUpkeep: 0.1,
@@ -2055,6 +2063,7 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (!(c.meatGorge >= 1)) problems.push("meatGorge must be at least 1");
   if (!(c.fatProvision >= 0 && c.fatProvision <= 1)) problems.push("fatProvision must be between 0 and 1");
   if (c.fatRelated !== 0 && c.fatRelated !== 1) problems.push("fatRelated must be 0 or 1");
+  if (c.fatBreeding !== 0 && c.fatBreeding !== 1) problems.push("fatBreeding must be 0 or 1");
   if (c.spareFamily !== 0 && c.spareFamily !== 1) problems.push("spareFamily must be 0 (off) or 1 (never attack your own parent or offspring)");
   for (const [name, value] of [["meatColdKeep", c.meatColdKeep], ["preyHungerDefense", c.preyHungerDefense], ["weaponGrazeLoss", c.weaponGrazeLoss]] as const) {
     if (!(value >= 0 && value <= 1)) problems.push(`${name} must be between 0 and 1`);
