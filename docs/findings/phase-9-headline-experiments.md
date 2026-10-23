@@ -710,3 +710,34 @@ Evolution drops the gene: from 0.60 to 0.07 in 8h. And the fat gene counted towa
 - **Vigilance protects the prey world.** It cancels most of the population and species losses that unmuted sight and the pull toward prey cause (population -16% instead of -41%, species -17% instead of -32%), and keeps plant eaters' eyes wider.
 - **Unmuted sight and the pull toward prey make the most hunting** (+59% kills, more meat, more feeding levels), at a real cost to the prey world.
 - **Still no lasting meat-eating group** in any of the 40 worlds.
+
+### 11c. The full package for a million ticks
+
+**Experiment:** `full-package-long`, 1,000,000 ticks, 16 fresh seeds (2801 to 2816), about 80 minutes on a 32-core machine, about $1.70. The reworked grand world against it with the whole mating-and-sight package:
+- the eye gene and vigilance;
+- prey sight not scaled by the viewer's diet, and a founder pull toward prey;
+- the pickiness gene and mate scent.
+
+**Answer: no lasting meat eaters, in either.**
+
+| | Grand world | Full package |
+|---|---|---|
+| Worlds with 10+ meat eaters for most of the second half | 0 of 16 | 0 of 16 |
+| Biggest short-lived meat-eating group | **249** (others 118 and 52) | 102 |
+| Share of animals with a diet above 0.5 | 0.23% | **1.33%** |
+| Mixed eaters | 126 | **249** |
+| Meat in the diet | 15% | **+14%*** |
+| Kills per 1,000 ticks | 2,418 | **+15%*** |
+| Feeding levels | 1.99 | 2.00* |
+| Population | 1,044 | **-25%*** |
+| Lowest population | 421 | **-37%*** |
+| Species | 8.7 | **-30%*** |
+| Eye, plant eaters / others | (0.5) | 0.81 / 0.85 (correlation 0.10) |
+| Pickiness | | 0.42 / 0.43 |
+
+(* holds up, 16 seeds)
+
+- **The reworked grand world grows short-lived meat-eating groups on its own** (up to 249 animals, in 4 of 16 worlds a group of 10 or more at some point), but none lasts. The classic grand world never did.
+- **The package pushes the whole population toward meat** (twice the mixed eaters, six times the animals eating mostly meat) but at a clear cost to the prey world (a quarter fewer animals, a third fewer species), and still no lasting meat-eating group.
+- **Over a million ticks the eye split fades** (correlation 0.10, against 0.24 at 300,000 ticks): eyes narrow for everyone, and pickiness rises evenly in all diets.
+- **So the package is not worth adopting as it is.** What it shows is that more hunting alone does not make a separate meat-eating group: the hunting is done by an ever larger crowd of mixed eaters.
