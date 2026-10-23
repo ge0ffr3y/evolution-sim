@@ -113,5 +113,10 @@
     "name": "path-bundle",
     "question": "With no help, do meat eaters (diet above 0.75) evolve and last in the grand world with the bundle of helps without the weapons penalty (sparing your own parent and young, a fat reserve, plant growth 0.24, meat that keeps in the cold, more mending 0.5, half the cost of heat and cold), and the same without fat? 16 fresh seeds, 500,000 ticks. An answer: worlds with 10+ meat eaters for most of the second half, feeding levels, kills, species and population.",
     "file": "path-bundle.json"
+  },
+  {
+    "name": "fat-rework",
+    "question": "Does reworked fat pay off? Grand world without fat, with today's fat, today's fat left out of relatedness, reworked fat (store only true surplus from the breeding level up, draw below half, 90% stored, cheaper to carry, half handed to young, left out of relatedness), reworked fat without the hand-over, reworked fat storing from 80%, and the no-fat path bundle with and without reworked fat. An answer: whether the fat gene now rises instead of falling, and what fat does to survival through lean spells (lowest population), species, brains (connections, hidden units) and meat eaters.",
+    "file": "fat-rework.json"
   }
 ]

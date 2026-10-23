@@ -561,3 +561,46 @@ It was tested with and without the fat reserve. About an hour on a 48-core machi
 
 - **Fat holds the world back here too.** With fat, the gains are smaller (species +29%, not holding up), and arriving meat eaters die out as fast as in today's grand world.
 - **Meat eaters can now stay** (without fat they hold near balance), **but none arrive.** The world fills with mixed eaters (132 per world, 15.6% meat in the diet), yet none specialize. The step from mixed eating to a meat-eating group remains the barrier; sex (which blends hunters back, experiment 1) and the seasons are still fully on.
+
+## 9. Fat, reworked
+
+**Why:** today's fat reserve costs before it pays:
+- it is banked from 60% of breeding energy, so breeding waits;
+- 20% is lost storing it, and carrying it costs upkeep and movement;
+- it is drawn only near starvation, and young start with none.
+
+Evolution drops the gene: from 0.60 to 0.07 in 8h. And the fat gene counted toward relatedness, with a wide random spread at the start.
+
+**Built** (all off by default; `fatrework.test.ts`):
+- `fatProvision`: a share of a parent's fat is handed to each baby;
+- `fatRelated`: 0 = the fat gene no longer counts toward species, mates and kin;
+- a brain sense of the fat reserve (`INPUT.fatReserve`; brain layout 79 inputs; brain-world goldens re-recorded, brains-off unchanged).
+
+"New fat" (`apps/runner/scripts/make-fat-rework.mjs`) uses those plus existing settings:
+- store only from the breeding level up (`fatDepositAbove` 1);
+- draw below half (`fatDrawBelow` 0.5);
+- 90% stored (`fatEfficiency` 0.9);
+- cheaper to carry (`fatMoveCost` 0.25, `fatUpkeep` 0.1);
+- half handed to young (`fatProvision` 0.5);
+- left out of relatedness (`fatRelated` 0).
+
+**Experiments:** `fat-rework` (300,000 ticks, seeds 2301 to 2304) and `fat-rework-margin` (150,000 ticks, seeds 2311 to 2314, arriving meat eaters, diet ledger). About $1.05 together.
+
+| | Fat gene at 50k / 150k / 300k | Births with two parents | Brain connections | Population | Species | Meat eaters |
+|---|---|---|---|---|---|---|
+| No fat (grand world) | none | 47% | 10.1 | 972 | 4.4 | 0 |
+| Today's fat | 0.52 / 0.26 / 0.22 | **25%*** | 11.3 | **-21%*** | 4.2 | 0 |
+| Today's fat, not counted in relatedness | 0.43 / 0.28 / 0.25 | **18%*** | 9.8 | **-35%*** | 3.6 | 0 |
+| New fat | 0.60 / 0.54 / **0.53** | **27%*** | 10.3 | -9% | 4.8 | 0 |
+| New fat, nothing handed to young | 0.61 / 0.58 / **0.67** | **26%*** | 10.4 | -12% | 5.9 | 0 |
+| New fat, storing from 80% | 0.40 / 0.34 / 0.26 | 27% | 13.3 | -10% | 4.6 | 0 |
+| Path bundle (no fat) | none | 41% | 9.7 | **+65%*** | **13.4*** | 0 |
+| Path bundle with new fat | 0.60 / 0.54 / 0.53 | **24%*** | 11.3 | +39% | 6.3 | 0 |
+
+(* holds up, 4 seeds)
+
+- **Evolution now keeps fat.** With the rework, the fat gene stays at about 0.5 to 0.7 instead of falling to 0.2 or below. Banking only true surplus makes fat worth carrying for the individual.
+- **But every kind of fat cuts sex by about half.** An animal waiting for a mate holds energy above its breeding level; fat banks exactly that energy, its energy falls below "ready", and it splits alone instead. Today's fat does the same at 60%.
+- **Leaving fat out of relatedness was not the cause of the harm.** Today's fat without it did no better.
+- **Not yet a gain for the world:** populations a little smaller, no clear change in species, brains or meat eaters. In the path bundle, adding new fat cancels most of its gain in species.
+- **The margin test varies a lot between sets of 4 worlds.** Arriving meat eaters faded in all three setups, including the no-fat path bundle, which held them at about 38 in 8h.
