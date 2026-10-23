@@ -118,5 +118,10 @@
     "name": "fat-rework",
     "question": "Does reworked fat pay off? Grand world without fat, with today's fat, today's fat left out of relatedness, reworked fat (store only true surplus from the breeding level up, draw below half, 90% stored, cheaper to carry, half handed to young, left out of relatedness), reworked fat without the hand-over, reworked fat storing from 80%, and the no-fat path bundle with and without reworked fat. An answer: whether the fat gene now rises instead of falling, and what fat does to survival through lean spells (lowest population), species, brains (connections, hidden units) and meat eaters.",
     "file": "fat-rework.json"
+  },
+  {
+    "name": "fat-breeding",
+    "question": "Does letting fat pay for breeding (fatBreeding: fat counts as breeding capital, and nothing is banked while seeking a mate) remove the cost of fat to sex and make fat a gain for the world? Grand world without fat, with reworked fat, and with reworked fat that pays for breeding; the no-fat path bundle and the path bundle with fat that pays for breeding. 8 fresh seeds, 300,000 ticks. An answer: births with two parents, the fat gene, population and its low point, species, brains and meat eaters.",
+    "file": "fat-breeding.json"
   }
 ]

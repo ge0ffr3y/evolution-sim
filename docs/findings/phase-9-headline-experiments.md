@@ -604,3 +604,27 @@ Evolution drops the gene: from 0.60 to 0.07 in 8h. And the fat gene counted towa
 - **Leaving fat out of relatedness was not the cause of the harm.** Today's fat without it did no better.
 - **Not yet a gain for the world:** populations a little smaller, no clear change in species, brains or meat eaters. In the path bundle, adding new fat cancels most of its gain in species.
 - **The margin test varies a lot between sets of 4 worlds.** Arriving meat eaters faded in all three setups, including the no-fat path bundle, which held them at about 38 in 8h.
+
+### 9b. Fat that pays for breeding
+
+**Why:** reworked fat was kept by evolution but halved sex (9): an animal waiting for a mate banked the energy it was holding to breed, fell below "ready" and split alone instead.
+
+**Built:** `fatBreeding` (off by default; tests in `fatrework.test.ts`). Fat counts as breeding capital: when energy alone falls short of breeding, or of being ready to mate, but energy and fat together reach it, the shortfall moves out of fat with no loss. An animal seeking a mate banks nothing.
+
+**Experiment:** `fat-breeding`, 300,000 ticks, 8 fresh seeds (2401 to 2408), on a 48-core machine, about $1.05.
+
+| | Fat gene at the end | Births with two parents | Species alive | Shannon | Population | Lowest population | Kills per 1,000 ticks |
+|---|---|---|---|---|---|---|---|
+| No fat (grand world) | none | 39% | 5.4 | 1.31 | 938 | 319 | 900 |
+| New fat | 0.51 | **31%** | 4.9 | 1.26 | 987 | 382 | **-45%*** |
+| New fat, paying for breeding | 0.56 | **41%** | 6.8 | 1.49 | 958 | 349 | -20% |
+| Path bundle (no fat) | none | 34% | 7.3 | 1.47 | **1,230*** | **478*** | **+185%*** |
+| Path bundle + new fat paying for breeding | 0.46 | 35% | **10.8*** | **1.87*** | **1,330*** | **523*** | **+168%*** |
+
+(* holds up, 8 seeds)
+
+- **Paying for breeding removes fat's cost to sex** (41% of births with two parents, against 31% with fat that does not, and 39% without fat), and evolution still keeps fat (gene about 0.5).
+- **Fat is now neutral to positive on its own** (species +27%, not holding up with 8 seeds), not a loss as before.
+- **With the path bundle it gives the richest grand world so far:** twice the species of today's grand world (10.8 against 5.4) and 43% more diversity, with a bigger population and a higher low point, on top of what the bundle gives without fat (7.3 species).
+- **Fat alone makes a calmer world** (fat that does not pay for breeding: 45% fewer kills, lives 31% longer).
+- **Still no lasting meat eaters** (one world reached 4), and **brains are no bigger** (11.0 to 11.4 connections everywhere). Fat that pays off has not, by itself, pushed brains up in 300,000 ticks.
