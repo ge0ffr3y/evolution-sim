@@ -462,3 +462,26 @@ From tick 100,000, one animal in twenty became an armed meat eater, and again ev
 - **A richer body is not a richer carcass.** The extra energy in a body comes out of what the parent hands its baby, so a newborn starts with less spare energy and a carcass holds about the same total. Meat income stays about flat.
 - **It costs the prey.** Plant eaters become fewer (up to 29% fewer at 12), with fewer species (-15 to -33%), so there is less to hunt.
 - **Feeding levels and meat in the diet rise a little** (up to +22% and +59%, not holding up with 4 seeds), but no world grows a single meat eater.
+
+### 8f. A fat reserve and more plant growth do not give the margin either
+
+**Experiments:** `margin-levers-margin` (150,000 ticks, seeds 2001 to 2004, repeated meat-eater arrivals from tick 100,000, diet ledger) and `margin-levers` (300,000 ticks, seeds 2011 to 2014, no help). Grand world against:
+- a fat reserve (deposit rate 0.5, founders and arrivals starting with fat), to bank a big meal for the lean days between kills;
+- more plant growth (0.18 and 0.24 per tick, against 0.12), so plant eaters breed faster;
+- fat with 0.18.
+
+Each on a 32-core machine, side by side, about $1.10 together.
+
+| | Meat eaters 4,500 ticks after arriving | Meat eaters' births / deaths | From scratch: meat eaters in 4 worlds | Feeding levels | Kills per 1,000 ticks |
+|---|---|---|---|---|---|
+| Grand world | 4 of 41 | 6.0 / 6.7 | 0, 0, 0, 0 | 1.47 | 783 |
+| Fat | 13 of 43 | 4.4 / 4.8 | 0, 0, 0, 0 | 1.23 | 502 |
+| Plants 0.18 | 0 of 40 | 4.2 / 8.9 | 0, 0, 0, 0 | 1.57 | 1,188 |
+| Plants 0.24 | 13 of 54 | 6.3 / 6.8 | 0, 0, 0, 0 | 1.73 | **1,858*** |
+| Fat and plants 0.18 | 4 of 46 | 4.7 / 5.5 | 0, 0, 0, 0 | 1.79 | **1,480*** |
+
+(* holds up, 4 seeds)
+
+- **Arriving meat eaters still die faster than they are born in every setup.** Fat and plants at 0.24 slow the loss (about a third left after 4,500 ticks, against a tenth); 0.18 was worse than both, likely noise with 4 seeds.
+- **More plants feed the armed plant eaters as much as the hunters.** Plant eaters kill more as plant growth rises (1.3 to about 2.3 kills each per 1,000 ticks in the margin test), and new meat eaters are among their victims. From scratch, plants at 0.24 more than double kills and lift feeding levels, but toward more mixed eating, not a meat-eating group.
+- **Fat makes a calmer world:** a third fewer kills and less meat, lives half again as long.
