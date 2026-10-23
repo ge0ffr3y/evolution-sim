@@ -1,7 +1,7 @@
 {
   "name": "audit-3-candidates",
   "question": "Which features that are built but switched off in the grand world make it richer (more feeding levels, more species, steadier populations, longer lives) rather than merely harder, when each is added on its own?",
-  "base": "grand-world",
+  "base": "grand-world-classic",
   "ticks": 200000,
   "seeds": "1-8",
   "arms": {

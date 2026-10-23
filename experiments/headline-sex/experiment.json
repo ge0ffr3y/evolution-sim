@@ -1,7 +1,7 @@
 {
   "name": "headline-sex",
   "question": "Does sex speed up the arrival of new feeding levels? Worlds where every animal splits in two, where sex is a gene (today's grand world), and where every animal must find a mate. An answer: when mixed eaters (5 or more) first appear and how much of the time they are present, the highest diet reached, and meat in the diet, against today's world, with 95% ranges.",
-  "base": "grand-world",
+  "base": "grand-world-classic",
   "ticks": 300000,
   "seeds": "601-616",
   "arms": {

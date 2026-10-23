@@ -123,5 +123,10 @@
     "name": "fat-breeding",
     "question": "Does letting fat pay for breeding (fatBreeding: fat counts as breeding capital, and nothing is banked while seeking a mate) remove the cost of fat to sex and make fat a gain for the world? Grand world without fat, with reworked fat, and with reworked fat that pays for breeding; the no-fat path bundle and the path bundle with fat that pays for breeding. 8 fresh seeds, 300,000 ticks. An answer: births with two parents, the fat gene, population and its low point, species, brains and meat eaters.",
     "file": "fat-breeding.json"
+  },
+  {
+    "name": "rich-grand-confirm",
+    "question": "Should the path bundle with fat that pays for breeding become the grand world? Confirmation on 16 fresh seeds over 500,000 ticks against today's grand world. Changes: sparing your own parent and young, plant growth 0.24 (against 0.12), meat that keeps in the cold (0.8), more mending of harmful mutations (0.5), half the cost of heat and cold (0.75), and reworked fat that pays for breeding. An answer: species, diversity, population and its low point, feeding levels, sex, lives, deaths and red flags, with 95% ranges; worlds lost; meat eaters.",
+    "file": "rich-grand-confirm.json"
   }
 ]

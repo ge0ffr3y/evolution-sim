@@ -4,7 +4,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { DEFAULT_CONFIG } from "@evo/sim-core";
 
-const grand: Record<string, number> = JSON.parse(readFileSync("configs/grand-world.json", "utf8")).config;
+const grand: Record<string, number> = JSON.parse(readFileSync("configs/grand-world-classic.json", "utf8")).config;
 const hunters: Record<string, number> = JSON.parse(readFileSync("configs/grand-hunters.json", "utf8")).config;
 const defaults = DEFAULT_CONFIG as unknown as Record<string, number>;
 // The base is the grand world, so the hunters' world must put every grand-world setting it drops back to the default.
@@ -15,7 +15,7 @@ const noKin = { kinDistance: 0, kinTolerance: 0, herdBonus: 0, shareRate: 0 };
 const exp = {
   name: "spare-family",
   question: "Does sparing your own parent and young (spareFamily) let meat eaters (diet above 0.75) take hold in the grand world? Hunters attack whoever is nearest and babies are born on their parent's spot, so a hunting family's first victims are its own; kin restraint was patching that. Grand world: as it is; with spareFamily; with spareFamily and no kin restraint; with spareFamily and no herds. Reference: the hunters' world with and without spareFamily. An answer: meat eaters, feeding levels, kills, species and population in each, against the grand world.",
-  base: "grand-world",
+  base: "grand-world-classic",
   ticks: 300000,
   seeds: "1701-1704",
   sampleEvery: 1500,

@@ -6,7 +6,7 @@ import { DEFAULT_CONFIG } from "@evo/sim-core";
 
 const path = "experiments/carnivore-bridge-2/experiment.json";
 const exp = JSON.parse(readFileSync(path, "utf8"));
-const grand: Record<string, number> = JSON.parse(readFileSync("configs/grand-world.json", "utf8")).config;
+const grand: Record<string, number> = JSON.parse(readFileSync("configs/grand-world-classic.json", "utf8")).config;
 const groups: Record<string, string[]> = {
   // The climate, and everything that needs it (ice ages, droughts, volcanoes, plant kinds peaking by season).
   climate: ["climateMode", "yearLength", "dayLength", "seasonGrowthSwing", "seasonTempSwing", "climateDriftPeriod", "climateDriftAmplitude", "weatherAmplitude", "yearVariability", "thermalCostCoeff", "torporSaving", "catastropheKind", "catastropheEvery", "catastropheLength", "evVolcanoEvery", "plantTypePhase"],

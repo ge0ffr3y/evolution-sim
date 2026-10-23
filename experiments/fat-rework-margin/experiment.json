@@ -1,7 +1,7 @@
 {
   "name": "fat-rework-margin",
   "question": "Do arriving meat eaters with reworked fat hold their numbers? Grand world with reworked fat, the no-fat path bundle, and the path bundle with reworked fat; one animal in twenty becomes an armed meat eater with a fat gene of 0.5 at tick 100,000 and every 5,000 ticks after, diet ledger. An answer: how many remain 4,500 ticks after each arrival, and births against deaths.",
-  "base": "grand-world",
+  "base": "grand-world-classic",
   "ticks": 150000,
   "seeds": "2311-2314",
   "sampleEvery": 500,

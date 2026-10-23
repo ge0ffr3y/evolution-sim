@@ -628,3 +628,36 @@ Evolution drops the gene: from 0.60 to 0.07 in 8h. And the fat gene counted towa
 - **With the path bundle it gives the richest grand world so far:** twice the species of today's grand world (10.8 against 5.4) and 43% more diversity, with a bigger population and a higher low point, on top of what the bundle gives without fat (7.3 species).
 - **Fat alone makes a calmer world** (fat that does not pay for breeding: 45% fewer kills, lives 31% longer).
 - **Still no lasting meat eaters** (one world reached 4), and **brains are no bigger** (11.0 to 11.4 connections everywhere). Fat that pays off has not, by itself, pushed brains up in 300,000 ticks.
+
+## 10. The grand world, reworked (adopted)
+
+**Experiment:** `rich-grand-confirm`, 500,000 ticks, 16 fresh seeds (2501 to 2516), about 45 minutes on a 32-core machine, about $1. The grand world as it was (now kept as the preset `grand-world-classic`) against it with:
+- sparing your own parent and young;
+- plant growth 0.24 (against 0.12);
+- meat that keeps in the cold (0.8);
+- more mending of harmful mutations (0.5, against 0.15);
+- half the cost of heat and cold (0.75);
+- reworked fat that pays for breeding (9b).
+
+**Answer: yes, adopt it.** Every change below holds up (16 seeds); no red flags beyond the intended ones (no collapse, no drift, no stuck genes).
+
+| | Classic grand world | Reworked grand world |
+|---|---|---|
+| Species alive | 4.5 | **10.6** (2.4 times) |
+| Species over the run | 27 | **85** |
+| Shannon diversity | 1.12 | **1.92** (+72%) |
+| Share in the biggest species | 49% | **31%** |
+| Population | 865 | **1,238** (+43%) |
+| Lowest population | 244 | **483** (twice) |
+| Feeding levels | 1.53 | **1.95** |
+| Mixed eaters | 17 | **104** |
+| Meat in the diet | 7.4% | **14.7%** |
+| Kills per 1,000 ticks | 774 | **2,270** |
+| Harmful mutations per animal | 15.8 | **5.6** |
+| Deaths that are starvation | 47% | **27%** |
+| Average age | 905 | 748 (-17%, not holding up) |
+| Births with two parents | 41% | 38% (no change) |
+| Fat gene | none | 0.58 |
+| Lasting meat-eating groups | 0 of 16 | 0 of 16 |
+
+**Adopted** as `configs/grand-world.json` (2026-10-23). Every experiment before this one ran on the classic grand world: their files now name `grand-world-classic` as their base, and the scripts that made them read it, so they re-run exactly.

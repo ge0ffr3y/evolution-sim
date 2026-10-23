@@ -1,7 +1,7 @@
 {
   "name": "audit-1-switch-off",
   "question": "What does each mechanism of the grand world (with 15% mending) do there, does any of them do nothing at all, and what does a disease that can actually spread do to the world?",
-  "base": "grand-world",
+  "base": "grand-world-classic",
   "ticks": 200000,
   "seeds": "1-8",
   "arms": {

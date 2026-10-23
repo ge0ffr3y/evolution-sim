@@ -1,7 +1,7 @@
 {
   "name": "audit-2-doses",
   "question": "Which settings is the grand world (with 15% mending) sensitive to, which barely matter, and where does a change of half or double cause a collapse?",
-  "base": "grand-world",
+  "base": "grand-world-classic",
   "baseChanges": {},
   "ticks": 100000,
   "seeds": "301-304",

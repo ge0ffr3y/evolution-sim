@@ -1,7 +1,7 @@
 {
   "name": "gates-grand",
   "question": "In the grand world, on top of place memory and learning, does gated working memory raise memory use above chance (instead of erasing it, as the first design did), and does it help (food gathered by age, population, diversity)?",
-  "base": "grand-world",
+  "base": "grand-world-classic",
   "ticks": 300000,
   "seeds": "1-8",
   "arms": {

@@ -1,7 +1,7 @@
 {
   "name": "speed-c8g",
   "question": "How fast does one c8g core run the grand world, compared with a laptop core and a c7g core?",
-  "base": "grand-world",
+  "base": "grand-world-classic",
   "ticks": 300000,
   "seeds": "1-4",
   "sampleEvery": 2000,

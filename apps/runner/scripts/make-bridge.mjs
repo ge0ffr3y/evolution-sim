@@ -5,7 +5,7 @@
 // Usage: node apps/runner/scripts/make-bridge.mjs
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 
-const grand = JSON.parse(readFileSync("configs/grand-world.json", "utf8")).config;
+const grand = JSON.parse(readFileSync("configs/grand-world-classic.json", "utf8")).config;
 const GROUPS = [
   ["size-food", ["worldWidth", "worldHeight", "initialOrganisms", "maxOrganisms", "foodRegrowPerTick"]],
   ["nutrients", ["nutrientMode"]],
