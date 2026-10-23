@@ -19,7 +19,7 @@
 
 ## What it gives (16 seeds, against the classic grand world)
 
-- **2.4 times the species alive** (10.6 against 4.5), three times as many over the run, 72% more diversity, and the biggest species holds a third of the animals instead of half.
+- **About twice the species alive** (first measured as 10.6 against 4.5; the species tracker was still counting the fat gene, and with that fixed the new grand world has about 8.8, devlog 22 / finding 11), more over the run, and about half again the diversity (Shannon 1.67 against 1.12, corrected), and the biggest species holds a third of the animals instead of half.
 - **A bigger, steadier population** (+43%, and the lowest point doubled), with fewer deaths by starvation (27% against 47%).
 - **A busier food web:** six times the mixed eaters, twice the meat in the diet, three times the kills, 1.95 feeding levels.
 - **Evolution keeps the fat** (gene about 0.6).

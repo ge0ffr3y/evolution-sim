@@ -1,0 +1,41 @@
+{
+  "name": "mating-sight",
+  "question": "Do the pickiness gene (diet-based mate choice, scaled by how many mates are around), the eye gene (from wide and short to narrow, far-reaching and sharp, starting at today's eye) and mate scent (two diet layers, smelled by the brain) let meat eaters (diet above 0.75) evolve and last in the grand world? Each alone, all three, all three with prey sight not scaled by the viewer's diet (brainAppetiteSenses 0), and that with a founder pull toward prey (brainFounderReflex 2). An answer: meat eaters, whether eyes split by diet (narrow for meat eaters, wide for plant eaters) and pickiness rises, feeding levels, kills, species, sex and population. The control also re-measures the grand world's species with the fat gene left out of species tracking.",
+  "base": "grand-world",
+  "ticks": 300000,
+  "seeds": "2601-2604",
+  "sampleEvery": 1500,
+  "arms": {
+    "control": {},
+    "pickiness": {
+      "matePickiness": 1
+    },
+    "eye": {
+      "eyeMode": 1
+    },
+    "mate-scent": {
+      "mateScent": 1
+    },
+    "all-three": {
+      "matePickiness": 1,
+      "eyeMode": 1,
+      "mateScent": 1
+    },
+    "all-three-unmuted": {
+      "matePickiness": 1,
+      "eyeMode": 1,
+      "mateScent": 1,
+      "brainAppetiteSenses": 0
+    },
+    "all-three-unmuted-reflex": {
+      "matePickiness": 1,
+      "eyeMode": 1,
+      "mateScent": 1,
+      "brainAppetiteSenses": 0,
+      "brainFounderReflex": 2
+    }
+  },
+  "measures": [
+    "all"
+  ]
+}

@@ -2,7 +2,7 @@
 
 The sweeps run on one large rented machine (Graviton, for example `c7g.16xlarge`: 64 cores, 128 GB) that starts for a batch and shuts itself down when the batch ends. Results and save files go to an S3 bucket. The laptop only builds, launches and downloads.
 
-**Budget:** at most $50 a month. The guard rails:
+**Budget:** at most $100 a month for the whole account (raised from $50 on 2026-10-23, when another simulation project started running here too; the runner's check counts all of the account's spend). The guard rails:
 - an AWS Budget alert;
 - on-demand machines only (the owner chose these over spot, which can be interrupted);
 - every machine terminates itself when its batch ends or after a hard time limit;
@@ -14,11 +14,11 @@ These steps change who can do what in the AWS account, so they are done by the o
 
 Run the commands from the repository folder, with an AWS profile that is allowed to manage IAM (your own admin login).
 
-### 1. A spending alert at $50 a month
+### 1. A spending alert (now $100 a month)
 
 In the AWS console: **Billing and Cost Management > Budgets > Create budget > Use a template > Monthly cost budget**.
 - Name: `evolution-sim`.
-- Amount: `50`.
+- Amount: `100` (it was `50` until 2026-10-23).
 - Email: your address.
 
 AWS then emails you at 85% and 100% of actual spend and when the forecast passes 100%. (Optional: add an alert at 50%.)

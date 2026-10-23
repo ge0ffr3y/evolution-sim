@@ -6,7 +6,7 @@ import type { SimConfig } from "./config";
  * worked out from the genes ("phenotype mapping") by stretching each gene
  * across that trait's allowed range from the config.
  */
-export const GENES = ["size", "speed", "senseRange", "metabolism", "hue", "mutationRate", "diet", "attack", "armor", "stamina", "thermal", "lifespan", "litter", "bond", "plan1", "plan2", "plan3", "stick", "tolerance", "sex", "fat", "torpor", "palate", "stressResponse", "calmResponse", "generosity", "toxicity", "signal", "learning", "placeMemory", "workingMemory"] as const;
+export const GENES = ["size", "speed", "senseRange", "metabolism", "hue", "mutationRate", "diet", "attack", "armor", "stamina", "thermal", "lifespan", "litter", "bond", "plan1", "plan2", "plan3", "stick", "tolerance", "sex", "fat", "torpor", "palate", "stressResponse", "calmResponse", "generosity", "toxicity", "signal", "learning", "placeMemory", "workingMemory", "pickiness", "eye"] as const;
 export type GeneName = (typeof GENES)[number];
 export const GENE_COUNT = GENES.length;
 
@@ -52,6 +52,8 @@ export const GENE = {
   learning: 28,
   placeMemory: 29,
   workingMemory: 30,
+  pickiness: 31,
+  eye: 32,
 } as const satisfies Record<GeneName, number>;
 
 /** Real-world values for every gene, e.g. { size: 1.2, speed: 0.8, ... }. */
@@ -110,6 +112,10 @@ export function traitRanges(c: SimConfig): Record<GeneName, TraitRange> {
     placeMemory: { min: 0, max: 1 },
     // How much its brain can hold in mind: how many memory cells it can use (the brain decides what to hold): plain 0 to 1.
     workingMemory: { min: 0, max: 1 },
+    // How strongly it turns down mates that eat differently from itself (when it has mates to choose from): plain 0 to 1.
+    pickiness: { min: 0, max: 1 },
+    // Its eye, from wide and short (0) through today's (0.5) to narrow, far-reaching and sharp (1): plain 0 to 1.
+    eye: { min: 0, max: 1 },
   };
 }
 

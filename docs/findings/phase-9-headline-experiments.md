@@ -643,9 +643,9 @@ Evolution drops the gene: from 0.60 to 0.07 in 8h. And the fat gene counted towa
 
 | | Classic grand world | Reworked grand world |
 |---|---|---|
-| Species alive | 4.5 | **10.6** (2.4 times) |
+| Species alive | 4.5 | **10.6** (2.4 times; about 8.8, twice, once fat is left out of species tracking: see 11) |
 | Species over the run | 27 | **85** |
-| Shannon diversity | 1.12 | **1.92** (+72%) |
+| Shannon diversity | 1.12 | **1.92** (+72%; about 1.67, +49%, once fat is left out of species tracking) |
 | Share in the biggest species | 49% | **31%** |
 | Population | 865 | **1,238** (+43%) |
 | Lowest population | 244 | **483** (twice) |
@@ -661,3 +661,83 @@ Evolution drops the gene: from 0.60 to 0.07 in 8h. And the fat gene counted towa
 | Lasting meat-eating groups | 0 of 16 | 0 of 16 |
 
 **Adopted** as `configs/grand-world.json` (2026-10-23). Every experiment before this one ran on the classic grand world: their files now name `grand-world-classic` as their base, and the scripts that made them read it, so they re-run exactly.
+
+## 11. Mating and sight: pickiness, the eye and mate scent
+
+**Built** (all off by default; `matingsight.test.ts`):
+- **Pickiness** (`matePickiness`, the 32nd gene): turns down mates whose diet differs by more than 1 - pickiness x choice, where choice is how many ready mates are in range (n / (n + 3)), and prefers the closer eater. Both partners must accept. Founders start at 0.
+- **The eye** (`eyeMode`, the 33rd gene): 0.5 is today's 150-degree eye. Toward 0 it is wider (up to about 300 degrees) and shorter; toward 1 narrower (down to about 60 degrees), longer and sharper against camouflage. Founders start at 0.5.
+- **Mate scent** (`mateScent`): animals seeking a mate lay scent in a plant-eater and a meat-eater layer; brains smell the mix matching their own diet.
+- **A fix:** the species tracker now also leaves out the fat gene when `fatRelated` is 0. Before, fat differences could split species, which inflated the reworked grand world's species count (10: first 10.6, corrected about 8.8; Shannon first 1.92, corrected about 1.67).
+
+**Experiment:** `mating-sight`, 300,000 ticks, seeds 2601 to 2604, on the reworked grand world, about $0.70.
+
+| | Meat eaters (4 worlds) | Eye, plant eaters / others | Eye-diet correlation | Pickiness | Mixed eaters | Feeding levels | Kills | Population |
+|---|---|---|---|---|---|---|---|---|
+| Grand world | 0, 0, 0, 0 | (0.5) | | | 107 | 1.96 | 2,534 | 1,127 |
+| Pickiness | 0, 0, 0, 0 | | | 0.19 / 0.18 | 84 | 1.75 | -17% | +18% |
+| Eye | 0, 0, 0, **26** | 0.78 / 0.87 | 0.17 | | 152 | 2.05 | +20% | -16% |
+| Mate scent | 0, 0, 0, 0 | | | | 99 | 1.88 | +3% | +11% |
+| All three | 0, 0, 0, 0 | 0.88 / 0.89 | 0.04 | 0.30 / 0.32 | 140 | 2.00 | +22% | **-36%*** |
+| All three, prey sight unmuted | 0, 0, 0, 0 | 0.76 / 0.81 | 0.16 | 0.25 / 0.27 | 212 | 2.00 | +25% | **-31%*** |
+| All three, unmuted, pull toward prey | 0, 0, 0, 0 | 0.86 / 0.88 | 0.04 | 0.41 / 0.44 | **278*** | **2.01*** | **+31%*** | **-24%*** |
+
+(* holds up, 4 seeds; the last setup also has 28% more meat in the diet*, and in one world 5% of animals with a diet above 0.5)
+
+- **The eye evolves, but not apart by diet.** Plant eaters and others alike move to narrow, far-reaching, sharp eyes (about 0.8 to 0.9), and eye goes only weakly with diet (correlation 0.04 to 0.17). As built, a narrow eye is better for everyone: seeing far ahead and through camouflage pays, and a wide view gives prey too little, because nothing about an attack depends on whether the prey sees it coming.
+- **Pickiness evolves from nothing** (to about 0.2 to 0.4), equally in plant eaters and others. On its own it does not change who eats what.
+- **Mate scent alone changes little.**
+- **Letting would-be hunters see prey, plus a pull toward prey, moves the most:** nearly three times the mixed eaters, more meat, more kills, and the first worlds with a few percent of animals eating mostly meat. But no lasting meat-eating group, and fewer animals.
+- **Corrected species count:** the reworked grand world has about 8.8 species (against 4.5 for the classic one), about twice, not 2.4 times.
+
+### 11b. Vigilance: a use for wide eyes
+
+**Built:** `vigilance` (off by default, needs brains; tests in `matingsight.test.ts`). If an attacker is inside the prey's field of view and sight range, and not hidden by camouflage, the prey defends 1 + vigilance times as well. Wide eyes see more of what is around them, so this is what a wide eye is for.
+
+**Experiment:** `vigilance`, 300,000 ticks, 8 fresh seeds (2701 to 2708), on the reworked grand world, 48 cores, about $1.
+
+| | Eye: plant eaters / others | Eye-diet correlation | Population | Species | Kills | Feeding levels | Meat eaters |
+|---|---|---|---|---|---|---|---|
+| Grand world | (0.5) | | 1,414 | 8.5 | 2,043 | 1.79 | 0 |
+| Eye | 0.68 / **0.84*** | **0.19*** | **-25%*** | -23% | +29% | +8% | 0 |
+| Eye + vigilance | 0.65 / **0.73*** | **0.15*** | -14% | -5% | +31% | +8% | 0 |
+| Eye + unmuted sight + pull toward prey | **0.83*** / **0.88*** | 0.09 | **-41%*** | **-32%*** | **+59%*** | **+12%*** | 0 |
+| The same + vigilance | 0.60 / **0.73*** | **0.24*** | -16% | -17% | +17% | +10% | 0 (1 in three worlds) |
+
+(* holds up, 8 seeds. Eye: 0 widest, 0.5 today's, 1 narrowest.)
+
+- **Eyes now go with diet.** In every setup with the eye gene, mixed and meat eaters end up with narrower eyes than plant eaters, and the link holds up with 8 seeds (strongest, 0.24, with vigilance and the hunting helps). Everyone still drifts somewhat narrower than today's eye: a far, sharp view is useful to all.
+- **Vigilance protects the prey world.** It cancels most of the population and species losses that unmuted sight and the pull toward prey cause (population -16% instead of -41%, species -17% instead of -32%), and keeps plant eaters' eyes wider.
+- **Unmuted sight and the pull toward prey make the most hunting** (+59% kills, more meat, more feeding levels), at a real cost to the prey world.
+- **Still no lasting meat-eating group** in any of the 40 worlds.
+
+### 11c. The full package for a million ticks
+
+**Experiment:** `full-package-long`, 1,000,000 ticks, 16 fresh seeds (2801 to 2816), about 80 minutes on a 32-core machine, about $1.70. The reworked grand world against it with the whole mating-and-sight package:
+- the eye gene and vigilance;
+- prey sight not scaled by the viewer's diet, and a founder pull toward prey;
+- the pickiness gene and mate scent.
+
+**Answer: no lasting meat eaters, in either.**
+
+| | Grand world | Full package |
+|---|---|---|
+| Worlds with 10+ meat eaters for most of the second half | 0 of 16 | 0 of 16 |
+| Biggest short-lived meat-eating group | **249** (others 118 and 52) | 102 |
+| Share of animals with a diet above 0.5 | 0.23% | **1.33%** |
+| Mixed eaters | 126 | **249** |
+| Meat in the diet | 15% | **+14%*** |
+| Kills per 1,000 ticks | 2,418 | **+15%*** |
+| Feeding levels | 1.99 | 2.00* |
+| Population | 1,044 | **-25%*** |
+| Lowest population | 421 | **-37%*** |
+| Species | 8.7 | **-30%*** |
+| Eye, plant eaters / others | (0.5) | 0.81 / 0.85 (correlation 0.10) |
+| Pickiness | | 0.42 / 0.43 |
+
+(* holds up, 16 seeds)
+
+- **The reworked grand world grows short-lived meat-eating groups on its own** (up to 249 animals, in 4 of 16 worlds a group of 10 or more at some point), but none lasts. The classic grand world never did.
+- **The package pushes the whole population toward meat** (twice the mixed eaters, six times the animals eating mostly meat) but at a clear cost to the prey world (a quarter fewer animals, a third fewer species), and still no lasting meat-eating group.
+- **Over a million ticks the eye split fades** (correlation 0.10, against 0.24 at 300,000 ticks): eyes narrow for everyone, and pickiness rises evenly in all diets.
+- **So the package is not worth adopting as it is.** What it shows is that more hunting alone does not make a separate meat-eating group: the hunting is done by an ever larger crowd of mixed eaters.

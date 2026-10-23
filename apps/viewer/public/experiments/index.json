@@ -128,5 +128,20 @@
     "name": "rich-grand-confirm",
     "question": "Should the path bundle with fat that pays for breeding become the grand world? Confirmation on 16 fresh seeds over 500,000 ticks against today's grand world. Changes: sparing your own parent and young, plant growth 0.24 (against 0.12), meat that keeps in the cold (0.8), more mending of harmful mutations (0.5), half the cost of heat and cold (0.75), and reworked fat that pays for breeding. An answer: species, diversity, population and its low point, feeding levels, sex, lives, deaths and red flags, with 95% ranges; worlds lost; meat eaters.",
     "file": "rich-grand-confirm.json"
+  },
+  {
+    "name": "mating-sight",
+    "question": "Do the pickiness gene (diet-based mate choice, scaled by how many mates are around), the eye gene (from wide and short to narrow, far-reaching and sharp, starting at today's eye) and mate scent (two diet layers, smelled by the brain) let meat eaters (diet above 0.75) evolve and last in the grand world? Each alone, all three, all three with prey sight not scaled by the viewer's diet (brainAppetiteSenses 0), and that with a founder pull toward prey (brainFounderReflex 2). An answer: meat eaters, whether eyes split by diet (narrow for meat eaters, wide for plant eaters) and pickiness rises, feeding levels, kills, species, sex and population. The control also re-measures the grand world's species with the fat gene left out of species tracking.",
+    "file": "mating-sight.json"
+  },
+  {
+    "name": "vigilance",
+    "question": "Does vigilance (prey that see an attack coming are harder to catch) give wide eyes a purpose, so that eyes split by diet (wide for plant eaters, narrow for meat eaters) and meat eaters (diet above 0.75) take hold? Grand world; the eye gene alone and with vigilance 1; the eye with prey sight not scaled by diet and a founder pull toward prey, alone and with vigilance 1. 8 fresh seeds, 300,000 ticks. An answer: eye by diet (and their correlation), meat eaters, kills, feeding levels, species and population.",
+    "file": "vigilance.json"
+  },
+  {
+    "name": "full-package-long",
+    "question": "Given a million ticks, do meat eaters (diet above 0.75) evolve and last in the grand world with the full mating-and-sight package: the eye gene, vigilance, prey sight not scaled by the viewer's diet, a founder pull toward prey, the pickiness gene and mate scent? 16 fresh seeds against the grand world. An answer: worlds with a lasting meat-eating group (10+ for most of the second half), when meat eaters first appear, eye and pickiness by diet, feeding levels, kills, species, population and its low point.",
+    "file": "full-package-long.json"
   }
 ]
