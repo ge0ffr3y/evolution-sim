@@ -643,9 +643,9 @@ Evolution drops the gene: from 0.60 to 0.07 in 8h. And the fat gene counted towa
 
 | | Classic grand world | Reworked grand world |
 |---|---|---|
-| Species alive | 4.5 | **10.6** (2.4 times) |
+| Species alive | 4.5 | **10.6** (2.4 times; about 8.8, twice, once fat is left out of species tracking: see 11) |
 | Species over the run | 27 | **85** |
-| Shannon diversity | 1.12 | **1.92** (+72%) |
+| Shannon diversity | 1.12 | **1.92** (+72%; about 1.67, +49%, once fat is left out of species tracking) |
 | Share in the biggest species | 49% | **31%** |
 | Population | 865 | **1,238** (+43%) |
 | Lowest population | 244 | **483** (twice) |
@@ -661,3 +661,31 @@ Evolution drops the gene: from 0.60 to 0.07 in 8h. And the fat gene counted towa
 | Lasting meat-eating groups | 0 of 16 | 0 of 16 |
 
 **Adopted** as `configs/grand-world.json` (2026-10-23). Every experiment before this one ran on the classic grand world: their files now name `grand-world-classic` as their base, and the scripts that made them read it, so they re-run exactly.
+
+## 11. Mating and sight: pickiness, the eye and mate scent
+
+**Built** (all off by default; `matingsight.test.ts`):
+- **Pickiness** (`matePickiness`, the 32nd gene): turns down mates whose diet differs by more than 1 - pickiness x choice, where choice is how many ready mates are in range (n / (n + 3)), and prefers the closer eater. Both partners must accept. Founders start at 0.
+- **The eye** (`eyeMode`, the 33rd gene): 0.5 is today's 150-degree eye. Toward 0 it is wider (up to about 300 degrees) and shorter; toward 1 narrower (down to about 60 degrees), longer and sharper against camouflage. Founders start at 0.5.
+- **Mate scent** (`mateScent`): animals seeking a mate lay scent in a plant-eater and a meat-eater layer; brains smell the mix matching their own diet.
+- **A fix:** the species tracker now also leaves out the fat gene when `fatRelated` is 0. Before, fat differences could split species, which inflated the reworked grand world's species count (10: first 10.6, corrected about 8.8; Shannon first 1.92, corrected about 1.67).
+
+**Experiment:** `mating-sight`, 300,000 ticks, seeds 2601 to 2604, on the reworked grand world, about $0.70.
+
+| | Meat eaters (4 worlds) | Eye, plant eaters / others | Eye-diet correlation | Pickiness | Mixed eaters | Feeding levels | Kills | Population |
+|---|---|---|---|---|---|---|---|---|
+| Grand world | 0, 0, 0, 0 | (0.5) | | | 107 | 1.96 | 2,534 | 1,127 |
+| Pickiness | 0, 0, 0, 0 | | | 0.19 / 0.18 | 84 | 1.75 | -17% | +18% |
+| Eye | 0, 0, 0, **26** | 0.78 / 0.87 | 0.17 | | 152 | 2.05 | +20% | -16% |
+| Mate scent | 0, 0, 0, 0 | | | | 99 | 1.88 | +3% | +11% |
+| All three | 0, 0, 0, 0 | 0.88 / 0.89 | 0.04 | 0.30 / 0.32 | 140 | 2.00 | +22% | **-36%*** |
+| All three, prey sight unmuted | 0, 0, 0, 0 | 0.76 / 0.81 | 0.16 | 0.25 / 0.27 | 212 | 2.00 | +25% | **-31%*** |
+| All three, unmuted, pull toward prey | 0, 0, 0, 0 | 0.86 / 0.88 | 0.04 | 0.41 / 0.44 | **278*** | **2.01*** | **+31%*** | **-24%*** |
+
+(* holds up, 4 seeds; the last setup also has 28% more meat in the diet*, and in one world 5% of animals with a diet above 0.5)
+
+- **The eye evolves, but not apart by diet.** Plant eaters and others alike move to narrow, far-reaching, sharp eyes (about 0.8 to 0.9), and eye goes only weakly with diet (correlation 0.04 to 0.17). As built, a narrow eye is better for everyone: seeing far ahead and through camouflage pays, and a wide view gives prey too little, because nothing about an attack depends on whether the prey sees it coming.
+- **Pickiness evolves from nothing** (to about 0.2 to 0.4), equally in plant eaters and others. On its own it does not change who eats what.
+- **Mate scent alone changes little.**
+- **Letting would-be hunters see prey, plus a pull toward prey, moves the most:** nearly three times the mixed eaters, more meat, more kills, and the first worlds with a few percent of animals eating mostly meat. But no lasting meat-eating group, and fewer animals.
+- **Corrected species count:** the reworked grand world has about 8.8 species (against 4.5 for the classic one), about twice, not 2.4 times.

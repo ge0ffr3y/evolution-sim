@@ -128,5 +128,10 @@
     "name": "rich-grand-confirm",
     "question": "Should the path bundle with fat that pays for breeding become the grand world? Confirmation on 16 fresh seeds over 500,000 ticks against today's grand world. Changes: sparing your own parent and young, plant growth 0.24 (against 0.12), meat that keeps in the cold (0.8), more mending of harmful mutations (0.5), half the cost of heat and cold (0.75), and reworked fat that pays for breeding. An answer: species, diversity, population and its low point, feeding levels, sex, lives, deaths and red flags, with 95% ranges; worlds lost; meat eaters.",
     "file": "rich-grand-confirm.json"
+  },
+  {
+    "name": "mating-sight",
+    "question": "Do the pickiness gene (diet-based mate choice, scaled by how many mates are around), the eye gene (from wide and short to narrow, far-reaching and sharp, starting at today's eye) and mate scent (two diet layers, smelled by the brain) let meat eaters (diet above 0.75) evolve and last in the grand world? Each alone, all three, all three with prey sight not scaled by the viewer's diet (brainAppetiteSenses 0), and that with a founder pull toward prey (brainFounderReflex 2). An answer: meat eaters, whether eyes split by diet (narrow for meat eaters, wide for plant eaters) and pickiness rises, feeding levels, kills, species, sex and population. The control also re-measures the grand world's species with the fat gene left out of species tracking.",
+    "file": "mating-sight.json"
   }
 ]
