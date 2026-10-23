@@ -68,5 +68,10 @@
     "name": "hunters-confirm",
     "question": "Does a 'hunters' grand world reliably grow meat eaters? Today's grand world against two versions without harmful mutations, sex and kin restraint: one also without the whole climate (as in carnivore-bridge-2, meat eaters in 3 of 4 worlds), one without only the seasons (keeping day and night, weather, drift, the cost of heat and cold, torpor and ice ages). 16 fresh seeds, 300,000 ticks. An answer: in how many worlds a meat-eating group (diet above 0.75) holds over the second half, how big, and what the versions cost in species and population.",
     "file": "hunters-confirm.json"
+  },
+  {
+    "name": "spare-family",
+    "question": "Does sparing your own parent and young (spareFamily) let meat eaters (diet above 0.75) take hold in the grand world? Hunters attack whoever is nearest and babies are born on their parent's spot, so a hunting family's first victims are its own; kin restraint was patching that. Grand world: as it is; with spareFamily; with spareFamily and no kin restraint; with spareFamily and no herds. Reference: the hunters' world with and without spareFamily. An answer: meat eaters, feeding levels, kills, species and population in each, against the grand world.",
+    "file": "spare-family.json"
   }
 ]

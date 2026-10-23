@@ -358,3 +358,44 @@ About an hour on a 32-core machine, about $1.15.
 - **The hunters' world is richer, not poorer:** a real food web (plant eaters, mixed eaters, meat eaters; 2.7 feeding levels), 29% more species alive, more than twice as many species over the run, a bigger and steadier population. The price is shorter lives (half as long; most deaths are kills now) and more disease (a denser world).
 - **Seasons were not the whole of the climate's effect in the grand world.** In the simple world only seasons mattered (7b), but here removing the seasons alone left meat eaters in 4 of 16 worlds at most 11 strong, and cost a third of the species. Something else in the climate also blocks them when combined with the rest: torpor (a dormant animal cannot attack), the cost of heat and cold, ice ages and droughts, or weather. Not yet split.
 - **What it gives up:** sex, harmful mutations, kin restraint, herds and sharing, and the climate (seasons, weather, day and night, ice ages, droughts, volcanoes, the cost of heat and cold, torpor). It is a different world, not a fix for the grand world.
+
+## 8. Prey choice: hunters eat their own families
+
+**Why:** kin restraint behaved oddly. Removing it, and also tightening it, cut hunting in the grand world, so it was not simply a brake. A diagnostic (`apps/runner/scripts/kill-victims.ts`) recorded who each kill's victim was.
+
+**Found:** babies appear on their parent's exact spot, and a hunter attacks whoever is nearest in reach, so family members are often each other's first targets. In 20,000-tick runs (one seed each):
+
+| | Kills by an animal at most 5 ticks old | Victim is the killer's parent | Victim is the killer's child |
+|---|---|---|---|
+| Simple world | 22% | 21% | 4% |
+| Grand world | 6% | 4% | 6% |
+| Grand world without kin restraint | 8% | 12% | 10% |
+| Grand world: hunters | 11% | 11% | 8% |
+
+Kin restraint was patching this: without it a hunting family eats itself, so hunting pays less (grand world: 18,000 kills in 20,000 ticks without it, 41,000 with it).
+
+**Built:** `spareFamily` (off by default; tests in `carnivory.test.ts`). An animal never attacks its own parent or offspring, known by identity, not by gene likeness. In a quick check it removed parent and child kills completely and raised kills to 62,000 (50,000 without kin restraint).
+
+### 8b. It does not bring meat eaters to the grand world
+
+**Experiment:** `spare-family` (made by `apps/runner/scripts/make-spare-family.ts`), 300,000 ticks, seeds 1701 to 1704. About 30 minutes on a 32-core machine, about 60 cents.
+
+| | Meat eaters per world (second half) | Feeding levels | Kills per 1,000 ticks |
+|---|---|---|---|
+| Grand world | 0, 0, 0, 0 | 1.66 | 1,210 |
+| + spare family | 0, 0, 0, 0 | 1.66 | 994 |
+| + spare family, no kin restraint | 0, 0, 0, 0 | 1.37 | 747 |
+| + spare family, no herds | 0, 0, 0, 0 | 1.77 | 1,463 |
+| Grand world: hunters (reference) | 95 to 193 | 2.90 | 4,973 |
+| Hunters + spare family | 43 to 101 | 2.94 | 5,932 |
+
+**Answer: no.** The early rise in kills does not last, and no meat eaters appear in any grand-world setup. Sparing family is a real fix for a real quirk, but it is not what holds meat eaters back in the grand world.
+
+### 8c. Autopsy: what kills a meat-eating group in the grand world
+
+**Diagnostic:** `apps/runner/scripts/invader-autopsy.ts` turns one animal in twenty into an armed meat eater after 60,000 ticks and follows every descendant (one seed, laptop runs).
+
+- **In the grand world the group dies within about 700 ticks; in the hunters' world it lasts.** Both take in about the same meat (about 5 to 10 breedings' worth per animal per 1,000 ticks) and are about equally fed (half of what breeding needs). The difference is breeding and starving: in the hunters' world invaders produce about one baby each per 100 ticks; in the grand world about a quarter of that, and most deaths are running out of energy.
+- **Meat eaters kill each other.** In the hunters' world, 30 to 40% of the group's deaths are kills by its own lineage (cousins and siblings, which sparing family does not cover). They last anyway because they breed so fast.
+- **No single grand-world feature is the cause.** Removed one at a time from the grand world, the group lasts: kin restraint or sex about 1,500 ticks, harmful mutations about 2,000, seasons about 3,000, the cost of heat and cold a little over 3,000 (one seed each). Each buys time; none is enough.
+- **So the grand world taxes everyone, and meat eaters have no margin to pay it.** Harmful mutations alone nearly double every animal's upkeep (about 18 per animal at about 4% each). Plant eaters' income arrives every tick and absorbs that; a meat eater's arrives in lumps and runs at about break-even even in easy worlds, so each extra cost pushes it under.
