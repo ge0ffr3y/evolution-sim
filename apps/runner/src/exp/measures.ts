@@ -767,21 +767,36 @@ export function observeWorld(sim: Simulation, measures: string[]): void {
 // Bands by diet gene: 0 = under 0.25 (plant eaters), 1 = 0.25 to 0.5, 2 = 0.5 to 0.75, 3 = over 0.75 (meat eaters).
 const DIET_BANDS = 4;
 const bandOf = (diet: number): number => (diet < 0.25 ? 0 : diet < 0.5 ? 1 : diet < 0.75 ? 2 : 3);
-interface LedgerAnimal { band: number; plant: number; meat: number; kills: number; seen: number }
+interface LedgerAnimal { band: number; plant: number; meat: number; kills: number; seen: number; fed: number; age: number }
 interface LedgerState {
   animals: Map<number, LedgerAnimal>;
   ticks: number;
-  /** Per band, over the current window: animal-ticks, energy share summed, plant and meat income (in breedings' worth), kills, births, deaths. */
-  w: { animalTicks: number[]; fed: number[]; plant: number[]; meat: number[]; kills: number[]; births: number[]; deaths: number[] };
+  /** Animals killed this tick (by id), and the diet band of their killer. */
+  killedBy: Map<number, number>;
+  /**
+   * Per band, over the current window: animal-ticks, energy share summed, plant and meat income (in breedings' worth), kills,
+   * births, deaths; deaths split by cause (ran out of energy, killed by a meat eater, killed by anyone else), and, for the
+   * dead, how fed they were when last seen and their age.
+   */
+  w: { animalTicks: number[]; fed: number[]; plant: number[]; meat: number[]; kills: number[]; births: number[]; deaths: number[]; ranOut: number[]; byMeatEater: number[]; byOther: number[]; fedAtDeath: number[]; ageAtDeath: number[] };
 }
 const ledgers = new WeakMap<Simulation, LedgerState>();
-const emptyWindow = (): LedgerState["w"] => ({ animalTicks: [0, 0, 0, 0], fed: [0, 0, 0, 0], plant: [0, 0, 0, 0], meat: [0, 0, 0, 0], kills: [0, 0, 0, 0], births: [0, 0, 0, 0], deaths: [0, 0, 0, 0] });
+const emptyWindow = (): LedgerState["w"] => ({ animalTicks: [0, 0, 0, 0], fed: [0, 0, 0, 0], plant: [0, 0, 0, 0], meat: [0, 0, 0, 0], kills: [0, 0, 0, 0], births: [0, 0, 0, 0], deaths: [0, 0, 0, 0], ranOut: [0, 0, 0, 0], byMeatEater: [0, 0, 0, 0], byOther: [0, 0, 0, 0], fedAtDeath: [0, 0, 0, 0], ageAtDeath: [0, 0, 0, 0] });
 function ledgerOf(sim: Simulation): LedgerState {
   let st = ledgers.get(sim);
   if (!st) {
-    st = { animals: new Map(), ticks: 0, w: emptyWindow() };
-    for (let i = 0; i < sim.count; i++) st.animals.set(sim.id[i]!, { band: bandOf(sim.diet[i]!), plant: sim.plantTaken[i]!, meat: sim.meatTaken[i]!, kills: sim.kills[i]!, seen: sim.tick });
+    st = { animals: new Map(), ticks: 0, killedBy: new Map(), w: emptyWindow() };
+    for (let i = 0; i < sim.count; i++) st.animals.set(sim.id[i]!, { band: bandOf(sim.diet[i]!), plant: sim.plantTaken[i]!, meat: sim.meatTaken[i]!, kills: sim.kills[i]!, seen: sim.tick, fed: sim.energy[i]! / sim.threshold[i]!, age: sim.age[i]! });
     ledgers.set(sim, st);
+    // To tell how animals die, note every kill as it happens: the world's own kill step is wrapped, and the
+    // real one runs unchanged (watching only; a test checks that the world plays out the same).
+    const world = sim as unknown as { kill(attacker: number, prey: number): void };
+    const realKill = world.kill.bind(sim);
+    const killedBy = st.killedBy;
+    world.kill = (attacker: number, prey: number): void => {
+      killedBy.set(sim.id[prey]!, bandOf(sim.diet[attacker]!));
+      realKill(attacker, prey);
+    };
   }
   return st;
 }
@@ -799,7 +814,7 @@ function observeLedger(sim: Simulation): void {
       // Born since the last tick: a birth for its parent's diet band (its own band if the parent is not known).
       const parent = st.animals.get(sim.parentId[i]!);
       w.births[parent ? parent.band : band]!++;
-      a = { band, plant: sim.plantTaken[i]!, meat: sim.meatTaken[i]!, kills: sim.kills[i]!, seen: now };
+      a = { band, plant: sim.plantTaken[i]!, meat: sim.meatTaken[i]!, kills: sim.kills[i]!, seen: now, fed: sim.energy[i]! / thr, age: sim.age[i]! };
       st.animals.set(id, a);
     } else {
       w.plant[band]! += (sim.plantTaken[i]! - a.plant) / thr;
@@ -810,6 +825,8 @@ function observeLedger(sim: Simulation): void {
       a.kills = sim.kills[i]!;
       a.band = band;
       a.seen = now;
+      a.fed = sim.energy[i]! / thr;
+      a.age = sim.age[i]!;
     }
     w.animalTicks[band]!++;
     w.fed[band]! += sim.energy[i]! / thr;
@@ -817,9 +834,16 @@ function observeLedger(sim: Simulation): void {
   for (const [id, a] of st.animals) {
     if (a.seen !== now) {
       w.deaths[a.band]!++;
+      const killer = st.killedBy.get(id);
+      if (killer === undefined) w.ranOut[a.band]!++;
+      else if (killer === 3) w.byMeatEater[a.band]!++;
+      else w.byOther[a.band]!++;
+      w.fedAtDeath[a.band]! += a.fed;
+      w.ageAtDeath[a.band]! += a.age;
       st.animals.delete(id);
     }
   }
+  st.killedBy.clear();
 }
 function sampleLedger(sim: Simulation): Row {
   const st = ledgerOf(sim);
@@ -846,6 +870,12 @@ function sampleLedger(sim: Simulation): Row {
     row[`ld${b}_kills`] = per1000(w.kills[b]!);
     row[`ld${b}_births`] = per1000(w.births[b]!);
     row[`ld${b}_deaths`] = per1000(w.deaths[b]!);
+    // How they died: per animal per 1,000 ticks by cause, and (for the dead) how fed when last seen and how old.
+    row[`ld${b}_ranOut`] = per1000(w.ranOut[b]!);
+    row[`ld${b}_byMeatEater`] = per1000(w.byMeatEater[b]!);
+    row[`ld${b}_byOther`] = per1000(w.byOther[b]!);
+    row[`ld${b}_fedAtDeath`] = w.deaths[b]! > 0 ? round(w.fedAtDeath[b]! / w.deaths[b]!, 4) : NaN;
+    row[`ld${b}_ageAtDeath`] = w.deaths[b]! > 0 ? round(w.ageAtDeath[b]! / w.deaths[b]!, 1) : NaN;
     if (counts[b]! > 0) {
       const cost = sim.costBreakdown((i) => bands[i] === b);
       const scale = 1000 / (thresholdSum[b]! / counts[b]!);
@@ -862,7 +892,7 @@ function sampleLedger(sim: Simulation): Row {
   st.w = emptyWindow();
   return row;
 }
-const LEDGER_KEYS = ["share", "fed", "plantIn", "meatIn", "kills", "births", "deaths", "cost", "costUpkeep", "costLoad", "costThermal", "costMove", "costAttack"];
+const LEDGER_KEYS = ["share", "fed", "plantIn", "meatIn", "kills", "births", "deaths", "ranOut", "byMeatEater", "byOther", "fedAtDeath", "ageAtDeath", "cost", "costUpkeep", "costLoad", "costThermal", "costMove", "costAttack"];
 
 MEASURES.dietLedger = {
   describe:

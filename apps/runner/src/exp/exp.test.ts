@@ -428,6 +428,23 @@ describe("the diet ledger (opt-in, watches every tick)", () => {
   });
 });
 
+describe("the diet ledger: how animals die", () => {
+  it("splits every death into ran out of energy, killed by a meat eater, or killed by anyone else", async () => {
+    const exp = tiny({ arms: { control: { worldWidth: 128, worldHeight: 128, initialOrganisms: 200, initialAttack: 0.5, initialDiet: 0.3 } }, measures: ["population", "dietLedger"], sampleEvery: 100 });
+    const r = (await runJob(exp, jobsOf(exp)[0]!))!;
+    let killed = 0;
+    for (const row of r.rows.slice(1)) {
+      for (let b = 0; b < 4; b++) {
+        const deaths = row[`ld${b}_deaths`]!;
+        if (Number.isNaN(deaths)) continue;
+        expect(row[`ld${b}_ranOut`]! + row[`ld${b}_byMeatEater`]! + row[`ld${b}_byOther`]!).toBeCloseTo(deaths, 3);
+        killed += row[`ld${b}_byMeatEater`]! + row[`ld${b}_byOther`]!;
+      }
+    }
+    expect(killed).toBeGreaterThan(0);
+  });
+});
+
 describe("repeating invasions", () => {
   it("arrive at atTick and every repeatEvery ticks after, until `until`, and resume exactly", async () => {
     const { invasionDue } = await import("./invasion");
