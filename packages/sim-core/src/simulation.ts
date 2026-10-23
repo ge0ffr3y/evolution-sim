@@ -870,6 +870,14 @@ export class Simulation {
     }
   };
 
+  /** A newborn receives fat from a parent: into its reserve up to the cap, the rest as ordinary energy (nothing lost or made). */
+  private giveFat(child: number, amount: number): void {
+    const room = this.config.fatCap * this.threshold[child]! - this.fatStore[child]!;
+    const kept = amount < room ? amount : room > 0 ? room : 0;
+    this.fatStore[child] = this.fatStore[child]! + kept;
+    this.energy[child] = this.energy[child]! + (amount - kept);
+  }
+
   /** Is one of these two the other's parent (either parent, with sex)? Known by identity, not by genes. */
   private isFamily(a: number, b: number): boolean {
     const ia = this.id[a]!;
@@ -1173,6 +1181,8 @@ export class Simulation {
       if (name === "bond" || name === "plan1" || name === "plan2" || name === "plan3" || name === "stick" || name === "signal") continue;
       // How tolerant an organism is of relatives is a behavior setting, not part of what kind of organism it is.
       if (name === "tolerance" || name === "sex" || name === "stressResponse" || name === "calmResponse" || name === "generosity") continue;
+      // How much fat an animal banks can be left out too (fatRelated 0): physiology, not kind.
+      if (name === "fat" && c.fatRelated === 0) continue;
       this.mateMask.push(GENE[name]);
     }
     this.species = new Uint32Array(c.speciesEvery > 0 ? n : 0);
@@ -3174,6 +3184,7 @@ export class Simulation {
       const south = ((cy + 1) % gh) * gw + cx;
       const north = ((cy + gh - 1) % gh) * gw + cx;
       if (this.nutrientOn) inputs[INPUT.nutrientStore] = Math.min(1, this.nutrientStore[i]! / (c.nutrientStoreCap * this.bodyMatter[i]!)) * 2 - 1;
+      if (this.fatOn) inputs[INPUT.fatReserve] = Math.min(1, this.fatStore[i]! / (c.fatCap * this.threshold[i]!));
       if (this.qualityOn) {
         const q = this.plantQ;
         const scale = 1 / c.plantQualityMax;
@@ -4746,6 +4757,9 @@ export class Simulation {
         // Each parent hands over half of the usual total, split between the babies.
         const eachA = (this.energy[a]! * c.offspringEnergyFraction * 0.5) / litter;
         const eachB = (this.energy[b]! * c.offspringEnergyFraction * 0.5) / litter;
+        // Fat passed to young (fatProvision): each parent gives half as much as it would alone.
+        const fatA = this.fatOn ? (this.fatStore[a]! * c.fatProvision * 0.5) / litter : 0;
+        const fatB = this.fatOn ? (this.fatStore[b]! * c.fatProvision * 0.5) / litter : 0;
         for (let baby = 0; baby < litter; baby++) {
           const savedNextId = this.nextId;
           const child = this.spawn(this.id[a]!, this.x[a]!, this.y[a]!);
@@ -4782,6 +4796,11 @@ export class Simulation {
             this.learnSpent[b] = this.learnSpent[b]! + eachB;
           }
           this.energy[child] = store;
+          if (fatA + fatB > 0) {
+            this.fatStore[a] = this.fatStore[a]! - fatA;
+            this.fatStore[b] = this.fatStore[b]! - fatB;
+            this.giveFat(child, fatA + fatB);
+          }
           this.totalBirths++;
           this.sexualBirths++;
           if (this.bondsOn) this.maybeAttach(a, child);
@@ -4798,6 +4817,7 @@ export class Simulation {
         const litter = this.litterSize(parent, -1);
         // The same total as always, split between the babies (a litter of one hands over exactly what it always did).
         const each = (this.energy[parent]! * c.offspringEnergyFraction) / litter;
+        const fatEach = this.fatOn ? (this.fatStore[parent]! * c.fatProvision) / litter : 0;
         for (let baby = 0; baby < litter; baby++) {
           const savedNextId = this.nextId;
           const child = this.spawn(this.id[parent]!, this.x[parent]!, this.y[parent]!);
@@ -4829,6 +4849,10 @@ export class Simulation {
           this.energy[parent] = this.energy[parent]! - each;
           if (this.trackOn) this.learnSpent[parent] = this.learnSpent[parent]! + each;
           this.energy[child] = store;
+          if (fatEach > 0) {
+            this.fatStore[parent] = this.fatStore[parent]! - fatEach;
+            this.giveFat(child, fatEach);
+          }
           this.totalBirths++;
           if (this.bondsOn) this.maybeAttach(parent, child);
         }
