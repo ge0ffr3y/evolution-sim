@@ -19,8 +19,12 @@ import { statusOf } from "./job";
 export const PROFILE = "evolution-sim";
 export const ROLE = "evolution-sim-instance";
 export const TAG = { Key: "Project", Value: "evolution-sim" };
-/** The project's monthly spending cap (the whole AWS account's spend counts toward it). */
-export const MONTHLY_CAP = 50;
+/**
+ * The monthly spending cap. The whole AWS account's spend counts toward it, including other projects'
+ * cloud runs (since 2026-10-23 another simulation project runs there too, and the owner raised the budget
+ * alert from $50 to $100).
+ */
+export const MONTHLY_CAP = 100;
 /** The machine is stopped for good at the estimated time times this (the estimate already allows for slow runs). */
 export const HARD_STOP_FACTOR = 1.3;
 /** Results in S3 are deleted after this many days. */
