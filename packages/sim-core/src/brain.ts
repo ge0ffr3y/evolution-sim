@@ -120,10 +120,12 @@ export const INPUT = {
   /** Mate scent matching its own diet (see mateScent): which way it gets stronger, ahead (+) and to the left (+). */
   mateScentAhead: VISION_INPUTS + 57,
   mateScentSide: VISION_INPUTS + 58,
-  bias: VISION_INPUTS + 59,
-  noise: VISION_INPUTS + 60,
+  /** How full its stomach is (0 empty, 1 full; 0 without the gut). */
+  fullness: VISION_INPUTS + 59,
+  bias: VISION_INPUTS + 60,
+  noise: VISION_INPUTS + 61,
 } as const;
-export const INPUT_COUNT = VISION_INPUTS + 61;
+export const INPUT_COUNT = VISION_INPUTS + 62;
 /**
  * Every brain layout so far, oldest first, so a saved world from any of them can be renumbered.
  * Each step inserted its new inputs at `insertedAt` (where the bias input was), so nodes below
@@ -137,6 +139,7 @@ export const BRAIN_LAYOUTS: readonly { inputs: number; slots: number; insertedAt
   { inputs: VISION_INPUTS + 58, slots: 768, insertedAt: VISION_INPUTS + 58 }, // Phase 8f: four memory gate outputs (added after the other outputs, so no node moved)
   { inputs: VISION_INPUTS + 59, slots: 768, insertedAt: VISION_INPUTS + 56 }, // Phase 9: the fat-reserve sense
   { inputs: VISION_INPUTS + 61, slots: 768, insertedAt: VISION_INPUTS + 57 }, // Phase 9: mate scent
+  { inputs: VISION_INPUTS + 62, slots: 768, insertedAt: VISION_INPUTS + 59 }, // Phase 9: stomach fullness
 ];
 /** The node number in today's layout of a node saved with an older layout (identified by its input count). */
 export function renumberOldNode(node: number, savedInputs: number): number {
@@ -246,6 +249,7 @@ export function inputLabel(index: number): string {
     [INPUT.fatReserve]: "my fat reserve",
     [INPUT.mateScentAhead]: "mate scent: ahead",
     [INPUT.mateScentSide]: "mate scent: left",
+    [INPUT.fullness]: "my stomach: how full",
     [INPUT.bias]: "bias",
     [INPUT.noise]: "noise",
   };
