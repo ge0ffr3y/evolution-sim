@@ -4,7 +4,7 @@ The sweeps run on one large rented machine (Graviton, for example `c7g.16xlarge`
 
 **Budget:** at most $50 a month. The guard rails:
 - an AWS Budget alert;
-- spot machines only (cheapest);
+- on-demand machines only (the owner chose these over spot, which can be interrupted);
 - every machine terminates itself when its batch ends or after a hard time limit;
 - the runner prints a time and cost estimate and waits for a yes before it launches anything.
 

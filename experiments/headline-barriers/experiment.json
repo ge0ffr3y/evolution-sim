@@ -1,7 +1,7 @@
 {
   "name": "headline-barriers",
   "question": "Do geographic barriers produce more species? Seas covering 10%, 25% (today's) and 40% of the map. An answer: species alive and ever, Shannon diversity, and how different the animals on separate land masses are, against today's world, with 95% ranges.",
-  "base": "grand-world",
+  "base": "grand-world-classic",
   "ticks": 500000,
   "seeds": "701-716",
   "arms": {

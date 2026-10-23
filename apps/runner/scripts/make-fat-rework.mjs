@@ -14,7 +14,7 @@ const write = (exp) => {
 write({
   name: "fat-rework",
   question: "Does reworked fat pay off? Grand world without fat, with today's fat, today's fat left out of relatedness, reworked fat (store only true surplus from the breeding level up, draw below half, 90% stored, cheaper to carry, half handed to young, left out of relatedness), reworked fat without the hand-over, reworked fat storing from 80%, and the no-fat path bundle with and without reworked fat. An answer: whether the fat gene now rises instead of falling, and what fat does to survival through lean spells (lowest population), species, brains (connections, hidden units) and meat eaters.",
-  base: "grand-world",
+  base: "grand-world-classic",
   ticks: 300000,
   seeds: "2301-2304",
   sampleEvery: 1500,
@@ -33,7 +33,7 @@ write({
 write({
   name: "fat-rework-margin",
   question: "Do arriving meat eaters with reworked fat hold their numbers? Grand world with reworked fat, the no-fat path bundle, and the path bundle with reworked fat; one animal in twenty becomes an armed meat eater with a fat gene of 0.5 at tick 100,000 and every 5,000 ticks after, diet ledger. An answer: how many remain 4,500 ticks after each arrival, and births against deaths.",
-  base: "grand-world",
+  base: "grand-world-classic",
   ticks: 150000,
   seeds: "2311-2314",
   sampleEvery: 500,

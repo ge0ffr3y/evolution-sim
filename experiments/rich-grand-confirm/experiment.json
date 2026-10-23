@@ -1,0 +1,31 @@
+{
+  "name": "rich-grand-confirm",
+  "question": "Should the path bundle with fat that pays for breeding become the grand world? Confirmation on 16 fresh seeds over 500,000 ticks against today's grand world. Changes: sparing your own parent and young, plant growth 0.24 (against 0.12), meat that keeps in the cold (0.8), more mending of harmful mutations (0.5), half the cost of heat and cold (0.75), and reworked fat that pays for breeding. An answer: species, diversity, population and its low point, feeding levels, sex, lives, deaths and red flags, with 95% ranges; worlds lost; meat eaters.",
+  "base": "grand-world-classic",
+  "ticks": 500000,
+  "seeds": "2501-2516",
+  "sampleEvery": 2500,
+  "arms": {
+    "control": {},
+    "rich-grand": {
+      "spareFamily": 1,
+      "foodRegrowPerTick": 0.24,
+      "meatColdKeep": 0.8,
+      "mutationLoadMend": 0.5,
+      "thermalCostCoeff": 0.75,
+      "fatDepositRate": 0.5,
+      "initialFat": 0.3,
+      "fatDepositAbove": 1,
+      "fatDrawBelow": 0.5,
+      "fatEfficiency": 0.9,
+      "fatMoveCost": 0.25,
+      "fatUpkeep": 0.1,
+      "fatProvision": 0.5,
+      "fatRelated": 0,
+      "fatBreeding": 1
+    }
+  },
+  "measures": [
+    "all"
+  ]
+}

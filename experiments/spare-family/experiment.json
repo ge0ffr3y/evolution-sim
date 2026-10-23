@@ -1,7 +1,7 @@
 {
   "name": "spare-family",
   "question": "Does sparing your own parent and young (spareFamily) let meat eaters (diet above 0.75) take hold in the grand world? Hunters attack whoever is nearest and babies are born on their parent's spot, so a hunting family's first victims are its own; kin restraint was patching that. Grand world: as it is; with spareFamily; with spareFamily and no kin restraint; with spareFamily and no herds. Reference: the hunters' world with and without spareFamily. An answer: meat eaters, feeding levels, kills, species and population in each, against the grand world.",
-  "base": "grand-world",
+  "base": "grand-world-classic",
   "ticks": 300000,
   "seeds": "1701-1704",
   "sampleEvery": 1500,

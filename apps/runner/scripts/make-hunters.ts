@@ -6,7 +6,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { DEFAULT_CONFIG } from "@evo/sim-core";
 
-const grand: Record<string, number> = JSON.parse(readFileSync("configs/grand-world.json", "utf8")).config;
+const grand: Record<string, number> = JSON.parse(readFileSync("configs/grand-world-classic.json", "utf8")).config;
 const defaults = DEFAULT_CONFIG as unknown as Record<string, number>;
 const groups: Record<string, string[]> = {
   climate: ["climateMode", "yearLength", "dayLength", "seasonGrowthSwing", "seasonTempSwing", "climateDriftPeriod", "climateDriftAmplitude", "weatherAmplitude", "yearVariability", "thermalCostCoeff", "torporSaving", "catastropheKind", "catastropheEvery", "catastropheLength", "evVolcanoEvery", "plantTypePhase"],
@@ -27,7 +27,7 @@ const noSeasons = { ...without("sexLoad", "kinHerd"), seasonGrowthSwing: 0, seas
 const exp = {
   name: "hunters-confirm",
   question: "Does a 'hunters' grand world reliably grow meat eaters? Today's grand world against two versions without harmful mutations, sex and kin restraint: one also without the whole climate (as in carnivore-bridge-2, meat eaters in 3 of 4 worlds), one without only the seasons (keeping day and night, weather, drift, the cost of heat and cold, torpor and ice ages). 16 fresh seeds, 300,000 ticks. An answer: in how many worlds a meat-eating group (diet above 0.75) holds over the second half, how big, and what the versions cost in species and population.",
-  base: "grand-world",
+  base: "grand-world-classic",
   ticks: 300000,
   seeds: "1601-1616",
   sampleEvery: 1500,

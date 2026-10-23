@@ -1,7 +1,7 @@
 {
   "name": "learning-grand",
   "question": "In the grand world, does lifetime learning evolve and help (population, how long animals live, food gathered by age, use of memory), and do the learning senses alone change anything?",
-  "base": "grand-world",
+  "base": "grand-world-classic",
   "ticks": 300000,
   "seeds": "1-8",
   "arms": {

@@ -5,7 +5,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { DEFAULT_CONFIG } from "@evo/sim-core";
 
-const grand: Record<string, number> = JSON.parse(readFileSync("configs/grand-world.json", "utf8")).config;
+const grand: Record<string, number> = JSON.parse(readFileSync("configs/grand-world-classic.json", "utf8")).config;
 const hunters: Record<string, number> = JSON.parse(readFileSync("configs/grand-hunters.json", "utf8")).config;
 const defaults = DEFAULT_CONFIG as unknown as Record<string, number>;
 const groups: Record<string, string[]> = {
@@ -26,7 +26,7 @@ for (const k of Object.keys(grand)) if (!(k in hunters)) huntersOnGrand[k] = def
 const exp = {
   name: "meat-margin",
   question: "Where does a meat eater's margin go in the grand world? The diet ledger (per diet band: plant and meat income, running costs by kind, kills, births and deaths per animal per 1,000 ticks, how fed) in the grand world, the grand world without each culprit group (climate, sex, harmful mutations, kin restraint), and the hunters' world. One animal in twenty becomes an armed meat eater at tick 100,000 and again every 5,000 ticks, so the meat-eater band can be measured everywhere. An answer: which income or cost line separates meat eaters that last (hunters' world) from those that do not (grand world), and which culprit moves it.",
-  base: "grand-world",
+  base: "grand-world-classic",
   ticks: 150000,
   seeds: "1801-1804",
   sampleEvery: 500,

@@ -1,7 +1,7 @@
 {
   "name": "kill-payoff-margin",
   "question": "Does a richer kill give meat eaters the margin they lack in the grand world? A body holds bodyEnergyPerSize units of energy per unit of size (4 today; making a baby costs 30), carved out of what the parent hands its baby, so richer bodies mean richer carcasses but newborns with less spare energy. Today's 4 against 6, 8 and 12, with one animal in twenty becoming an armed meat eater at tick 100,000 and every 5,000 ticks after, measured with the diet ledger. An answer: meat eaters' births against deaths, income and costs, and how many remain 4,500 ticks after each arrival, against the plant eaters' births.",
-  "base": "grand-world",
+  "base": "grand-world-classic",
   "ticks": 150000,
   "seeds": "1901-1904",
   "sampleEvery": 500,

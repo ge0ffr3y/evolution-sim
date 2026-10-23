@@ -1,7 +1,7 @@
 {
   "name": "place-grand",
   "question": "In the grand world, does place memory evolve and help (population, lifespan, food gathered by age, brains using the place sense and memory), on its own and together with learning and its senses?",
-  "base": "grand-world",
+  "base": "grand-world-classic",
   "ticks": 300000,
   "seeds": "1-8",
   "arms": {

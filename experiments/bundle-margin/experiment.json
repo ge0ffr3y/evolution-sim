@@ -1,7 +1,7 @@
 {
   "name": "bundle-margin",
   "question": "Does a bundle of every partial help found so far, together: sparing your own parent and young, a fat reserve (deposit 0.5, founders start with 0.3), plant growth 0.24 (against 0.12), weapons that get in the way of grazing (0.6), meat that keeps in the cold (0.8), more mending of harmful mutations (0.5, against 0.15) and half the cost of heat and cold (0.75, against 1.5) give arriving meat eaters a margin in the grand world? One animal in twenty becomes an armed meat eater (with a fat gene of 0.5) at tick 100,000 and every 5,000 ticks after, measured with the diet ledger. An answer: meat eaters' births against deaths, and how many remain 4,500 ticks after each arrival.",
-  "base": "grand-world",
+  "base": "grand-world-classic",
   "ticks": 150000,
   "seeds": "2101-2104",
   "sampleEvery": 500,

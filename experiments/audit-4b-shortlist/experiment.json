@@ -1,7 +1,7 @@
 {
   "name": "audit-4b-shortlist",
   "question": "On 16 fresh seeds, does Stage 2's shortlist hold up: where does the cold-side cliff begin (base temperature, plant temperature tolerance, ice-age cooling), does poorer plant food reliably build a food web (more meat, more feeding levels) and at what cost, and is today's weather strength a peak for population?",
-  "base": "grand-world",
+  "base": "grand-world-classic",
   "ticks": 200000,
   "seeds": "401-416",
   "arms": {

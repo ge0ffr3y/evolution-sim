@@ -1,7 +1,7 @@
 {
   "name": "headline-disease",
   "question": "Does disease stop one species taking over? Worlds with no disease, with today's disease, and with a disease that infects a wider range of hosts. An answer: the share of animals in the biggest species and Shannon diversity, against today's world, with 95% ranges.",
-  "base": "grand-world",
+  "base": "grand-world-classic",
   "ticks": 300000,
   "seeds": "801-816",
   "arms": {

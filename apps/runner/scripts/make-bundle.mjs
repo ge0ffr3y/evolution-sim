@@ -22,7 +22,7 @@ const write = (name, exp) => {
 write("bundle-margin", {
   name: "bundle-margin",
   question: `Does a bundle of ${describe} give arriving meat eaters a margin in the grand world? One animal in twenty becomes an armed meat eater (with a fat gene of 0.5) at tick 100,000 and every 5,000 ticks after, measured with the diet ledger. An answer: meat eaters' births against deaths, and how many remain 4,500 ticks after each arrival.`,
-  base: "grand-world",
+  base: "grand-world-classic",
   ticks: 150000,
   seeds: "2101-2104",
   sampleEvery: 500,
@@ -38,7 +38,7 @@ for (const name of Object.keys(HELPS)) {
 write("bundle", {
   name: "bundle",
   question: `With no help, do meat eaters (diet above 0.75) evolve and last in the grand world with ${describe}? Also the bundle with each help left out in turn, to see which it needs. 300,000 ticks. An answer: worlds with a lasting group of meat eaters, feeding levels, kills, species and population.`,
-  base: "grand-world",
+  base: "grand-world-classic",
   ticks: 300000,
   seeds: "2111-2114",
   sampleEvery: 1500,
