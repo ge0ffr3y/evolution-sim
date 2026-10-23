@@ -399,3 +399,47 @@ Kin restraint was patching this: without it a hunting family eats itself, so hun
 - **Meat eaters kill each other.** In the hunters' world, 30 to 40% of the group's deaths are kills by its own lineage (cousins and siblings, which sparing family does not cover). They last anyway because they breed so fast.
 - **No single grand-world feature is the cause.** Removed one at a time from the grand world, the group lasts: kin restraint or sex about 1,500 ticks, harmful mutations about 2,000, seasons about 3,000, the cost of heat and cold a little over 3,000 (one seed each). Each buys time; none is enough.
 - **So the grand world taxes everyone, and meat eaters have no margin to pay it.** Harmful mutations alone raise every animal's basic upkeep by about 70% (about 18 per animal at about 4% each), about a fifth of all running costs. Plant eaters' income arrives every tick and absorbs that; a meat eater's arrives in lumps and runs at about break-even even in easy worlds, so each extra cost pushes it under.
+
+### 8d. Where a meat eater's margin goes (diet ledger)
+
+**Experiment:** `meat-margin` (made by `apps/runner/scripts/make-meat-margin.ts`; table by `apps/runner/scripts/ledger-table.mjs`), 150,000 ticks, seeds 1801 to 1804. A new opt-in measure, the diet ledger, tallies every tick, per diet band:
+- income from plants and from meat, and running costs by kind, all in breedings' worth per animal per 1,000 ticks;
+- kills, births (credited to the parent's band) and deaths.
+
+From tick 100,000, one animal in twenty became an armed meat eater, and again every 5,000 ticks, so every setup had meat eaters to measure. Setups: the grand world, the grand world without each culprit group, and the hunters' world. About 30 minutes on a 16-core machine, about 35 cents.
+
+**Per animal, ticks 100,000 to 150,000 (weighted by numbers):**
+
+| Meat eaters (diet above 0.75) | Grand world | Hunters' world |
+|---|---|---|
+| Meat income | 7.8 | 7.4 |
+| Running costs | **4.7** | **2.9** |
+| of which basic upkeep | 2.9 | 1.4 |
+| of which harmful mutations | 0.9 | 0 |
+| of which heat and cold | 0.4 | 0 |
+| Kills | 14.2 | 18.8 |
+| Births / deaths | 6.0 / 6.1 | 6.0 / 6.1 |
+
+| Plant eaters (diet under 0.25) | Grand world | Hunters' world |
+|---|---|---|
+| Plant income | 7.0 | 11.1 |
+| Running costs | 5.7 | 8.1 |
+| Births | **2.5** | **4.9** |
+| Number | 913 | 1,117 |
+
+**Meat eaters after each arrival** (average of 9 arrivals in 4 worlds):
+
+| | On arrival | +500 ticks | +2,000 | +4,500 |
+|---|---|---|---|---|
+| Grand world | 82 | 71 | 50 | 41 |
+| Without the climate | 79 | 31 | 21 | 19 |
+| Without sex | 41 | 12 | 5 | 2 |
+| Without harmful mutations | 87 | 73 | 54 | 52 |
+| Without kin restraint | 101 | 92 | 70 | 58 |
+| Hunters' world | 225 | 187 | 189 | 162 |
+
+- **Meat eaters everywhere live at about break-even** (births about equal to deaths, about 6 per animal per 1,000 ticks). In the grand world they fall just short: a group loses about 40% every 4,500 ticks, so without newcomers it fades within about 20,000 to 30,000 ticks. In the hunters' world they hold.
+- **They earn about the same in both worlds; what differs is costs.** A meat eater's running costs are about 60% higher in the grand world (4.7 against 2.9), mostly basic upkeep: harmful mutations and heat and cold make up most of the gap.
+- **The prey matter too.** Grand-world plant eaters earn less and breed at half the rate (2.5 against 4.9 per 1,000 ticks), so there is less surplus for hunters to live on.
+- **No single culprit fixes it, and two removals hurt.** Without harmful mutations or kin restraint, groups shrink a little more slowly. Without the climate or without sex they collapse faster: in those worlds the plant eaters kill about twice as often (2.0 and 1.7 kills per animal per 1,000 ticks against 0.9), and newly arrived meat eaters are among their victims.
+- **Earlier autopsy (8c) was harsher than this**: a single small group at tick 60,000 in one seed died within 700 ticks; here repeated arrivals build up, and survivors from earlier groups carry on.
