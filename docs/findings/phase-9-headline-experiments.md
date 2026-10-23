@@ -443,3 +443,22 @@ From tick 100,000, one animal in twenty became an armed meat eater, and again ev
 - **The prey matter too.** Grand-world plant eaters earn less and breed at half the rate (2.5 against 4.9 per 1,000 ticks), so there is less surplus for hunters to live on.
 - **No single culprit fixes it, and two removals hurt.** Without harmful mutations or kin restraint, groups shrink a little more slowly. Without the climate or without sex they collapse faster: in those worlds the plant eaters kill about twice as often (2.0 and 1.7 kills per animal per 1,000 ticks against 0.9), and newly arrived meat eaters are among their victims.
 - **Earlier autopsy (8c) was harsher than this**: a single small group at tick 60,000 in one seed died within 700 ticks; here repeated arrivals build up, and survivors from earlier groups carry on.
+
+### 8e. A richer kill does not help either
+
+**Experiments:** `kill-payoff-margin` (150,000 ticks, seeds 1901 to 1904, repeated meat-eater arrivals from tick 100,000, diet ledger) and `kill-payoff` (300,000 ticks, seeds 1911 to 1914, no help). A body holds `bodyEnergyPerSize` units of energy per unit of size: 4 today, against 6, 8 and 12. Each on a 16-core machine, side by side, about $1.25 together.
+
+**Answer: no.**
+
+| Body energy | Meat income per meat eater | Meat eaters 4,500 ticks after arriving | Plant eaters | From scratch: meat eaters in 4 worlds |
+|---|---|---|---|---|
+| 4 (today) | 7.1 | 20 of 55 | 821 | 0, 0, 0, 0 |
+| 6 | 7.1 | 21 of 56 | 703 | 0, 0, 0, 0 |
+| 8 | 9.1 | 13 of 44 | 707 | 0, 0, 0, 0 |
+| 12 | 6.9 | 19 of 49 | 585 | 0, 0, 0, 0 |
+| 8, sparing family | | | | 0, 0, 0, 0 |
+| 12, sparing family | | | | 0, 0, 0, 0 |
+
+- **A richer body is not a richer carcass.** The extra energy in a body comes out of what the parent hands its baby, so a newborn starts with less spare energy and a carcass holds about the same total. Meat income stays about flat.
+- **It costs the prey.** Plant eaters become fewer (up to 29% fewer at 12), with fewer species (-15 to -33%), so there is less to hunt.
+- **Feeding levels and meat in the diet rise a little** (up to +22% and +59%, not holding up with 4 seeds), but no world grows a single meat eater.

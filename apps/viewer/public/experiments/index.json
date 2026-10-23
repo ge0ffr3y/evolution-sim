@@ -73,5 +73,15 @@
     "name": "spare-family",
     "question": "Does sparing your own parent and young (spareFamily) let meat eaters (diet above 0.75) take hold in the grand world? Hunters attack whoever is nearest and babies are born on their parent's spot, so a hunting family's first victims are its own; kin restraint was patching that. Grand world: as it is; with spareFamily; with spareFamily and no kin restraint; with spareFamily and no herds. Reference: the hunters' world with and without spareFamily. An answer: meat eaters, feeding levels, kills, species and population in each, against the grand world.",
     "file": "spare-family.json"
+  },
+  {
+    "name": "kill-payoff-margin",
+    "question": "Does a richer kill give meat eaters the margin they lack in the grand world? A body holds bodyEnergyPerSize units of energy per unit of size (4 today; making a baby costs 30), carved out of what the parent hands its baby, so richer bodies mean richer carcasses but newborns with less spare energy. Today's 4 against 6, 8 and 12, with one animal in twenty becoming an armed meat eater at tick 100,000 and every 5,000 ticks after, measured with the diet ledger. An answer: meat eaters' births against deaths, income and costs, and how many remain 4,500 ticks after each arrival, against the plant eaters' births.",
+    "file": "kill-payoff-margin.json"
+  },
+  {
+    "name": "kill-payoff",
+    "question": "With richer kills, do meat eaters (diet above 0.75) evolve and last in the grand world on their own? Today's body energy of 4 per unit of size against 6, 8 and 12, with and without sparing your own parent and young, no help from invasions, 300,000 ticks. An answer: worlds with a lasting group of meat eaters, feeding levels, kills, species and population.",
+    "file": "kill-payoff.json"
   }
 ]
