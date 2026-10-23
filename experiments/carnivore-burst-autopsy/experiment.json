@@ -1,0 +1,19 @@
+{
+  "name": "carnivore-burst-autopsy",
+  "question": "How do the short-lived meat-eating groups of the reworked grand world end? The three worlds that grew them in full-package-long (seeds 2812, 2814 and 2815, same settings, so they replay exactly) are re-run with the diet ledger recording, every 500 ticks and by diet band: births, deaths by cause (ran out of energy, killed by a meat eater, killed by anyone else), how fed the dead were and how old, income and costs. An answer: what kills meat eaters (diet above 0.75) as a group fades.",
+  "base": "grand-world",
+  "ticks": 640000,
+  "seeds": "2812,2814,2815",
+  "sampleEvery": 500,
+  "arms": {
+    "control": {}
+  },
+  "measures": [
+    "population",
+    "classes",
+    "dietSpread",
+    "kills",
+    "species",
+    "dietLedger"
+  ]
+}
