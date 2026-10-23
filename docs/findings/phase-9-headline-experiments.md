@@ -689,3 +689,24 @@ Evolution drops the gene: from 0.60 to 0.07 in 8h. And the fat gene counted towa
 - **Mate scent alone changes little.**
 - **Letting would-be hunters see prey, plus a pull toward prey, moves the most:** nearly three times the mixed eaters, more meat, more kills, and the first worlds with a few percent of animals eating mostly meat. But no lasting meat-eating group, and fewer animals.
 - **Corrected species count:** the reworked grand world has about 8.8 species (against 4.5 for the classic one), about twice, not 2.4 times.
+
+### 11b. Vigilance: a use for wide eyes
+
+**Built:** `vigilance` (off by default, needs brains; tests in `matingsight.test.ts`). If an attacker is inside the prey's field of view and sight range, and not hidden by camouflage, the prey defends 1 + vigilance times as well. Wide eyes see more of what is around them, so this is what a wide eye is for.
+
+**Experiment:** `vigilance`, 300,000 ticks, 8 fresh seeds (2701 to 2708), on the reworked grand world, 48 cores, about $1.
+
+| | Eye: plant eaters / others | Eye-diet correlation | Population | Species | Kills | Feeding levels | Meat eaters |
+|---|---|---|---|---|---|---|---|
+| Grand world | (0.5) | | 1,414 | 8.5 | 2,043 | 1.79 | 0 |
+| Eye | 0.68 / **0.84*** | **0.19*** | **-25%*** | -23% | +29% | +8% | 0 |
+| Eye + vigilance | 0.65 / **0.73*** | **0.15*** | -14% | -5% | +31% | +8% | 0 |
+| Eye + unmuted sight + pull toward prey | **0.83*** / **0.88*** | 0.09 | **-41%*** | **-32%*** | **+59%*** | **+12%*** | 0 |
+| The same + vigilance | 0.60 / **0.73*** | **0.24*** | -16% | -17% | +17% | +10% | 0 (1 in three worlds) |
+
+(* holds up, 8 seeds. Eye: 0 widest, 0.5 today's, 1 narrowest.)
+
+- **Eyes now go with diet.** In every setup with the eye gene, mixed and meat eaters end up with narrower eyes than plant eaters, and the link holds up with 8 seeds (strongest, 0.24, with vigilance and the hunting helps). Everyone still drifts somewhat narrower than today's eye: a far, sharp view is useful to all.
+- **Vigilance protects the prey world.** It cancels most of the population and species losses that unmuted sight and the pull toward prey cause (population -16% instead of -41%, species -17% instead of -32%), and keeps plant eaters' eyes wider.
+- **Unmuted sight and the pull toward prey make the most hunting** (+59% kills, more meat, more feeding levels), at a real cost to the prey world.
+- **Still no lasting meat-eating group** in any of the 40 worlds.

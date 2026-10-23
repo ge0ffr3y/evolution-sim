@@ -133,5 +133,10 @@
     "name": "mating-sight",
     "question": "Do the pickiness gene (diet-based mate choice, scaled by how many mates are around), the eye gene (from wide and short to narrow, far-reaching and sharp, starting at today's eye) and mate scent (two diet layers, smelled by the brain) let meat eaters (diet above 0.75) evolve and last in the grand world? Each alone, all three, all three with prey sight not scaled by the viewer's diet (brainAppetiteSenses 0), and that with a founder pull toward prey (brainFounderReflex 2). An answer: meat eaters, whether eyes split by diet (narrow for meat eaters, wide for plant eaters) and pickiness rises, feeding levels, kills, species, sex and population. The control also re-measures the grand world's species with the fat gene left out of species tracking.",
     "file": "mating-sight.json"
+  },
+  {
+    "name": "vigilance",
+    "question": "Does vigilance (prey that see an attack coming are harder to catch) give wide eyes a purpose, so that eyes split by diet (wide for plant eaters, narrow for meat eaters) and meat eaters (diet above 0.75) take hold? Grand world; the eye gene alone and with vigilance 1; the eye with prey sight not scaled by diet and a founder pull toward prey, alone and with vigilance 1. 8 fresh seeds, 300,000 ticks. An answer: eye by diet (and their correlation), meat eaters, kills, feeding levels, species and population.",
+    "file": "vigilance.json"
   }
 ]
