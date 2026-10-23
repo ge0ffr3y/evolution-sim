@@ -1,0 +1,64 @@
+{
+  "name": "fat-rework-margin",
+  "question": "Do arriving meat eaters with reworked fat hold their numbers? Grand world with reworked fat, the no-fat path bundle, and the path bundle with reworked fat; one animal in twenty becomes an armed meat eater with a fat gene of 0.5 at tick 100,000 and every 5,000 ticks after, diet ledger. An answer: how many remain 4,500 ticks after each arrival, and births against deaths.",
+  "base": "grand-world",
+  "ticks": 150000,
+  "seeds": "2311-2314",
+  "sampleEvery": 500,
+  "invasion": {
+    "atTick": 100000,
+    "every": 20,
+    "genes": {
+      "diet": 0.95,
+      "attack": 0.6,
+      "fat": 0.5
+    },
+    "repeatEvery": 5000,
+    "until": 145000
+  },
+  "arms": {
+    "new-fat": {
+      "fatDepositRate": 0.5,
+      "initialFat": 0.3,
+      "fatDepositAbove": 1,
+      "fatDrawBelow": 0.5,
+      "fatEfficiency": 0.9,
+      "fatMoveCost": 0.25,
+      "fatUpkeep": 0.1,
+      "fatProvision": 0.5,
+      "fatRelated": 0
+    },
+    "path-bundle": {
+      "spareFamily": 1,
+      "foodRegrowPerTick": 0.24,
+      "meatColdKeep": 0.8,
+      "mutationLoadMend": 0.5,
+      "thermalCostCoeff": 0.75
+    },
+    "path-bundle-new-fat": {
+      "spareFamily": 1,
+      "foodRegrowPerTick": 0.24,
+      "meatColdKeep": 0.8,
+      "mutationLoadMend": 0.5,
+      "thermalCostCoeff": 0.75,
+      "fatDepositRate": 0.5,
+      "initialFat": 0.3,
+      "fatDepositAbove": 1,
+      "fatDrawBelow": 0.5,
+      "fatEfficiency": 0.9,
+      "fatMoveCost": 0.25,
+      "fatUpkeep": 0.1,
+      "fatProvision": 0.5,
+      "fatRelated": 0
+    }
+  },
+  "measures": [
+    "population",
+    "classes",
+    "dietSpread",
+    "kills",
+    "mutationLoad",
+    "traits",
+    "dietLedger"
+  ]
+}
