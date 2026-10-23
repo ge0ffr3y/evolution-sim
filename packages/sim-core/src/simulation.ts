@@ -906,6 +906,31 @@ export class Simulation {
     return level;
   }
 
+  /** Can `viewer` see `other` right now: inside its field of view and sight range, and not hidden by camouflage? (Vigilance.) */
+  private seesComing(viewer: number, other: number): boolean {
+    const c = this.config;
+    const W = c.worldWidth;
+    const H = c.worldHeight;
+    let dx = this.x[other]! - this.x[viewer]!;
+    let dy = this.y[other]! - this.y[viewer]!;
+    if (dx > W / 2) dx -= W;
+    else if (dx < -W / 2) dx += W;
+    if (dy > H / 2) dy -= H;
+    else if (dy < -H / 2) dy += H;
+    const range = (c.brainVisionRange + this.senseRange[viewer]!) * (this.eyeOn ? this.eyeReach[viewer]! : 1);
+    if (dx * dx + dy * dy > range * range) return false;
+    const hx = this.headingX[viewer]!;
+    const hy = this.headingY[viewer]!;
+    const forward = dx * hx + dy * hy;
+    const side = hx * dy - hy * dx;
+    const across = side < 0 ? -side : side;
+    // The same trigonometry-free angle as the eye (see EYE_TODAY); without the eye gene, today's 75 degrees each side.
+    const angle = forward >= 0 ? (forward + across > 0 ? across / (forward + across) : 0) : 2 - across / (across - forward);
+    const half = this.eyeOn ? this.eyeHalf[viewer]! : EYE_TODAY;
+    if (angle >= half) return false;
+    return this.detects(viewer, other);
+  }
+
   /** A newborn receives fat from a parent: into its reserve up to the cap, the rest as ordinary energy (nothing lost or made). */
   private giveFat(child: number, amount: number): void {
     const room = this.config.fatCap * this.threshold[child]! - this.fatStore[child]!;
@@ -2907,8 +2932,10 @@ export class Simulation {
   };
 
   /** How much this cell can resist an attack: its own defense (and herd, if on), plus a share of its bonded neighbors' defense. */
-  private defendedBy(prey: number): number {
+  private defendedBy(prey: number, attacker = -1): number {
     let defense = this.defense[prey]! * this.herdFactor(prey);
+    // Vigilance: prey that see the attack coming are harder to catch.
+    if (attacker >= 0 && this.config.vigilance > 0 && this.config.brainMode > 0 && this.seesComing(prey, attacker)) defense *= 1 + this.config.vigilance;
     const hungerDefense = this.config.preyHungerDefense;
     if (hungerDefense > 0) {
       // A hungry animal defends itself less well.
@@ -4463,7 +4490,7 @@ export class Simulation {
         this.totalAttacks++;
         if (this.chemOn) this.chemHit[prey] = 1; // whether or not it works, the prey knows it was attacked
         const power = this.attackPower[i]!;
-        const odds = power / (power + this.defendedBy(prey));
+        const odds = power / (power + this.defendedBy(prey, i));
         if (this.rng.next() < odds) this.kill(i, prey);
       }
     }

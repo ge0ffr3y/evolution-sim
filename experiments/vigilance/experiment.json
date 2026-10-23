@@ -1,0 +1,32 @@
+{
+  "name": "vigilance",
+  "question": "Does vigilance (prey that see an attack coming are harder to catch) give wide eyes a purpose, so that eyes split by diet (wide for plant eaters, narrow for meat eaters) and meat eaters (diet above 0.75) take hold? Grand world; the eye gene alone and with vigilance 1; the eye with prey sight not scaled by diet and a founder pull toward prey, alone and with vigilance 1. 8 fresh seeds, 300,000 ticks. An answer: eye by diet (and their correlation), meat eaters, kills, feeding levels, species and population.",
+  "base": "grand-world",
+  "ticks": 300000,
+  "seeds": "2701-2708",
+  "sampleEvery": 1500,
+  "arms": {
+    "control": {},
+    "eye": {
+      "eyeMode": 1
+    },
+    "eye-vigilance": {
+      "eyeMode": 1,
+      "vigilance": 1
+    },
+    "eye-unmuted-reflex": {
+      "eyeMode": 1,
+      "brainAppetiteSenses": 0,
+      "brainFounderReflex": 2
+    },
+    "eye-unmuted-reflex-vigilance": {
+      "eyeMode": 1,
+      "brainAppetiteSenses": 0,
+      "brainFounderReflex": 2,
+      "vigilance": 1
+    }
+  },
+  "measures": [
+    "all"
+  ]
+}

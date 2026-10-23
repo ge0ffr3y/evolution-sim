@@ -250,3 +250,45 @@ describe("mate scent", () => {
     expect(copy.fingerprint()).toBe(sim.fingerprint());
   }, 120_000);
 });
+
+describe("vigilance", () => {
+  type V = { defendedBy(prey: number, attacker?: number): number };
+  const world = (extra: Partial<SimConfig> = {}): Simulation =>
+    new Simulation(1, { worldWidth: 128, worldHeight: 128, initialOrganisms: 2, speciesEvery: 0, brainMode: 2, ...extra });
+  /** Prey 0 at the centre facing east; the attacker `distance` away at `degrees` off its heading. Returns defense with / without the attacker known. */
+  const ratio = (sim: Simulation, degrees: number, distance = 2): number => {
+    sim.x[0] = 64;
+    sim.y[0] = 64;
+    sim.headingX[0] = 1;
+    sim.headingY[0] = 0;
+    const rad = (degrees * Math.PI) / 180;
+    sim.x[1] = 64 + distance * Math.cos(rad);
+    sim.y[1] = 64 + distance * Math.sin(rad);
+    const v = sim as unknown as V;
+    return v.defendedBy(0, 1) / v.defendedBy(0);
+  };
+
+  it("is off by default and checked", () => {
+    expect(DEFAULT_CONFIG.vigilance).toBe(0);
+    expect(ratio(world(), 0)).toBe(1);
+    expect(() => new Simulation(1, { vigilance: 1 })).toThrow(/brains/);
+    expect(() => world({ vigilance: -1 })).toThrow(/vigilance/);
+  });
+
+  it("prey that see the attacker coming defend 1 + vigilance times as well; from behind, no help", () => {
+    const sim = world({ vigilance: 1 });
+    expect(ratio(sim, 0)).toBeCloseTo(2, 9);
+    expect(ratio(sim, 60)).toBeCloseTo(2, 9);
+    expect(ratio(sim, 120)).toBe(1); // today's eye sees 75 degrees each side
+    expect(ratio(sim, 0, 200)).toBe(1); // beyond sight range
+  });
+
+  it("a wide eye catches an attacker from behind; a narrow eye misses one from the side", () => {
+    const sim = world({ vigilance: 1, eyeMode: 1 });
+    setGene(sim, 0, GENE.eye, 0);
+    expect(ratio(sim, 140)).toBeCloseTo(2, 9);
+    setGene(sim, 0, GENE.eye, 1);
+    expect(ratio(sim, 60)).toBe(1);
+    expect(ratio(sim, 0)).toBeCloseTo(2, 9);
+  });
+});

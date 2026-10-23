@@ -1262,6 +1262,13 @@ export interface SimConfig {
   eyeMode: number;
   initialEye: number;
   eyeSharpness: number;
+  /**
+   * Vigilance (0 = off; needs brains): prey that see an attack coming are harder to catch. If the attacker is
+   * inside the prey's field of view (its eye's width with eyeMode, otherwise today's 150-degree view) and within
+   * its sight range, and not hidden by camouflage, the prey's defense counts 1 + vigilance times. Wide eyes see
+   * more of what is around them, so this is what a wide eye is for. It changes only the odds of a kill.
+   */
+  vigilance: number;
 
   // --- Reproduction ---
   /** An organism splits when its energy reaches this x its size. */
@@ -1766,6 +1773,7 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   eyeMode: 0,
   initialEye: 0.5,
   eyeSharpness: 0.5,
+  vigilance: 0,
 
   reproThresholdPerSize: 30,
   offspringEnergyFraction: 0.5,
@@ -2115,6 +2123,8 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (c.eyeMode !== 0 && c.eyeMode !== 1) problems.push("eyeMode must be 0 or 1");
   if (c.eyeMode === 1 && c.brainMode === 0) problems.push("eyeMode needs brains (only brains see)");
   if (!(c.initialEye >= 0 && c.initialEye <= 1) || !(c.eyeSharpness >= 0 && c.eyeSharpness <= 1)) problems.push("initialEye and eyeSharpness must be between 0 and 1");
+  if (!(c.vigilance >= 0)) problems.push("vigilance cannot be negative");
+  if (c.vigilance > 0 && c.brainMode === 0) problems.push("vigilance needs brains (only brains see)");
   if (c.spareFamily !== 0 && c.spareFamily !== 1) problems.push("spareFamily must be 0 (off) or 1 (never attack your own parent or offspring)");
   for (const [name, value] of [["meatColdKeep", c.meatColdKeep], ["preyHungerDefense", c.preyHungerDefense], ["weaponGrazeLoss", c.weaponGrazeLoss]] as const) {
     if (!(value >= 0 && value <= 1)) problems.push(`${name} must be between 0 and 1`);
