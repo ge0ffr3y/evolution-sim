@@ -17,6 +17,16 @@ export interface Invasion {
   genes: Record<string, number>;
   /** Optional: make each chosen animal this many times bigger (1 to 4), paid from its own stores. */
   sizeFactor?: number;
+  /** Optional: arrive again every this many ticks after atTick (until `until`), so a group keeps being present to measure. */
+  repeatEvery?: number;
+  until?: number;
+}
+
+/** Is an invasion due at this tick? (Decided by the tick alone, so a resumed run does the same.) */
+export function invasionDue(inv: Invasion, tick: number): boolean {
+  if (tick === inv.atTick) return true;
+  if (!inv.repeatEvery || tick < inv.atTick || tick > (inv.until ?? Infinity)) return false;
+  return (tick - inv.atTick) % inv.repeatEvery === 0;
 }
 
 export interface InvasionResult {
@@ -29,8 +39,10 @@ export interface InvasionResult {
 export function checkInvasion(raw: unknown, ticks: number): Invasion {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) throw new Error("invasion must be an object: { \"atTick\": 100000, \"every\": 20, \"genes\": { \"diet\": 0.95 } }");
   const e = raw as Record<string, unknown>;
-  for (const key of Object.keys(e)) if (!["atTick", "every", "genes", "sizeFactor"].includes(key)) throw new Error(`Unknown invasion field "${key}" (expected atTick, every, genes, sizeFactor)`);
-  const { atTick, every, genes, sizeFactor } = e;
+  for (const key of Object.keys(e)) if (!["atTick", "every", "genes", "sizeFactor", "repeatEvery", "until"].includes(key)) throw new Error(`Unknown invasion field "${key}" (expected atTick, every, genes, sizeFactor, repeatEvery, until)`);
+  const { atTick, every, genes, sizeFactor, repeatEvery, until } = e;
+  if (repeatEvery !== undefined && (typeof repeatEvery !== "number" || !Number.isInteger(repeatEvery) || repeatEvery < 1)) throw new Error("invasion.repeatEvery must be a whole number of ticks of 1 or more");
+  if (until !== undefined && (typeof until !== "number" || !Number.isInteger(until) || until < (atTick as number))) throw new Error("invasion.until must be a whole tick, not before atTick");
   if (sizeFactor !== undefined && (typeof sizeFactor !== "number" || !(sizeFactor >= 1 && sizeFactor <= 4))) throw new Error("invasion.sizeFactor must be between 1 and 4");
   if (typeof atTick !== "number" || !Number.isInteger(atTick) || atTick < 1 || atTick >= ticks) throw new Error("invasion.atTick must be a whole number of 1 or more, before the run ends");
   if (typeof every !== "number" || !Number.isInteger(every) || every < 1) throw new Error("invasion.every must be a whole number of 1 or more (1 = every animal, 20 = one in twenty)");
@@ -40,7 +52,11 @@ export function checkInvasion(raw: unknown, ticks: number): Invasion {
     if (!(GENES as readonly string[]).includes(name)) throw new Error(`invasion.genes: unknown gene "${name}" (genes: ${GENES.join(", ")})`);
     if (typeof value !== "number" || !(value >= 0 && value <= 1)) throw new Error(`invasion.genes.${name} must be between 0 and 1`);
   }
-  return sizeFactor === undefined ? { atTick, every, genes: genes as Record<string, number> } : { atTick, every, genes: genes as Record<string, number>, sizeFactor };
+  const inv: Invasion = { atTick, every, genes: genes as Record<string, number> };
+  if (sizeFactor !== undefined) inv.sizeFactor = sizeFactor as number;
+  if (repeatEvery !== undefined) inv.repeatEvery = repeatEvery as number;
+  if (until !== undefined) inv.until = until as number;
+  return inv;
 }
 
 /** Apply the invasion to the world as it stands. */

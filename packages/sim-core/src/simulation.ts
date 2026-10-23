@@ -851,6 +851,7 @@ export class Simulation {
     if (index === this.pickAttacker || this.killed[index] === 1 || (this.colonyInfoOn && this.config.colonyProtect === 1 ? this.colonyMass[index]! : this.size[index]!) > this.pickSizeLimit) return;
     if (this.camoOn && !this.detects(this.pickAttacker, index)) return; // never noticed it
     if (this.toxOn && this.avoidStrength[this.pickAttacker]! > 0 && this.avoids(this.pickAttacker, index)) return; // it remembers that this color was poison
+    if (this.config.spareFamily === 1 && this.isFamily(this.pickAttacker, index)) return; // its own parent or young
     // Nobody attacks a relative (or, with kinTolerance, nobody tolerant enough to count the target as one).
     let limitSq = this.kinToleranceOn ? this.toleranceSq[this.pickAttacker]! : this.kinLimitSq;
     const hungerBelow = this.config.kinHungerBelow;
@@ -868,6 +869,33 @@ export class Simulation {
       this.pickBestDistSq = distSq;
     }
   };
+
+  /** Fat as breeding capital: if energy and fat together reach `level`, move the shortfall out of fat (no loss). Returns the energy. */
+  private mobilizeFat(i: number, level: number): number {
+    const energy = this.energy[i]!;
+    const store = this.fatStore[i]!;
+    if (energy >= level || energy + store < level) return energy;
+    const moved = level - energy;
+    this.fatStore[i] = store - moved;
+    this.energy[i] = level;
+    return level;
+  }
+
+  /** A newborn receives fat from a parent: into its reserve up to the cap, the rest as ordinary energy (nothing lost or made). */
+  private giveFat(child: number, amount: number): void {
+    const room = this.config.fatCap * this.threshold[child]! - this.fatStore[child]!;
+    const kept = amount < room ? amount : room > 0 ? room : 0;
+    this.fatStore[child] = this.fatStore[child]! + kept;
+    this.energy[child] = this.energy[child]! + (amount - kept);
+  }
+
+  /** Is one of these two the other's parent (either parent, with sex)? Known by identity, not by genes. */
+  private isFamily(a: number, b: number): boolean {
+    const ia = this.id[a]!;
+    const ib = this.id[b]!;
+    if (this.parentId[a] === ib || this.parentId[b] === ia) return true;
+    return this.sexOn && (this.parent2Id[a] === ib || this.parent2Id[b] === ia);
+  }
 
   private seenScavenger = false;
   private seenKill = false;
@@ -1164,6 +1192,8 @@ export class Simulation {
       if (name === "bond" || name === "plan1" || name === "plan2" || name === "plan3" || name === "stick" || name === "signal") continue;
       // How tolerant an organism is of relatives is a behavior setting, not part of what kind of organism it is.
       if (name === "tolerance" || name === "sex" || name === "stressResponse" || name === "calmResponse" || name === "generosity") continue;
+      // How much fat an animal banks can be left out too (fatRelated 0): physiology, not kind.
+      if (name === "fat" && c.fatRelated === 0) continue;
       this.mateMask.push(GENE[name]);
     }
     this.species = new Uint32Array(c.speciesEvery > 0 ? n : 0);
@@ -3165,6 +3195,7 @@ export class Simulation {
       const south = ((cy + 1) % gh) * gw + cx;
       const north = ((cy + gh - 1) % gh) * gw + cx;
       if (this.nutrientOn) inputs[INPUT.nutrientStore] = Math.min(1, this.nutrientStore[i]! / (c.nutrientStoreCap * this.bodyMatter[i]!)) * 2 - 1;
+      if (this.fatOn) inputs[INPUT.fatReserve] = Math.min(1, this.fatStore[i]! / (c.fatCap * this.threshold[i]!));
       if (this.qualityOn) {
         const q = this.plantQ;
         const scale = 1 / c.plantQualityMax;
@@ -4119,6 +4150,7 @@ export class Simulation {
     const energyPerFood = c.energyPerFood;
     const ledger = this.ledger;
     const brainMode = c.brainMode;
+    const fatBreeding = this.fatOn && c.fatBreeding === 1; // fat counts as breeding capital
     let attackers = 0;
     if (c.catastropheKind !== 0) this.catastropheCheck();
     // (Brains sense fouled ground compared with the average, so work the average out before anyone thinks.)
@@ -4453,7 +4485,8 @@ export class Simulation {
           if (draw > store) draw = store;
           store -= draw;
           energy += draw;
-        } else if (fraction > c.fatDepositAbove) {
+        } else if (fraction > c.fatDepositAbove && !(c.fatBreeding === 1 && this.sexGeneOn && this.sexMode[i] === 2)) {
+          // (With fatBreeding, an animal seeking a mate banks nothing: it is holding that energy to breed.)
           let amount = this.genes[i * GENE_COUNT + GENE.fat]! * c.fatDepositRate * (energy - c.fatDepositAbove * need);
           const room = (c.fatCap * need - store) / c.fatEfficiency;
           if (amount > room) amount = room > 0 ? room : 0;
@@ -4560,6 +4593,8 @@ export class Simulation {
       this.energy[i] = energy;
       this.age[i]!++;
 
+      // Fat pays for breeding: top energy up to the breeding level from fat if together they reach it.
+      if (fatBreeding && energy < this.threshold[i]!) energy = this.mobilizeFat(i, this.threshold[i]!);
       // Specialized cells are sterile: only generalist ("germ") cells reproduce.
       if (energy >= this.threshold[i]! && !(this.typeOn && this.cellType[i] !== 0)) this.parents[parentCount++] = i;
     }
@@ -4718,7 +4753,9 @@ export class Simulation {
         let partnerCount = 0;
         for (let i = 0; i < n; i++) {
           if (this.killed[i] === 1 || (this.typeOn && this.cellType[i] !== 0)) continue;
-          if (this.energy[i]! >= c.mateReadyFraction * this.threshold[i]!) this.partnerList[partnerCount++] = i;
+          const ready = c.mateReadyFraction * this.threshold[i]!;
+          if (fatBreeding && this.energy[i]! < ready) this.mobilizeFat(i, ready);
+          if (this.energy[i]! >= ready) this.partnerList[partnerCount++] = i;
         }
         pairCount = this.pairUp(mateList, mateCount, this.partnerList, partnerCount);
       } else {
@@ -4737,6 +4774,9 @@ export class Simulation {
         // Each parent hands over half of the usual total, split between the babies.
         const eachA = (this.energy[a]! * c.offspringEnergyFraction * 0.5) / litter;
         const eachB = (this.energy[b]! * c.offspringEnergyFraction * 0.5) / litter;
+        // Fat passed to young (fatProvision): each parent gives half as much as it would alone.
+        const fatA = this.fatOn ? (this.fatStore[a]! * c.fatProvision * 0.5) / litter : 0;
+        const fatB = this.fatOn ? (this.fatStore[b]! * c.fatProvision * 0.5) / litter : 0;
         for (let baby = 0; baby < litter; baby++) {
           const savedNextId = this.nextId;
           const child = this.spawn(this.id[a]!, this.x[a]!, this.y[a]!);
@@ -4773,6 +4813,11 @@ export class Simulation {
             this.learnSpent[b] = this.learnSpent[b]! + eachB;
           }
           this.energy[child] = store;
+          if (fatA + fatB > 0) {
+            this.fatStore[a] = this.fatStore[a]! - fatA;
+            this.fatStore[b] = this.fatStore[b]! - fatB;
+            this.giveFat(child, fatA + fatB);
+          }
           this.totalBirths++;
           this.sexualBirths++;
           if (this.bondsOn) this.maybeAttach(a, child);
@@ -4789,6 +4834,7 @@ export class Simulation {
         const litter = this.litterSize(parent, -1);
         // The same total as always, split between the babies (a litter of one hands over exactly what it always did).
         const each = (this.energy[parent]! * c.offspringEnergyFraction) / litter;
+        const fatEach = this.fatOn ? (this.fatStore[parent]! * c.fatProvision) / litter : 0;
         for (let baby = 0; baby < litter; baby++) {
           const savedNextId = this.nextId;
           const child = this.spawn(this.id[parent]!, this.x[parent]!, this.y[parent]!);
@@ -4820,6 +4866,10 @@ export class Simulation {
           this.energy[parent] = this.energy[parent]! - each;
           if (this.trackOn) this.learnSpent[parent] = this.learnSpent[parent]! + each;
           this.energy[child] = store;
+          if (fatEach > 0) {
+            this.fatStore[parent] = this.fatStore[parent]! - fatEach;
+            this.giveFat(child, fatEach);
+          }
           this.totalBirths++;
           if (this.bondsOn) this.maybeAttach(parent, child);
         }
@@ -5330,7 +5380,7 @@ export class Simulation {
    * code applies them, which makes the parts add up exactly to the whole. Poison from a meal
    * (toxicity) is left out: it is only known inside the tick.
    */
-  costBreakdown(): CostBreakdown {
+  costBreakdown(include?: (i: number) => boolean): CostBreakdown {
     const c = this.config;
     const out: CostBreakdown = {
       body: 0, repair: 0, torporGene: 0, load: 0, luck: 0, toxinGene: 0,
@@ -5341,7 +5391,11 @@ export class Simulation {
     if (n === 0) return out;
     const cs = c.foodCellSize;
     const brains = c.brainMode > 0;
+    let counted = 0;
     for (let i = 0; i < n; i++) {
+      // Optionally only some animals (say, one diet group); the average is over those.
+      if (include && !include(i)) continue;
+      counted++;
       const g = i * GENE_COUNT;
       const cell = Math.floor(this.y[i]! / cs) * this.gridWidth + Math.floor(this.x[i]! / cs);
       // Birth-time upkeep, undone from the last multiplier back to the first.
@@ -5462,7 +5516,8 @@ export class Simulation {
       if (brains) out.brain += this.brainCost[i]!;
     }
     out.total = out.upkeep + out.movement + out.sensing + out.attack + out.armor + out.brain;
-    for (const key of Object.keys(out) as (keyof CostBreakdown)[]) out[key] /= n;
+    if (counted === 0) return out;
+    for (const key of Object.keys(out) as (keyof CostBreakdown)[]) out[key] /= counted;
     return out;
   }
 

@@ -68,5 +68,60 @@
     "name": "hunters-confirm",
     "question": "Does a 'hunters' grand world reliably grow meat eaters? Today's grand world against two versions without harmful mutations, sex and kin restraint: one also without the whole climate (as in carnivore-bridge-2, meat eaters in 3 of 4 worlds), one without only the seasons (keeping day and night, weather, drift, the cost of heat and cold, torpor and ice ages). 16 fresh seeds, 300,000 ticks. An answer: in how many worlds a meat-eating group (diet above 0.75) holds over the second half, how big, and what the versions cost in species and population.",
     "file": "hunters-confirm.json"
+  },
+  {
+    "name": "spare-family",
+    "question": "Does sparing your own parent and young (spareFamily) let meat eaters (diet above 0.75) take hold in the grand world? Hunters attack whoever is nearest and babies are born on their parent's spot, so a hunting family's first victims are its own; kin restraint was patching that. Grand world: as it is; with spareFamily; with spareFamily and no kin restraint; with spareFamily and no herds. Reference: the hunters' world with and without spareFamily. An answer: meat eaters, feeding levels, kills, species and population in each, against the grand world.",
+    "file": "spare-family.json"
+  },
+  {
+    "name": "kill-payoff-margin",
+    "question": "Does a richer kill give meat eaters the margin they lack in the grand world? A body holds bodyEnergyPerSize units of energy per unit of size (4 today; making a baby costs 30), carved out of what the parent hands its baby, so richer bodies mean richer carcasses but newborns with less spare energy. Today's 4 against 6, 8 and 12, with one animal in twenty becoming an armed meat eater at tick 100,000 and every 5,000 ticks after, measured with the diet ledger. An answer: meat eaters' births against deaths, income and costs, and how many remain 4,500 ticks after each arrival, against the plant eaters' births.",
+    "file": "kill-payoff-margin.json"
+  },
+  {
+    "name": "kill-payoff",
+    "question": "With richer kills, do meat eaters (diet above 0.75) evolve and last in the grand world on their own? Today's body energy of 4 per unit of size against 6, 8 and 12, with and without sparing your own parent and young, no help from invasions, 300,000 ticks. An answer: worlds with a lasting group of meat eaters, feeding levels, kills, species and population.",
+    "file": "kill-payoff.json"
+  },
+  {
+    "name": "margin-levers-margin",
+    "question": "In the grand world, do the two margin levers the diet ledger points to: a fat reserve (banks surplus from a big meal for the lean days between kills; deposit rate 0.5, founders start with a fat gene of 0.3, as fat does not evolve from nothing) and more plant growth (0.18 and 0.24 per tick, against 0.12), so plant eaters breed faster and leave more surplus for hunters, and fat with 0.18 together. Margin test: one animal in twenty becomes an armed meat eater (with a fat gene of 0.5) at tick 100,000 and every 5,000 ticks after, measured with the diet ledger. An answer: meat eaters' births against deaths, income and costs, and how many remain 4,500 ticks after each arrival.",
+    "file": "margin-levers-margin.json"
+  },
+  {
+    "name": "margin-levers",
+    "question": "In the grand world, with no help, do meat eaters (diet above 0.75) evolve and last with the two margin levers the diet ledger points to: a fat reserve (banks surplus from a big meal for the lean days between kills; deposit rate 0.5, founders start with a fat gene of 0.3, as fat does not evolve from nothing) and more plant growth (0.18 and 0.24 per tick, against 0.12), so plant eaters breed faster and leave more surplus for hunters, and fat with 0.18 together. 300,000 ticks. An answer: worlds with a lasting group of meat eaters, feeding levels, kills, species and population.",
+    "file": "margin-levers.json"
+  },
+  {
+    "name": "bundle-margin",
+    "question": "Does a bundle of every partial help found so far, together: sparing your own parent and young, a fat reserve (deposit 0.5, founders start with 0.3), plant growth 0.24 (against 0.12), weapons that get in the way of grazing (0.6), meat that keeps in the cold (0.8), more mending of harmful mutations (0.5, against 0.15) and half the cost of heat and cold (0.75, against 1.5) give arriving meat eaters a margin in the grand world? One animal in twenty becomes an armed meat eater (with a fat gene of 0.5) at tick 100,000 and every 5,000 ticks after, measured with the diet ledger. An answer: meat eaters' births against deaths, and how many remain 4,500 ticks after each arrival.",
+    "file": "bundle-margin.json"
+  },
+  {
+    "name": "bundle",
+    "question": "With no help, do meat eaters (diet above 0.75) evolve and last in the grand world with every partial help found so far, together: sparing your own parent and young, a fat reserve (deposit 0.5, founders start with 0.3), plant growth 0.24 (against 0.12), weapons that get in the way of grazing (0.6), meat that keeps in the cold (0.8), more mending of harmful mutations (0.5, against 0.15) and half the cost of heat and cold (0.75, against 1.5)? Also the bundle with each help left out in turn, to see which it needs. 300,000 ticks. An answer: worlds with a lasting group of meat eaters, feeding levels, kills, species and population.",
+    "file": "bundle.json"
+  },
+  {
+    "name": "path-bundle-margin",
+    "question": "Do arriving meat eaters still hold their numbers in the grand world with the bundle of helps without the weapons penalty (sparing your own parent and young, a fat reserve, plant growth 0.24, meat that keeps in the cold, more mending 0.5, half the cost of heat and cold), and the same without fat? One animal in twenty becomes an armed meat eater (fat gene 0.5) at tick 100,000 and every 5,000 ticks after, diet ledger. An answer: how many remain 4,500 ticks after each arrival, and births against deaths.",
+    "file": "path-bundle-margin.json"
+  },
+  {
+    "name": "path-bundle",
+    "question": "With no help, do meat eaters (diet above 0.75) evolve and last in the grand world with the bundle of helps without the weapons penalty (sparing your own parent and young, a fat reserve, plant growth 0.24, meat that keeps in the cold, more mending 0.5, half the cost of heat and cold), and the same without fat? 16 fresh seeds, 500,000 ticks. An answer: worlds with 10+ meat eaters for most of the second half, feeding levels, kills, species and population.",
+    "file": "path-bundle.json"
+  },
+  {
+    "name": "fat-rework",
+    "question": "Does reworked fat pay off? Grand world without fat, with today's fat, today's fat left out of relatedness, reworked fat (store only true surplus from the breeding level up, draw below half, 90% stored, cheaper to carry, half handed to young, left out of relatedness), reworked fat without the hand-over, reworked fat storing from 80%, and the no-fat path bundle with and without reworked fat. An answer: whether the fat gene now rises instead of falling, and what fat does to survival through lean spells (lowest population), species, brains (connections, hidden units) and meat eaters.",
+    "file": "fat-rework.json"
+  },
+  {
+    "name": "fat-breeding",
+    "question": "Does letting fat pay for breeding (fatBreeding: fat counts as breeding capital, and nothing is banked while seeking a mate) remove the cost of fat to sex and make fat a gain for the world? Grand world without fat, with reworked fat, and with reworked fat that pays for breeding; the no-fat path bundle and the path bundle with fat that pays for breeding. 8 fresh seeds, 300,000 ticks. An answer: births with two parents, the fat gene, population and its low point, species, brains and meat eaters.",
+    "file": "fat-breeding.json"
   }
 ]

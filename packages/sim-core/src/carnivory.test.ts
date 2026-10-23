@@ -119,3 +119,71 @@ describe("the books still balance with all three on", () => {
     expect(Math.abs(sim.matterAudit().total - m0) / m0).toBeLessThan(1e-9);
   }, 60_000);
 });
+
+describe("spare your own parent and young", () => {
+  type Hidden = {
+    considerPrey: (index: number, distSq: number) => void;
+    pickAttacker: number;
+    pickBest: number;
+    pickBestDistSq: number;
+    pickSizeLimit: number;
+    parentId: Uint32Array;
+    parent2Id: Uint32Array;
+  };
+  // Three animals: 0 is the hunter; 1 and 2 are strangers until the test makes one of them family.
+  const picks = (sim: Simulation, target: number): boolean => {
+    const h = sim as unknown as Hidden;
+    h.pickAttacker = 0;
+    h.pickBest = -1;
+    h.pickBestDistSq = Infinity;
+    h.pickSizeLimit = 100;
+    h.considerPrey(target, 1);
+    return h.pickBest === target;
+  };
+  const world = (extra: Partial<SimConfig> = {}): Simulation =>
+    new Simulation(1, { worldWidth: 64, worldHeight: 64, initialOrganisms: 3, speciesEvery: 0, ...extra });
+
+  it("is off by default: a hunter attacks its own young like anyone else", () => {
+    const sim = world();
+    (sim as unknown as Hidden).parentId[1] = sim.id[0]!;
+    expect(picks(sim, 1)).toBe(true);
+  });
+
+  it("spares its own child and its own parent, and still attacks a stranger", () => {
+    const sim = world({ spareFamily: 1 });
+    const h = sim as unknown as Hidden;
+    h.parentId[1] = sim.id[0]!; // 1 is the hunter's child
+    expect(picks(sim, 1)).toBe(false);
+    expect(picks(sim, 2)).toBe(true);
+    h.parentId[1] = 0;
+    h.parentId[0] = sim.id[2]!; // 2 is the hunter's parent
+    expect(picks(sim, 2)).toBe(false);
+    expect(picks(sim, 1)).toBe(true);
+  });
+
+  it("with sex, spares the young it fathered as a second parent too", () => {
+    const sim = world({ spareFamily: 1, sexualReproduction: 1 });
+    (sim as unknown as Hidden).parent2Id[1] = sim.id[0]!;
+    expect(picks(sim, 1)).toBe(false);
+  });
+
+  it("must be 0 or 1", () => {
+    expect(DEFAULT_CONFIG.spareFamily).toBe(0);
+    expect(() => world({ spareFamily: 0.5 })).toThrow(/spareFamily/);
+  });
+
+  it("the books still balance in a hunting world with it on", () => {
+    const sim = new Simulation(5, { worldWidth: 128, worldHeight: 128, initialOrganisms: 300, speciesEvery: 0, initialAttack: 0.5, initialDiet: 0.3, spareFamily: 1 });
+    sim.run(20);
+    const e0 = sim.energyAudit().total;
+    const m0 = sim.matterAudit().total;
+    const L0 = { ...sim.ledger };
+    sim.run(2000);
+    const L = sim.ledger;
+    expect(sim.count).toBeGreaterThan(0);
+    const burned = (x: typeof L): number => x.basalBurned + x.movementBurned + x.sensingBurned + x.attackBurned + x.armorBurned + x.brainBurned;
+    const expected = e0 + (L.sunlightIn - L0.sunlightIn) - (burned(L) - burned(L0)) - (L.digestionLoss - L0.digestionLoss) - (L.decayLoss - L0.decayLoss);
+    expect(Math.abs(sim.energyAudit().total - expected) / expected).toBeLessThan(1e-9);
+    expect(Math.abs(sim.matterAudit().total - m0) / m0).toBeLessThan(1e-9);
+  }, 60_000);
+});

@@ -1,9 +1,9 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Simulation, snapshotFromBytes, snapshotToBytes } from "@evo/sim-core";
-import { sampleWorld, summarizeRun, type Row } from "./measures";
+import { observeWorld, sampleWorld, summarizeRun, type Row } from "./measures";
 import type { Experiment, Job } from "./experiment";
-import { invade } from "./invasion";
+import { invade, invasionDue } from "./invasion";
 
 /**
  * One job = one arm on one seed. It records the measures every `sampleEvery` ticks and saves the
@@ -143,7 +143,8 @@ export async function runJob(exp: Experiment, job: Job, options: RunJobOptions =
     sim.step();
     const t = sim.tick;
     // A run resumed from a save after this tick already has the invasion in its saved world.
-    if (exp.invasion && t === exp.invasion.atTick) invade(sim, exp.invasion);
+    if (exp.invasion && invasionDue(exp.invasion, t)) invade(sim, exp.invasion);
+    observeWorld(sim, measures);
     if (t % exp.sampleEvery === 0 || sim.count === 0) rows.push(sampleWorld(sim, measures));
     const due = t % exp.checkpointEvery === 0 || clock() - lastSave >= exp.checkpointMinutes;
     if (due) {

@@ -107,9 +107,9 @@ describe("measures", () => {
     expect(lastQuarterTrend(rows.map((r) => ({ ...r, population: 50 })), "population")).toBe(0);
   });
 
-  it('"all" records every measure, and baseChanges reach every arm', () => {
+  it('"all" records every measure that is not opt-in, and baseChanges reach every arm', () => {
     const exp = tiny({ measures: ["all"], baseChanges: { foodRegrowPerTick: 0.1 } });
-    expect(exp.measures).toEqual(Object.keys(MEASURES));
+    expect(exp.measures).toEqual(Object.keys(MEASURES).filter((name) => !MEASURES[name]!.optIn));
     expect(exp.armConfigs.control!.foodRegrowPerTick).toBe(0.1);
     expect(exp.armConfigs.crowded!.foodRegrowPerTick).toBe(0.1);
     expect(exp.armConfigs.crowded!.initialOrganisms).toBe(160);
@@ -382,5 +382,86 @@ describe("the hard stop", () => {
     expect(() => hardStopFor(1, "0")).toThrow(/--hours/);
     expect(() => hardStopFor(1, true)).toThrow(/--hours/);
     expect(() => hardStopFor(1, "20")).toThrow(/--hours/);
+  });
+});
+
+describe("the diet ledger (opt-in, watches every tick)", () => {
+  const hunting = { worldWidth: 128, worldHeight: 128, initialOrganisms: 200, initialAttack: 0.5, initialDiet: 0.3 };
+
+  it("is left out of 'all', and recording it never changes what happens", async () => {
+    expect(tiny({ measures: ["all"] }).measures).not.toContain("dietLedger");
+    expect(tiny({ measures: ["all", "dietLedger"] }).measures).toContain("dietLedger");
+    const plain = tiny({ arms: { control: hunting }, measures: ["population"] });
+    const watched = tiny({ arms: { control: hunting }, measures: ["population", "dietLedger"] });
+    const job = jobsOf(plain)[0]!;
+    expect((await runJob(watched, job))!.fingerprint).toBe((await runJob(plain, job))!.fingerprint);
+  });
+
+  it("covers every animal (band shares add to 1), and records births, deaths and costs", async () => {
+    const exp = tiny({ arms: { control: hunting }, measures: ["population", "dietLedger"], sampleEvery: 100 });
+    const r = (await runJob(exp, jobsOf(exp)[0]!))!;
+    let births = 0;
+    let deaths = 0;
+    for (const row of r.rows.slice(1)) {
+      let share = 0;
+      for (let b = 0; b < 4; b++) {
+        const t = row[`ld${b}_share`]!;
+        share += Number.isNaN(t) ? 0 : t;
+      }
+      expect(share).toBeCloseTo(1, 4);
+    }
+    // Rates are per animal per 1,000 ticks; turn them back into counts with each window's animal-ticks.
+    const rows = r.rows;
+    for (let k = 1; k < rows.length; k++) {
+      const ticks = rows[k]!.tick! - rows[k - 1]!.tick!;
+      const animalTicks = ((rows[k - 1]!.population! + rows[k]!.population!) / 2) * ticks;
+      for (let b = 0; b < 4; b++) {
+        const share = rows[k]![`ld${b}_share`]!;
+        if (Number.isNaN(share) || share === 0) continue;
+        births += (rows[k]![`ld${b}_births`]! / 1000) * share * animalTicks;
+        deaths += (rows[k]![`ld${b}_deaths`]! / 1000) * share * animalTicks;
+      }
+    }
+    expect(births).toBeGreaterThan(0);
+    expect(deaths).toBeGreaterThan(0);
+    expect(r.summary.ld0_costLate).toBeGreaterThan(0);
+  });
+});
+
+describe("repeating invasions", () => {
+  it("arrive at atTick and every repeatEvery ticks after, until `until`, and resume exactly", async () => {
+    const { invasionDue } = await import("./invasion");
+    const inv = { atTick: 100, every: 10, genes: { diet: 0.95 }, repeatEvery: 50, until: 220 };
+    const due = [];
+    for (let t = 0; t <= 400; t++) if (invasionDue(inv, t)) due.push(t);
+    expect(due).toEqual([100, 150, 200]);
+    expect(() => tiny({ invasion: { ...inv, repeatEvery: 0 } })).toThrow(/repeatEvery/);
+    expect(() => tiny({ invasion: { ...inv, until: 50 } })).toThrow(/until/);
+    const straight = tiny({ invasion: { atTick: 150, every: 10, genes: { diet: 0.95 }, repeatEvery: 100 } });
+    const job = jobsOf(straight)[0]!;
+    const a = (await runJob(straight, job))!;
+    const interrupted = tiny({ invasion: { atTick: 150, every: 10, genes: { diet: 0.95 }, repeatEvery: 100 } });
+    let calls = 0;
+    expect(await runJob(interrupted, job, { shouldStop: () => ++calls === 300 })).toBeNull();
+    expect((await runJob(interrupted, job))!.fingerprint).toBe(a.fingerprint);
+  });
+});
+
+describe("bigger machines once the core limit allows", () => {
+  it("offers c8g's 96- and 192-core sizes (not c7g's, which do not exist), and only within the free cores", () => {
+    const exp = tiny();
+    const jobs = Array.from({ length: 150 }, () => 600);
+    const wide = planMachines(exp, jobs, undefined, 192).options.map((o) => o.type);
+    expect(wide).toContain("c8g.48xlarge");
+    expect(wide).toContain("c8g.24xlarge");
+    expect(wide).not.toContain("c7g.24xlarge");
+    expect(wide).not.toContain("c7g.48xlarge");
+    const narrow = planMachines(exp, jobs, undefined, 64).options.map((o) => o.type);
+    expect(narrow).not.toContain("c8g.24xlarge");
+  });
+
+  it("does not pick a big machine for a few worlds (idle cores are paid for)", () => {
+    const { pick } = planMachines(tiny(), Array.from({ length: 8 }, () => 3600), undefined, 192);
+    expect(pick.vcpus).toBeLessThanOrEqual(16);
   });
 });

@@ -358,3 +358,273 @@ About an hour on a 32-core machine, about $1.15.
 - **The hunters' world is richer, not poorer:** a real food web (plant eaters, mixed eaters, meat eaters; 2.7 feeding levels), 29% more species alive, more than twice as many species over the run, a bigger and steadier population. The price is shorter lives (half as long; most deaths are kills now) and more disease (a denser world).
 - **Seasons were not the whole of the climate's effect in the grand world.** In the simple world only seasons mattered (7b), but here removing the seasons alone left meat eaters in 4 of 16 worlds at most 11 strong, and cost a third of the species. Something else in the climate also blocks them when combined with the rest: torpor (a dormant animal cannot attack), the cost of heat and cold, ice ages and droughts, or weather. Not yet split.
 - **What it gives up:** sex, harmful mutations, kin restraint, herds and sharing, and the climate (seasons, weather, day and night, ice ages, droughts, volcanoes, the cost of heat and cold, torpor). It is a different world, not a fix for the grand world.
+
+## 8. Prey choice: hunters eat their own families
+
+**Why:** kin restraint behaved oddly. Removing it, and also tightening it, cut hunting in the grand world, so it was not simply a brake. A diagnostic (`apps/runner/scripts/kill-victims.ts`) recorded who each kill's victim was.
+
+**Found:** babies appear on their parent's exact spot, and a hunter attacks whoever is nearest in reach, so family members are often each other's first targets. In 20,000-tick runs (one seed each):
+
+| | Kills by an animal at most 5 ticks old | Victim is the killer's parent | Victim is the killer's child |
+|---|---|---|---|
+| Simple world | 22% | 21% | 4% |
+| Grand world | 6% | 4% | 6% |
+| Grand world without kin restraint | 8% | 12% | 10% |
+| Grand world: hunters | 11% | 11% | 8% |
+
+Kin restraint was patching this: without it a hunting family eats itself, so hunting pays less (grand world: 18,000 kills in 20,000 ticks without it, 41,000 with it).
+
+**Built:** `spareFamily` (off by default; tests in `carnivory.test.ts`). An animal never attacks its own parent or offspring, known by identity, not by gene likeness. In a quick check it removed parent and child kills completely and raised kills to 62,000 (50,000 without kin restraint).
+
+### 8b. It does not bring meat eaters to the grand world
+
+**Experiment:** `spare-family` (made by `apps/runner/scripts/make-spare-family.ts`), 300,000 ticks, seeds 1701 to 1704. About 30 minutes on a 32-core machine, about 60 cents.
+
+| | Meat eaters per world (second half) | Feeding levels | Kills per 1,000 ticks |
+|---|---|---|---|
+| Grand world | 0, 0, 0, 0 | 1.66 | 1,210 |
+| + spare family | 0, 0, 0, 0 | 1.66 | 994 |
+| + spare family, no kin restraint | 0, 0, 0, 0 | 1.37 | 747 |
+| + spare family, no herds | 0, 0, 0, 0 | 1.77 | 1,463 |
+| Grand world: hunters (reference) | 95 to 193 | 2.90 | 4,973 |
+| Hunters + spare family | 43 to 101 | 2.94 | 5,932 |
+
+**Answer: no.** The early rise in kills does not last, and no meat eaters appear in any grand-world setup. Sparing family is a real fix for a real quirk, but it is not what holds meat eaters back in the grand world.
+
+### 8c. Autopsy: what kills a meat-eating group in the grand world
+
+**Diagnostic:** `apps/runner/scripts/invader-autopsy.ts` turns one animal in twenty into an armed meat eater after 60,000 ticks and follows every descendant (one seed, laptop runs).
+
+- **In the grand world the group dies within about 700 ticks; in the hunters' world it lasts.** Both take in about the same meat (about 5 to 10 breedings' worth per animal per 1,000 ticks) and are about equally fed (half of what breeding needs). The difference is breeding and starving: in the hunters' world invaders produce about one baby each per 100 ticks; in the grand world about a quarter of that, and most deaths are running out of energy.
+- **Meat eaters kill each other.** In the hunters' world, 30 to 40% of the group's deaths are kills by its own lineage (cousins and siblings, which sparing family does not cover). They last anyway because they breed so fast.
+- **No single grand-world feature is the cause.** Removed one at a time from the grand world, the group lasts: kin restraint or sex about 1,500 ticks, harmful mutations about 2,000, seasons about 3,000, the cost of heat and cold a little over 3,000 (one seed each). Each buys time; none is enough.
+- **So the grand world taxes everyone, and meat eaters have no margin to pay it.** Harmful mutations alone raise every animal's basic upkeep by about 70% (about 18 per animal at about 4% each), about a fifth of all running costs. Plant eaters' income arrives every tick and absorbs that; a meat eater's arrives in lumps and runs at about break-even even in easy worlds, so each extra cost pushes it under.
+
+### 8d. Where a meat eater's margin goes (diet ledger)
+
+**Experiment:** `meat-margin` (made by `apps/runner/scripts/make-meat-margin.ts`; table by `apps/runner/scripts/ledger-table.mjs`), 150,000 ticks, seeds 1801 to 1804. A new opt-in measure, the diet ledger, tallies every tick, per diet band:
+- income from plants and from meat, and running costs by kind, all in breedings' worth per animal per 1,000 ticks;
+- kills, births (credited to the parent's band) and deaths.
+
+From tick 100,000, one animal in twenty became an armed meat eater, and again every 5,000 ticks, so every setup had meat eaters to measure. Setups: the grand world, the grand world without each culprit group, and the hunters' world. About 30 minutes on a 16-core machine, about 35 cents.
+
+**Per animal, ticks 100,000 to 150,000 (weighted by numbers):**
+
+| Meat eaters (diet above 0.75) | Grand world | Hunters' world |
+|---|---|---|
+| Meat income | 7.8 | 7.4 |
+| Running costs | **4.7** | **2.9** |
+| of which basic upkeep | 2.9 | 1.4 |
+| of which harmful mutations | 0.9 | 0 |
+| of which heat and cold | 0.4 | 0 |
+| Kills | 14.2 | 18.8 |
+| Births / deaths | 6.0 / 6.1 | 6.0 / 6.1 |
+
+| Plant eaters (diet under 0.25) | Grand world | Hunters' world |
+|---|---|---|
+| Plant income | 7.0 | 11.1 |
+| Running costs | 5.7 | 8.1 |
+| Births | **2.5** | **4.9** |
+| Number | 913 | 1,117 |
+
+**Meat eaters after each arrival** (average of 9 arrivals in 4 worlds):
+
+| | On arrival | +500 ticks | +2,000 | +4,500 |
+|---|---|---|---|---|
+| Grand world | 82 | 71 | 50 | 41 |
+| Without the climate | 79 | 31 | 21 | 19 |
+| Without sex | 41 | 12 | 5 | 2 |
+| Without harmful mutations | 87 | 73 | 54 | 52 |
+| Without kin restraint | 101 | 92 | 70 | 58 |
+| Hunters' world | 225 | 187 | 189 | 162 |
+
+- **Meat eaters everywhere live at about break-even** (births about equal to deaths, about 6 per animal per 1,000 ticks). In the grand world they fall just short: a group loses about 40% every 4,500 ticks, so without newcomers it fades within about 20,000 to 30,000 ticks. In the hunters' world they hold.
+- **They earn about the same in both worlds; what differs is costs.** A meat eater's running costs are about 60% higher in the grand world (4.7 against 2.9), mostly basic upkeep: harmful mutations and heat and cold make up most of the gap.
+- **The prey matter too.** Grand-world plant eaters earn less and breed at half the rate (2.5 against 4.9 per 1,000 ticks), so there is less surplus for hunters to live on.
+- **No single culprit fixes it, and two removals hurt.** Without harmful mutations or kin restraint, groups shrink a little more slowly. Without the climate or without sex they collapse faster: in those worlds the plant eaters kill about twice as often (2.0 and 1.7 kills per animal per 1,000 ticks against 0.9), and newly arrived meat eaters are among their victims.
+- **Earlier autopsy (8c) was harsher than this**: a single small group at tick 60,000 in one seed died within 700 ticks; here repeated arrivals build up, and survivors from earlier groups carry on.
+
+### 8e. A richer kill does not help either
+
+**Experiments:** `kill-payoff-margin` (150,000 ticks, seeds 1901 to 1904, repeated meat-eater arrivals from tick 100,000, diet ledger) and `kill-payoff` (300,000 ticks, seeds 1911 to 1914, no help). A body holds `bodyEnergyPerSize` units of energy per unit of size: 4 today, against 6, 8 and 12. Each on a 16-core machine, side by side, about $1.25 together.
+
+**Answer: no.**
+
+| Body energy | Meat income per meat eater | Meat eaters 4,500 ticks after arriving | Plant eaters | From scratch: meat eaters in 4 worlds |
+|---|---|---|---|---|
+| 4 (today) | 7.1 | 20 of 55 | 821 | 0, 0, 0, 0 |
+| 6 | 7.1 | 21 of 56 | 703 | 0, 0, 0, 0 |
+| 8 | 9.1 | 13 of 44 | 707 | 0, 0, 0, 0 |
+| 12 | 6.9 | 19 of 49 | 585 | 0, 0, 0, 0 |
+| 8, sparing family | | | | 0, 0, 0, 0 |
+| 12, sparing family | | | | 0, 0, 0, 0 |
+
+- **A richer body is not a richer carcass.** The extra energy in a body comes out of what the parent hands its baby, so a newborn starts with less spare energy and a carcass holds about the same total. Meat income stays about flat.
+- **It costs the prey.** Plant eaters become fewer (up to 29% fewer at 12), with fewer species (-15 to -33%), so there is less to hunt.
+- **Feeding levels and meat in the diet rise a little** (up to +22% and +59%, not holding up with 4 seeds), but no world grows a single meat eater.
+
+### 8f. A fat reserve and more plant growth do not give the margin either
+
+**Experiments:** `margin-levers-margin` (150,000 ticks, seeds 2001 to 2004, repeated meat-eater arrivals from tick 100,000, diet ledger) and `margin-levers` (300,000 ticks, seeds 2011 to 2014, no help). Grand world against:
+- a fat reserve (deposit rate 0.5, founders and arrivals starting with fat), to bank a big meal for the lean days between kills;
+- more plant growth (0.18 and 0.24 per tick, against 0.12), so plant eaters breed faster;
+- fat with 0.18.
+
+Each on a 32-core machine, side by side, about $1.10 together.
+
+| | Meat eaters 4,500 ticks after arriving | Meat eaters' births / deaths | From scratch: meat eaters in 4 worlds | Feeding levels | Kills per 1,000 ticks |
+|---|---|---|---|---|---|
+| Grand world | 4 of 41 | 6.0 / 6.7 | 0, 0, 0, 0 | 1.47 | 783 |
+| Fat | 13 of 43 | 4.4 / 4.8 | 0, 0, 0, 0 | 1.23 | 502 |
+| Plants 0.18 | 0 of 40 | 4.2 / 8.9 | 0, 0, 0, 0 | 1.57 | 1,188 |
+| Plants 0.24 | 13 of 54 | 6.3 / 6.8 | 0, 0, 0, 0 | 1.73 | **1,858*** |
+| Fat and plants 0.18 | 4 of 46 | 4.7 / 5.5 | 0, 0, 0, 0 | 1.79 | **1,480*** |
+
+(* holds up, 4 seeds)
+
+- **Arriving meat eaters still die faster than they are born in every setup.** Fat and plants at 0.24 slow the loss (about a third left after 4,500 ticks, against a tenth); 0.18 was worse than both, likely noise with 4 seeds.
+- **More plants feed the armed plant eaters as much as the hunters.** Plant eaters kill more as plant growth rises (1.3 to about 2.3 kills each per 1,000 ticks in the margin test), and new meat eaters are among their victims. From scratch, plants at 0.24 more than double kills and lift feeding levels, but toward more mixed eating, not a meat-eating group.
+- **Fat makes a calmer world:** a third fewer kills and less meat, lives half again as long.
+
+### 8g. All the partial helps together: meat eaters can stay, but still do not arrive
+
+**Experiments:** `bundle-margin` and `bundle` (made by `apps/runner/scripts/make-bundle.mjs`). The bundle adds every partial help found so far to the grand world as it is:
+- sparing your own parent and young;
+- a fat reserve;
+- plant growth 0.24 (against 0.12);
+- weapons that get in the way of grazing (0.6);
+- meat that keeps in the cold (0.8);
+- more mending of harmful mutations (0.5, against 0.15);
+- half the cost of heat and cold.
+
+`bundle-margin`: 150,000 ticks, seeds 2101 to 2104, meat eaters arriving every 5,000 ticks from tick 100,000, diet ledger. `bundle`: 300,000 ticks, seeds 2111 to 2114, no help, with each help left out in turn. About $1.15 together.
+
+**Staying: yes.** Arriving meat eaters now hold their numbers in the grand world:
+
+| | On arrival | +500 ticks | +2,000 | +4,500 | Births / deaths (meat eaters) | Plant eaters |
+|---|---|---|---|---|---|---|
+| Grand world | 50 | 41 | 16 | 9 | 5.8 / 6.3 | 819 |
+| Bundle | 153 | 117 | 98 | **99** | **3.8 / 3.9** | 1,134 |
+
+**Arriving: no.** From scratch, not one world grew a lasting group of meat eaters with the bundle. The bundle gives 90% more animals and 44% more species, but the same feeding levels. Leaving each help out in turn:
+
+| From scratch | Meat eaters (4 worlds) | Feeding levels | Kills per 1,000 ticks | Mixed eaters | Meat in the diet |
+|---|---|---|---|---|---|
+| Grand world | 0, 0, 0, 0 | 1.56 | 1,047 | 16 | 8% |
+| Bundle | 0, 0, 0, 0 | 1.58 | 1,178 | | |
+| Bundle without weapons getting in the way of grazing | **0, 0, 13, 0** | **2.04*** | **2,685*** | **132** | **17%*** |
+| Bundle without fat | 0, 0, 0, 0 | 1.80 | 1,826 | | |
+| Bundle without meat keeping in the cold | 0, 0, 0, 0 | 1.86 | 1,708 | | |
+| Other leave-one-outs | 0 to 8 in one world | 1.31 to 1.69 | 769 to 998 | | |
+
+(* holds up, 4 seeds)
+
+- **The weapons penalty helps meat eaters stay but blocks the road to them.** It removes armed plant eaters, which compete with and kill newly arrived meat eaters. But armed plant eaters that gradually eat more meat are the road meat eating evolves along (as in the simple world, devlog 3). Without it, the bundle has the most hunting, the most mixed eaters and the only small meat-eating group (13 in one world).
+- **Fat calms the world.** Without fat, kills and feeding levels rise.
+- **So staying and arriving pull in different directions here.** What protects a meat-eating group once it exists (fewer armed rivals, a fat reserve) also slows the mixed eaters it would evolve from.
+
+### 8h. The bundle without the weapons penalty: a much richer grand world, still no meat eaters
+
+**Experiments:** `path-bundle` (500,000 ticks, 16 fresh seeds, 2201 to 2216, no help) and `path-bundle-margin` (150,000 ticks, seeds 2221 to 2224, meat eaters arriving every 5,000 ticks from tick 100,000, diet ledger). The "path bundle" is the bundle without weapons getting in the way of grazing:
+- sparing your own parent and young;
+- plant growth 0.24;
+- meat that keeps in the cold (0.8);
+- more mending of harmful mutations (0.5);
+- half the cost of heat and cold.
+
+It was tested with and without the fat reserve. About an hour on a 48-core machine and 40 minutes on a 16-core one, about $2.
+
+**Meat eaters: still none from scratch.** Not one of the 32 worlds held a group of 10 or more for most of the second half (one world, with fat, averaged 18). Arriving meat eaters:
+
+| | On arrival | +500 ticks | +2,000 | +4,500 | Births / deaths |
+|---|---|---|---|---|---|
+| Grand world | 35 | 6 | 1 | 0 | 4.5 / 6.3 |
+| Path bundle (with fat) | 49 | 8 | 1 | 1 | 2.5 / 5.1 |
+| **Path bundle without fat** | 83 | 50 | 33 | **38** | **4.8 / 5.0** |
+
+**But the path bundle without fat is a much richer world** (16 seeds; every change holds up):
+
+| | Grand world | Path bundle without fat |
+|---|---|---|
+| Species alive | 5.1 | **9.4** (+86%) |
+| Species over the run | 29 | **80** |
+| Shannon diversity | 1.23 | **1.78** (+45%) |
+| Share in the biggest species | 47% | **34%** |
+| Feeding levels | 1.49 | **1.98** |
+| Mixed eaters | 18 | **132** |
+| Meat in the diet | 7.6% | **15.6%** |
+| Kills per 1,000 ticks | 807 | **2,527** |
+| Population | 838 | **1,135** |
+| Lowest population | 238 | **476** |
+| Average age | 882 | **622** (-29%) |
+| Births with two parents | 41% | 35% |
+
+- **Fat holds the world back here too.** With fat, the gains are smaller (species +29%, not holding up), and arriving meat eaters die out as fast as in today's grand world.
+- **Meat eaters can now stay** (without fat they hold near balance), **but none arrive.** The world fills with mixed eaters (132 per world, 15.6% meat in the diet), yet none specialize. The step from mixed eating to a meat-eating group remains the barrier; sex (which blends hunters back, experiment 1) and the seasons are still fully on.
+
+## 9. Fat, reworked
+
+**Why:** today's fat reserve costs before it pays:
+- it is banked from 60% of breeding energy, so breeding waits;
+- 20% is lost storing it, and carrying it costs upkeep and movement;
+- it is drawn only near starvation, and young start with none.
+
+Evolution drops the gene: from 0.60 to 0.07 in 8h. And the fat gene counted toward relatedness, with a wide random spread at the start.
+
+**Built** (all off by default; `fatrework.test.ts`):
+- `fatProvision`: a share of a parent's fat is handed to each baby;
+- `fatRelated`: 0 = the fat gene no longer counts toward species, mates and kin;
+- a brain sense of the fat reserve (`INPUT.fatReserve`; brain layout 79 inputs; brain-world goldens re-recorded, brains-off unchanged).
+
+"New fat" (`apps/runner/scripts/make-fat-rework.mjs`) uses those plus existing settings:
+- store only from the breeding level up (`fatDepositAbove` 1);
+- draw below half (`fatDrawBelow` 0.5);
+- 90% stored (`fatEfficiency` 0.9);
+- cheaper to carry (`fatMoveCost` 0.25, `fatUpkeep` 0.1);
+- half handed to young (`fatProvision` 0.5);
+- left out of relatedness (`fatRelated` 0).
+
+**Experiments:** `fat-rework` (300,000 ticks, seeds 2301 to 2304) and `fat-rework-margin` (150,000 ticks, seeds 2311 to 2314, arriving meat eaters, diet ledger). About $1.05 together.
+
+| | Fat gene at 50k / 150k / 300k | Births with two parents | Brain connections | Population | Species | Meat eaters |
+|---|---|---|---|---|---|---|
+| No fat (grand world) | none | 47% | 10.1 | 972 | 4.4 | 0 |
+| Today's fat | 0.52 / 0.26 / 0.22 | **25%*** | 11.3 | **-21%*** | 4.2 | 0 |
+| Today's fat, not counted in relatedness | 0.43 / 0.28 / 0.25 | **18%*** | 9.8 | **-35%*** | 3.6 | 0 |
+| New fat | 0.60 / 0.54 / **0.53** | **27%*** | 10.3 | -9% | 4.8 | 0 |
+| New fat, nothing handed to young | 0.61 / 0.58 / **0.67** | **26%*** | 10.4 | -12% | 5.9 | 0 |
+| New fat, storing from 80% | 0.40 / 0.34 / 0.26 | 27% | 13.3 | -10% | 4.6 | 0 |
+| Path bundle (no fat) | none | 41% | 9.7 | **+65%*** | **13.4*** | 0 |
+| Path bundle with new fat | 0.60 / 0.54 / 0.53 | **24%*** | 11.3 | +39% | 6.3 | 0 |
+
+(* holds up, 4 seeds)
+
+- **Evolution now keeps fat.** With the rework, the fat gene stays at about 0.5 to 0.7 instead of falling to 0.2 or below. Banking only true surplus makes fat worth carrying for the individual.
+- **But every kind of fat cuts sex by about half.** An animal waiting for a mate holds energy above its breeding level; fat banks exactly that energy, its energy falls below "ready", and it splits alone instead. Today's fat does the same at 60%.
+- **Leaving fat out of relatedness was not the cause of the harm.** Today's fat without it did no better.
+- **Not yet a gain for the world:** populations a little smaller, no clear change in species, brains or meat eaters. In the path bundle, adding new fat cancels most of its gain in species.
+- **The margin test varies a lot between sets of 4 worlds.** Arriving meat eaters faded in all three setups, including the no-fat path bundle, which held them at about 38 in 8h.
+
+### 9b. Fat that pays for breeding
+
+**Why:** reworked fat was kept by evolution but halved sex (9): an animal waiting for a mate banked the energy it was holding to breed, fell below "ready" and split alone instead.
+
+**Built:** `fatBreeding` (off by default; tests in `fatrework.test.ts`). Fat counts as breeding capital: when energy alone falls short of breeding, or of being ready to mate, but energy and fat together reach it, the shortfall moves out of fat with no loss. An animal seeking a mate banks nothing.
+
+**Experiment:** `fat-breeding`, 300,000 ticks, 8 fresh seeds (2401 to 2408), on a 48-core machine, about $1.05.
+
+| | Fat gene at the end | Births with two parents | Species alive | Shannon | Population | Lowest population | Kills per 1,000 ticks |
+|---|---|---|---|---|---|---|---|
+| No fat (grand world) | none | 39% | 5.4 | 1.31 | 938 | 319 | 900 |
+| New fat | 0.51 | **31%** | 4.9 | 1.26 | 987 | 382 | **-45%*** |
+| New fat, paying for breeding | 0.56 | **41%** | 6.8 | 1.49 | 958 | 349 | -20% |
+| Path bundle (no fat) | none | 34% | 7.3 | 1.47 | **1,230*** | **478*** | **+185%*** |
+| Path bundle + new fat paying for breeding | 0.46 | 35% | **10.8*** | **1.87*** | **1,330*** | **523*** | **+168%*** |
+
+(* holds up, 8 seeds)
+
+- **Paying for breeding removes fat's cost to sex** (41% of births with two parents, against 31% with fat that does not, and 39% without fat), and evolution still keeps fat (gene about 0.5).
+- **Fat is now neutral to positive on its own** (species +27%, not holding up with 8 seeds), not a loss as before.
+- **With the path bundle it gives the richest grand world so far:** twice the species of today's grand world (10.8 against 5.4) and 43% more diversity, with a bigger population and a higher low point, on top of what the bundle gives without fat (7.3 species).
+- **Fat alone makes a calmer world** (fat that does not pay for breeding: 45% fewer kills, lives 31% longer).
+- **Still no lasting meat eaters** (one world reached 4), and **brains are no bigger** (11.0 to 11.4 connections everywhere). Fat that pays off has not, by itself, pushed brains up in 300,000 ticks.

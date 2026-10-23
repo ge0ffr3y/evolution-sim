@@ -73,3 +73,19 @@ describe("cost breakdown (read only)", () => {
     expect(b.fingerprint()).toBe(a.fingerprint());
   }, 60_000);
 });
+
+describe("cost breakdown for some animals only", () => {
+  it("averages over the chosen animals, and two groups weighted by size add back up to everyone", () => {
+    const sim = new Simulation(4, busy);
+    sim.run(400);
+    const all = sim.costBreakdown();
+    const even = sim.costBreakdown((i) => i % 2 === 0);
+    const odd = sim.costBreakdown((i) => i % 2 === 1);
+    const nEven = Math.ceil(sim.count / 2);
+    const nOdd = Math.floor(sim.count / 2);
+    for (const key of ["total", "upkeep", "movement", "attack", "load", "thermal"] as const) {
+      expect((even[key] * nEven + odd[key] * nOdd) / sim.count).toBeCloseTo(all[key], 10);
+    }
+    expect(sim.costBreakdown(() => false).total).toBe(0); // nobody chosen: zeros, not a division by zero
+  }, 60_000);
+});
