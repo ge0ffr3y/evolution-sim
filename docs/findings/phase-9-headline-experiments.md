@@ -522,3 +522,42 @@ Each on a 32-core machine, side by side, about $1.10 together.
 - **The weapons penalty helps meat eaters stay but blocks the road to them.** It removes armed plant eaters, which compete with and kill newly arrived meat eaters. But armed plant eaters that gradually eat more meat are the road meat eating evolves along (as in the simple world, devlog 3). Without it, the bundle has the most hunting, the most mixed eaters and the only small meat-eating group (13 in one world).
 - **Fat calms the world.** Without fat, kills and feeding levels rise.
 - **So staying and arriving pull in different directions here.** What protects a meat-eating group once it exists (fewer armed rivals, a fat reserve) also slows the mixed eaters it would evolve from.
+
+### 8h. The bundle without the weapons penalty: a much richer grand world, still no meat eaters
+
+**Experiments:** `path-bundle` (500,000 ticks, 16 fresh seeds, 2201 to 2216, no help) and `path-bundle-margin` (150,000 ticks, seeds 2221 to 2224, meat eaters arriving every 5,000 ticks from tick 100,000, diet ledger). The "path bundle" is the bundle without weapons getting in the way of grazing:
+- sparing your own parent and young;
+- plant growth 0.24;
+- meat that keeps in the cold (0.8);
+- more mending of harmful mutations (0.5);
+- half the cost of heat and cold.
+
+It was tested with and without the fat reserve. About an hour on a 48-core machine and 40 minutes on a 16-core one, about $2.
+
+**Meat eaters: still none from scratch.** Not one of the 32 worlds held a group of 10 or more for most of the second half (one world, with fat, averaged 18). Arriving meat eaters:
+
+| | On arrival | +500 ticks | +2,000 | +4,500 | Births / deaths |
+|---|---|---|---|---|---|
+| Grand world | 35 | 6 | 1 | 0 | 4.5 / 6.3 |
+| Path bundle (with fat) | 49 | 8 | 1 | 1 | 2.5 / 5.1 |
+| **Path bundle without fat** | 83 | 50 | 33 | **38** | **4.8 / 5.0** |
+
+**But the path bundle without fat is a much richer world** (16 seeds; every change holds up):
+
+| | Grand world | Path bundle without fat |
+|---|---|---|
+| Species alive | 5.1 | **9.4** (+86%) |
+| Species over the run | 29 | **80** |
+| Shannon diversity | 1.23 | **1.78** (+45%) |
+| Share in the biggest species | 47% | **34%** |
+| Feeding levels | 1.49 | **1.98** |
+| Mixed eaters | 18 | **132** |
+| Meat in the diet | 7.6% | **15.6%** |
+| Kills per 1,000 ticks | 807 | **2,527** |
+| Population | 838 | **1,135** |
+| Lowest population | 238 | **476** |
+| Average age | 882 | **622** (-29%) |
+| Births with two parents | 41% | 35% |
+
+- **Fat holds the world back here too.** With fat, the gains are smaller (species +29%, not holding up), and arriving meat eaters die out as fast as in today's grand world.
+- **Meat eaters can now stay** (without fat they hold near balance), **but none arrive.** The world fills with mixed eaters (132 per world, 15.6% meat in the diet), yet none specialize. The step from mixed eating to a meat-eating group remains the barrier; sex (which blends hunters back, experiment 1) and the seasons are still fully on.
