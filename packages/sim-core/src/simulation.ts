@@ -5339,7 +5339,7 @@ export class Simulation {
    * code applies them, which makes the parts add up exactly to the whole. Poison from a meal
    * (toxicity) is left out: it is only known inside the tick.
    */
-  costBreakdown(): CostBreakdown {
+  costBreakdown(include?: (i: number) => boolean): CostBreakdown {
     const c = this.config;
     const out: CostBreakdown = {
       body: 0, repair: 0, torporGene: 0, load: 0, luck: 0, toxinGene: 0,
@@ -5350,7 +5350,11 @@ export class Simulation {
     if (n === 0) return out;
     const cs = c.foodCellSize;
     const brains = c.brainMode > 0;
+    let counted = 0;
     for (let i = 0; i < n; i++) {
+      // Optionally only some animals (say, one diet group); the average is over those.
+      if (include && !include(i)) continue;
+      counted++;
       const g = i * GENE_COUNT;
       const cell = Math.floor(this.y[i]! / cs) * this.gridWidth + Math.floor(this.x[i]! / cs);
       // Birth-time upkeep, undone from the last multiplier back to the first.
@@ -5471,7 +5475,8 @@ export class Simulation {
       if (brains) out.brain += this.brainCost[i]!;
     }
     out.total = out.upkeep + out.movement + out.sensing + out.attack + out.armor + out.brain;
-    for (const key of Object.keys(out) as (keyof CostBreakdown)[]) out[key] /= n;
+    if (counted === 0) return out;
+    for (const key of Object.keys(out) as (keyof CostBreakdown)[]) out[key] /= counted;
     return out;
   }
 

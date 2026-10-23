@@ -20,6 +20,10 @@ export interface Measure {
   sample(ctx: SampleContext): Row;
   /** Run-level numbers from the recorded rows (and the finished world). */
   summarize?(rows: Row[], sim: Simulation): Record<string, number | null>;
+  /** Optional: called after every tick, for tallies that sampling would miss. It must only watch. */
+  observe?(sim: Simulation): void;
+  /** Left out of "all" (costly per-tick measures are asked for by name). */
+  optIn?: boolean;
 }
 
 /** Reading a few internal arrays the simulation keeps for itself (read only). */
@@ -747,7 +751,128 @@ export function summarizeRun(rows: Row[], sim: Simulation, measures: string[]): 
   return out;
 }
 
-/** The measure names an experiment asked for, with "all" standing for every measure. */
+/** The measure names an experiment asked for, with "all" standing for every measure that is not opt-in. */
 export function expandMeasures(names: string[]): string[] {
-  return names.includes("all") ? Object.keys(MEASURES) : names;
+  if (!names.includes("all")) return names;
+  const all = Object.keys(MEASURES).filter((name) => !MEASURES[name]!.optIn);
+  return [...all, ...names.filter((name) => name !== "all" && !all.includes(name))];
 }
+
+/** Call every chosen measure that watches each tick. */
+export function observeWorld(sim: Simulation, measures: string[]): void {
+  for (const name of measures) MEASURES[name]!.observe?.(sim);
+}
+
+// --- The diet ledger: how animals of each diet make a living, tick by tick ---
+// Bands by diet gene: 0 = under 0.25 (plant eaters), 1 = 0.25 to 0.5, 2 = 0.5 to 0.75, 3 = over 0.75 (meat eaters).
+const DIET_BANDS = 4;
+const bandOf = (diet: number): number => (diet < 0.25 ? 0 : diet < 0.5 ? 1 : diet < 0.75 ? 2 : 3);
+interface LedgerAnimal { band: number; plant: number; meat: number; kills: number; seen: number }
+interface LedgerState {
+  animals: Map<number, LedgerAnimal>;
+  ticks: number;
+  /** Per band, over the current window: animal-ticks, energy share summed, plant and meat income (in breedings' worth), kills, births, deaths. */
+  w: { animalTicks: number[]; fed: number[]; plant: number[]; meat: number[]; kills: number[]; births: number[]; deaths: number[] };
+}
+const ledgers = new WeakMap<Simulation, LedgerState>();
+const emptyWindow = (): LedgerState["w"] => ({ animalTicks: [0, 0, 0, 0], fed: [0, 0, 0, 0], plant: [0, 0, 0, 0], meat: [0, 0, 0, 0], kills: [0, 0, 0, 0], births: [0, 0, 0, 0], deaths: [0, 0, 0, 0] });
+function ledgerOf(sim: Simulation): LedgerState {
+  let st = ledgers.get(sim);
+  if (!st) {
+    st = { animals: new Map(), ticks: 0, w: emptyWindow() };
+    for (let i = 0; i < sim.count; i++) st.animals.set(sim.id[i]!, { band: bandOf(sim.diet[i]!), plant: sim.plantTaken[i]!, meat: sim.meatTaken[i]!, kills: sim.kills[i]!, seen: sim.tick });
+    ledgers.set(sim, st);
+  }
+  return st;
+}
+function observeLedger(sim: Simulation): void {
+  const st = ledgerOf(sim);
+  const w = st.w;
+  const now = sim.tick;
+  st.ticks++;
+  for (let i = 0; i < sim.count; i++) {
+    const id = sim.id[i]!;
+    const band = bandOf(sim.diet[i]!);
+    const thr = sim.threshold[i]!;
+    let a = st.animals.get(id);
+    if (!a) {
+      // Born since the last tick: a birth for its parent's diet band (its own band if the parent is not known).
+      const parent = st.animals.get(sim.parentId[i]!);
+      w.births[parent ? parent.band : band]!++;
+      a = { band, plant: sim.plantTaken[i]!, meat: sim.meatTaken[i]!, kills: sim.kills[i]!, seen: now };
+      st.animals.set(id, a);
+    } else {
+      w.plant[band]! += (sim.plantTaken[i]! - a.plant) / thr;
+      w.meat[band]! += (sim.meatTaken[i]! - a.meat) / thr;
+      w.kills[band]! += sim.kills[i]! - a.kills;
+      a.plant = sim.plantTaken[i]!;
+      a.meat = sim.meatTaken[i]!;
+      a.kills = sim.kills[i]!;
+      a.band = band;
+      a.seen = now;
+    }
+    w.animalTicks[band]!++;
+    w.fed[band]! += sim.energy[i]! / thr;
+  }
+  for (const [id, a] of st.animals) {
+    if (a.seen !== now) {
+      w.deaths[a.band]!++;
+      st.animals.delete(id);
+    }
+  }
+}
+function sampleLedger(sim: Simulation): Row {
+  const st = ledgerOf(sim);
+  const w = st.w;
+  const row: Row = {};
+  const total = w.animalTicks.reduce((x, y) => x + y, 0);
+  // Running costs per band, as a snapshot now, in breedings' worth per 1,000 ticks (cost / average threshold).
+  const bands = new Uint8Array(sim.count);
+  const thresholdSum = [0, 0, 0, 0];
+  const counts = [0, 0, 0, 0];
+  for (let i = 0; i < sim.count; i++) {
+    const b = bandOf(sim.diet[i]!);
+    bands[i] = b;
+    thresholdSum[b]! += sim.threshold[i]!;
+    counts[b]!++;
+  }
+  for (let b = 0; b < DIET_BANDS; b++) {
+    const t = w.animalTicks[b]!;
+    const per1000 = (x: number): number => (t > 0 ? round((x / t) * 1000, 4) : NaN);
+    row[`ld${b}_share`] = total > 0 ? round(t / total, 5) : NaN;
+    row[`ld${b}_fed`] = t > 0 ? round(w.fed[b]! / t, 4) : NaN;
+    row[`ld${b}_plantIn`] = per1000(w.plant[b]!);
+    row[`ld${b}_meatIn`] = per1000(w.meat[b]!);
+    row[`ld${b}_kills`] = per1000(w.kills[b]!);
+    row[`ld${b}_births`] = per1000(w.births[b]!);
+    row[`ld${b}_deaths`] = per1000(w.deaths[b]!);
+    if (counts[b]! > 0) {
+      const cost = sim.costBreakdown((i) => bands[i] === b);
+      const scale = 1000 / (thresholdSum[b]! / counts[b]!);
+      row[`ld${b}_cost`] = round(cost.total * scale, 4);
+      row[`ld${b}_costUpkeep`] = round(cost.upkeep * scale, 4);
+      row[`ld${b}_costLoad`] = round(cost.load * scale, 4);
+      row[`ld${b}_costThermal`] = round(cost.thermal * scale, 4);
+      row[`ld${b}_costMove`] = round(cost.movement * scale, 4);
+      row[`ld${b}_costAttack`] = round(cost.attack * scale, 4);
+    } else {
+      for (const k of ["cost", "costUpkeep", "costLoad", "costThermal", "costMove", "costAttack"]) row[`ld${b}_${k}`] = NaN;
+    }
+  }
+  st.w = emptyWindow();
+  return row;
+}
+const LEDGER_KEYS = ["share", "fed", "plantIn", "meatIn", "kills", "births", "deaths", "cost", "costUpkeep", "costLoad", "costThermal", "costMove", "costAttack"];
+
+MEASURES.dietLedger = {
+  describe:
+    "the diet ledger (opt-in, watches every tick): per diet band (0 under 0.25, 1 to 0.5, 2 to 0.75, 3 over 0.75) its share of animals, how fed it is, plant and meat income and running costs (breedings' worth per animal per 1,000 ticks), kills, births (credited to the parent's band) and deaths per animal per 1,000 ticks",
+  optIn: true,
+  observe: observeLedger,
+  sample: ({ sim }) => sampleLedger(sim),
+  summarize: (rows) => {
+    const out: Record<string, number | null> = {};
+    for (let b = 0; b < DIET_BANDS; b++) for (const k of LEDGER_KEYS) out[`ld${b}_${k}Late`] = lateMean(rows, `ld${b}_${k}`);
+    return out;
+  },
+};
