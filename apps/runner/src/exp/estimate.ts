@@ -19,7 +19,8 @@ export const FAMILIES: MachineFamily[] = [
   { family: "c7g", pricePerVcpuHour: 2.32 / 64, speed: 0.66 },
   { family: "c8g", pricePerVcpuHour: 2.552 / 64, speed: 0.84 },
 ];
-export const SIZES: { size: string; vcpus: number; memoryGb: number }[] = [
+/** Machine sizes; `only` limits a size to the families that come in it (c7g stops at 64 cores). */
+export const SIZES: { size: string; vcpus: number; memoryGb: number; only?: MachineFamily["family"][] }[] = [
   { size: "large", vcpus: 2, memoryGb: 4 },
   { size: "xlarge", vcpus: 4, memoryGb: 8 },
   { size: "2xlarge", vcpus: 8, memoryGb: 16 },
@@ -27,6 +28,8 @@ export const SIZES: { size: string; vcpus: number; memoryGb: number }[] = [
   { size: "8xlarge", vcpus: 32, memoryGb: 64 },
   { size: "12xlarge", vcpus: 48, memoryGb: 96 },
   { size: "16xlarge", vcpus: 64, memoryGb: 128 },
+  { size: "24xlarge", vcpus: 96, memoryGb: 192, only: ["c8g"] },
+  { size: "48xlarge", vcpus: 192, memoryGb: 384, only: ["c8g"] },
 ];
 /**
  * The fallback for the most cores this AWS account may run at once on C-family machines (the quota
@@ -124,6 +127,7 @@ export function planMachines(exp: Experiment, jobSeconds: number[], families: Ma
   if (sizes.length === 0) throw new Error(`No machine fits in the ${maxVcpus} cores free right now (other experiments are using the rest). Wait for one to finish.`);
   for (const f of families) {
     for (const s of sizes) {
+      if (s.only && !s.only.includes(f.family)) continue;
       // One world per core. The uploads every 5 minutes are light enough to share the cores (the first cloud runs showed no slowdown).
       const byCores = s.vcpus;
       const byMemory = Math.max(1, Math.floor((s.memoryGb - 1) / GB_PER_WORLD));

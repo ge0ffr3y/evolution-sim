@@ -446,3 +446,22 @@ describe("repeating invasions", () => {
     expect((await runJob(interrupted, job))!.fingerprint).toBe(a.fingerprint);
   });
 });
+
+describe("bigger machines once the core limit allows", () => {
+  it("offers c8g's 96- and 192-core sizes (not c7g's, which do not exist), and only within the free cores", () => {
+    const exp = tiny();
+    const jobs = Array.from({ length: 150 }, () => 600);
+    const wide = planMachines(exp, jobs, undefined, 192).options.map((o) => o.type);
+    expect(wide).toContain("c8g.48xlarge");
+    expect(wide).toContain("c8g.24xlarge");
+    expect(wide).not.toContain("c7g.24xlarge");
+    expect(wide).not.toContain("c7g.48xlarge");
+    const narrow = planMachines(exp, jobs, undefined, 64).options.map((o) => o.type);
+    expect(narrow).not.toContain("c8g.24xlarge");
+  });
+
+  it("does not pick a big machine for a few worlds (idle cores are paid for)", () => {
+    const { pick } = planMachines(tiny(), Array.from({ length: 8 }, () => 3600), undefined, 192);
+    expect(pick.vcpus).toBeLessThanOrEqual(16);
+  });
+});
