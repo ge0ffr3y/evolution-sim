@@ -1300,6 +1300,12 @@ export interface SimConfig {
    */
   preyCondition: number;
   youngTicks: number;
+  /**
+   * Fighting back (0 = off): an animal's own weapons count toward its defense. An attack's odds use the prey's
+   * defense plus fightBack x the prey's attack power (attack x size), so armed animals, other hunters included,
+   * are risky to attack and hunters do best on the unarmed.
+   */
+  fightBack: number;
 
   // --- Reproduction ---
   /** An organism splits when its energy reaches this x its size. */
@@ -1813,6 +1819,7 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   restBelow: 1,
   preyCondition: 0,
   youngTicks: 100,
+  fightBack: 0,
 
   reproThresholdPerSize: 30,
   offspringEnergyFraction: 0.5,
@@ -2169,6 +2176,7 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (!(c.restSaving >= 0 && c.restSaving <= 1) || !(c.restBelow >= 0 && c.restBelow <= 2)) problems.push("restSaving must be between 0 and 1, and restBelow (a pace: 0 still, 1 normal, 2 flat out) between 0 and 2");
   if (c.restSaving > 0 && c.brainMode === 0) problems.push("restSaving needs brains (a brain decides to rest)");
   if (!(c.preyCondition >= 0 && c.preyCondition <= 1) || !(c.youngTicks >= 0)) problems.push("preyCondition must be between 0 and 1, and youngTicks cannot be negative");
+  if (!(c.fightBack >= 0)) problems.push("fightBack cannot be negative");
   if (c.spareFamily !== 0 && c.spareFamily !== 1) problems.push("spareFamily must be 0 (off) or 1 (never attack your own parent or offspring)");
   for (const [name, value] of [["meatColdKeep", c.meatColdKeep], ["preyHungerDefense", c.preyHungerDefense], ["weaponGrazeLoss", c.weaponGrazeLoss]] as const) {
     if (!(value >= 0 && value <= 1)) problems.push(`${name} must be between 0 and 1`);

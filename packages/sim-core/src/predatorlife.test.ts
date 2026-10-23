@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Simulation } from "./simulation";
 import type { SimConfig } from "./config";
 import { DEFAULT_CONFIG } from "./config";
+import { GENE } from "./genome";
 
 // Phase 9 predator life: the gut (food is digested over time), rest, and prey condition. All off by default.
 
@@ -135,4 +136,22 @@ describe("the books with all three on", () => {
     copy.run(300);
     expect(copy.fingerprint()).toBe(sim.fingerprint());
   }, 120_000);
+});
+
+describe("fighting back", () => {
+  type F = { defendedBy(prey: number, attacker?: number): number; defense: Float32Array; attackPower: Float32Array };
+  it("is off by default; on, an armed animal's weapons count toward its defense", () => {
+    const make = (fightBack: number): Simulation => new Simulation(1, { worldWidth: 64, worldHeight: 64, initialOrganisms: 2, speciesEvery: 0, fightBack });
+    expect(DEFAULT_CONFIG.fightBack).toBe(0);
+    expect(() => make(-1)).toThrow(/fightBack/);
+    const off = make(0);
+    const on = make(2);
+    for (const sim of [off, on]) {
+      sim.genes[GENE.attack] = 0.8; // animal 0 is armed
+      sim.express(0);
+    }
+    const x = (sim: Simulation): F => sim as unknown as F;
+    expect(x(off).defendedBy(0, 1)).toBeCloseTo(x(off).defense[0]!, 9); // (herds are off: a factor of 1)
+    expect(x(on).defendedBy(0, 1)).toBeCloseTo(x(on).defense[0]! + 2 * x(on).attackPower[0]!, 9);
+  });
 });

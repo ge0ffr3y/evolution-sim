@@ -3002,7 +3002,8 @@ export class Simulation {
 
   /** How much this cell can resist an attack: its own defense (and herd, if on), plus a share of its bonded neighbors' defense. */
   private defendedBy(prey: number, attacker = -1): number {
-    let defense = this.defense[prey]! * this.herdFactor(prey);
+    // (Fighting back: its own weapons count too. Kept in the old form when off, so older worlds stay the same.)
+    let defense = this.config.fightBack > 0 ? (this.defense[prey]! + this.config.fightBack * this.attackPower[prey]!) * this.herdFactor(prey) : this.defense[prey]! * this.herdFactor(prey);
     if (this.config.preyCondition > 0) defense *= 1 - this.config.preyCondition * this.weakness(prey);
     // Vigilance: prey that see the attack coming are harder to catch.
     if (attacker >= 0 && this.config.vigilance > 0 && this.config.brainMode > 0 && this.seesComing(prey, attacker)) defense *= 1 + this.config.vigilance;
