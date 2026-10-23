@@ -93,5 +93,15 @@
     "name": "margin-levers",
     "question": "In the grand world, with no help, do meat eaters (diet above 0.75) evolve and last with the two margin levers the diet ledger points to: a fat reserve (banks surplus from a big meal for the lean days between kills; deposit rate 0.5, founders start with a fat gene of 0.3, as fat does not evolve from nothing) and more plant growth (0.18 and 0.24 per tick, against 0.12), so plant eaters breed faster and leave more surplus for hunters, and fat with 0.18 together. 300,000 ticks. An answer: worlds with a lasting group of meat eaters, feeding levels, kills, species and population.",
     "file": "margin-levers.json"
+  },
+  {
+    "name": "bundle-margin",
+    "question": "Does a bundle of every partial help found so far, together: sparing your own parent and young, a fat reserve (deposit 0.5, founders start with 0.3), plant growth 0.24 (against 0.12), weapons that get in the way of grazing (0.6), meat that keeps in the cold (0.8), more mending of harmful mutations (0.5, against 0.15) and half the cost of heat and cold (0.75, against 1.5) give arriving meat eaters a margin in the grand world? One animal in twenty becomes an armed meat eater (with a fat gene of 0.5) at tick 100,000 and every 5,000 ticks after, measured with the diet ledger. An answer: meat eaters' births against deaths, and how many remain 4,500 ticks after each arrival.",
+    "file": "bundle-margin.json"
+  },
+  {
+    "name": "bundle",
+    "question": "With no help, do meat eaters (diet above 0.75) evolve and last in the grand world with every partial help found so far, together: sparing your own parent and young, a fat reserve (deposit 0.5, founders start with 0.3), plant growth 0.24 (against 0.12), weapons that get in the way of grazing (0.6), meat that keeps in the cold (0.8), more mending of harmful mutations (0.5, against 0.15) and half the cost of heat and cold (0.75, against 1.5)? Also the bundle with each help left out in turn, to see which it needs. 300,000 ticks. An answer: worlds with a lasting group of meat eaters, feeding levels, kills, species and population.",
+    "file": "bundle.json"
   }
 ]

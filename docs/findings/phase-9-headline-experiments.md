@@ -485,3 +485,40 @@ Each on a 32-core machine, side by side, about $1.10 together.
 - **Arriving meat eaters still die faster than they are born in every setup.** Fat and plants at 0.24 slow the loss (about a third left after 4,500 ticks, against a tenth); 0.18 was worse than both, likely noise with 4 seeds.
 - **More plants feed the armed plant eaters as much as the hunters.** Plant eaters kill more as plant growth rises (1.3 to about 2.3 kills each per 1,000 ticks in the margin test), and new meat eaters are among their victims. From scratch, plants at 0.24 more than double kills and lift feeding levels, but toward more mixed eating, not a meat-eating group.
 - **Fat makes a calmer world:** a third fewer kills and less meat, lives half again as long.
+
+### 8g. All the partial helps together: meat eaters can stay, but still do not arrive
+
+**Experiments:** `bundle-margin` and `bundle` (made by `apps/runner/scripts/make-bundle.mjs`). The bundle adds every partial help found so far to the grand world as it is:
+- sparing your own parent and young;
+- a fat reserve;
+- plant growth 0.24 (against 0.12);
+- weapons that get in the way of grazing (0.6);
+- meat that keeps in the cold (0.8);
+- more mending of harmful mutations (0.5, against 0.15);
+- half the cost of heat and cold.
+
+`bundle-margin`: 150,000 ticks, seeds 2101 to 2104, meat eaters arriving every 5,000 ticks from tick 100,000, diet ledger. `bundle`: 300,000 ticks, seeds 2111 to 2114, no help, with each help left out in turn. About $1.15 together.
+
+**Staying: yes.** Arriving meat eaters now hold their numbers in the grand world:
+
+| | On arrival | +500 ticks | +2,000 | +4,500 | Births / deaths (meat eaters) | Plant eaters |
+|---|---|---|---|---|---|---|
+| Grand world | 50 | 41 | 16 | 9 | 5.8 / 6.3 | 819 |
+| Bundle | 153 | 117 | 98 | **99** | **3.8 / 3.9** | 1,134 |
+
+**Arriving: no.** From scratch, not one world grew a lasting group of meat eaters with the bundle. The bundle gives 90% more animals and 44% more species, but the same feeding levels. Leaving each help out in turn:
+
+| From scratch | Meat eaters (4 worlds) | Feeding levels | Kills per 1,000 ticks | Mixed eaters | Meat in the diet |
+|---|---|---|---|---|---|
+| Grand world | 0, 0, 0, 0 | 1.56 | 1,047 | 16 | 8% |
+| Bundle | 0, 0, 0, 0 | 1.58 | 1,178 | | |
+| Bundle without weapons getting in the way of grazing | **0, 0, 13, 0** | **2.04*** | **2,685*** | **132** | **17%*** |
+| Bundle without fat | 0, 0, 0, 0 | 1.80 | 1,826 | | |
+| Bundle without meat keeping in the cold | 0, 0, 0, 0 | 1.86 | 1,708 | | |
+| Other leave-one-outs | 0 to 8 in one world | 1.31 to 1.69 | 769 to 998 | | |
+
+(* holds up, 4 seeds)
+
+- **The weapons penalty helps meat eaters stay but blocks the road to them.** It removes armed plant eaters, which compete with and kill newly arrived meat eaters. But armed plant eaters that gradually eat more meat are the road meat eating evolves along (as in the simple world, devlog 3). Without it, the bundle has the most hunting, the most mixed eaters and the only small meat-eating group (13 in one world).
+- **Fat calms the world.** Without fat, kills and feeding levels rise.
+- **So staying and arriving pull in different directions here.** What protects a meat-eating group once it exists (fewer armed rivals, a fat reserve) also slows the mixed eaters it would evolve from.
