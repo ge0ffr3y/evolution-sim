@@ -328,6 +328,17 @@ function clampUnit(value: number): number {
 const MEAT_SMELL_FULL = 30;
 /** A trail difference this big (in ticks' worth of one organism's scent) reads as full strength. */
 const SCENT_FULL = 4;
+/**
+ * The eye (eyeMode): half the width of view in a trigonometry-free angle measure (0 straight ahead, 1 square
+ * to the side, 2 straight behind; the measure is across / (ahead + across) in front, mirrored behind).
+ * Today's eye reaches 75 degrees each side; the widest about 150 (a 300-degree view), the narrowest 30 (60).
+ * The five rays keep today's spacing (cuts at 15, 45 and 75 degrees), scaled to the eye's width.
+ */
+const EYE_TODAY = 0.7886751345948129; // 75 degrees: tan 75 / (1 + tan 75)
+const EYE_WIDE = 1.6339745962155614; // 150 degrees: 2 - (tan 30 / (1 + tan 30))
+const EYE_NARROW = 0.36602540378443865; // 30 degrees: tan 30 / (1 + tan 30)
+const EYE_CUT1 = 0.2679491924311227; // the 15-degree cut as a share of today's half-width
+const EYE_CUT2 = 0.6339745962155614; // the 45-degree cut as a share of today's half-width
 /** The kinds of input a brain can listen to (see brainSenses). */
 const SENSE_VISION = 1;
 const SENSE_SMELL = 2;
@@ -746,6 +757,20 @@ export class Simulation {
   private mateBest = -1;
   private mateBestDistSq = Infinity;
   private mateBestScore = Infinity;
+  /** Pickiness (matePickiness): on, and while pairing, counting the mates in range and how much choice that gives. */
+  private readonly pickyOn: boolean;
+  private pickyCounting = false;
+  private pickyCount = 0;
+  private pickyAlpha = 0;
+  /** The eye (eyeMode): per organism, half the width of view (see EYE_TODAY) and how far it reaches compared with today's eye. */
+  private readonly eyeOn: boolean;
+  private readonly eyeHalf: Float32Array;
+  private readonly eyeReach: Float32Array;
+  private visEyeHalf = 0;
+  /** Mate scent (mateScent): laid by animals looking for a mate, in a plant-eater and a meat-eater layer. */
+  private readonly mateScentOn: boolean;
+  readonly matePlantScent: Float64Array;
+  readonly mateMeatScent: Float64Array;
 
   /** Which species each organism belongs to (0 when species tracking is off). See species.ts. */
   readonly species: Uint32Array;
@@ -971,6 +996,10 @@ export class Simulation {
     const scentCells = this.scentOn ? this.scentWidth * this.scentHeight : 0;
     this.preyScent = new Float64Array(scentCells);
     this.hunterScent = new Float64Array(scentCells);
+    this.mateScentOn = c.brainMode > 0 && c.sexualReproduction >= 1 && c.mateScent > 0;
+    const mateCells = this.mateScentOn ? this.scentWidth * this.scentHeight : 0;
+    this.matePlantScent = new Float64Array(mateCells);
+    this.mateMeatScent = new Float64Array(mateCells);
     this.plantClaim = new Float64Array(cells);
     this.meatClaim = new Float64Array(cells);
     this.plantShare = new Float64Array(cells);
@@ -1041,6 +1070,9 @@ export class Simulation {
     this.staminaOn = c.brainMode > 0 && c.sprintFatigue === 1;
     this.thermalOn = c.climateMode === 1 && c.thermalCostCoeff > 0;
     this.thermalPref = new Float32Array(this.thermalOn ? n : 0);
+    this.eyeOn = c.eyeMode === 1 && c.brainMode > 0;
+    this.eyeHalf = new Float32Array(this.eyeOn ? n : 0);
+    this.eyeReach = new Float32Array(this.eyeOn ? n : 0);
     this.thermalScale = new Float32Array(this.thermalOn ? n : 0);
     this.camoOn = c.camouflageMode === 1;
     this.background = this.camoOn ? generateBackground(seed, this.gridWidth, this.gridHeight, c.camoScale) : new Float32Array(0);
@@ -1086,6 +1118,8 @@ export class Simulation {
         (k === GENE.learning && c.brainLearning === 1 && c.brainMode > 0) ||
         (k === GENE.placeMemory && c.placeMemory === 1 && c.brainMode > 0) ||
         (k === GENE.workingMemory && c.workingMemory === 1 && c.brainMemory === 1 && c.brainMode > 0) ||
+        (k === GENE.pickiness && c.matePickiness === 1 && c.sexualReproduction >= 1) ||
+        (k === GENE.eye && c.eyeMode === 1 && c.brainMode > 0) ||
         ((k === GENE.stressResponse || k === GENE.calmResponse) && c.brainMode > 0 && c.chemicals === 1 && c.chemBodyEffects === 1),
     );
     this.kinLimitSq = c.kinDistance * c.kinDistance;
@@ -1174,6 +1208,7 @@ export class Simulation {
     this.toleranceSq = new Float32Array(this.kinToleranceOn ? n : 0);
     this.sexOn = c.sexualReproduction >= 1;
     this.sexGeneOn = c.sexualReproduction === 2;
+    this.pickyOn = c.matePickiness === 1 && c.sexualReproduction >= 1;
     this.sexMode = new Uint8Array(this.sexGeneOn ? n : 0);
     this.sexParents = new Uint32Array(this.sexGeneOn ? n : 0);
     this.soloParents = new Uint32Array(this.sexGeneOn ? n : 0);
@@ -1194,11 +1229,13 @@ export class Simulation {
       if (name === "tolerance" || name === "sex" || name === "stressResponse" || name === "calmResponse" || name === "generosity") continue;
       // How much fat an animal banks can be left out too (fatRelated 0): physiology, not kind.
       if (name === "fat" && c.fatRelated === 0) continue;
+      // How choosy it is about mates is a behavior, not part of what kind of organism it is.
+      if (name === "pickiness") continue;
       this.mateMask.push(GENE[name]);
     }
     this.species = new Uint32Array(c.speciesEvery > 0 ? n : 0);
     // Species, like compatibility, ignore tolerance of relatives: it is a behavior setting, not a kind of body.
-    const speciesGenes = this.activeGene.map((on, k) => on && k !== GENE.tolerance && k !== GENE.sex && k !== GENE.stressResponse && k !== GENE.calmResponse && k !== GENE.generosity && k !== GENE.signal && k !== GENE.learning && k !== GENE.placeMemory && k !== GENE.workingMemory);
+    const speciesGenes = this.activeGene.map((on, k) => on && k !== GENE.tolerance && k !== GENE.sex && k !== GENE.stressResponse && k !== GENE.calmResponse && k !== GENE.generosity && k !== GENE.signal && k !== GENE.learning && k !== GENE.placeMemory && k !== GENE.workingMemory && k !== GENE.pickiness && !(k === GENE.fat && c.fatRelated === 0));
     this.tracker = c.speciesEvery > 0 ? new SpeciesTracker(c, this.ranges, speciesGenes) : null;
     const staminaOrganisms = this.staminaOn ? n : 0;
     this.stamina = new Float32Array(staminaOrganisms);
@@ -1224,6 +1261,7 @@ export class Simulation {
     if (this.agingOn) this.float32Fields.push(this.lifespan);
     if (this.litterOn) this.float32Fields.push(this.litter);
     if (this.kinToleranceOn) this.float32Fields.push(this.toleranceSq);
+    if (this.eyeOn) this.float32Fields.push(this.eyeHalf, this.eyeReach);
     if (this.homeX.length > 0) this.float32Fields.push(this.homeX, this.homeY);
     if (this.homeValue.length > 0) this.float32Fields.push(this.homeValue);
 
@@ -1289,6 +1327,8 @@ export class Simulation {
     founder[GENE.learning] = c.initialLearning;
     founder[GENE.placeMemory] = c.initialPlaceMemory;
     founder[GENE.workingMemory] = c.initialWorkingMemory;
+    founder[GENE.pickiness] = c.initialPickiness;
+    founder[GENE.eye] = c.initialEye;
     founder[GENE.generosity] = c.initialShare;
     for (let i = 0; i < c.initialOrganisms; i++) {
       let fx = this.rng.range(0, c.worldWidth);
@@ -2409,6 +2449,17 @@ export class Simulation {
       this.toleranceSq[i] = tolerance * tolerance * this.kinLimitSq;
       this.senseCost[i] = this.senseCost[i]! + c.toleranceCostCoeff * tolerance;
     }
+    // Being choosy about mates takes attention: a small cost on the sensing line.
+    if (this.pickyOn) this.senseCost[i] = this.senseCost[i]! + c.pickinessCost * genes[g + GENE.pickiness]!;
+    if (this.eyeOn) {
+      // The eye: wider (gene toward 0) sees more of the world around but less far; narrower (toward 1) the reverse.
+      const e = genes[g + GENE.eye]!;
+      this.eyeHalf[i] = e <= 0.5 ? EYE_WIDE + (EYE_TODAY - EYE_WIDE) * (e / 0.5) : EYE_TODAY + (EYE_NARROW - EYE_TODAY) * ((e - 0.5) / 0.5);
+      // Reach trades against width so every eye covers about the same area: a 300-degree view reaches
+      // 1 / sqrt(2) as far as today's 150-degree one, a 60-degree view sqrt(2.5) times as far.
+      const ratio = e <= 0.5 ? 0.5 + 0.5 * (e / 0.5) : 1 + 1.5 * ((e - 0.5) / 0.5);
+      this.eyeReach[i] = Math.sqrt(ratio);
+    }
     const fightingPenalty = 1 + c.herbivoreAttackPenalty * (1 - diet);
     this.attackCost[i] = c.attackCostCoeff * attack * size * fightingPenalty;
     this.attemptCost[i] = c.attackAttemptCost * size * fightingPenalty;
@@ -2898,16 +2949,27 @@ export class Simulation {
     if (dy > H / 2) dy -= H;
     else if (dy < -H / 2) dy += H;
     const forward = dx * this.visHx + dy * this.visHy;
-    if (forward <= 0) return; // behind me
     const side = this.visHx * dy - this.visHy * dx; // positive = to my left
     const across = side < 0 ? -side : side;
-    // Five rays, each 30 degrees wide: straight ahead, and two on each side. The cut-offs are
-    // the tangents of 15, 45 and 75 degrees, so no trigonometry is needed.
     let ray: number;
-    if (across < 0.2679491924311227 * forward) ray = 2;
-    else if (across < forward) ray = side > 0 ? 3 : 1;
-    else if (across < 3.732050807568877 * forward) ray = side > 0 ? 4 : 0;
-    else return;
+    if (this.eyeOn) {
+      // The eye gene sets how wide this eye sees (and, elsewhere, how far): the same five rays, spread
+      // over its width. The angle is measured without trigonometry (see EYE_TODAY).
+      const angle = forward >= 0 ? (forward + across > 0 ? across / (forward + across) : 0) : 2 - across / (across - forward);
+      const half = this.visEyeHalf;
+      if (angle >= half) return; // outside this eye's view
+      if (angle < EYE_CUT1 * half) ray = 2;
+      else if (angle < EYE_CUT2 * half) ray = side > 0 ? 3 : 1;
+      else ray = side > 0 ? 4 : 0;
+    } else {
+      if (forward <= 0) return; // behind me
+      // Five rays, each 30 degrees wide: straight ahead, and two on each side. The cut-offs are
+      // the tangents of 15, 45 and 75 degrees, so no trigonometry is needed.
+      if (across < 0.2679491924311227 * forward) ray = 2;
+      else if (across < forward) ray = side > 0 ? 3 : 1;
+      else if (across < 3.732050807568877 * forward) ray = side > 0 ? 4 : 0;
+      else return;
+    }
     // Is it something a hunter of my size could handle, or something bigger?
     if (this.size[index]! <= this.visSizeLimit) {
       if (distSq < this.rayDistSmall[ray]!) {
@@ -2947,7 +3009,7 @@ export class Simulation {
     const y = this.y[i]!;
     const hx = this.headingX[i]!;
     const hy = this.headingY[i]!;
-    const range = c.brainVisionRange + this.senseRange[i]!;
+    const range = (c.brainVisionRange + this.senseRange[i]!) * (this.eyeOn ? this.eyeReach[i]! : 1);
     const cs = c.foodCellSize;
     const gw = this.gridWidth;
     const gh = this.gridHeight;
@@ -2964,6 +3026,7 @@ export class Simulation {
       this.visY = y;
       this.visHx = hx;
       this.visHy = hy;
+      this.visEyeHalf = this.eyeOn ? this.eyeHalf[i]! : 0;
       this.hash.forEachNear(x, y, range, this.seeOther);
       for (let k = 0; k < RAY_COUNT; k++) {
         const slot = INPUT.visionStart + k * RAY_CHANNELS;
@@ -3196,6 +3259,23 @@ export class Simulation {
       const north = ((cy + gh - 1) % gh) * gw + cx;
       if (this.nutrientOn) inputs[INPUT.nutrientStore] = Math.min(1, this.nutrientStore[i]! / (c.nutrientStoreCap * this.bodyMatter[i]!)) * 2 - 1;
       if (this.fatOn) inputs[INPUT.fatReserve] = Math.min(1, this.fatStore[i]! / (c.fatCap * this.threshold[i]!));
+      if (this.mateScentOn) {
+        // Mate scent: the mix that matches its own diet, and which way it gets stronger.
+        const ss = c.scentCellSize;
+        const sw = this.scentWidth;
+        const sh = this.scentHeight;
+        const sx = Math.floor(this.x[i]! / ss);
+        const sy = Math.floor(this.y[i]! / ss);
+        const meat = this.diet[i]!;
+        const smell = (k: number): number => (1 - meat) * this.matePlantScent[k]! + meat * this.mateMeatScent[k]!;
+        const scale = 1 / (c.mateScent * SCENT_FULL);
+        const gx = (smell(sy * sw + ((sx + 1) % sw)) - smell(sy * sw + ((sx + sw - 1) % sw))) * scale;
+        const gy = (smell(((sy + 1) % sh) * sw + sx) - smell(((sy + sh - 1) % sh) * sw + sx)) * scale;
+        const hx = this.headingX[i]!;
+        const hy = this.headingY[i]!;
+        inputs[INPUT.mateScentAhead] = clampUnit(gx * hx + gy * hy);
+        inputs[INPUT.mateScentSide] = clampUnit(hx * gy - hy * gx);
+      }
       if (this.qualityOn) {
         const q = this.plantQ;
         const scale = 1 / c.plantQualityMax;
@@ -3322,6 +3402,33 @@ export class Simulation {
    * Fade every trail a little, then add each organism's scent to the square it stands in:
    * plant appetite goes into the plant-eater trail, meat appetite into the meat-eater trail.
    */
+  /** Mate scent: old scent fades, then every animal looking for a mate lays fresh scent by its diet (and pays for it). */
+  private layMateScent(n: number): void {
+    const c = this.config;
+    const keep = 1 - c.mateScentDecay;
+    const plant = this.matePlantScent;
+    const meat = this.mateMeatScent;
+    for (let k = 0; k < plant.length; k++) {
+      plant[k] = plant[k]! * keep;
+      meat[k] = meat[k]! * keep;
+    }
+    const ss = c.scentCellSize;
+    const sw = this.scentWidth;
+    for (let i = 0; i < n; i++) {
+      // Looking for a mate: with sex as a gene, the ones that chose to; otherwise any animal ready to breed.
+      const seeking = this.sexGeneOn ? this.sexMode[i] === 2 : this.energy[i]! >= this.threshold[i]!;
+      if (!seeking || this.killed[i] === 1) continue;
+      const k = Math.floor(this.y[i]! / ss) * sw + Math.floor(this.x[i]! / ss);
+      const diet = this.diet[i]!;
+      plant[k] = plant[k]! + c.mateScent * (1 - diet);
+      meat[k] = meat[k]! + c.mateScent * diet;
+      // Laying scent costs energy (lost as heat, on the sensing line).
+      const paid = Math.min(c.mateScentCost, Math.max(0, this.energy[i]!));
+      this.energy[i] = this.energy[i]! - paid;
+      this.ledger.sensingBurned += paid;
+    }
+  }
+
   private layScent(n: number): void {
     const c = this.config;
     const keep = 1 - c.scentDecay;
@@ -3368,6 +3475,11 @@ export class Simulation {
     }
     // A committed hunter's eye: the more of a meat eater it is, the closer to certain it notices prey.
     if (c.camoHunterEye > 0) p += (1 - p) * c.camoHunterEye * this.genes[viewer * GENE_COUNT + GENE.diet]!;
+    if (this.eyeOn) {
+      // A narrow eye is sharper (closer to always noticing), a wide one blurrier (the eye gene's other side).
+      const sharp = (this.genes[viewer * GENE_COUNT + GENE.eye]! - 0.5) * 2;
+      p = sharp >= 0 ? p + (1 - p) * c.eyeSharpness * sharp : p * (1 + c.eyeSharpness * sharp);
+    }
     const glance = Math.floor(this.tick / c.camoGlance);
     const u = ((Math.imul(glance + 1, 0x9e3779b1) ^ Math.imul(this.id[viewer]! + 1, 0x85ebca6b) ^ Math.imul(this.id[target]! + 1, 0xc2b2ae35)) >>> 0) / 4294967296;
     return u < p;
@@ -4086,8 +4198,21 @@ export class Simulation {
     let dietGap = this.genes[this.mateSelf * GENE_COUNT + GENE.diet]! - this.genes[index * GENE_COUNT + GENE.diet]!;
     if (dietGap < 0) dietGap = -dietGap;
     if (dietGap > this.config.mateDietLimit) return; // too different an eater to pair with
+    if (this.pickyCounting) {
+      this.pickyCount++;
+      return;
+    }
+    let picky = 0;
+    if (this.pickyOn) {
+      // Each partner turns down an eater too different from itself: the pickier, and the more choice, the closer it must be.
+      picky = this.genes[this.mateSelf * GENE_COUNT + GENE.pickiness]! * this.pickyAlpha;
+      const pickyOther = this.genes[index * GENE_COUNT + GENE.pickiness]! * this.pickyAlpha;
+      if (dietGap > 1 - picky || dietGap > 1 - pickyOther) return;
+    }
     // The score to beat: how near (default) or how genetically similar (matePreference 1, nearer wins a tie).
     let score = distSq;
+    // Pickiness also prefers the closer eater: diet difference counted against distance (as a share of mating range).
+    if (this.pickyOn && this.config.matePreference === 0) score = distSq / (this.config.mateRange * this.config.mateRange) + this.config.pickyWeight * picky * dietGap;
     if (this.config.matePreference === 1) score = geneSq;
     else if (this.config.matePreference === 2) {
       let hd = this.genes[this.mateSelf * GENE_COUNT + GENE.hue]! - this.genes[index * GENE_COUNT + GENE.hue]!;
@@ -4115,6 +4240,14 @@ export class Simulation {
       const a = list[p]!;
       if (ready[a] !== 1) continue;
       this.mateSelf = a;
+      if (this.pickyOn) {
+        // First count the ready, compatible mates in range: pickiness scales with how much choice there is.
+        this.pickyCounting = true;
+        this.pickyCount = 0;
+        this.hash.forEachNear(this.x[a]!, this.y[a]!, this.config.mateRange, this.considerMate);
+        this.pickyCounting = false;
+        this.pickyAlpha = this.pickyCount / (this.pickyCount + this.config.pickyHalf);
+      }
       this.mateBest = -1;
       this.mateBestDistSq = Infinity;
       this.mateBestScore = Infinity;
@@ -4307,6 +4440,7 @@ export class Simulation {
 
     // Scent trails: old scent fades, then everyone leaves fresh scent where they now stand.
     if (this.scentOn) this.layScent(n);
+    if (this.mateScentOn) this.layMateScent(n);
 
     // Disease: spreads by contact among the organisms that are now standing close together.
     if (this.diseaseOn) this.diseaseStep(n);
@@ -5163,6 +5297,7 @@ export class Simulation {
       ["terrainMove", this.terrainMove],
       ["preyScent", this.preyScent],
       ["hunterScent", this.hunterScent],
+      ...(this.mateScentOn ? ([["matePlantScent", this.matePlantScent], ["mateMeatScent", this.mateMeatScent]] as [string, SnapshotArray][]) : []),
       ["corpseOwner", this.corpseOwner],
       ["corpseOwnerUntil", this.corpseOwnerUntil],
     ];
@@ -5352,6 +5487,8 @@ export class Simulation {
       case "learning":
       case "placeMemory":
       case "workingMemory":
+      case "pickiness":
+      case "eye":
         return this.genes[i * GENE_COUNT + GENE[name]]!;
       case "lifespan": {
         const range = this.ranges.lifespan;

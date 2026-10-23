@@ -1230,6 +1230,38 @@ export interface SimConfig {
   scentDecay: number;
   /** Size of a scent grid square, in world units. Must divide the world size. */
   scentCellSize: number;
+  /**
+   * Mate scent (0 = off; needs brains and sex): an animal looking for a mate lays this much scent a tick
+   * where it stands, in two layers by diet as the trails are (a plant-eater layer and a meat-eater layer; a
+   * mixed eater lays some of each). Brains smell the mix that matches their own diet (mate scent: ahead and
+   * left), so similar eaters can find each other. It fades by mateScentDecay a tick, and laying it costs
+   * mateScentCost energy a tick (on the sensing line).
+   */
+  mateScent: number;
+  mateScentDecay: number;
+  mateScentCost: number;
+  /**
+   * Pickiness (0 = off; needs sex): the 32nd gene. A picky animal turns down mates whose diet differs from
+   * its own by more than 1 - pickiness x choice, and prefers the closest eater among the rest (pickyWeight
+   * sets how much diet counts against distance). "Choice" is how many ready mates are in range,
+   * n / (n + pickyHalf): with few around it takes anyone, with many it can choose. Both partners must accept.
+   * Founders start at initialPickiness; the gene costs pickinessCost x gene a tick (sensing line).
+   */
+  matePickiness: number;
+  pickyHalf: number;
+  pickyWeight: number;
+  pickinessCost: number;
+  initialPickiness: number;
+  /**
+   * The eye (0 = off; needs brains): the 33rd gene, from wide to narrow. At 0.5 (where founders start,
+   * initialEye) it is today's eye: a 150-degree forward view at the usual range. Toward 0 the view widens
+   * to about 300 degrees (nearly all round) but reaches shorter; toward 1 it narrows to about 60 degrees but
+   * reaches further, so every eye covers about the same area. A narrower eye is also sharper at spotting
+   * camouflaged animals, a wider one less so (eyeSharpness sets how much).
+   */
+  eyeMode: number;
+  initialEye: number;
+  eyeSharpness: number;
 
   // --- Reproduction ---
   /** An organism splits when its energy reaches this x its size. */
@@ -1723,6 +1755,17 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   scentDeposit: 1,
   scentDecay: 0.05,
   scentCellSize: 4,
+  mateScent: 0,
+  mateScentDecay: 0.1,
+  mateScentCost: 0.002,
+  matePickiness: 0,
+  pickyHalf: 3,
+  pickyWeight: 2,
+  pickinessCost: 0.001,
+  initialPickiness: 0,
+  eyeMode: 0,
+  initialEye: 0.5,
+  eyeSharpness: 0.5,
 
   reproThresholdPerSize: 30,
   offspringEnergyFraction: 0.5,
@@ -2064,6 +2107,14 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (!(c.fatProvision >= 0 && c.fatProvision <= 1)) problems.push("fatProvision must be between 0 and 1");
   if (c.fatRelated !== 0 && c.fatRelated !== 1) problems.push("fatRelated must be 0 or 1");
   if (c.fatBreeding !== 0 && c.fatBreeding !== 1) problems.push("fatBreeding must be 0 or 1");
+  if (!(c.mateScent >= 0) || !(c.mateScentDecay > 0 && c.mateScentDecay <= 1) || !(c.mateScentCost >= 0)) problems.push("mateScent and mateScentCost cannot be negative, and mateScentDecay must be above 0 and at most 1");
+  if (c.mateScent > 0 && (c.brainMode === 0 || c.sexualReproduction === 0)) problems.push("mateScent needs brains and sexual reproduction");
+  if (c.matePickiness !== 0 && c.matePickiness !== 1) problems.push("matePickiness must be 0 or 1");
+  if (c.matePickiness === 1 && c.sexualReproduction === 0) problems.push("matePickiness needs sexual reproduction");
+  if (!(c.pickyHalf > 0) || !(c.pickyWeight >= 0) || !(c.pickinessCost >= 0) || !(c.initialPickiness >= 0 && c.initialPickiness <= 1)) problems.push("pickyHalf must be positive, pickyWeight and pickinessCost cannot be negative, and initialPickiness must be between 0 and 1");
+  if (c.eyeMode !== 0 && c.eyeMode !== 1) problems.push("eyeMode must be 0 or 1");
+  if (c.eyeMode === 1 && c.brainMode === 0) problems.push("eyeMode needs brains (only brains see)");
+  if (!(c.initialEye >= 0 && c.initialEye <= 1) || !(c.eyeSharpness >= 0 && c.eyeSharpness <= 1)) problems.push("initialEye and eyeSharpness must be between 0 and 1");
   if (c.spareFamily !== 0 && c.spareFamily !== 1) problems.push("spareFamily must be 0 (off) or 1 (never attack your own parent or offspring)");
   for (const [name, value] of [["meatColdKeep", c.meatColdKeep], ["preyHungerDefense", c.preyHungerDefense], ["weaponGrazeLoss", c.weaponGrazeLoss]] as const) {
     if (!(value >= 0 && value <= 1)) problems.push(`${name} must be between 0 and 1`);

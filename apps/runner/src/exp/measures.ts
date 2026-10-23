@@ -876,3 +876,61 @@ MEASURES.dietLedger = {
     return out;
   },
 };
+
+MEASURES.matingSight = {
+  describe:
+    "the eye and pickiness genes by diet: average eye of plant eaters (diet under 0.25) and of mixed and meat eaters (0.25 and up), how strongly eye goes with diet (correlation, -1 to 1), and average pickiness in each group (0 where the gene is off)",
+  sample: ({ sim }) => {
+    const genes = sim.genes;
+    let n = 0;
+    let sd = 0;
+    let se = 0;
+    let sdd = 0;
+    let see = 0;
+    let sde = 0;
+    let eyePlant = 0;
+    let eyeOther = 0;
+    let pickPlant = 0;
+    let pickOther = 0;
+    let nPlant = 0;
+    let nOther = 0;
+    for (let i = 0; i < sim.count; i++) {
+      const d = genes[i * GENE_COUNT + GENE.diet]!;
+      const e = genes[i * GENE_COUNT + GENE.eye]!;
+      const p = genes[i * GENE_COUNT + GENE.pickiness]!;
+      n++;
+      sd += d;
+      se += e;
+      sdd += d * d;
+      see += e * e;
+      sde += d * e;
+      if (d < 0.25) {
+        nPlant++;
+        eyePlant += e;
+        pickPlant += p;
+      } else {
+        nOther++;
+        eyeOther += e;
+        pickOther += p;
+      }
+    }
+    const cov = n > 1 ? sde / n - (sd / n) * (se / n) : 0;
+    const vd = n > 1 ? sdd / n - (sd / n) ** 2 : 0;
+    const ve = n > 1 ? see / n - (se / n) ** 2 : 0;
+    const corr = vd > 1e-12 && ve > 1e-12 ? cov / Math.sqrt(vd * ve) : 0;
+    return {
+      eyePlant: nPlant ? round(eyePlant / nPlant, 4) : NaN,
+      eyeOther: nOther ? round(eyeOther / nOther, 4) : NaN,
+      eyeDietCorr: round(corr, 4),
+      pickPlant: nPlant ? round(pickPlant / nPlant, 4) : NaN,
+      pickOther: nOther ? round(pickOther / nOther, 4) : NaN,
+    };
+  },
+  summarize: (rows) => ({
+    eyePlantLate: lateMean(rows, "eyePlant"),
+    eyeOtherLate: lateMean(rows, "eyeOther"),
+    eyeDietCorrLate: lateMean(rows, "eyeDietCorr"),
+    pickPlantLate: lateMean(rows, "pickPlant"),
+    pickOtherLate: lateMean(rows, "pickOther"),
+  }),
+};

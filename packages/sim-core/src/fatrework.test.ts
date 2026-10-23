@@ -32,9 +32,10 @@ describe("fat rework settings", () => {
 
 describe("the fat-reserve sense", () => {
   it("sits just before the constant and the noise, and a world saved with the previous layout renumbers onto today's", () => {
-    expect(INPUT.fatReserve).toBe(BRAIN_LAYOUTS.at(-1)!.insertedAt);
+    const fatStep = BRAIN_LAYOUTS.findIndex((l) => l.insertedAt === INPUT.fatReserve);
+    expect(fatStep).toBeGreaterThan(0);
     expect(INPUT.bias).toBe(INPUT_COUNT - 2);
-    const previous = BRAIN_LAYOUTS.at(-2)!;
+    const previous = BRAIN_LAYOUTS[fatStep - 1]!; // the layout just before the fat sense
     expect(renumberOldNode(previous.inputs - 2, previous.inputs)).toBe(INPUT.bias); // the old bias lands on today's bias
     expect(renumberOldNode(previous.inputs - 3, previous.inputs)).toBe(INPUT.placeDistance); // nodes before the insert stay put
     expect(renumberOldNode(previous.inputs, previous.inputs)).toBe(INPUT_COUNT); // the old first hidden unit on today's
