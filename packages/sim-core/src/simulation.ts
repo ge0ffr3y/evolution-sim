@@ -773,9 +773,9 @@ export class Simulation {
   readonly gutEnergy: Float64Array;
   /** Scratch: how much of what it wants to eat this tick fits in its stomach (0 to 1). */
   private readonly gutScale: Float64Array; // (full precision, so the claim and the meal agree exactly)
-  /** Rest (restSaving): on, and (scratch, this tick) whether each animal rested. */
+  /** Rest (restSaving): on, and (scratch, this tick) how much of the full rest saving each animal had (0 to 1). */
   private readonly restOn: boolean;
-  private readonly rested: Uint8Array;
+  private readonly rested: Float32Array;
   /** Mate scent (mateScent): laid by animals looking for a mate, in a plant-eater and a meat-eater layer. */
   private readonly mateScentOn: boolean;
   readonly matePlantScent: Float64Array;
@@ -1157,7 +1157,7 @@ export class Simulation {
     this.gutEnergy = new Float64Array(this.gutOn ? n : 0);
     this.gutScale = new Float64Array(this.gutOn ? n : 0);
     this.restOn = c.restSaving > 0 && c.brainMode > 0;
-    this.rested = new Uint8Array(this.restOn ? n : 0);
+    this.rested = new Float32Array(this.restOn ? n : 0);
     this.eyeOn = c.eyeMode === 1 && c.brainMode > 0;
     this.eyeHalf = new Float32Array(this.eyeOn ? n : 0);
     this.eyeReach = new Float32Array(this.eyeOn ? n : 0);
@@ -4797,10 +4797,11 @@ export class Simulation {
       if (this.fatOn) basal += c.fatUpkeep * (this.fatStore[i]! / this.threshold[i]!) * this.basalCost[i]!; // carrying fat costs upkeep
       if (this.torporOn) basal *= 1 - c.torporSaving * this.torpid[i]!;
       if (this.restOn) {
-        // Rest: barely moving and eating nothing, the body ticks over more cheaply (digestion carries on).
-        const resting = this.moveScale[i]! < c.restBelow && plantMass + meatMass === 0;
-        this.rested[i] = resting ? 1 : 0;
-        if (resting) basal *= 1 - c.restSaving;
+        // Rest: on a tick it eats nothing, the slower it goes the more cheaply the body ticks over (digestion carries on).
+        const pace = this.moveScale[i]!;
+        const share = plantMass + meatMass === 0 && pace < c.restBelow ? (c.restBelow - pace) / c.restBelow : 0;
+        this.rested[i] = share;
+        if (share > 0) basal *= 1 - c.restSaving * share;
       }
       if (this.thermalOn) {
         // Too hot or too cold for comfort costs extra upkeep.
@@ -5743,9 +5744,9 @@ export class Simulation {
         out.torporRest += s;
         basal += s;
       }
-      if (this.restOn && this.rested[i] === 1) {
+      if (this.restOn && this.rested[i]! > 0) {
         // Resting (restSaving) is counted with torpor as a saving from rest.
-        const s = -basal * c.restSaving;
+        const s = -basal * c.restSaving * this.rested[i]!;
         out.torporRest += s;
         basal += s;
       }

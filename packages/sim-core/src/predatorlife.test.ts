@@ -10,7 +10,7 @@ type Hidden = {
   kill(attacker: number, prey: number): void;
   defendedBy(prey: number, attacker?: number): number;
   weakness(i: number): number;
-  rested: Uint8Array;
+  rested: Float32Array;
   sickFor: Uint16Array;
   cellOf: Uint32Array;
 };
@@ -104,13 +104,11 @@ describe("prey condition", () => {
 describe("rest", () => {
   it("an animal that barely moves and eats nothing pays less upkeep, and the books show it", () => {
     const base: Partial<SimConfig> = { worldWidth: 64, worldHeight: 64, initialOrganisms: 30, speciesEvery: 0, brainMode: 2, initialFoodFraction: 0, foodRegrowPerTick: 0 };
-    const tired = new Simulation(4, { ...base, restSaving: 0.5, restBelow: 1.5 }); // everyone below 1.5 (founders go at normal pace, 1) counts as resting
+    const tired = new Simulation(4, { ...base, restSaving: 0.5, restBelow: 2 }); // founders go at normal pace (1): half the full saving
     const awake = new Simulation(4, base);
     tired.step();
     awake.step();
-    let rested = 0;
-    for (let i = 0; i < tired.count; i++) rested += h(tired).rested[i]!;
-    expect(rested).toBeGreaterThan(0);
+    for (let i = 0; i < tired.count; i++) expect(h(tired).rested[i]).toBeCloseTo((2 - tired.moveScale[i]!) / 2, 6); // graded by pace
     expect(tired.ledger.basalBurned).toBeLessThan(awake.ledger.basalBurned);
     expect(tired.costBreakdown().torporRest).toBeLessThan(0); // counted as a saving from rest
   });

@@ -1284,9 +1284,10 @@ export interface SimConfig {
   gutBite: number;
   gutDigestRate: number;
   /**
-   * Rest (0 = off; needs brains): an animal whose brain barely moves it (pace below restBelow, where pace is 0
-   * standing still, 1 normal and 2 flat out) and that ate nothing this tick is resting, and its basic upkeep falls
-   * by restSaving. Digestion carries on.
+   * Rest (0 = off; needs brains): on a tick an animal eats nothing, the slower its brain moves it the less its body
+   * costs: basic upkeep falls by restSaving x (restBelow - pace) / restBelow when pace is below restBelow (pace is 0
+   * standing still, 1 normal and 2 flat out), so standing still saves restSaving in full. Graded, so evolution can
+   * find it: slowing a little saves a little. Digestion carries on.
    * A grazer that stops eating to rest goes hungry; a predator with a full stomach can rest for a long time.
    */
   restSaving: number;
@@ -1809,7 +1810,7 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   gutBite: 1.5,
   gutDigestRate: 1.5,
   restSaving: 0,
-  restBelow: 0.2,
+  restBelow: 1,
   preyCondition: 0,
   youngTicks: 100,
 

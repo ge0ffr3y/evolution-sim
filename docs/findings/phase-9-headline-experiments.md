@@ -741,3 +741,47 @@ Evolution drops the gene: from 0.60 to 0.07 in 8h. And the fat gene counted towa
 - **The package pushes the whole population toward meat** (twice the mixed eaters, six times the animals eating mostly meat) but at a clear cost to the prey world (a quarter fewer animals, a third fewer species), and still no lasting meat-eating group.
 - **Over a million ticks the eye split fades** (correlation 0.10, against 0.24 at 300,000 ticks): eyes narrow for everyone, and pickiness rises evenly in all diets.
 - **So the package is not worth adopting as it is.** What it shows is that more hunting alone does not make a separate meat-eating group: the hunting is done by an ever larger crowd of mixed eaters.
+
+## 12. Predator life: a gut, rest and prey condition
+
+**Built** (all off by default; `predatorlife.test.ts`):
+- **The gut** (`gutMode`). Food goes into a stomach and becomes energy over time: `gutDigestRate` x metabolism x body size a tick.
+  - Eating speed is set by body size (no longer by metabolism); metabolism sets digestion speed.
+  - Plants are bulky, meat is dense. A full stomach eats nothing.
+  - Energy in the stomach counts in the books and goes into the carcass if the animal dies.
+  - Brains sense how full they are (a new input; brain goldens re-recorded).
+- **Rest** (`restSaving`): on a tick it eats nothing, the slower an animal goes, the less its basic upkeep.
+- **Prey condition** (`preyCondition`): defense falls with the worst of hunger, sickness, age past prime and youth.
+- **The diet ledger now records how animals die:** ran out of energy, killed by a meat eater, or killed by anyone else, plus how fed they were and how old.
+
+**Two bugs found on the way:**
+- A tiny energy leak with the gut: a rounding mismatch between claiming food and eating it. Fixed, and the books balance exactly.
+- A changed order of additions altered brains-off fingerprints. Fixed: worlds without the gut are bit-for-bit as before.
+
+**Experiment:** `predator-life`, 300,000 ticks, 8 fresh seeds (2901 to 2908), on the reworked grand world, 48 cores, about $1.
+
+**Rest never happened in this run.** As first built, it needed a pace below 0.2, a cliff no brain ever reached (none of 4 million animal-ticks), so "gut + rest" equals "gut", and "all three" is really the gut with prey condition. Rest has since been made graded (slowing a little saves a little) and needs a new run.
+
+| | Meat eaters (8 worlds, second half) | Biggest short-lived group | Diet above 0.5 | Mixed eaters | Meat in the diet | Kills | Metabolism | Population | Species |
+|---|---|---|---|---|---|---|---|---|---|
+| Grand world | 0 to 2 | 34 | 0.3% | 105 | 15% | 2,519 | 0.98 | 1,291 | 8.4 |
+| Gut | 0 to 5 | **657** | **2.6%*** | **407*** | **21%*** | **+42%*** | **0.58** | **-20%*** | **-36%*** |
+| Prey condition | 0 to 3 | 96 | 0.6% | 147 | 17%* | +28%* | | -21%* | -16% |
+| Gut + prey condition | **0 to 62; one world holds a group** | 149 | **3.9%*** | **377*** | **23%*** | **+48%*** | 0.60 | -20%* | -15% |
+| The same + unmuted prey sight and a pull toward prey | 0 to 10 | 81 | **7.2%*** | **575*** | **23%*** | **+49%*** | | -19%* | -10% |
+
+(* holds up, 8 seeds)
+
+**How meat eaters (diet above 0.75) die** (per animal per 1,000 ticks, second half):
+
+| | Deaths | Ran out of energy | Killed by a meat eater | Killed by anyone else | Fed at death |
+|---|---|---|---|---|---|
+| Grand world | 3.9 | 0.8 | 1.4 | 1.7 | 0.5 |
+| Gut | 3.5 | 0.8 | 0.9 | 1.8 | 0.4 |
+| Gut + prey condition | 2.3 | 0.4 | **1.5** | 0.3 | 0.5 |
+| The same + hunting helps | 2.9 | 0.5 | 1.1 | 1.3 | 0.4 |
+
+- **The gut is the strongest lever on meat eating so far.** Animals eating mostly meat rise nine- to twenty-fivefold, short-lived meat-eating groups reach 657 animals, and with prey condition one world in 8 keeps a meat-eating group through the second half (about 62 animals), the first in the grand world itself.
+- **Evolution answers the gut as expected:** metabolism falls from about 1.0 to 0.6, so slower, cheaper bodies digest at leisure.
+- **Meat eaters mostly do not starve. They are killed,** often by other meat eaters. Starvation is 15 to 25% of their deaths, they die about half fed, and where a group lasts two thirds of its deaths are kills by other meat eaters. Today nothing makes an armed animal dangerous to attack: defense counts armor and size, not the prey's own weapons.
+- **The cost:** about a fifth fewer animals everywhere, and with the gut alone a third fewer species.
