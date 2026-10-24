@@ -918,3 +918,30 @@ The one world that kept a meat-eating group (3216) looks the same in every colum
 - **Injury backfires in a quiet way.** Meat eaters under injury evolve less armor (0.15 against 0.49) and more attack. The fights between meat eaters that still happen are ones the attacker usually wins (odds 0.73 against 0.51).
 - **Young that move away is the most promising**, though not proven on 8 seeds (2 of 8 against 0 of 8 is within chance). It has the most meat eating, the most worlds with a group at the end, feeding levels up 17% (holds up), and a smaller species cost. It also cuts disease by more than half, because families no longer sit on top of each other.
 - **The gut with prey condition held no group in these 8 worlds.** Across all screens it is now 8 of 48.
+
+### 13c. Confirmation: young that move away, 16 fresh seeds, 500,000 ticks
+
+**Experiment:** `dispersal-confirm`. The grand world; the grand world with the gut, prey condition and young moving 12 units away; and the grand world with young moving away alone. Seeds 3401 to 3416, 500,000 ticks, with the diet ledger and the kill autopsy, 48 cores, about $1.75.
+
+**No.** A lasting meat-eating group formed in **0 of 16** worlds in every setup. One world with the gut, prey condition and young moving away had a group of 104 at the very end, which had grown late. The grand world itself had one of 69 at the end of one world.
+
+| | Grand world | Gut + prey condition + young move away | Young move away alone |
+|---|---|---|---|
+| Worlds with a lasting meat-eating group | 0 of 16 | 0 of 16 | 0 of 16 |
+| Diet above 0.5 | 0.3% | 4.1% | 0.5% |
+| Feeding levels | 1.98 | +5%* | +2% |
+| Population | 1,130 | -23%* | -3% |
+| Species | 9.3 | **-31%*** | -9% |
+| Species diversity | 1.76 | -21%* | -6% |
+| Sick | 20% | **-49%*** | -6% |
+
+(* holds up, 16 seeds)
+
+- **The 8-seed screen over-stated it again.** The 2 of 8 there was chance, and the feeding-level gain shrinks from +17% to +5%.
+- **Young moving away on their own change nothing measurable in the grand world.** Disease falls only alongside the gut (fewer animals, spread out).
+- **Meat eaters still live among their own kind:** 59 to 64% of the animals in a meat eater's reach are meat eaters in every setup. Young moving away cut siblings among their victims (25% to 8%), but not the clumping.
+- **Across all the predator-life work:**
+  - On 16 fresh seeds over 500,000 ticks, the gut with prey condition kept a group in 1 of 16 worlds, and with young moving away in 0 of 16. Both cost about a third of the species.
+  - The 8-seed screens at 300,000 ticks found 8 of 48 between them.
+
+  What the gut does reliably is turn the grand world toward mixed eating (diet gene about double, much less starving). It does not make meat specialists last.

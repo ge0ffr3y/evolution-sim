@@ -168,5 +168,10 @@
     "name": "injury-dispersal",
     "question": "The kill autopsy found that meat eaters (diet above 0.75) live in clumps of their own lineage and kill equals and relatives when no other prey is in reach, at no extra cost. With the gut and prey condition, does injury from failed attacks (attackInjury 0.2: a failed attack against an equal costs a tenth of a breeding's worth) or young that move away (natalDispersal 12 world units, about one and a half food cells) cut meat eaters killing meat eaters and let a meat-eating group last? Each alone and together, 8 fresh seeds, 300,000 ticks, with the diet ledger and the kill autopsy. An answer: worlds with a lasting meat-eating group, meat eaters killed by meat eaters, species and population.",
     "file": "injury-dispersal.json"
+  },
+  {
+    "name": "dispersal-confirm",
+    "question": "Confirmation on 16 fresh seeds and a longer run: in the grand world, do young that move away (natalDispersal 12) with the gut and prey condition keep a lasting meat-eating group (diet above 0.75), and do young that move away on their own help the grand world (fewer sick, more species, more feeding levels)? In the 8-seed screen the first held a group in 2 of 8 worlds (against 0 of 8 for gut + prey condition there), raised feeding levels by 17% and halved disease. 16 seeds, 500,000 ticks, with the diet ledger and the kill autopsy. An answer: worlds with a lasting meat-eating group, how long they last, feeding levels, species, diversity, disease and population, and whether any cost holds up.",
+    "file": "dispersal-confirm.json"
   }
 ]
