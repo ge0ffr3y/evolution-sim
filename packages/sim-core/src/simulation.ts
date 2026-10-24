@@ -776,6 +776,8 @@ export class Simulation {
   /** Rest (restSaving): on, and (scratch, this tick) how much of the full rest saving each animal had (0 to 1). */
   private readonly restOn: boolean;
   private readonly rested: Float32Array;
+  /** With attackInjury: what a failed attack cost the attacker this tick (scratch: charged with fighting in pass 2, cleared in pass 1). */
+  private readonly hurt: Float64Array;
   /** Mate scent (mateScent): laid by animals looking for a mate, in a plant-eater and a meat-eater layer. */
   private readonly mateScentOn: boolean;
   readonly matePlantScent: Float64Array;
@@ -1180,6 +1182,7 @@ export class Simulation {
     this.gutScale = new Float64Array(this.gutOn ? n : 0);
     this.restOn = c.restSaving > 0 && c.brainMode > 0;
     this.rested = new Float32Array(this.restOn ? n : 0);
+    this.hurt = new Float64Array(c.attackInjury > 0 ? n : 0);
     this.eyeOn = c.eyeMode === 1 && c.brainMode > 0;
     this.eyeHalf = new Float32Array(this.eyeOn ? n : 0);
     this.eyeReach = new Float32Array(this.eyeOn ? n : 0);
@@ -3609,6 +3612,31 @@ export class Simulation {
   // ---- Multicellularity ----
 
   /** How many cells are bonded to cell i. */
+  /**
+   * Young that move away (natalDispersal): place a newborn natalDispersal from its parent along the heading it was born
+   * with, unless that spot is water or the baby stayed bonded to a colony. Its body was already built where it was born,
+   * so no matter or energy moves with this.
+   */
+  private disperse(child: number, parent: number): void {
+    if (this.bondsOn && this.bondCount(child) > 0) return;
+    const c = this.config;
+    const W = c.worldWidth;
+    const H = c.worldHeight;
+    let nx = this.x[parent]! + this.headingX[child]! * c.natalDispersal;
+    let ny = this.y[parent]! + this.headingY[child]! * c.natalDispersal;
+    nx -= Math.floor(nx / W) * W;
+    ny -= Math.floor(ny / H) * H;
+    nx = Math.fround(nx);
+    ny = Math.fround(ny);
+    if (nx >= W) nx = 0;
+    if (ny >= H) ny = 0;
+    const cell = Math.floor(ny / c.foodCellSize) * this.gridWidth + Math.floor(nx / c.foodCellSize);
+    if (this.terrainOn && this.passable[cell] === 0) return;
+    this.x[child] = nx;
+    this.y[child] = ny;
+    this.cellOf[child] = cell;
+  }
+
   private bondCount(i: number): number {
     let count = 0;
     for (let k = 0; k < BOND_SLOTS; k++) if (this.bondTo[i * BOND_SLOTS + k]! >= 0) count++;
@@ -4436,6 +4464,7 @@ export class Simulation {
       let hx = this.headingX[i]!;
       let hy = this.headingY[i]!;
       this.attempted[i] = 0;
+      if (this.hurt.length > 0) this.hurt[i] = 0;
       if (this.resting[i]! > 0) this.resting[i] = this.resting[i]! - 1;
       if (this.torporOn) {
         // Where plants have stopped growing a dormant organism sits still (and cannot attack) and saves upkeep.
@@ -4587,6 +4616,12 @@ export class Simulation {
         const power = this.attackPower[i]!;
         const odds = power / (power + this.defendedBy(prey, i));
         if (this.rng.next() < odds) this.kill(i, prey);
+        else if (this.hurt.length > 0) {
+          // Injury: the attack failed and the prey hurt the attacker, more the better armed it is compared with the attacker.
+          const preyPower = this.attackPower[prey]!;
+          const both = power + preyPower;
+          this.hurt[i] = both > 0 ? c.attackInjury * this.threshold[i]! * (preyPower / both) : 0;
+        }
       }
     }
 
@@ -4842,7 +4877,8 @@ export class Simulation {
       if (this.torporOn) move *= (1 - this.torpid[i]!) * (1 - this.torpid[i]!); // slower costs less (cost goes with speed squared)
       if (this.staminaOn) move += this.staminaCost[i]!; // the upkeep of the sprint reserve counts as movement
       const sensing = this.senseCost[i]!;
-      const fighting = this.attackCost[i]! + (this.attempted[i] === 1 ? this.attemptCost[i]! : 0);
+      // (Injury, when on, is paid as fighting; kept in the old form when off.)
+      const fighting = this.hurt.length > 0 ? this.attackCost[i]! + (this.attempted[i] === 1 ? this.attemptCost[i]! : 0) + this.hurt[i]! : this.attackCost[i]! + (this.attempted[i] === 1 ? this.attemptCost[i]! : 0);
       const armoring = this.armorCost[i]!;
       const thinking = brainMode > 0 ? this.brainCost[i]! : 0;
       const cost = basal + move + sensing + fighting + armoring + thinking;
@@ -5095,6 +5131,7 @@ export class Simulation {
           this.totalBirths++;
           this.sexualBirths++;
           if (this.bondsOn) this.maybeAttach(a, child);
+          if (c.natalDispersal > 0) this.disperse(child, a);
         }
       }
     }
@@ -5146,6 +5183,7 @@ export class Simulation {
           }
           this.totalBirths++;
           if (this.bondsOn) this.maybeAttach(parent, child);
+          if (c.natalDispersal > 0) this.disperse(child, parent);
         }
       }
     }
@@ -5794,7 +5832,7 @@ export class Simulation {
       if (this.staminaOn) move += this.staminaCost[i]!;
       out.movement += move;
       out.sensing += this.senseCost[i]!;
-      out.attack += this.attackCost[i]! + (this.attempted[i] === 1 ? this.attemptCost[i]! : 0);
+      out.attack += this.attackCost[i]! + (this.attempted[i] === 1 ? this.attemptCost[i]! : 0) + (this.hurt.length > 0 ? this.hurt[i]! : 0);
       out.armor += this.armorCost[i]!;
       if (brains) out.brain += this.brainCost[i]!;
     }

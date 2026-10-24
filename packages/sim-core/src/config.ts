@@ -1313,6 +1313,18 @@ export interface SimConfig {
    * a tie. Hunters then cull the weak and leave the strong and the armed, as real ones do.
    */
   preyChoice: number;
+  /**
+   * Injury (0 = off): a failed attack hurts the attacker. It loses attackInjury x its breeding energy x the prey's share
+   * of the two animals' attack power (prey power / (attacker power + prey power)), charged as a fighting cost. Attacking
+   * an armed equal is then dangerous (an equal's share is half), and a small or unarmed animal hardly hurts at all.
+   */
+  attackInjury: number;
+  /**
+   * Young that move away (0 = off): a newborn is placed this far from its parent (world units), along the random heading
+   * it is born with (so no extra random numbers are drawn), unless that spot is water or it is born bonded to a colony.
+   * A line then spreads out instead of living in a clump where relatives are each other's nearest prey.
+   */
+  natalDispersal: number;
 
   // --- Reproduction ---
   /** An organism splits when its energy reaches this x its size. */
@@ -1828,6 +1840,8 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   youngTicks: 100,
   fightBack: 0,
   preyChoice: 0,
+  attackInjury: 0,
+  natalDispersal: 0,
 
   reproThresholdPerSize: 30,
   offspringEnergyFraction: 0.5,
@@ -2186,6 +2200,8 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (!(c.preyCondition >= 0 && c.preyCondition <= 1) || !(c.youngTicks >= 0)) problems.push("preyCondition must be between 0 and 1, and youngTicks cannot be negative");
   if (!(c.fightBack >= 0)) problems.push("fightBack cannot be negative");
   if (c.preyChoice !== 0 && c.preyChoice !== 1) problems.push("preyChoice must be 0 (nearest) or 1 (easiest)");
+  if (!(c.attackInjury >= 0 && c.attackInjury <= 1)) problems.push("attackInjury must be between 0 and 1");
+  if (!(c.natalDispersal >= 0 && c.natalDispersal < Math.min(c.worldWidth, c.worldHeight) / 2)) problems.push("natalDispersal must be at least 0 and less than half the world");
   if (c.spareFamily !== 0 && c.spareFamily !== 1) problems.push("spareFamily must be 0 (off) or 1 (never attack your own parent or offspring)");
   for (const [name, value] of [["meatColdKeep", c.meatColdKeep], ["preyHungerDefense", c.preyHungerDefense], ["weaponGrazeLoss", c.weaponGrazeLoss]] as const) {
     if (!(value >= 0 && value <= 1)) problems.push(`${name} must be between 0 and 1`);

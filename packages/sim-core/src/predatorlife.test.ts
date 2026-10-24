@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Simulation } from "./simulation";
 import type { SimConfig } from "./config";
 import { DEFAULT_CONFIG } from "./config";
-import { GENE } from "./genome";
+import { GENE, GENE_COUNT } from "./genome";
 
 // Phase 9 predator life: the gut (food is digested over time), rest, and prey condition. All off by default.
 
@@ -187,4 +187,105 @@ describe("hunters pick the easiest prey in reach (preyChoice)", () => {
   it("with preyChoice 1 it takes the easiest, even if further off", () => {
     expect(pick(world({ preyChoice: 1 }), [[1, 1], [2, 4]])).toBe(2);
   });
+});
+
+describe("injury from failed attacks (attackInjury)", () => {
+  type I = { hurt: Float64Array; defense: Float32Array; attackPower: Float32Array };
+  const x = (sim: Simulation): I => sim as unknown as I;
+  // Two armed animals on the same spot that cannot move and cannot be killed (huge defense): every attack fails.
+  const duel = (attackInjury: number): Simulation => {
+    const sim = new Simulation(1, { worldWidth: 64, worldHeight: 64, initialOrganisms: 2, speciesEvery: 0, attackInjury });
+    const G = GENE_COUNT;
+    sim.genes[GENE.attack] = 0.9;
+    sim.genes[G + GENE.attack] = 0.5;
+    sim.genes[GENE.speed] = 0;
+    sim.genes[G + GENE.speed] = 0;
+    sim.genes[G + GENE.size] = sim.genes[GENE.size]!; // the same size, so each can attack the other
+    sim.express(0);
+    sim.express(1);
+    sim.x[1] = sim.x[0]!;
+    sim.y[1] = sim.y[0]!;
+    x(sim).defense[0] = 1e9;
+    x(sim).defense[1] = 1e9;
+    sim.energy[0] = sim.threshold[0]! * 0.5;
+    sim.energy[1] = sim.threshold[1]! * 0.5;
+    return sim;
+  };
+
+  it("is off by default and checked", () => {
+    expect(DEFAULT_CONFIG.attackInjury).toBe(0);
+    expect(() => new Simulation(1, { attackInjury: 1.5 })).toThrow(/attackInjury/);
+  });
+
+  it("a failed attack costs injury x breeding energy x the prey's share of attack power, paid as fighting", () => {
+    const off = duel(0);
+    const on = duel(0.2);
+    const p0 = x(on).attackPower[0]!;
+    const p1 = x(on).attackPower[1]!;
+    const burnedBefore = on.ledger.attackBurned;
+    off.step();
+    on.step();
+    const expected0 = 0.2 * on.threshold[0]! * (p1 / (p0 + p1));
+    const expected1 = 0.2 * on.threshold[1]! * (p0 / (p0 + p1));
+    expect(x(on).hurt[0]).toBeCloseTo(expected0, 6);
+    expect(x(on).hurt[1]).toBeCloseTo(expected1, 6);
+    expect(x(on).hurt[0]).toBeLessThan(x(on).hurt[1]!); // the weaker one gets hurt more
+    // Everything else is the same (no extra random numbers), so the difference in energy is exactly the injury.
+    expect(off.energy[0]! - on.energy[0]!).toBeCloseTo(expected0, 4);
+    expect(on.ledger.attackBurned - burnedBefore - (off.ledger.attackBurned - burnedBefore)).toBeCloseTo(expected0 + expected1, 4);
+  });
+});
+
+describe("young that move away (natalDispersal)", () => {
+  const birth = (natalDispersal: number): { sim: Simulation; dx: number; dy: number; child: number } => {
+    const sim = new Simulation(3, { worldWidth: 128, worldHeight: 128, initialOrganisms: 1, speciesEvery: 0, natalDispersal });
+    sim.energy[0] = 2 * sim.threshold[0]!;
+    sim.step();
+    expect(sim.count).toBe(2);
+    const W = 128;
+    let dx = sim.x[1]! - sim.x[0]!;
+    let dy = sim.y[1]! - sim.y[0]!;
+    if (dx > W / 2) dx -= W;
+    else if (dx < -W / 2) dx += W;
+    if (dy > W / 2) dy -= W;
+    else if (dy < -W / 2) dy += W;
+    return { sim, dx, dy, child: 1 };
+  };
+
+  it("is off by default and checked: a baby is born on its parent's spot", () => {
+    expect(DEFAULT_CONFIG.natalDispersal).toBe(0);
+    expect(() => new Simulation(1, { worldWidth: 64, worldHeight: 64, natalDispersal: 40 })).toThrow(/natalDispersal/);
+    const { dx, dy } = birth(0);
+    expect(Math.abs(dx) + Math.abs(dy)).toBe(0);
+  });
+
+  it("on: the baby starts natalDispersal away, along the heading it was born with", () => {
+    const { sim, dx, dy, child } = birth(6);
+    expect(Math.sqrt(dx * dx + dy * dy)).toBeCloseTo(6, 4);
+    expect(dx / 6).toBeCloseTo(sim.headingX[child]!, 4);
+    expect(dy / 6).toBeCloseTo(sim.headingY[child]!, 4);
+  });
+});
+
+describe("the books with injury and young that move away", () => {
+  it("balance exactly, and a saved world carries on exactly", () => {
+    const config: Partial<SimConfig> = { worldWidth: 128, worldHeight: 128, initialOrganisms: 250, speciesEvery: 0, initialAttack: 0.5, initialDiet: 0.6, gutMode: 1, preyCondition: 0.5, attackInjury: 0.3, natalDispersal: 5, nutrientMode: 2, sexualReproduction: 1, sexAcceptAny: 1 };
+    const sim = new Simulation(12, config);
+    sim.run(20);
+    const e0 = sim.energyAudit().total;
+    const m0 = sim.matterAudit().total;
+    const L0 = { ...sim.ledger };
+    sim.run(2000);
+    const L = sim.ledger;
+    expect(sim.count).toBeGreaterThan(0);
+    expect(L.attackBurned - L0.attackBurned).toBeGreaterThan(0);
+    const burned = (y: typeof L): number => y.basalBurned + y.movementBurned + y.sensingBurned + y.attackBurned + y.armorBurned + y.brainBurned;
+    const expected = e0 + (L.sunlightIn - L0.sunlightIn) - (burned(L) - burned(L0)) - (L.digestionLoss - L0.digestionLoss) - (L.decayLoss - L0.decayLoss);
+    expect(Math.abs(sim.energyAudit().total - expected) / expected).toBeLessThan(1e-9);
+    expect(Math.abs(sim.matterAudit().total - m0) / m0).toBeLessThan(1e-9);
+    const copy = Simulation.load(sim.save());
+    sim.run(300);
+    copy.run(300);
+    expect(copy.fingerprint()).toBe(sim.fingerprint());
+  }, 120_000);
 });
