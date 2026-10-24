@@ -81,7 +81,13 @@ export class TreeView {
   selected: number | null = null;
   onSelect: (id: number | null) => void = () => {};
 
-  constructor(private readonly canvas: HTMLCanvasElement) {
+  /** Row height in pixels: ROW_HEIGHT, or less when the tree must fit maxHeight (a fixed-size panel). */
+  private rowHeight = ROW_HEIGHT;
+
+  constructor(
+    private readonly canvas: HTMLCanvasElement,
+    private readonly maxHeight: number | null = null,
+  ) {
     canvas.addEventListener("click", (event) => this.click(event));
   }
 
@@ -99,7 +105,7 @@ export class TreeView {
   private click(event: MouseEvent): void {
     const rect = this.canvas.getBoundingClientRect();
     const y = ((event.clientY - rect.top) / rect.height) * this.canvas.clientHeight;
-    const row = Math.floor((y - TOP_PAD) / ROW_HEIGHT);
+    const row = Math.floor((y - TOP_PAD) / this.rowHeight);
     const record = this.layout.records[row];
     this.selected = record ? record.id : null;
     this.onSelect(this.selected);
@@ -110,7 +116,9 @@ export class TreeView {
     const ratio = window.devicePixelRatio || 1;
     const width = Math.max(this.canvas.parentElement?.clientWidth ?? 600, 320);
     const rows = this.layout.records.length;
-    const height = Math.max(120, TOP_PAD + rows * ROW_HEIGHT + 8);
+    // With a height limit, rows get thinner (down to 3 pixels) so the whole tree still fits.
+    this.rowHeight = this.maxHeight !== null && rows > 0 ? Math.max(3, Math.min(ROW_HEIGHT, (this.maxHeight - TOP_PAD - 8) / rows)) : ROW_HEIGHT;
+    const height = this.maxHeight !== null ? this.maxHeight : Math.max(120, TOP_PAD + rows * this.rowHeight + 8);
     this.canvas.style.width = `${width}px`;
     this.canvas.style.height = `${height}px`;
     this.canvas.width = Math.round(width * ratio);
@@ -142,8 +150,9 @@ export class TreeView {
     }
 
     const peak = Math.max(1, ...this.records.map((r) => r.peak));
-    const rowY = (id: number): number => TOP_PAD + (this.layout.rows.get(id) ?? 0) * ROW_HEIGHT + ROW_HEIGHT / 2;
-    const half = (count: number): number => Math.max(0.6, (Math.sqrt(count / peak) * MAX_BAND) / 2);
+    const rowY = (id: number): number => TOP_PAD + (this.layout.rows.get(id) ?? 0) * this.rowHeight + this.rowHeight / 2;
+    const band = Math.min(MAX_BAND, this.rowHeight - 2);
+    const half = (count: number): number => Math.max(0.6, (Math.sqrt(count / peak) * band) / 2);
 
     // Lines from each species to its parent come first so branches sit on top.
     ctx.strokeStyle = "#566370";
@@ -191,7 +200,7 @@ export class TreeView {
       if (record.id === this.selected) {
         ctx.strokeStyle = "#ffffff";
         ctx.lineWidth = 1.5;
-        ctx.strokeRect(start - 1, y - ROW_HEIGHT / 2 + 1, Math.max(end - start, 4) + 2, ROW_HEIGHT - 2);
+        ctx.strokeRect(start - 1, y - this.rowHeight / 2 + 1, Math.max(end - start, 4) + 2, this.rowHeight - 2);
       }
       ctx.fillStyle = "#e6edf3";
       ctx.textAlign = end + 34 > width ? "right" : "left";

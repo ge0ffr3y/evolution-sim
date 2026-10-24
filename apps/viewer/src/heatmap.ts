@@ -47,7 +47,7 @@ export class Heatmap {
   private seen = 0;
   private world: WorldInfo | null = null;
 
-  constructor(private readonly container: HTMLElement) {
+  constructor(private readonly container: HTMLElement, private readonly height = HEIGHT) {
     const ctx = this.canvas.getContext("2d");
     if (!ctx) throw new Error("This browser cannot draw on a canvas");
     this.ctx = ctx;
@@ -82,17 +82,17 @@ export class Heatmap {
     const { canvas, ctx } = this;
     const ratio = window.devicePixelRatio || 1;
     const width = Math.max(this.container.clientWidth, 280);
-    if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(HEIGHT * ratio)) {
+    if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(this.height * ratio)) {
       canvas.width = Math.round(width * ratio);
-      canvas.height = Math.round(HEIGHT * ratio);
+      canvas.height = Math.round(this.height * ratio);
       canvas.style.width = `${width}px`;
-      canvas.style.height = `${HEIGHT}px`;
+      canvas.style.height = `${this.height}px`;
     }
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    ctx.clearRect(0, 0, width, HEIGHT);
+    ctx.clearRect(0, 0, width, this.height);
 
     const plotW = width - MARGIN.left - MARGIN.right;
-    const plotH = HEIGHT - MARGIN.top - MARGIN.bottom;
+    const plotH = this.height - MARGIN.top - MARGIN.bottom;
     ctx.fillStyle = "#0b0f13";
     ctx.fillRect(MARGIN.left, MARGIN.top, plotW, plotH);
 
@@ -128,8 +128,8 @@ export class Heatmap {
       ctx.fillText(fmt(min), MARGIN.left - 6, MARGIN.top + plotH);
     }
     ctx.textAlign = "left";
-    ctx.fillText(samples.length > 0 ? `tick ${samples[0]!.tick.toLocaleString("en-US")}` : "tick", MARGIN.left, HEIGHT - 6);
+    ctx.fillText(samples.length > 0 ? `tick ${samples[0]!.tick.toLocaleString("en-US")}` : "tick", MARGIN.left, this.height - 6);
     ctx.textAlign = "right";
-    if (samples.length > 0) ctx.fillText(`tick ${samples.at(-1)!.tick.toLocaleString("en-US")}`, width - MARGIN.right, HEIGHT - 6);
+    if (samples.length > 0) ctx.fillText(`tick ${samples.at(-1)!.tick.toLocaleString("en-US")}`, width - MARGIN.right, this.height - 6);
   }
 }

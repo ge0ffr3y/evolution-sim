@@ -1,5 +1,5 @@
 import { GENES, SAMPLE_STRIDE, Simulation, SpatialHash, snapshotFromBytes, snapshotToBytes, type BehaviorStats, type GeneName, type SpeciesRecord } from "@evo/sim-core";
-import type { FrameMessage, HistogramSample, HistoryPoint, InspectedState, LoadFailedMessage, SavedMessage, ToWorker, WorldInfo } from "./protocol";
+import type { FrameMessage, HistogramSample, HistoryPoint, InspectedState, LoadFailedMessage, SavedMessage, SpotlightKind, SpotlightMessage, ToWorker, WorldInfo } from "./protocol";
 
 // The simulation runs here, off the main thread, so the page stays smooth.
 // Real-time clocks are fine in this file: they only decide how many ticks to
@@ -143,6 +143,51 @@ function inspect(s: Simulation): InspectedState | null {
     lastInspected = { snapshot: lastInspected.snapshot, alive: false, diedAtTick: s.tick };
   }
   return lastInspected;
+}
+
+/**
+ * Spotlight: pick a living organism of the asked-for kind. Picking among equals uses ordinary
+ * randomness: this is a choice about what to show, made outside the simulation, so it never changes what happens.
+ */
+function spotlightPick(s: Simulation, kind: SpotlightKind): { index: number; reason: string } | null {
+  const n = s.count;
+  if (n === 0) return null;
+  const anyOf = (indices: number[]): number => indices[Math.floor(Math.random() * indices.length)]!;
+  const fmt = (x: number): string => x.toLocaleString("en-US");
+  switch (kind) {
+    case "random": {
+      const index = Math.floor(Math.random() * n);
+      return { index, reason: "Picked at random" };
+    }
+    case "meatEater": {
+      const eaters: number[] = [];
+      for (let i = 0; i < n; i++) if (s.diet[i]! > 0.75) eaters.push(i);
+      if (!eaters.length) return null;
+      const index = anyOf(eaters);
+      return { index, reason: `A meat eater (diet ${s.diet[index]!.toFixed(2)}), one of ${fmt(eaters.length)}` };
+    }
+    case "oldest": {
+      let best = 0;
+      for (let i = 1; i < n; i++) if (s.age[i]! > s.age[best]!) best = i;
+      return { index: best, reason: `The oldest alive: ${fmt(s.age[best]!)} ticks old` };
+    }
+    case "topHunter": {
+      let best = 0;
+      for (let i = 1; i < n; i++) if (s.kills[i]! > s.kills[best]!) best = i;
+      if (s.kills[best] === 0) return null;
+      return { index: best, reason: `The top hunter alive: ${fmt(s.kills[best]!)} kills` };
+    }
+    case "newSpecies": {
+      if (s.species.length === 0) return null;
+      let newest: { id: number; bornTick: number } | null = null;
+      for (const r of s.speciesRecords) if (r.diedTick === null && r.count > 0 && (!newest || r.bornTick > newest.bornTick)) newest = { id: r.id, bornTick: r.bornTick };
+      if (!newest) return null;
+      const members: number[] = [];
+      for (let i = 0; i < n; i++) if (s.species[i] === newest.id) members.push(i);
+      if (!members.length) return null;
+      return { index: anyOf(members), reason: `From the newest species, #${newest.id} (split off at tick ${fmt(newest.bornTick)})` };
+    }
+  }
 }
 
 function worldInfo(s: Simulation): WorldInfo {
@@ -459,6 +504,18 @@ self.onmessage = (event: MessageEvent<ToWorker>) => {
         }
       }
       break;
+    case "spotlight": {
+      const pick = sim ? spotlightPick(sim, message.kind) : null;
+      if (sim && pick) {
+        selectedId = sim.id[pick.index]!;
+        sim.traceId = selectedId; // record what its brain is thinking
+        lastInspected = null;
+        needsFrame = true;
+      }
+      const reply: SpotlightMessage = { type: "spotlight", kind: message.kind, id: sim && pick ? sim.id[pick.index]! : null, reason: pick ? pick.reason : "" };
+      postMessage(reply);
+      break;
+    }
     case "clearInspect":
       if (sim) sim.traceId = 0;
       selectedId = null;
