@@ -4,158 +4,57 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Evolution Sim</title>
+    <meta name="description" content="A browser-based artificial-life simulation where predators, plant eaters and scavengers emerge from one rule: everything costs energy." />
+    <script>
+      // Links shared before the front page existed opened the simulator here (?seed=...&preset=...): send them on.
+      if (/[?&](seed|preset|set)=/.test(window.location.search)) window.location.replace("./app.html" + window.location.search);
+    </script>
   </head>
   <body>
-    <header class="page-header">
-      <h1>Evolution Sim</h1>
-      <p>An artificial-life world: pick a preset, click an organism to inspect it (and watch its brain think), and scroll down for the family tree. <a href="./analysis.html">Experiment results</a></p>
-    </header>
+    <main class="home">
+      <header class="home-hero">
+        <h1>Evolution Sim</h1>
+        <p class="home-pitch">
+          Simple organisms evolve in a changing world. Nobody is told to be a predator, a plant eater or a scavenger: those roles,
+          arms races, new species and colonies of cells <strong>emerge</strong> from random mutation and one rule, <strong>everything costs energy</strong>.
+        </p>
+        <p class="home-actions">
+          <a class="button primary" href="./app.html">Open the simulator</a>
+          <a class="button" href="./analysis.html">Experiment results</a>
+        </p>
+      </header>
 
-    <main class="layout">
-      <section class="world-panel">
-        <canvas id="world" aria-label="The simulated world: food in green, organisms as dots. Click an organism to inspect it."></canvas>
-        <div class="legend-row">
-          <label class="inline-label">Color dots by
-            <select id="color-by"></select>
-          </label>
-          <label class="inline-label">Map shows
-            <select id="overlay"></select>
-          </label>
-          <p class="legend"><span id="legend-low"></span> <span id="legend-swatch" class="swatch"></span> <span id="legend-high"></span></p>
-        </div>
-        <p class="hint">Bigger dot = bigger body. The map shows what the overlay says; the faint base tint is how fertile the land is.</p>
+      <figure class="home-figure">
+        <img src="./media/food-web.gif" alt="A time-lapse of one run: green plant eaters spread, then red meat eaters appear and a food web forms" width="512" height="512" />
+        <figcaption>One world over 60,000 ticks. Everyone starts as a green, unarmed plant eater; the first kill comes at tick 60, and by tick 8,690 a lineage lives mostly on meat (red).</figcaption>
+      </figure>
+
+      <section>
+        <h2>Watch a world</h2>
+        <p class="muted">Each opens the simulator with a world that shows something well. Runs are seeded, so the same link always plays out the same way.</p>
+        <div id="featured" class="featured"></div>
       </section>
 
-      <aside class="side-panel">
-        <div class="row">
-          <button id="play" type="button" class="primary">Pause</button>
-          <div id="speeds" class="speeds" role="group" aria-label="Simulation speed"></div>
-        </div>
+      <section class="home-how">
+        <h2>How to watch</h2>
+        <ul>
+          <li><strong>Click an organism</strong> to inspect it: its genes, energy, family, and (in worlds with brains) its brain thinking.</li>
+          <li><strong>Color the dots</strong> by diet, size, palate and more, and switch the <strong>map</strong> between plants, temperature, terrain and other overlays.</li>
+          <li><strong>Scroll down</strong> for the population, diet and trait charts and the family tree of species.</li>
+          <li><strong>Copy link</strong> shares the exact run you are watching.</li>
+        </ul>
+      </section>
 
-        <form id="seed-form" class="row">
-          <label>Seed <input id="seed" type="number" step="1" min="0" value="42" /></label>
-          <button type="submit">Restart</button>
-          <button id="random-seed" type="button">Random</button>
-        </form>
-
-        <div class="row save-row">
-          <button id="save-world" type="button">Save world</button>
-          <button id="load-world" type="button">Load world</button>
-          <label class="inline-label" title="Carry on from the same moment with a different random future"><input id="load-branch" type="checkbox" /> as a branch</label>
-          <input id="load-file" type="file" accept=".evosnap" hidden />
-        </div>
-
-        <div class="preset-block">
-          <label class="inline-label">World
-            <select id="preset"></select>
-          </label>
-          <p id="preset-description" class="hint"></p>
-        </div>
-
-        <p id="notice" class="notice" hidden></p>
-
-        <dl class="stats">
-          <div><dt>Tick</dt><dd id="stat-tick">0</dd></div>
-          <div><dt>Population</dt><dd id="stat-pop">0</dd></div>
-          <div><dt>Plant / mixed / meat eaters</dt><dd id="stat-classes">0</dd></div>
-          <div id="stat-climate-box" hidden><dt>Season and time of day</dt><dd id="stat-climate">-</dd></div>
-          <div id="stat-colonies-box" hidden><dt>Colonies / cells in them / largest</dt><dd id="stat-colonies">0</dd></div>
-          <div id="stat-sexual-box" hidden><dt>Births with two parents</dt><dd id="stat-sexual">-</dd></div>
-          <div id="stat-disease-box" hidden><dt>Sick now / strains</dt><dd id="stat-disease">0 / 0</dd></div>
-          <div><dt>Species (alive / ever)</dt><dd id="stat-species">0 / 0</dd></div>
-          <div><dt>Kills</dt><dd id="stat-kills">0</dd></div>
-          <div><dt>Hunters turn toward prey</dt><dd id="stat-chase">-</dd></div>
-          <div><dt>Prey turn away from threats</dt><dd id="stat-flee">-</dd></div>
-          <div id="stat-water-box" hidden><dt>Water carried / dehydrated</dt><dd id="stat-water">0 / 0%</dd></div>
-          <div id="stat-nutrient-box" hidden><dt>Nutrient store (times body) / short of it</dt><dd id="stat-nutrient">0 / 0%</dd></div>
-          <div><dt>Births blocked: nutrient / energy / both</dt><dd id="stat-blocked">0 / 0 / 0</dd></div>
-          <div><dt>Total food</dt><dd id="stat-food">0</dd></div>
-          <div><dt>Mean energy</dt><dd id="stat-energy">0</dd></div>
-          <div><dt>Mean size</dt><dd id="stat-size">0</dd></div>
-          <div><dt>Mean speed</dt><dd id="stat-speed">0</dd></div>
-          <div><dt>Mean sense</dt><dd id="stat-sense">0</dd></div>
-          <div><dt>Mean metabolism</dt><dd id="stat-metab">0</dd></div>
-          <div><dt>Births</dt><dd id="stat-births">0</dd></div>
-          <div><dt>Deaths</dt><dd id="stat-deaths">0</dd></div>
-          <div><dt>Ticks / second</dt><dd id="stat-tps">0</dd></div>
-        </dl>
-
-        <section class="block" aria-labelledby="events-title">
-          <h2 id="events-title">Notable firsts</h2>
-          <p id="events-empty" class="hint">Nothing yet. Everyone starts as an unarmed plant eater.</p>
-          <ul id="events-list" class="events-list"></ul>
-        </section>
-
-        <section class="block" aria-labelledby="flows-title">
-          <h2 id="flows-title">Energy flows <span class="muted">(last ~1,000 ticks)</span></h2>
-          <p id="flows-intro" class="hint">Collecting data...</p>
-          <div id="flows-bar" class="flows-bar" hidden></div>
-          <ul id="flows-legend" class="flows-legend" hidden></ul>
-        </section>
-
-        <section class="block" aria-labelledby="inspector-title">
-          <h2 id="inspector-title">Inspector</h2>
-          <p id="inspector-empty" class="hint">Click an organism in the world to see its genes, energy, age and parent.</p>
-          <div id="inspector" hidden>
-            <div class="inspector-head">
-              <strong id="insp-title"></strong>
-              <button id="insp-clear" type="button">Clear</button>
-            </div>
-            <p id="insp-status" class="hint"></p>
-            <dl class="stats compact">
-              <div><dt>Age</dt><dd id="insp-age"></dd></div>
-              <div><dt>Parent</dt><dd id="insp-parent"></dd></div>
-            </dl>
-            <p class="bar-label"><span>Energy</span><span id="insp-energy-text"></span></p>
-            <div class="bar"><div id="insp-energy-bar" class="bar-fill"></div></div>
-            <p class="bar-label"><span>Genes</span><span class="muted">(bar = gene, text = trait)</span></p>
-            <ul id="insp-genes" class="gene-list"></ul>
-            <p id="insp-health" class="hint"></p>
-            <p id="insp-ate" class="hint"></p>
-            <div id="insp-brain-block" hidden>
-              <p class="bar-label"><span>Brain</span><span id="insp-brain-summary" class="muted"></span></p>
-              <canvas id="brain-canvas" class="brain-canvas" aria-label="The selected organism's brain"></canvas>
-              <p class="hint">Left: what it senses. Right: what it does. Blue lines push an output up, red lines push it down; brightness shows what it is thinking right now.</p>
-            </div>
-            <p class="bar-label"><span>Energy burned per tick</span></p>
-            <p id="insp-costs" class="hint"></p>
-          </div>
-        </section>
-      </aside>
+      <section class="home-more">
+        <h2>Read more</h2>
+        <ul>
+          <li><a href="./analysis.html">Experiment results</a>: worlds compared over many seeds, with charts.</li>
+          <li><a href="./read.html?doc=findings">What we found</a>: what the experiments showed, including what did not work.</li>
+          <li><a href="./read.html?doc=devlog">Devlog</a>: one entry per phase, from an empty repo to living plants.</li>
+          <li><a href="https://github.com/ge0ffr3y/evolution-sim">Source code</a>: TypeScript, deterministic, with the energy books checked by tests.</li>
+        </ul>
+      </section>
     </main>
-
-    <section class="charts">
-      <h2>Population and food</h2>
-      <div id="chart-pop" class="chart"></div>
-      <h2>Who eats what</h2>
-      <p class="hint">Plant eaters (diet under 0.25), mixed diets, and meat eaters (over 0.75). Predator and prey counts rise and fall together.</p>
-      <div id="chart-web" class="chart"></div>
-      <div id="complexity-chart-block" hidden>
-        <h2>Multicellular complexity over time</h2>
-        <p class="hint">The share of organisms that live in a colony and how symmetrical colonies are (left axis, 0 to 1), and the average colony's size and number of different cell types (right axis).</p>
-        <div id="chart-complexity" class="chart"></div>
-      </div>
-      <div id="brain-chart-block" hidden>
-        <h2>Brain size over time</h2>
-        <p class="hint">Working connections (solid, left axis: green for plant eaters, red for meat eaters) and thinking units (dashed, right axis: blue for plant eaters, orange for meat eaters), averaged over each group.</p>
-        <div id="chart-brain" class="chart"></div>
-      </div>
-      <h2>Average traits</h2>
-      <div id="chart-traits" class="chart"></div>
-      <h2>Trait distribution over time</h2>
-      <div id="heatmap-tabs" class="tabs" role="tablist" aria-label="Trait"></div>
-      <p class="hint">Time runs left to right and the trait's value runs bottom to top. Brighter = more organisms at that value (each column is scaled to its own busiest value, so you can see its shape). Two bright bands mean two strategies living side by side.</p>
-      <div id="heatmap" class="chart"></div>
-
-      <h2 id="tree-title">Family tree</h2>
-      <p class="hint">Time runs left to right. Each row is a species (a group of organisms with similar genes). A branch's thickness is how many members it has and its color is its average diet (green plants, red meat). A thin line joins a branch to the species it split from, and a red cross marks an extinction. Click a branch to see how it differs from its ancestor.</p>
-      <div id="tree-scroll" class="tree-scroll"><canvas id="tree-canvas" aria-label="Family tree of species"></canvas></div>
-      <div id="species-detail" class="species-detail" hidden></div>
-      <h2>Timeline</h2>
-      <p class="hint">New species, extinctions, population crashes and the notable firsts, newest first.</p>
-      <ul id="timeline-list" class="events-list timeline"></ul>
-    </section>
-
-    <script type="module" src="/src/main.ts"></script>
+    <script type="module" src="/src/home.ts"></script>
   </body>
 </html>

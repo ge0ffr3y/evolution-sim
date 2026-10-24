@@ -1,7 +1,7 @@
 {
   "name": "evolution-sim",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "description": "A browser-based artificial-life simulation where roles like predator and herbivore emerge from energy economics.",
   "license": "MIT",
