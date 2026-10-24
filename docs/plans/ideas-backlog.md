@@ -19,4 +19,4 @@ Things to look at when this starts:
 
 ## The gut, rest and prey condition (raised 2026-10-23)
 
-In progress on branch `phase-9-predator-life`.
+Done on branch `phase-9-predator-life` (devlog 23, findings 12 to 13d): all built, off by default; none makes meat eaters last in the grand world on 16 seeds.
