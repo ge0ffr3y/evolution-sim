@@ -13,7 +13,7 @@ describe("shareable links", () => {
     const url = writeLink(new URL("https://example.org/app.html?seed=1"), 7, "small", settings);
     expect(url.search).toBe("?seed=7&preset=small&set=plantEvolution%3A1%2CplantToxins%3A1");
     const link = readLink(url.search, presetConfig);
-    expect(link).toEqual({ seed: 7, presetId: "small", settings, problem: null });
+    expect(link).toEqual({ seed: 7, randomSeed: false, presetId: "small", settings, problem: null });
   });
 
   it("rejects unknown settings, values that are not numbers and settings that do not fit the world, keeping seed and preset", () => {
@@ -30,6 +30,16 @@ describe("shareable links", () => {
   it("a link with no settings leaves the address clean, and a bad seed is ignored", () => {
     expect(writeLink(new URL("https://example.org/?set=x:1"), 5, "small", {}).search).toBe("?seed=5&preset=small");
     expect(readLink("?seed=-4&preset=small", presetConfig).seed).toBeNull();
+  });
+
+  it("seed=random asks for a fresh seed, and keeps the world and settings", () => {
+    const link = readLink("?seed=random&preset=small&set=initialOrganisms:80", presetConfig);
+    expect(link.randomSeed).toBe(true);
+    expect(link.seed).toBeNull();
+    expect(link.presetId).toBe("small");
+    expect(link.settings).toEqual({ initialOrganisms: 80 });
+    expect(readLink("?seed=Random", presetConfig).randomSeed).toBe(true);
+    expect(readLink("?seed=12", presetConfig).randomSeed).toBe(false);
   });
 
   it("a world started from a link plays out exactly like the same world built directly", () => {

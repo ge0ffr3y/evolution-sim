@@ -730,6 +730,9 @@ send({ type: "speed", ticksPerSecond: SPEEDS[DEFAULT_SPEED_INDEX]!.ticksPerSecon
   // Start from the address: seed, world and any settings a shared link changes.
   const link = readLink(window.location.search, (id) => findPreset(id).preset.config);
   if (link.problem) showNotice(`This link's changed settings could not be used (${link.problem}), so the world starts as the preset.`);
-  restart(link.seed ?? DEFAULT_SEED, findPreset(link.presetId), link.settings);
+  // seed=random: a new world each visit (choosing a starting seed is a UI action, so ordinary randomness is fine here;
+  // the simulation itself only uses its seeded generator). The seed picked goes into the address, so Copy link shares it.
+  const seed = link.randomSeed ? Math.floor(Math.random() * 1_000_000) : (link.seed ?? DEFAULT_SEED);
+  restart(seed, findPreset(link.presetId), link.settings);
 }
 requestAnimationFrame(paint);
