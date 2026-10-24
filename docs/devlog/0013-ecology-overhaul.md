@@ -1,4 +1,4 @@
-# Devlog 13: Ecology overhaul (Sonnet batch)
+# Devlog 13: Ecology overhaul
 
 *Phase 8e, first half. The 5-million-tick run showed a world that was stable but dull: food gone bare in patches, nothing ever left a scar, nothing ever struck at random. This batch adds the things that make an ecosystem push back: a better births counter, three kinds of ground damage, poison and learned avoidance, and ten kinds of disaster. Everything is optional and off by default, so every older world is bit-for-bit unchanged. The second half (nutrients through food, water and moisture, colony physics, meat eating) is still to come.*
 

@@ -1,4 +1,4 @@
-# Devlog 14: Nutrients, climate biomes, colonies and the missing meat eaters
+# Devlog 14: Nutrients, climate biomes and colonies
 
 *Phase 8e, second half. Four bigger changes: nutrients that travel through food, climate biomes with water and ice, colony physics with shared senses, and a long hunt for why meat eating fails in the grand world. Everything is optional and off by default, so older worlds are unchanged. The first three work as designed; the fourth found its cause but not yet its cure.*
 
