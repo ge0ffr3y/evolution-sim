@@ -49,7 +49,13 @@ export class ComplexityChart {
       [[], [], [], [], []],
       container,
     );
-    new ResizeObserver(() => this.chart.setSize({ width: Math.max(container.clientWidth, 280), height: HEIGHT })).observe(container);
+    new ResizeObserver(() => this.fit()).observe(container);
+  }
+
+  /** Fit the chart to its box (also checked at every redraw: see Charts.fit). */
+  private fit(): void {
+    const width = Math.max(this.container.clientWidth, 280);
+    if (this.chart.width !== width) this.chart.setSize({ width, height: HEIGHT });
   }
 
   add(points: readonly HistoryPoint[]): void {
@@ -81,6 +87,7 @@ export class ComplexityChart {
   }
 
   redraw(): void {
+    this.fit();
     this.chart.setData([this.ticks, this.share, this.symmetry, this.size, this.types]);
   }
 }

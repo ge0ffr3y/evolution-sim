@@ -102,6 +102,17 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* A drop-down sizes itself to its longest option, and some option labels are long: let it shrink to the space it has
+   (the chosen option is cut short with "…") instead of pushing the page wider than the window. */
+.inline-label select {
+  min-width: 0;
+  max-width: 100%;
+  flex: 0 1 auto;
+  text-overflow: ellipsis;
 }
 
 select {
@@ -115,8 +126,17 @@ select {
   max-width: 100%;
 }
 
+/* The World menu fills the panel's width and never more: its label is a flex row whose drop-down may shrink. */
+.preset-block .inline-label {
+  display: flex;
+  max-width: 100%;
+}
+
 .preset-block select {
-  min-width: 170px;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  text-overflow: ellipsis;
 }
 
 .side-panel {
@@ -125,7 +145,15 @@ select {
   border-radius: 6px;
   padding: 14px;
   display: grid;
+  /* One column that may shrink: without minmax(0, ...) it grows to the widest thing inside (a drop-down sizes itself to
+     its longest option), and the panel's contents spill past its right edge in a narrow window. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
+  min-width: 0;
+}
+
+.side-panel select {
+  max-width: 100%;
 }
 
 .row {
@@ -196,7 +224,7 @@ label {
 .stats {
   margin: 0;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px 14px;
 }
 
@@ -216,6 +244,7 @@ label {
   margin: 0;
   font-size: 1.05rem;
   font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere; /* long readouts wrap instead of widening the panel */
 }
 
 .charts {
@@ -257,7 +286,7 @@ label {
 }
 
 .stats.compact {
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   margin-top: 6px;
 }
 
