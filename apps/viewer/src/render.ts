@@ -1,10 +1,10 @@
 import type { FrameMessage } from "./protocol";
 
 /** What the dot colors mean. */
-export type ColorBy = "diet" | "speed" | "size" | "hue" | "energy" | "sense" | "health" | "colony" | "cell" | "palate" | "toxicity" | "nutrient" | "water";
+export type ColorBy = "diet" | "speed" | "size" | "hue" | "energy" | "sense" | "health" | "colony" | "cell" | "palate" | "toxicity" | "nutrient" | "water" | "dietBalance";
 
 /** What the map background shows. */
-export type Overlay = "plants" | "nutrients" | "corpses" | "detritus" | "trails" | "terrain" | "temperature" | "light" | "background" | "plantKinds" | "grazing" | "fouling" | "erosion" | "events" | "plantQuality" | "moisture";
+export type Overlay = "plants" | "nutrients" | "corpses" | "detritus" | "trails" | "terrain" | "temperature" | "light" | "background" | "plantKinds" | "grazing" | "fouling" | "erosion" | "events" | "plantQuality" | "moisture" | "plantWarmth" | "plantToxin";
 
 export const OVERLAYS: readonly { id: Overlay; label: string }[] = [
   { id: "plants", label: "Plants" },
@@ -17,7 +17,9 @@ export const OVERLAYS: readonly { id: Overlay; label: string }[] = [
   { id: "temperature", label: "Temperature (worlds with a climate)" },
   { id: "light", label: "Plant growth (worlds with a climate)" },
   { id: "background", label: "Background color (worlds with camouflage)" },
-  { id: "plantKinds", label: "Kinds of plant (worlds with several kinds)" },
+  { id: "plantKinds", label: "Kinds of plant (worlds with several kinds, or plants that evolve: by chemistry)" },
+  { id: "plantToxin", label: "Plant toxin (poisonous plants): dark = harmless, bright purple = most poisonous" },
+  { id: "plantWarmth", label: "Plant warmth: the temperature plants grow best at (plants that evolve; same colors as Temperature)" },
   { id: "grazing", label: "Grazing damage (worlds with overgrazing)" },
   { id: "fouling", label: "Fouled ground (worlds with fouling)" },
   { id: "erosion", label: "Worn-away soil (worlds with erosion)" },
@@ -35,10 +37,11 @@ export const COLOR_MODES: readonly { id: ColorBy; label: string; legendLow: stri
   { id: "health", label: "Health (worlds with disease)", legendLow: "healthy", legendHigh: "red = sick, blue = immune" },
   { id: "colony", label: "Colony size (worlds with bonding)", legendLow: "alone (gray)", legendHigh: "colony of 16" },
   { id: "cell", label: "Cell type (worlds with cell types)", legendLow: "generalist (gray)", legendHigh: "feeder, mover, sun, armor, sensor" },
-  { id: "palate", label: "Palate (worlds with several kinds of plant)", legendLow: "first kind of plant", legendHigh: "last kind of plant" },
+  { id: "palate", label: "Palate (worlds with several kinds of plant, or plants that evolve)", legendLow: "first kind of plant (chemistry 0)", legendHigh: "last kind of plant (chemistry 1)" },
   { id: "toxicity", label: "Toxicity (worlds with toxicity)", legendLow: "safe to eat", legendHigh: "poisonous" },
   { id: "nutrient", label: "Nutrient store (worlds with nutrient mode)", legendLow: "starved of nutrient", legendHigh: "store full" },
   { id: "water", label: "Water (worlds with drinking)", legendLow: "parched", legendHigh: "just drank" },
+  { id: "dietBalance", label: "Nutrient balance (worlds with dietary nutrients): its lowest reserve", legendLow: "short of a nutrient", legendHigh: "all three topped up" },
 ];
 
 const PALETTE_SIZE = 48;
@@ -95,6 +98,8 @@ export function organismColor(mode: ColorBy, frame: FrameMessage, i: number): st
       return pick(RAINBOW, frame.hydration ? frame.hydration[i]! : 0);
     case "nutrient":
       return pick(RAINBOW, frame.nutrientStore ? frame.nutrientStore[i]! : 0);
+    case "dietBalance":
+      return pick(RAINBOW, frame.dietBalance ? frame.dietBalance[i]! : 0);
     case "cell": {
       const type = frame.cellType ? frame.cellType[i]! : 0;
       return CELL_COLORS[type] ?? "#6b7480";
@@ -346,14 +351,46 @@ export class WorldRenderer {
         data[o + 3] = 255;
         continue;
       }
-      if (overlay === "plantKinds" && this.plantKinds) {
+      if (overlay === "plantKinds" && (this.plantKinds || frame.plantGenome)) {
         // Each kind has its own hue (on the same scale as the palate dots); brighter where more plant is standing.
+        // With plants that evolve, the hue follows each cell's chemistry.
         const kinds = frame.world.plantKinds;
-        const [kr, kg, kb] = hueToRgb(kinds > 1 ? (this.plantKinds[cell]! / (kinds - 1)) * 0.75 : 0.3);
+        const position = frame.plantGenome ? frame.plantGenome.chem[cell]! : kinds > 1 && this.plantKinds ? this.plantKinds[cell]! / (kinds - 1) : 0.4;
+        const [kr, kg, kb] = hueToRgb(position * 0.75);
         const cover = 0.25 + 0.75 * Math.min(frame.food[cell]! / Math.max(this.maxCapacity, foodCap), 1);
         data[o] = Math.round(kr * cover);
         data[o + 1] = Math.round(kg * cover);
         data[o + 2] = Math.round(kb * cover);
+        data[o + 3] = 255;
+        continue;
+      }
+      if (overlay === "plantToxin" && frame.plantGenome?.toxin) {
+        // How poisonous each cell's plants are: dark when harmless, bright purple at full toxin (water stays dark).
+        if (capacity && capacity[cell]! <= 0) {
+          data[o] = r;
+          data[o + 1] = g;
+          data[o + 2] = b;
+        } else {
+          const t = Math.max(0, Math.min(1, frame.plantGenome.toxin[cell]!));
+          data[o] = Math.round(25 + 205 * t);
+          data[o + 1] = Math.round(30 + 40 * t);
+          data[o + 2] = Math.round(35 + 220 * t);
+        }
+        data[o + 3] = 255;
+        continue;
+      }
+      if (overlay === "plantWarmth" && frame.plantGenome) {
+        // The temperature each cell's plants grow best at, on the Temperature overlay's colors (water stays dark).
+        if (capacity && capacity[cell]! <= 0) {
+          data[o] = r;
+          data[o + 1] = g;
+          data[o + 2] = b;
+        } else {
+          const t = Math.max(0, Math.min(1, frame.plantGenome.warm[cell]!));
+          data[o] = Math.round(30 + 225 * Math.max(0, (t - 0.4) / 0.6));
+          data[o + 1] = Math.round(60 + 150 * (1 - Math.abs(t - 0.5) * 2));
+          data[o + 2] = Math.round(70 + 180 * Math.max(0, (0.6 - t) / 0.6));
+        }
         data[o + 3] = 255;
         continue;
       }

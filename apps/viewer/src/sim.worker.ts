@@ -165,6 +165,7 @@ function worldInfo(s: Simulation): WorldInfo {
     nutrientOn: s.config.nutrientMode >= 1,
     drinkOn: s.config.drinking === 1,
     plantKinds: s.config.plantTypes,
+    plantEvolution: s.config.plantEvolution === 1,
     sexGeneOn: s.config.sexualReproduction === 2,
     climateMode: s.config.climateMode,
     yearLength: s.config.yearLength,
@@ -228,10 +229,17 @@ function postFrame(s: Simulation): void {
   const hydration = s.hydration.length > 0 ? s.hydration.slice(0, n) : null;
   const background = sendCapacity && s.background.length > 0 ? s.background.slice() : null;
   const plantKindMap = sendCapacity && s.config.plantTypes > 1 ? s.plantKindMap().slice() : null;
+  // Plants that evolve change all the time, so their genomes go with every frame.
+  const plantGenome = s.plantChem.length > 0 ? { chem: Float32Array.from(s.plantChem), warm: Float32Array.from(s.plantWarm), toxin: s.plantToxin.length > 0 ? Float32Array.from(s.plantToxin) : null } : null;
   let toxicity: Float32Array | null = null;
   if (s.config.toxinStrength > 0) {
     toxicity = new Float32Array(n);
     for (let i = 0; i < n; i++) toxicity[i] = s.traitOf("toxicity", i);
+  }
+  let dietBalance: Float32Array | null = null;
+  if (s.dietA.length > 0) {
+    dietBalance = new Float32Array(n);
+    for (let i = 0; i < n; i++) dietBalance[i] = Math.min(s.dietA[i]!, s.dietB[i]!, s.dietC[i]!);
   }
   let nutrientStore: Float32Array | null = null;
   if (s.config.nutrientMode >= 1) {
@@ -240,7 +248,7 @@ function postFrame(s: Simulation): void {
     for (let i = 0; i < n; i++) nutrientStore[i] = Math.min(1, s.nutrientStore[i]! / (cap * s.bodyMatter[i]!));
   }
   let palate: Float32Array | null = null;
-  if (s.config.plantTypes > 1) {
+  if (s.config.plantTypes > 1 || s.config.plantEvolution === 1) {
     palate = new Float32Array(n);
     for (let i = 0; i < n; i++) palate[i] = s.traitOf("palate", i);
   }
@@ -300,9 +308,11 @@ function postFrame(s: Simulation): void {
     cellType: s.cellType.length > 0 ? s.cellType.slice(0, n) : null,
     background,
     plantKindMap,
+    plantGenome,
     palate,
     toxicity,
     nutrientStore,
+    dietBalance,
     health,
     climate,
     points,
@@ -336,9 +346,12 @@ function postFrame(s: Simulation): void {
   if (hydration) transfer.push(hydration.buffer);
   if (background) transfer.push(background.buffer);
   if (plantKindMap) transfer.push(plantKindMap.buffer);
+  if (plantGenome) transfer.push(plantGenome.chem.buffer, plantGenome.warm.buffer);
+  if (plantGenome?.toxin) transfer.push(plantGenome.toxin.buffer);
   if (palate) transfer.push(palate.buffer);
   if (toxicity) transfer.push(toxicity.buffer);
   if (nutrientStore) transfer.push(nutrientStore.buffer);
+  if (dietBalance) transfer.push(dietBalance.buffer);
   if (bonds) transfer.push(bonds.buffer);
   if (colonySize) transfer.push(colonySize.buffer);
   if (message.cellType) transfer.push(message.cellType.buffer);

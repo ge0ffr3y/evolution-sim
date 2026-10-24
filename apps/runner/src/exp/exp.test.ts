@@ -445,6 +445,13 @@ describe("the diet ledger: how animals die", () => {
   });
 });
 
+describe("speeds from another experiment (--speeds-from)", () => {
+  it("refuses an experiment with no finished runs, so it never guesses", async () => {
+    const { speedsFrom } = await import("./estimate");
+    expect(() => speedsFrom(tiny(), tiny())).toThrow(/no finished runs/);
+  });
+});
+
 describe("meat-eater kills (opt-in, watches every kill)", () => {
   // Founders eat mostly meat and are armed, so meat eaters kill each other and anyone else.
   const meaty = { worldWidth: 128, worldHeight: 128, initialOrganisms: 250, initialAttack: 0.6, initialDiet: 0.8, preyCondition: 0.5 };

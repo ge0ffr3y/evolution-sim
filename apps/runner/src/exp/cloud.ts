@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { jobsOf, type Experiment } from "./experiment";
-import { estimate, measureSpeeds, FAMILIES, MAX_VCPUS, SIZES, type Estimate, type MachineOption } from "./estimate";
+import { estimate, measureSpeeds, speedsFrom, FAMILIES, MAX_VCPUS, SIZES, type Estimate, type MachineOption } from "./estimate";
 import { statusOf } from "./job";
 
 /**
@@ -283,8 +283,10 @@ export async function cloudCommand(positional: string[], options: Record<string,
       const free = quota.cores - inUse;
       console.log(`Cores: ${quota.cores} allowed (${quota.source}), ${inUse} in use by ${machines.length} running machine(s), ${free} free.`);
 
-      console.log("Measuring how fast each arm runs (a short trial here)...");
-      const est = estimate(exp, jobs, measureSpeeds(exp, jobs), FAMILIES, free);
+      // --speeds-from <experiment> reuses real cloud speeds instead of a speed trial on this computer.
+      const from = typeof options["speeds-from"] === "string" ? ctx.load(options["speeds-from"], undefined) : null;
+      console.log(from ? `Speeds from ${from.name}'s finished runs (no trial here).` : "Measuring how fast each arm runs (a short trial here)...");
+      const est = estimate(exp, jobs, from ? speedsFrom(exp, from) : measureSpeeds(exp, jobs), FAMILIES, free);
       let pick: MachineOption = est.pick;
       if (typeof options.type === "string") {
         const chosen = est.options.find((o) => o.type === options.type);

@@ -1,0 +1,17 @@
+{
+  "name": "living-plants-3",
+  "question": "Living plants, step 3: do dietary nutrients (dietNutrients 1: three nutrients, a plant's mix set by its chemistry, meat an even mix, running short costs upkeep) push animals toward mixed diets and meat eating, and change species and feeding levels in the grand world? With today's fixed kinds of plant, with plants that evolve, and with plants that evolve and toxins. Also: does plant toxin rise because it pays, or by chance? Toxins that do harm against harmless toxins (no harm, no growth cost: the chance-only baseline). 8 fresh seeds, 300,000 ticks, with the diet ledger.",
+  "base": "grand-world",
+  "ticks": 300000,
+  "seeds": "3701-3708",
+  "sampleEvery": 1500,
+  "arms": {
+    "control": {},
+    "nutrients": { "dietNutrients": 1 },
+    "living-nutrients": { "plantEvolution": 1, "dietNutrients": 1 },
+    "living-toxins-nutrients": { "plantEvolution": 1, "plantToxins": 1, "dietNutrients": 1 },
+    "living-toxins": { "plantEvolution": 1, "plantToxins": 1 },
+    "living-harmless-toxins": { "plantEvolution": 1, "plantToxins": 1, "plantToxinHarm": 0, "plantToxinGrowthCost": 0 }
+  },
+  "measures": ["all", "dietLedger"]
+}

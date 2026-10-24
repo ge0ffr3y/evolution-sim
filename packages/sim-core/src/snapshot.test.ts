@@ -142,7 +142,7 @@ describe("saving and loading a world", () => {
       "float32Fields", "float64Fields", "uint32Fields", "uint16Fields", "uint8Fields", "seeOther", "considerPrey",
       // Scratch space: filled in and used up within one tick, or only used while measuring.
       "behaviorHeading", "behaviorIds", "behaviorIsHunter", "behaviorSideLeft",
-      "pickAttacker", "pickBest", "pickBestDistSq", "pickSizeLimit", "hurt",
+      "pickAttacker", "pickBest", "pickBestDistSq", "pickSizeLimit", "hurt", "seedChem", "seedSeason", "seedWarm", "seedToxin",
       "rayDistLarge", "rayDistSmall", "rayTargetLarge", "rayTargetSmall",
       "visHx", "visHy", "visSelf", "visSizeLimit", "visX", "visY",
       "thinkHidden", "thinkInputs", "thinkOutputs", "traceHidden", "traceInputs", "traceOutputs", "traceValid", "traceId",

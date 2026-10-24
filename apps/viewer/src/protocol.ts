@@ -111,6 +111,8 @@ export interface WorldInfo {
   drinkOn: boolean;
   /** How many kinds of plant there are (1 = one kind), and whether sex is a gene. */
   plantKinds: number;
+  /** Whether plants evolve (each cell carries its own plant genome). */
+  plantEvolution: boolean;
   sexGeneOn: boolean;
   /** Whether the world has a climate, and the length of its year and its day in ticks (0 = none). */
   climateMode: number;
@@ -164,12 +166,16 @@ export interface FrameMessage {
   background: Float32Array | null;
   /** Which kind of plant grows in each cell (sent with the land, only in worlds with several kinds). */
   plantKindMap: Uint8Array | null;
+  /** With plants that evolve, every frame: each cell's plant chemistry (0 to 1) and the temperature it grows best at. */
+  plantGenome: { chem: Float32Array; warm: Float32Array; toxin: Float32Array | null } | null;
   /** Each animal's palate gene (0 to 1), only in worlds with several kinds of plant. */
   palate: Float32Array | null;
   /** Each animal's toxicity gene (0 to 1), only in worlds with toxicity. */
   toxicity: Float32Array | null;
   /** Each animal's nutrient store as a share of the most it can hold (0 to 1), only in worlds with nutrient mode. */
   nutrientStore: Float32Array | null;
+  /** Dietary nutrients: each animal's lowest reserve of the three (0 to 1), only in worlds with dietary nutrients. */
+  dietBalance: Float32Array | null;
   /** Bonds between cells as pairs of organism indices (a, b, a, b, ...), and the size of each organism's colony (null without multicellularity). */
   bonds: Uint32Array | null;
   colonySize: Uint16Array | null;
