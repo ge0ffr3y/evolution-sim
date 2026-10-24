@@ -173,5 +173,10 @@
     "name": "dispersal-confirm",
     "question": "Confirmation on 16 fresh seeds and a longer run: in the grand world, do young that move away (natalDispersal 12) with the gut and prey condition keep a lasting meat-eating group (diet above 0.75), and do young that move away on their own help the grand world (fewer sick, more species, more feeding levels)? In the 8-seed screen the first held a group in 2 of 8 worlds (against 0 of 8 for gut + prey condition there), raised feeding levels by 17% and halved disease. 16 seeds, 500,000 ticks, with the diet ledger and the kill autopsy. An answer: worlds with a lasting meat-eating group, how long they last, feeding levels, species, diversity, disease and population, and whether any cost holds up.",
     "file": "dispersal-confirm.json"
+  },
+  {
+    "name": "living-plants-1",
+    "question": "Living plants, step 1: in the grand world, do plants that evolve (plantEvolution 1) adapt to the land and diversify on every seed (plants' best temperature follows the local temperature; chemistry spreads from three kinds into many, in patches), and what does that do to the animals: palates, species, plant eaters' breeding, feeding levels and meat eaters? 8 fresh seeds, 300,000 ticks, with the diet ledger.",
+    "file": "living-plants-1.json"
   }
 ]
