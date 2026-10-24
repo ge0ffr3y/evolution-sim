@@ -92,7 +92,7 @@ flowchart LR
 There are 46 presets in all, in [`configs/`](configs) and in the viewer's World menu.
 
 **Sharing a run.** The address holds everything needed to replay a run exactly, and the **Copy link** button copies it:
-- `seed` and `preset` pick the world;
+- `seed` and `preset` pick the world (`seed=random` starts a different world each visit, for example `?seed=random&preset=grand-world`);
 - `set` changes any setting on top of the preset, for example `?seed=5&preset=grand-world&set=plantEvolution:1,plantToxins:1`.
 
 In the simulator:

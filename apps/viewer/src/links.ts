@@ -4,9 +4,12 @@ import { makeConfig, parseConfigOverrides, type SimConfig } from "@evo/sim-core"
  * Shareable links. The address holds everything needed to replay a run exactly:
  *   ?seed=42&preset=grand-world&set=plantEvolution:1,plantToxins:1
  * seed and preset pick the world; set (optional) changes settings on top of the preset.
+ * seed=random asks for a fresh seed on every visit (the viewer then writes the seed it picked into the address).
  */
 export interface Link {
   seed: number | null;
+  /** The link asked for a new random seed each visit (seed=random). */
+  randomSeed: boolean;
   presetId: string | null;
   settings: Partial<SimConfig>;
   /** Why the settings in the link could not be used (they are then dropped), or null. */
@@ -41,15 +44,16 @@ export function readLink(search: string, presetConfig: (presetId: string | null)
   const rawSeed = params.get("seed");
   const seedValue = rawSeed === null ? NaN : Number(rawSeed);
   const seed = Number.isInteger(seedValue) && seedValue >= 0 ? seedValue : null;
+  const randomSeed = rawSeed !== null && rawSeed.trim().toLowerCase() === "random";
   const presetId = params.get("preset");
   const rawSettings = params.get("set");
-  if (!rawSettings) return { seed, presetId, settings: {}, problem: null };
+  if (!rawSettings) return { seed, randomSeed, presetId, settings: {}, problem: null };
   try {
     const settings = parseSettings(rawSettings);
     makeConfig({ ...presetConfig(presetId), ...settings }); // checks the combination makes sense
-    return { seed, presetId, settings, problem: null };
+    return { seed, randomSeed, presetId, settings, problem: null };
   } catch (error) {
-    return { seed, presetId, settings: {}, problem: error instanceof Error ? error.message : String(error) };
+    return { seed, randomSeed, presetId, settings: {}, problem: error instanceof Error ? error.message : String(error) };
   }
 }
 
