@@ -894,3 +894,27 @@ The one world that kept a meat-eating group (3216) looks the same in every colum
 **Candidate levers** (none built yet):
 1. **Injury:** a failed attack hurts the attacker in proportion to the victim's weapons, so attacking an armed equal is dangerous and a small plant eater is not.
 2. **Young that move away:** babies leave the parent's spot, so a lineage spreads out instead of living in a clump where cousins are each other's nearest prey.
+
+### 13b. Injury and young that move away
+
+**Built** (both off by default; tests in `predatorlife.test.ts`):
+- `attackInjury`: a failed attack costs the attacker attackInjury × its breeding energy × the prey's share of the two animals' attack power, paid as fighting.
+- `natalDispersal`: a newborn starts this far from its parent, along the heading it is born with.
+
+**Experiment:** `injury-dispersal`. The grand world, and the grand world with the gut and prey condition alone, with injury 0.2, with young moving 12 units away (about one and a half food cells), and with both. Seeds 3301 to 3308, 300,000 ticks, with the diet ledger and the kill autopsy, 48 cores, about $0.85.
+
+| | Worlds with a lasting meat-eating group | Groups of 10+ at the end | Diet above 0.5 | Feeding levels | Population | Species | Sick |
+|---|---|---|---|---|---|---|---|
+| Grand world | 0 of 8 | 0 | 0.1% | 1.99 | 1,277 | 7.9 | 22% |
+| Gut + prey condition | 0 of 8 | 0 | 3.9% | +4%* | -25%* | -24% | +20% |
+| + injury | 1 of 8 | 1 | 4.3% | +7% | -28%* | -25% | +4% |
+| + young move away | **2 of 8** | **3** | **7.4%** | **+17%*** (2.33) | -27%* | -11% | **-59%*** |
+| + both | 0 of 8 | 0 | 5.4% | +5% | -26%* | +3% | **-83%*** |
+
+(* holds up, 8 seeds)
+
+- **Neither stops meat eaters killing meat eaters.** They still die mostly at the hands of other meat eaters (2.2 to 2.3 per animal per 1,000 ticks with either setting alone).
+- **Meat eaters stay in clumps even when their young move away.** About 50 to 63% of the animals in a meat eater's reach are other meat eaters in every setup. A 12-unit start is small next to how far an animal travels in its life, so the clumping comes from behaviour (meat eaters drawn to the same places), not from birth alone.
+- **Injury backfires in a quiet way.** Meat eaters under injury evolve less armor (0.15 against 0.49) and more attack. The fights between meat eaters that still happen are ones the attacker usually wins (odds 0.73 against 0.51).
+- **Young that move away is the most promising**, though not proven on 8 seeds (2 of 8 against 0 of 8 is within chance). It has the most meat eating, the most worlds with a group at the end, feeding levels up 17% (holds up), and a smaller species cost. It also cuts disease by more than half, because families no longer sit on top of each other.
+- **The gut with prey condition held no group in these 8 worlds.** Across all screens it is now 8 of 48.

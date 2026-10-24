@@ -163,5 +163,10 @@
     "name": "gut-condition-confirm",
     "question": "Confirmation on 16 fresh seeds and a longer run: does the gut (food digested over time) with prey condition (weak prey defend less, 0.5) keep a lasting meat-eating group (diet above 0.75) in the grand world itself? Across three 8-seed screens it did in 7 of 24 worlds, against 0 of 24 for the grand world as it is. 16 seeds, 500,000 ticks, with the diet ledger. An answer: worlds with a lasting meat-eating group, how long they last, feeding levels, species, diversity and population, and whether the cost to population or species holds up.",
     "file": "gut-condition-confirm.json"
+  },
+  {
+    "name": "injury-dispersal",
+    "question": "The kill autopsy found that meat eaters (diet above 0.75) live in clumps of their own lineage and kill equals and relatives when no other prey is in reach, at no extra cost. With the gut and prey condition, does injury from failed attacks (attackInjury 0.2: a failed attack against an equal costs a tenth of a breeding's worth) or young that move away (natalDispersal 12 world units, about one and a half food cells) cut meat eaters killing meat eaters and let a meat-eating group last? Each alone and together, 8 fresh seeds, 300,000 ticks, with the diet ledger and the kill autopsy. An answer: worlds with a lasting meat-eating group, meat eaters killed by meat eaters, species and population.",
+    "file": "injury-dispersal.json"
   }
 ]
