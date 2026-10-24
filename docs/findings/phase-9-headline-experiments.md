@@ -834,3 +834,30 @@ Evolution drops the gene: from 0.60 to 0.07 in 8h. And the fat gene counted towa
 - **Choosing the easiest prey makes meat eating rarer, not commoner** (1 of 8 worlds instead of 4). It does not stop meat eaters killing each other (still most of their deaths, 1.6 to 2.1 per animal per 1,000 ticks).
 - **The gut with prey condition is the setup that works:** across three screens it kept a lasting meat-eating group in 7 of 24 grand worlds (1, 2 and 4 of 8), against none in 24 for the grand world as it is. Here its cost was small (population -13% and species -4%, neither holding up).
 - **Fighting back adds nothing clear.**
+
+### 12d. Confirmation: the gut with prey condition, 16 fresh seeds, 500,000 ticks
+
+**Experiment:** `gut-condition-confirm`, the grand world against the grand world with `gutMode` 1 and `preyCondition` 0.5, seeds 3201 to 3216, 500,000 ticks, 32 cores, about $1.
+
+**The screens over-stated it.** A lasting meat-eating group (10 or more meat eaters in at least half the samples of the second half) formed in **1 of 16** worlds (seed 3216: about 85 meat eaters from 250,000 ticks to the end, 97 at the end). Judged at 300,000 ticks as in the screens it is also 1 of 16. All four experiments together: 8 of 40 worlds, about one in five, and the 8-seed screens were the lucky side of that.
+
+Meat eaters do arise often. In 7 of 16 worlds a group reached 50 or more, sometimes 150 to 300, and in 9 worlds 10 or more were still around after 400,000 ticks. But the groups come and go instead of holding. In the grand world as it is, no group ever passed 41.
+
+| | Grand world | With gut + prey condition |
+|---|---|---|
+| Worlds with a lasting meat-eating group | 0 of 16 | 1 of 16 |
+| Average diet gene | 0.13 | 0.25* |
+| Feeding levels | 1.98 | 2.13* (+8%) |
+| Mixed eaters (diet 0.25 to 0.5) | 114 | 389 |
+| Deaths by starving | 25% | 9%* |
+| Population | 1,193 | -19%* |
+| Species | 9.3 | **-35%*** (the gap widens over time: 8.2 against 9.3 in the first 50,000 ticks, 6.0 against 9.5 in the last) |
+| Species diversity | 1.78 | -23%* |
+| Average age | 645 | -42%* |
+| Kills | 2,458 per 1,000 ticks | +49%* |
+
+(* holds up, 16 seeds)
+
+How meat eaters die, per animal per 1,000 ticks over the second half: 2.9 deaths, of which **2.0 are killed by other meat eaters**, 0.3 by other animals, and 0.6 run out of energy. Starving is still not the problem; other meat eaters are.
+
+**Verdict:** the gut with prey condition is not a grand-world answer as it stands. It moves the whole world toward mixed eating, with a real extra half feeding level and much less starving. But it costs a third of the species and still rarely holds a meat-eating group. The barrier that remains is meat eaters killing each other.
