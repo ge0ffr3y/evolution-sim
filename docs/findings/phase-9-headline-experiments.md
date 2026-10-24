@@ -785,3 +785,32 @@ Evolution drops the gene: from 0.60 to 0.07 in 8h. And the fat gene counted towa
 - **Evolution answers the gut as expected:** metabolism falls from about 1.0 to 0.6, so slower, cheaper bodies digest at leisure.
 - **Meat eaters mostly do not starve. They are killed,** often by other meat eaters. Starvation is 15 to 25% of their deaths, they die about half fed, and where a group lasts two thirds of its deaths are kills by other meat eaters. Today nothing makes an armed animal dangerous to attack: defense counts armor and size, not the prey's own weapons.
 - **The cost:** about a fifth fewer animals everywhere, and with the gut alone a third fewer species.
+
+### 12b. The gut with prey condition, again; rest and fighting back
+
+**Built:** `fightBack` (off by default; test in `predatorlife.test.ts`): an animal's own attack power, times fightBack, adds to its defense, so armed animals are risky to attack. Rest was made graded (12).
+
+**Experiment:** `predator-life-2`, 300,000 ticks, 8 fresh seeds (3001 to 3008), 48 cores, about $1.
+
+| | Worlds with a lasting meat-eating group | Meat eaters in those worlds | Diet above 0.5 | Metabolism | Population | Species |
+|---|---|---|---|---|---|---|
+| Grand world | 0 of 8 | | 0.2% | 0.96 | 1,269 | 7.6 |
+| Gut + prey condition | **2 of 8** | 96, 31 | 4.0% | 0.62 | -20% | -8% |
+| + rest | **3 of 8** | 43, 36, 21 | 5.9% | 0.60 | -19% | -19% |
+| + fighting back | **2 of 8** | 134, 31 (14 in a third) | 6.7% | 0.62 | **-31%*** | -25% |
+| + rest + fighting back | 0 of 8 | | 4.3% | 0.61 | **-28%*** | -24% |
+
+(A lasting group: 10 or more meat eaters, diet above 0.75, for most of the second half. * holds up.)
+
+**How meat eaters die** (per animal per 1,000 ticks, second half):
+
+| | Deaths | Ran out of energy | Killed by a meat eater | Killed by anyone else |
+|---|---|---|---|---|
+| Gut + prey condition | 2.4 | 0.7 | **1.6** | 0.2 |
+| + rest | 3.0 | 0.4 | **2.0** | 0.6 |
+| + fighting back | 2.8 | 0.5 | **2.2** | 0.1 |
+| + rest + fighting back | 3.4 | 0.5 | **1.6** | 1.2 |
+
+- **The gut with prey condition reliably grows lasting meat eaters in some grand worlds:** 1 of 8 in 12, 2 of 8 here, with up to about 100 animals. The classic and reworked grand worlds never did. It costs about a fifth of the animals, and species less than the gut alone (-8% against -36%).
+- **Rest and fighting back make no clear difference.** 3, 2 and 0 of 8 are within luck for 8 worlds. Whether rest is used at all is not yet measured separately (its savings are counted with torpor's).
+- **Meat eaters' main cause of death is still other meat eaters,** about two thirds of their deaths, and fighting back does not change that: when both sides are armed, their weapons cancel out. Starvation is a fifth or less.
