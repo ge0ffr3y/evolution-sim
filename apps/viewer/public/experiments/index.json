@@ -188,5 +188,10 @@
     "name": "living-plants-3",
     "question": "Living plants, step 3: do dietary nutrients (dietNutrients 1: three nutrients, a plant's mix set by its chemistry, meat an even mix, running short costs upkeep) push animals toward mixed diets and meat eating, and change species and feeding levels in the grand world? With today's fixed kinds of plant, with plants that evolve, and with plants that evolve and toxins. Also: does plant toxin rise because it pays, or by chance? Toxins that do harm against harmless toxins (no harm, no growth cost: the chance-only baseline). 8 fresh seeds, 300,000 ticks, with the diet ledger.",
     "file": "living-plants-3.json"
+  },
+  {
+    "name": "nutrient-doses",
+    "question": "Dietary nutrients that bite: at the default use (0.001 a tick) food refills reserves far faster than they drain and almost nobody runs short. A plant eater takes in about 0.0075 breedings' worth of food a tick, so with dietPlantSkew 0.8 one kind of plant brings about 0.0015 of its poorest nutrient and a mixed diet about 0.0075 of each. With use set between those (0.004, and 0.006 near the limit of a mixed diet), and with plants that hold only their own nutrient (dietPlantSkew 1), do animals mix their diets, eat more meat, split into more species, and does a meat-eating group last? Fixed kinds of plant, and plants that evolve. 8 fresh seeds, 300,000 ticks, with the diet ledger.",
+    "file": "nutrient-doses.json"
   }
 ]

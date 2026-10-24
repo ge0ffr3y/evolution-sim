@@ -121,3 +121,54 @@ All eight harmful-toxin worlds end above every harmless one (lowest 0.18 against
 | Plants that evolve + harmless toxins | **+21%*** | +16% | **-22%*** |
 
 (* holds up, 8 seeds)
+
+## 4. Nutrients that bite (`nutrient-doses`)
+
+The default nutrient use (0.001 a tick) was too gentle. A plant eater takes in about 0.0075 breedings' worth of food a tick. With `dietPlantSkew` 0.8, one kind of plant brings about 0.0015 of its poorest nutrient and a mixed diet about 0.0075 of each, so this screen sets use between the two.
+
+**Experiment:** the grand world against:
+- use 0.004;
+- use 0.004 with pure plants (each kind holds only its own nutrient);
+- use 0.006;
+- use 0.004 with plants that evolve.
+
+Seeds 3801 to 3808, 300,000 ticks, 48 cores, about $1.10.
+
+**Now nutrients bite, and mixing pays a little:**
+
+| | Animals short of a nutrient | Lowest reserve: plant eaters | Lowest reserve: mixed and meat eaters |
+|---|---|---|---|
+| Use 0.004 | 49% | 0.43 | 0.57 |
+| Use 0.004, pure plants | 72% | 0.25 | 0.40 |
+| Use 0.006 | 75% | 0.24 | 0.39 |
+| Use 0.004, plants that evolve | 48% | 0.44 | 0.55 |
+
+**What it does to the world** (against the grand world: 1,386 animals, 8.9 species):
+
+| | Population | Deaths | Life span | Species | Meat in the diet | Kills | Mixed eaters (diet 0.25 to 0.5) |
+|---|---|---|---|---|---|---|---|
+| Use 0.004 | -19% | +52% | -35% | -26% | +7% | **+32%*** | 99 (against 69) |
+| Use 0.004, pure | **-23%*** | **+54%*** | **-38%*** | -5% | +13% | **+36%*** | 120 |
+| Use 0.006 | -11% | +36% | -20% | -8% | -3% | +18% | 91 |
+| Use 0.004, plants that evolve | -4% | **+48%*** | **-38%*** | **-31%*** | -16% | **+41%*** | 96 |
+
+(* holds up, 8 seeds)
+
+- **Lives get shorter and turnover faster.** Plant eaters now breed at 3.1 to 3.3 births per animal per 1,000 ticks (2.1 in the grand world). That is the faster-breeding prey finding 13d pointed to, here from shortage deaths rather than plenty.
+- **There are more kills and a few more mixed eaters,** and feeding levels rise a little with pure plants (+2%*).
+- **Still no lasting meat-eating group (0 of 8 in every setup).** The share of animals eating mostly meat stays under half a percent.
+- **With plants that evolve, nutrients cost a third of the species** (-31%*).
+
+## Where living plants stand
+
+All three steps are built, off by default, tested on GitHub and checked on 8 seeds.
+
+- Plants adapt to their land and diversify.
+- Toxin is selected beyond chance.
+- Nutrients can be set to bite, and then mixing pays a little.
+
+None of it makes meat eaters last in the grand world:
+- plants that evolve cut meat eating by a fifth to a third;
+- nutrients that bite raise turnover and kills, but at a cost in lives and, with evolving plants, in species.
+
+The richer plant world is a real addition to watch (overlays for chemistry, warmth and toxin, and the nutrient balance color). It does not answer the meat-eater question.
