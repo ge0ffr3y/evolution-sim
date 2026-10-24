@@ -814,3 +814,23 @@ Evolution drops the gene: from 0.60 to 0.07 in 8h. And the fat gene counted towa
 - **The gut with prey condition reliably grows lasting meat eaters in some grand worlds:** 1 of 8 in 12, 2 of 8 here, with up to about 100 animals. The classic and reworked grand worlds never did. It costs about a fifth of the animals, and species less than the gut alone (-8% against -36%).
 - **Rest and fighting back make no clear difference.** 3, 2 and 0 of 8 are within luck for 8 worlds. Whether rest is used at all is not yet measured separately (its savings are counted with torpor's).
 - **Meat eaters' main cause of death is still other meat eaters,** about two thirds of their deaths, and fighting back does not change that: when both sides are armed, their weapons cancel out. Starvation is a fifth or less.
+
+### 12c. Hunters choosing the easiest prey
+
+**Built:** `preyChoice` (off by default; tests in `predatorlife.test.ts`). With 1, a hunter goes for the prey in reach with the weakest defense it can judge (armor and size, weapons with `fightBack`, condition with `preyCondition`, vigilance; not herds), not the nearest.
+
+**Experiment:** `prey-choice`, 300,000 ticks, 8 fresh seeds (3101 to 3108), 48 cores, about $1.
+
+| | Worlds with a lasting meat-eating group | Meat eaters in those worlds | Diet above 0.5 | Population | Species |
+|---|---|---|---|---|---|
+| Grand world | 0 of 8 | | 0.1% | 1,191 | 7.3 |
+| Gut + prey condition | **4 of 8** | 125, 112, 83, 50 | 7.3% | -13% | -4% |
+| + easiest-prey choice | 1 of 8 | 34 | 3.0% | -7% | -10% |
+| + fighting back | **4 of 8** | 105, 85, 68, 47 | 9.0% | -20% | -6% |
+| + both | 1 of 8 | 122 | 5.5% | **-26%*** | -11% |
+
+(* holds up, 8 seeds)
+
+- **Choosing the easiest prey makes meat eating rarer, not commoner** (1 of 8 worlds instead of 4). It does not stop meat eaters killing each other (still most of their deaths, 1.6 to 2.1 per animal per 1,000 ticks).
+- **The gut with prey condition is the setup that works:** across three screens it kept a lasting meat-eating group in 7 of 24 grand worlds (1, 2 and 4 of 8), against none in 24 for the grand world as it is. Here its cost was small (population -13% and species -4%, neither holding up).
+- **Fighting back adds nothing clear.**
