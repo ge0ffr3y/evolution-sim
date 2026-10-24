@@ -49,6 +49,8 @@ export class Charts {
   private readonly traitChart: uPlot;
   private readonly webChart: uPlot;
   private readonly brainChart: uPlot;
+  /** Each chart with the box it fills, so it can be fitted to that box when the window changes size. */
+  private readonly fitted: [uPlot, HTMLElement][];
 
   constructor(popContainer: HTMLElement, traitContainer: HTMLElement, webContainer: HTMLElement, brainContainer: HTMLElement) {
     const width = (el: HTMLElement): number => Math.max(el.clientWidth, 280);
@@ -150,16 +152,25 @@ export class Charts {
 
     // Watch every chart's own box, not just the first one. The brain chart starts out hidden (zero width),
     // so it must be re-measured the moment it is shown, or it stays squeezed at its minimum width.
-    const observer = new ResizeObserver(() => this.resize(popContainer, traitContainer, webContainer, brainContainer));
+    this.fitted = [
+      [this.popChart, popContainer],
+      [this.traitChart, traitContainer],
+      [this.webChart, webContainer],
+      [this.brainChart, brainContainer],
+    ];
+    const observer = new ResizeObserver(() => this.fit());
     for (const container of [popContainer, traitContainer, webContainer, brainContainer]) observer.observe(container);
   }
 
-  private resize(popContainer: HTMLElement, traitContainer: HTMLElement, webContainer: HTMLElement, brainContainer: HTMLElement): void {
-    const w = Math.max(popContainer.clientWidth, 280);
-    this.popChart.setSize({ width: w, height: CHART_HEIGHT });
-    this.webChart.setSize({ width: Math.max(webContainer.clientWidth, 280), height: CHART_HEIGHT });
-    this.brainChart.setSize({ width: Math.max(brainContainer.clientWidth, 280), height: CHART_HEIGHT });
-    this.traitChart.setSize({ width: Math.max(traitContainer.clientWidth, 280), height: CHART_HEIGHT });
+  /**
+   * Fit each chart to its box. Also checked at every redraw, because a size watcher alone was not always told when the
+   * window narrowed, and a chart left at its old width pushes the page wider than the window.
+   */
+  private fit(): void {
+    for (const [chart, container] of this.fitted) {
+      const width = Math.max(container.clientWidth, 280);
+      if (chart.width !== width) chart.setSize({ width, height: CHART_HEIGHT });
+    }
   }
 
   /** Start over (the simulation restarted). */
@@ -215,6 +226,7 @@ export class Charts {
   }
 
   redraw(): void {
+    this.fit();
     this.popChart.setData([this.ticks, this.population, this.food]);
     this.traitChart.setData([this.ticks, this.speed, this.size, this.metabolism, this.sense]);
     this.webChart.setData([this.ticks, this.herbivores, this.omnivores, this.carnivores]);
