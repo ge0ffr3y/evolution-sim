@@ -880,6 +880,8 @@ export class Simulation {
   private pickAttacker = 0;
   private pickBest = -1;
   private pickBestDistSq = Infinity;
+  /** With preyChoice 1: the weakest defense found so far among the prey in reach. */
+  private pickBestDefense = Infinity;
   private pickSizeLimit = 0;
   private readonly considerPrey = (index: number, distSq: number): void => {
     if (index === this.pickAttacker || this.killed[index] === 1 || (this.colonyInfoOn && this.config.colonyProtect === 1 ? this.colonyMass[index]! : this.size[index]!) > this.pickSizeLimit) return;
@@ -898,11 +900,31 @@ export class Simulation {
       }
     }
     if (limitSq > 0 && this.geneDistanceSq(this.pickAttacker, index) <= limitSq) return;
+    if (this.config.preyChoice === 1) {
+      // The easiest prey in reach: the weakest defense as the hunter can judge it, nearest first on a tie.
+      const d = this.judgedDefense(index, this.pickAttacker);
+      if (d < this.pickBestDefense || (d === this.pickBestDefense && (distSq < this.pickBestDistSq || (distSq === this.pickBestDistSq && index < this.pickBest)))) {
+        this.pickBest = index;
+        this.pickBestDistSq = distSq;
+        this.pickBestDefense = d;
+      }
+      return;
+    }
     if (distSq < this.pickBestDistSq || (distSq === this.pickBestDistSq && index < this.pickBest)) {
       this.pickBest = index;
       this.pickBestDistSq = distSq;
     }
   };
+
+  /** A prey's defense as a hunter can judge it before attacking (everything in defendedBy except herds). */
+  private judgedDefense(prey: number, attacker: number): number {
+    const c = this.config;
+    let defense = this.defense[prey]!;
+    if (c.fightBack > 0) defense += c.fightBack * this.attackPower[prey]!;
+    if (c.preyCondition > 0) defense *= 1 - c.preyCondition * this.weakness(prey);
+    if (c.vigilance > 0 && c.brainMode > 0 && this.seesComing(prey, attacker)) defense *= 1 + c.vigilance;
+    return defense;
+  }
 
   /** Fat as breeding capital: if energy and fat together reach `level`, move the shortfall out of fat (no loss). Returns the energy. */
   private mobilizeFat(i: number, level: number): number {
@@ -4554,6 +4576,7 @@ export class Simulation {
         this.pickAttacker = i;
         this.pickBest = -1;
         this.pickBestDistSq = Infinity;
+        this.pickBestDefense = Infinity;
         this.pickSizeLimit = this.size[i]! * c.preyMaxSizeRatio;
         this.hash.forEachNear(this.x[i]!, this.y[i]!, this.reach[i]!, this.considerPrey);
         const prey = this.pickBest;

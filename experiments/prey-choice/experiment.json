@@ -1,0 +1,35 @@
+{
+  "name": "prey-choice",
+  "question": "With the gut and prey condition, does letting hunters go for the easiest prey in reach (preyChoice 1: the weakest defense they can judge) instead of the nearest stop meat eaters (diet above 0.75) killing each other, and help them last? With and without fighting back (an animal's own weapons count toward its defense, so armed meat eaters are hard targets). 8 fresh seeds, 300,000 ticks, with the diet ledger recording how each diet dies. An answer: worlds with a lasting meat-eating group, meat eaters killed by meat eaters, species and population.",
+  "base": "grand-world",
+  "ticks": 300000,
+  "seeds": "3101-3108",
+  "sampleEvery": 1500,
+  "arms": {
+    "control": {},
+    "gut-condition": {
+      "gutMode": 1,
+      "preyCondition": 0.5
+    },
+    "gut-condition-choice": {
+      "gutMode": 1,
+      "preyCondition": 0.5,
+      "preyChoice": 1
+    },
+    "gut-condition-fight": {
+      "gutMode": 1,
+      "preyCondition": 0.5,
+      "fightBack": 1
+    },
+    "gut-condition-choice-fight": {
+      "gutMode": 1,
+      "preyCondition": 0.5,
+      "preyChoice": 1,
+      "fightBack": 1
+    }
+  },
+  "measures": [
+    "all",
+    "dietLedger"
+  ]
+}

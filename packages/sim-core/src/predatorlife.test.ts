@@ -155,3 +155,36 @@ describe("fighting back", () => {
     expect(x(on).defendedBy(0, 1)).toBeCloseTo(x(on).defense[0]! + 2 * x(on).attackPower[0]!, 9);
   });
 });
+
+describe("hunters pick the easiest prey in reach (preyChoice)", () => {
+  type P = { considerPrey: (index: number, distSq: number) => void; pickAttacker: number; pickBest: number; pickBestDistSq: number; pickBestDefense: number; pickSizeLimit: number };
+  const pick = (sim: Simulation, candidates: [number, number][]): number => {
+    const x = sim as unknown as P;
+    x.pickAttacker = 0;
+    x.pickBest = -1;
+    x.pickBestDistSq = Infinity;
+    x.pickBestDefense = Infinity;
+    x.pickSizeLimit = 100;
+    for (const [index, distSq] of candidates) x.considerPrey(index, distSq);
+    return x.pickBest;
+  };
+  // Hunter 0; prey 1 right beside it but well fed and grown; prey 2 further off and newborn (weak).
+  const world = (extra: Partial<SimConfig> = {}): Simulation => {
+    const sim = new Simulation(1, { worldWidth: 64, worldHeight: 64, initialOrganisms: 3, speciesEvery: 0, preyCondition: 1, ...extra });
+    sim.energy[1] = sim.threshold[1]!;
+    sim.age[1] = 1000;
+    sim.energy[2] = sim.threshold[2]!;
+    sim.age[2] = 0;
+    return sim;
+  };
+
+  it("by default a hunter takes the nearest", () => {
+    expect(DEFAULT_CONFIG.preyChoice).toBe(0);
+    expect(pick(world(), [[1, 1], [2, 4]])).toBe(1);
+    expect(() => world({ preyChoice: 2 })).toThrow(/preyChoice/);
+  });
+
+  it("with preyChoice 1 it takes the easiest, even if further off", () => {
+    expect(pick(world({ preyChoice: 1 }), [[1, 1], [2, 4]])).toBe(2);
+  });
+});
