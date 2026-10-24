@@ -1,0 +1,19 @@
+{
+  "name": "gut-condition-confirm",
+  "question": "Confirmation on 16 fresh seeds and a longer run: does the gut (food digested over time) with prey condition (weak prey defend less, 0.5) keep a lasting meat-eating group (diet above 0.75) in the grand world itself? Across three 8-seed screens it did in 7 of 24 worlds, against 0 of 24 for the grand world as it is. 16 seeds, 500,000 ticks, with the diet ledger. An answer: worlds with a lasting meat-eating group, how long they last, feeding levels, species, diversity and population, and whether the cost to population or species holds up.",
+  "base": "grand-world",
+  "ticks": 500000,
+  "seeds": "3201-3216",
+  "sampleEvery": 2500,
+  "arms": {
+    "control": {},
+    "gut-condition": {
+      "gutMode": 1,
+      "preyCondition": 0.5
+    }
+  },
+  "measures": [
+    "all",
+    "dietLedger"
+  ]
+}
