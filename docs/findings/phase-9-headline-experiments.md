@@ -861,3 +861,36 @@ Meat eaters do arise often. In 7 of 16 worlds a group reached 50 or more, someti
 How meat eaters die, per animal per 1,000 ticks over the second half: 2.9 deaths, of which **2.0 are killed by other meat eaters**, 0.3 by other animals, and 0.6 run out of energy. Starving is still not the problem; other meat eaters are.
 
 **Verdict:** the gut with prey condition is not a grand-world answer as it stands. It moves the whole world toward mixed eating, with a real extra half feeding level and much less starving. But it costs a third of the species and still rarely holds a meat-eating group. The barrier that remains is meat eaters killing each other.
+
+### 13. Why meat eaters kill each other (kill autopsy)
+
+**Built:** the `meatKills` measure (opt-in, watches every kill, changes nothing; tests in `exp.test.ts`). It notes every kill that involves a meat eater (diet above 0.75), with family ties, gene distance, the victim's age, condition, size, herd and the odds of the attack, whether a carcass was already there, and what else was in the killer's reach. Each sample also notes a baseline for meat eaters and everyone else.
+
+**Experiment:** `meat-kill-autopsy`, the 16 worlds of `gut-condition-confirm` played again (same seeds and settings, the same history: all 16 ended with the same fingerprint), 16 cores, about $0.50. Over the whole run: 136,981 kills of a meat eater by a meat eater, 1,016,936 of other animals by meat eaters, and 25,489 of meat eaters by others.
+
+| | Meat eater kills a meat eater | Meat eater kills another animal |
+|---|---|---|
+| Victim's size compared with the killer | 0.98 (an equal) | 0.19 (a fifth) |
+| Odds of the attack | 0.59 | 0.79 |
+| Meat eaters / other prey in the killer's reach at the time | 1.46 / 0.10 | 0.18 / 1.26 |
+| Victim a sibling or half-sibling | 18% | 0.2% |
+| Victim close enough to count as a relative (within `kinDistance`) | 31% | 0.2% |
+| Gene distance | 0.09 | 0.39 |
+| Victim under 100 ticks old | 40% | 46% |
+| Victim's armor gene | 0.28 | 0.75 |
+| A carcass already on the spot | 5% | 4% |
+
+Meat eaters' killers are other meat eaters five times out of six (137,000 against 25,000).
+
+What it shows:
+- **Meat eaters live among their own kind.** In a typical sample, 59% of the animals in a meat eater's reach that are small enough to attack are other meat eaters. Babies are born on the parent's spot and the line stays together, so a meat eater's neighbours are mostly its own lineage.
+- **A meat eater kills another meat eater when no other prey is in reach.** At those kills there were 1.5 meat eaters and 0.1 other animals in reach. Hunters attack the nearest animal they can, and the nearest is often a cousin.
+- **Kin restraint barely works for them.** Meat eaters' tolerance gene averages 0.30, against 0.56 in other animals. Even at full tolerance the rule spares only animals within 0.05 in gene distance, which covers a third of these victims. There is no family recognition beyond parent and young (`spareFamily`).
+- **Attacking an equal costs nothing extra.** The fights are between equals at 59% odds. A failed attack costs the same small fixed amount whether the target is a fifth of the attacker's size or its armed sibling, and nobody is ever hurt. Real predators avoid fighting each other mainly because of injury.
+- **Not the causes:** fights over carcasses (5%), herds (herd factor about 1.04 for everyone), weak or young victims (about the same as other victims), hunger (killers are about 60% fed in both cases).
+
+The one world that kept a meat-eating group (3216) looks the same in every column. Its meat eaters simply kill far more other prey (478,000 against 72,000).
+
+**Candidate levers** (none built yet):
+1. **Injury:** a failed attack hurts the attacker in proportion to the victim's weapons, so attacking an armed equal is dangerous and a small plant eater is not.
+2. **Young that move away:** babies leave the parent's spot, so a lineage spreads out instead of living in a clump where cousins are each other's nearest prey.
