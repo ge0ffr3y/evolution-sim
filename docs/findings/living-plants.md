@@ -108,7 +108,7 @@ To watch it: color the dots by Nutrient balance.
 | The same with nutrients | 0.17 to 0.30 |
 | Harmless toxin (no harm, no growth cost: chance alone) | 0.12 to 0.17 |
 
-Seven of the eight harmful-toxin worlds end above every harmless one, and the eighth (0.18) above all but two (0.17), even though toxin there also slows growth. Chance explains most of the level, and selection adds about a third more toxin, and twice the share of land with toxin above 0.3 (16% against 8%).
+All eight harmful-toxin worlds end above every harmless one (lowest 0.18 against highest 0.17), even though toxin there also slows growth. Chance explains most of the level, and selection adds about a third more toxin, and twice the share of land with toxin above 0.3 (16% against 8%).
 
 **Every setup with plants that evolve cuts meat in the diet by 21 to 33%** (holds up in all four), as in steps 1 and 2. No setup kept a lasting meat-eating group (0 of 8 each).
 
