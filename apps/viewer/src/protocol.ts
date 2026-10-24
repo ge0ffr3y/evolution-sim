@@ -174,6 +174,8 @@ export interface FrameMessage {
   toxicity: Float32Array | null;
   /** Each animal's nutrient store as a share of the most it can hold (0 to 1), only in worlds with nutrient mode. */
   nutrientStore: Float32Array | null;
+  /** Dietary nutrients: each animal's lowest reserve of the three (0 to 1), only in worlds with dietary nutrients. */
+  dietBalance: Float32Array | null;
   /** Bonds between cells as pairs of organism indices (a, b, a, b, ...), and the size of each organism's colony (null without multicellularity). */
   bonds: Uint32Array | null;
   colonySize: Uint16Array | null;

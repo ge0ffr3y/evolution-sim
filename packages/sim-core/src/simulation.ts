@@ -663,6 +663,11 @@ export class Simulation {
   private readonly plantToxOn: boolean;
   readonly plantToxin: Float64Array;
   private readonly seedToxin: Float64Array;
+  /** Dietary nutrients: each animal's reserve of the three nutrients (0 to 1), when dietNutrients is on. */
+  private readonly dietOn: boolean;
+  readonly dietA: Float64Array;
+  readonly dietB: Float64Array;
+  readonly dietC: Float64Array;
   private readonly plantRng: Rng;
   /** Scratch: the plant genomes as they stood before this round of seeding (all cells update together). */
   private readonly seedChem: Float64Array;
@@ -1112,6 +1117,10 @@ export class Simulation {
     this.plantToxOn = c.plantToxins === 1;
     this.plantToxin = new Float64Array(this.plantToxOn ? cells : 0).fill(c.plantInitialToxin);
     this.seedToxin = new Float64Array(this.plantToxOn ? cells : 0);
+    this.dietOn = c.dietNutrients === 1;
+    this.dietA = new Float64Array(this.dietOn ? c.maxOrganisms : 0);
+    this.dietB = new Float64Array(this.dietOn ? c.maxOrganisms : 0);
+    this.dietC = new Float64Array(this.dietOn ? c.maxOrganisms : 0);
     // (Its own random stream, derived from the seed like the events', so plants never disturb anything else.)
     this.plantRng = new Rng((seed ^ 0x2c1b3c6d) >>> 0);
     if (this.plantEvoOn) this.initPlantGenomes();
@@ -1420,6 +1429,7 @@ export class Simulation {
     if (this.nutrientOn) this.float64Fields.push(this.nutrientStore);
     if (this.gutOn) this.float64Fields.push(this.gutMass, this.gutEnergy);
     if (this.drinkOn) this.float32Fields.push(this.hydration);
+    if (this.dietOn) this.float64Fields.push(this.dietA, this.dietB, this.dietC);
     if (this.signalOn) this.float32Fields.push(this.sharedThreatX, this.sharedThreatY, this.sharedThreatNear, this.sharedFoodX, this.sharedFoodY, this.sharedFoodNear);
     this.uint32Fields = [this.id, this.parentId, this.age, this.kills];
     if (this.tracker) this.uint32Fields.push(this.species);
@@ -2456,6 +2466,11 @@ export class Simulation {
     }
     if (this.nutrientOn) this.nutrientStore[i] = 0;
     if (this.drinkOn) this.hydration[i] = 1; // born with a full drink
+    if (this.dietOn) {
+      this.dietA[i] = this.config.dietNutrientStart;
+      this.dietB[i] = this.config.dietNutrientStart;
+      this.dietC[i] = this.config.dietNutrientStart;
+    }
     if (this.signalOn) {
       this.sharedThreatNear[i] = 0;
       this.sharedFoodNear[i] = 0;
@@ -3090,6 +3105,43 @@ export class Simulation {
   /** What a cell's plants are worth to organism i, per unit, for smell and steering: how well it digests them, less any poison. */
   private plantWorth(i: number, cell: number): number {
     return this.plantToxOn ? this.palateMatch(i, cell) - this.plantHarm(i, cell) : this.palateMatch(i, cell);
+  }
+
+  /**
+   * Dietary nutrients: use a little of each reserve, refill from what was eaten (plants by their chemistry's mix,
+   * meat evenly), and return the extra upkeep for running short (paid as heat on the upkeep line).
+   */
+  private dietStep(i: number, cell: number, plantGain: number, meatGain: number): number {
+    const c = this.config;
+    const thr = this.threshold[i]!;
+    const plant = plantGain > 0 ? (c.dietNutrientFill * plantGain) / thr : 0;
+    const meat = meatGain > 0 ? (c.dietNutrientFill * meatGain * c.dietMeatRichness) / thr : 0;
+    let wa = 0;
+    let wb = 0;
+    let wc = 0;
+    if (plant > 0) {
+      // The plant's chemistry (0 to 1) sets its mix: rich in the first nutrient at 0, the second at 0.5, the third at 1.
+      const chem = this.plantEvoOn ? this.plantChem[cell]! : this.plantTypeOf[cell]! / (this.plantKinds - 1);
+      const even = 1 - c.dietPlantSkew;
+      const skew = 3 * c.dietPlantSkew;
+      const a = 1 - 2 * chem;
+      const mid = 1 - 2 * (chem > 0.5 ? chem - 0.5 : 0.5 - chem);
+      const z = 2 * chem - 1;
+      wa = even + skew * (a > 0 ? a : 0);
+      wb = even + skew * (mid > 0 ? mid : 0);
+      wc = even + skew * (z > 0 ? z : 0);
+    }
+    const short = this.refill(this.dietA, i, plant * wa + meat) + this.refill(this.dietB, i, plant * wb + meat) + this.refill(this.dietC, i, plant * wc + meat);
+    return short > 0 ? (c.dietShortCost * this.basalCost[i]! * short) / 3 : 0;
+  }
+
+  /** One nutrient reserve: use a little, add what came in, keep it from 0 to 1; returns how short it is (0 when at or above dietShortBelow). */
+  private refill(reserve: Float64Array, i: number, intake: number): number {
+    const c = this.config;
+    let r = reserve[i]! - c.dietNutrientUse + intake;
+    r = r < 0 ? 0 : r > 1 ? 1 : r;
+    reserve[i] = r;
+    return r < c.dietShortBelow ? (c.dietShortBelow - r) / c.dietShortBelow : 0;
   }
 
   /** Move organism i's four chemical signals (reward, stress, bond, calm) on by one thought. */
@@ -4939,6 +4991,7 @@ export class Simulation {
 
       let basal = this.basalCost[i]! + toxinLoss;
       if (plantPoison > 0) basal += plantPoison;
+      if (this.dietOn) basal += this.dietStep(i, cell, plantGain, meatGain);
       if (this.colonyInfoOn && c.colonyScaleSaving > 0 && this.colonyCount[i]! > 1) {
         // Economies of scale: a cell in a bigger colony costs a little less to keep (cells^-1/8, built from square roots).
         const eighthRoot = Math.sqrt(Math.sqrt(Math.sqrt(this.colonyCount[i]!)));
@@ -6350,6 +6403,11 @@ export class Simulation {
       if (this.plantToxOn) mixBits(this.plantToxin, this.plantToxin.length);
     }
     if (this.drinkOn) mixBits(this.hydration, n);
+    if (this.dietOn) {
+      mixBits(this.dietA, n);
+      mixBits(this.dietB, n);
+      mixBits(this.dietC, n);
+    }
     if (this.signalOn) {
       mixBits(this.sharedThreatNear, n);
       mixBits(this.sharedFoodNear, n);

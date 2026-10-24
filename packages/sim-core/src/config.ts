@@ -474,6 +474,24 @@ export interface SimConfig {
    * weigh a patch by its food value minus that harm, so animals avoid what poisons them, and only them.
    */
   plantToxins: number;
+  /**
+   * Dietary nutrients (0 = off; needs several kinds of plant or plants that evolve). Food holds three nutrients.
+   * A plant's mix follows its chemistry: chemistry 0 is rich in the first, 0.5 in the second, 1 in the third, blended
+   * in between; dietPlantSkew of it follows the chemistry and the rest is an even mix (so 0 = every plant balanced).
+   * Meat holds an even mix (dietMeatRichness of each). Each animal keeps a reserve of each nutrient (0 to 1, newborns
+   * start at dietNutrientStart): each tick it uses dietNutrientUse of each, and food refills it by dietNutrientFill x
+   * (energy gained / breeding energy) x the food's content. Any reserve below dietShortBelow costs extra upkeep:
+   * dietShortCost x basic upkeep x how short (the average over the three of (dietShortBelow - reserve) / dietShortBelow).
+   * Nutrients here are a quality of food, not matter, so the matter books do not change; the cost is heat on the upkeep line.
+   */
+  dietNutrients: number;
+  dietPlantSkew: number;
+  dietMeatRichness: number;
+  dietNutrientUse: number;
+  dietNutrientFill: number;
+  dietShortBelow: number;
+  dietShortCost: number;
+  dietNutrientStart: number;
   plantToxinHarm: number;
   plantToxinGrowthCost: number;
   plantMutateToxin: number;
@@ -1529,6 +1547,14 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   plantMutateWarm: 0.02,
   plantInitialChem: 0.5,
   plantToxins: 0,
+  dietNutrients: 0,
+  dietPlantSkew: 0.8,
+  dietMeatRichness: 1,
+  dietNutrientUse: 0.001,
+  dietNutrientFill: 1,
+  dietShortBelow: 0.5,
+  dietShortCost: 0.5,
+  dietNutrientStart: 0.8,
   plantToxinHarm: 0.5,
   plantToxinGrowthCost: 0.3,
   plantMutateToxin: 0.02,
@@ -2098,6 +2124,12 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (!Number.isInteger(c.plantTypes) || c.plantTypes < 1 || c.plantTypes > 6) problems.push("plantTypes must be a whole number from 1 to 6");
   if (c.plantEvolution !== 0 && c.plantEvolution !== 1) problems.push("plantEvolution must be 0 (off) or 1 (on)");
   if (c.plantToxins !== 0 && c.plantToxins !== 1) problems.push("plantToxins must be 0 (off) or 1 (on)");
+  if (c.dietNutrients !== 0 && c.dietNutrients !== 1) problems.push("dietNutrients must be 0 (off) or 1 (on)");
+  if (c.dietNutrients === 1) {
+    if (c.plantTypes < 2 && c.plantEvolution !== 1) problems.push("dietNutrients needs several kinds of plant (plantTypes 2 or more) or plants that evolve (plantEvolution 1)");
+    if (!(c.dietPlantSkew >= 0 && c.dietPlantSkew <= 1) || !(c.dietShortBelow > 0 && c.dietShortBelow <= 1) || !(c.dietNutrientStart >= 0 && c.dietNutrientStart <= 1)) problems.push("dietPlantSkew and dietNutrientStart must be between 0 and 1, dietShortBelow above 0 and at most 1");
+    if (!(c.dietMeatRichness >= 0) || !(c.dietNutrientUse >= 0) || !(c.dietNutrientFill >= 0) || !(c.dietShortCost >= 0)) problems.push("dietMeatRichness, dietNutrientUse, dietNutrientFill and dietShortCost cannot be negative");
+  }
   if (c.plantToxins === 1) {
     if (c.plantEvolution !== 1) problems.push("plantToxins needs plants that evolve (plantEvolution 1)");
     if (!(c.plantToxinHarm >= 0) || !(c.plantToxinGrowthCost >= 0 && c.plantToxinGrowthCost <= 1)) problems.push("plantToxinHarm cannot be negative, and plantToxinGrowthCost must be between 0 and 1");

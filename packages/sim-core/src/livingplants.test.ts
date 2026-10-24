@@ -219,3 +219,85 @@ describe("poisonous plants (plantToxins)", () => {
     for (let cell = 0; cell < sim.plantToxin.length; cell++) expect(copy.plantToxin[cell]).toBe(sim.plantToxin[cell]);
   }, 120_000);
 });
+
+describe("dietary nutrients (dietNutrients)", () => {
+  type D = { dietStep(i: number, cell: number, plantGain: number, meatGain: number): number; cellOf: Uint32Array; basalCost: Float32Array };
+  const d = (sim: Simulation): D => sim as unknown as D;
+  /** One animal in a world with plants that evolve, its reserves set by hand. */
+  const one = (extra: Partial<SimConfig> = {}): Simulation =>
+    new Simulation(1, { worldWidth: 64, worldHeight: 64, initialOrganisms: 1, speciesEvery: 0, plantEvolution: 1, dietNutrients: 1, dietPlantSkew: 0.8, dietNutrientUse: 0.001, dietNutrientFill: 1, dietShortBelow: 0.5, dietShortCost: 0.5, ...extra });
+
+  it("are off by default and need kinds of plant", () => {
+    expect(DEFAULT_CONFIG.dietNutrients).toBe(0);
+    expect(new Simulation(1, { worldWidth: 64, worldHeight: 64 }).dietA).toHaveLength(0);
+    expect(() => new Simulation(1, { worldWidth: 64, worldHeight: 64, dietNutrients: 1 })).toThrow(/several kinds of plant/);
+    expect(() => new Simulation(1, { worldWidth: 64, worldHeight: 64, plantEvolution: 1, dietNutrients: 1, dietPlantSkew: 2 })).toThrow(/dietPlantSkew/);
+  });
+
+  it("newborns start at dietNutrientStart", () => {
+    const sim = one({ dietNutrientStart: 0.7 });
+    expect([sim.dietA[0], sim.dietB[0], sim.dietC[0]]).toEqual([0.7, 0.7, 0.7]);
+  });
+
+  it("a plant's mix follows its chemistry: chemistry 0 is rich in the first nutrient, 0.5 in the second, 1 in the third", () => {
+    for (const [chem, rich] of [[0, 0], [0.5, 1], [1, 2]] as const) {
+      const sim = one();
+      const cell = d(sim).cellOf[0]!;
+      sim.plantChem[cell] = chem;
+      sim.dietA[0] = sim.dietB[0] = sim.dietC[0] = 0.5;
+      d(sim).dietStep(0, cell, 0.1 * sim.threshold[0]!, 0); // a tenth of a breeding's worth of plant
+      const got = [sim.dietA[0]!, sim.dietB[0]!, sim.dietC[0]!];
+      for (let k = 0; k < 3; k++) {
+        const content = 0.2 + (k === rich ? 2.4 : 0); // an even 20%, plus 80% x 3 for the nutrient its chemistry is rich in
+        expect(got[k]).toBeCloseTo(0.5 - 0.001 + 0.1 * content, 12);
+      }
+    }
+  });
+
+  it("meat tops up all three evenly", () => {
+    const sim = one({ dietMeatRichness: 1 });
+    sim.dietA[0] = 0.2;
+    sim.dietB[0] = 0.3;
+    sim.dietC[0] = 0.4;
+    d(sim).dietStep(0, d(sim).cellOf[0]!, 0, 0.1 * sim.threshold[0]!);
+    expect(sim.dietA[0]).toBeCloseTo(0.2 - 0.001 + 0.1, 12);
+    expect(sim.dietB[0]).toBeCloseTo(0.3 - 0.001 + 0.1, 12);
+    expect(sim.dietC[0]).toBeCloseTo(0.4 - 0.001 + 0.1, 12);
+  });
+
+  it("running short costs extra upkeep, graded: nothing when every reserve is above dietShortBelow, the full dietShortCost when all are empty", () => {
+    const sim = one();
+    const cell = d(sim).cellOf[0]!;
+    const basal = d(sim).basalCost[0]!;
+    sim.dietA[0] = sim.dietB[0] = sim.dietC[0] = 0.9;
+    expect(d(sim).dietStep(0, cell, 0, 0)).toBe(0);
+    sim.dietA[0] = sim.dietB[0] = sim.dietC[0] = 0;
+    expect(d(sim).dietStep(0, cell, 0, 0)).toBeCloseTo(0.5 * basal, 12);
+    sim.dietA[0] = 0.25 + 0.001; // half short in one nutrient (after this tick's use), the others full
+    sim.dietB[0] = sim.dietC[0] = 1;
+    expect(d(sim).dietStep(0, cell, 0, 0)).toBeCloseTo((0.5 * basal * 0.5) / 3, 12);
+  });
+
+  it("the books balance with dietary nutrients (and fixed kinds of plant), and a saved world carries on exactly", () => {
+    const config = seasonal({ dietNutrients: 1, initialOrganisms: 250, nutrientMode: 2, dietNutrientUse: 0.003 });
+    const sim = new Simulation(7, config);
+    sim.run(20);
+    const e0 = sim.energyAudit().total;
+    const m0 = sim.matterAudit().total;
+    const L0 = { ...sim.ledger };
+    sim.run(1500);
+    const L = sim.ledger;
+    expect(sim.count).toBeGreaterThan(0);
+    let short = 0;
+    for (let i = 0; i < sim.count; i++) if (Math.min(sim.dietA[i]!, sim.dietB[i]!, sim.dietC[i]!) < 0.5) short++;
+    expect(short).toBeGreaterThan(0); // someone has run short of a nutrient
+    const burned = (y: typeof L): number => y.basalBurned + y.movementBurned + y.sensingBurned + y.attackBurned + y.armorBurned + y.brainBurned;
+    const expected = e0 + (L.sunlightIn - L0.sunlightIn) - (burned(L) - burned(L0)) - (L.digestionLoss - L0.digestionLoss) - (L.decayLoss - L0.decayLoss);
+    expect(Math.abs(sim.energyAudit().total - expected) / expected).toBeLessThan(1e-9);
+    expect(Math.abs(sim.matterAudit().total - m0) / m0).toBeLessThan(1e-9);
+    const copy = Simulation.load(sim.save());
+    sim.run(300);
+    copy.run(300);
+    expect(copy.fingerprint()).toBe(sim.fingerprint());
+  }, 120_000);
+});

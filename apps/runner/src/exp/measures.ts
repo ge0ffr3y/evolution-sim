@@ -1159,6 +1159,36 @@ function toxinStats(sim: Simulation, capacity: Float64Array): Row {
   return { plantToxin: round(mean(xs), 4), plantToxicShare: round(xs.filter((x) => x > 0.3).length / Math.max(xs.length, 1), 4), plantToxinSpread: round(stdOf(xs), 4) };
 }
 
+/**
+ * Dietary nutrients (NaN when off): the average of each animal's lowest reserve, the share of animals short of any
+ * nutrient (a reserve below dietShortBelow), and the average lowest reserve of plant eaters (diet under 0.25) and of
+ * everyone eating more meat than that.
+ */
+function dietStats(sim: Simulation): Row {
+  if (sim.dietA.length === 0) return { dietLowest: NaN, dietShortShare: NaN, dietLowestPlant: NaN, dietLowestMixed: NaN };
+  const below = sim.config.dietShortBelow;
+  let sum = 0;
+  let short = 0;
+  let plantSum = 0;
+  let plantN = 0;
+  let mixedSum = 0;
+  let mixedN = 0;
+  for (let i = 0; i < sim.count; i++) {
+    const low = Math.min(sim.dietA[i]!, sim.dietB[i]!, sim.dietC[i]!);
+    sum += low;
+    if (low < below) short++;
+    if (sim.diet[i]! < 0.25) {
+      plantSum += low;
+      plantN++;
+    } else {
+      mixedSum += low;
+      mixedN++;
+    }
+  }
+  const n = Math.max(sim.count, 1);
+  return { dietLowest: round(sum / n, 4), dietShortShare: round(short / n, 4), dietLowestPlant: plantN ? round(plantSum / plantN, 4) : NaN, dietLowestMixed: mixedN ? round(mixedSum / mixedN, 4) : NaN };
+}
+
 MEASURES.plants = {
   describe:
     "plants that evolve (NaN when off): the effective number of plant chemistries (exp of Shannon diversity over ten bins of land cells) and their spread, how far plants' best temperature is from the local average temperature and how closely the two follow each other (correlation), how spread out plants' growing seasons are (0 = all the same time of year, 1 = evenly spread), and the effective number and spread of animals' palates",
@@ -1203,6 +1233,7 @@ MEASURES.plants = {
       palateKindsEff: round(effectiveKinds(palates), 4),
       palateSpread: round(stdOf(palates), 4),
       ...toxinStats(sim, world.foodCapacity),
+      ...dietStats(sim),
     };
   },
   summarize: (rows) => ({
@@ -1216,5 +1247,9 @@ MEASURES.plants = {
     plantToxinLate: lateMean(rows, "plantToxin"),
     plantToxicShareLate: lateMean(rows, "plantToxicShare"),
     plantToxinSpreadLate: lateMean(rows, "plantToxinSpread"),
+    dietLowestLate: lateMean(rows, "dietLowest"),
+    dietShortShareLate: lateMean(rows, "dietShortShare"),
+    dietLowestPlantLate: lateMean(rows, "dietLowestPlant"),
+    dietLowestMixedLate: lateMean(rows, "dietLowestMixed"),
   }),
 };

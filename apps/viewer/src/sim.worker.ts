@@ -236,6 +236,11 @@ function postFrame(s: Simulation): void {
     toxicity = new Float32Array(n);
     for (let i = 0; i < n; i++) toxicity[i] = s.traitOf("toxicity", i);
   }
+  let dietBalance: Float32Array | null = null;
+  if (s.dietA.length > 0) {
+    dietBalance = new Float32Array(n);
+    for (let i = 0; i < n; i++) dietBalance[i] = Math.min(s.dietA[i]!, s.dietB[i]!, s.dietC[i]!);
+  }
   let nutrientStore: Float32Array | null = null;
   if (s.config.nutrientMode >= 1) {
     nutrientStore = new Float32Array(n);
@@ -307,6 +312,7 @@ function postFrame(s: Simulation): void {
     palate,
     toxicity,
     nutrientStore,
+    dietBalance,
     health,
     climate,
     points,
@@ -345,6 +351,7 @@ function postFrame(s: Simulation): void {
   if (palate) transfer.push(palate.buffer);
   if (toxicity) transfer.push(toxicity.buffer);
   if (nutrientStore) transfer.push(nutrientStore.buffer);
+  if (dietBalance) transfer.push(dietBalance.buffer);
   if (bonds) transfer.push(bonds.buffer);
   if (colonySize) transfer.push(colonySize.buffer);
   if (message.cellType) transfer.push(message.cellType.buffer);

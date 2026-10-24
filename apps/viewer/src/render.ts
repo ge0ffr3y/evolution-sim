@@ -1,7 +1,7 @@
 import type { FrameMessage } from "./protocol";
 
 /** What the dot colors mean. */
-export type ColorBy = "diet" | "speed" | "size" | "hue" | "energy" | "sense" | "health" | "colony" | "cell" | "palate" | "toxicity" | "nutrient" | "water";
+export type ColorBy = "diet" | "speed" | "size" | "hue" | "energy" | "sense" | "health" | "colony" | "cell" | "palate" | "toxicity" | "nutrient" | "water" | "dietBalance";
 
 /** What the map background shows. */
 export type Overlay = "plants" | "nutrients" | "corpses" | "detritus" | "trails" | "terrain" | "temperature" | "light" | "background" | "plantKinds" | "grazing" | "fouling" | "erosion" | "events" | "plantQuality" | "moisture" | "plantWarmth" | "plantToxin";
@@ -41,6 +41,7 @@ export const COLOR_MODES: readonly { id: ColorBy; label: string; legendLow: stri
   { id: "toxicity", label: "Toxicity (worlds with toxicity)", legendLow: "safe to eat", legendHigh: "poisonous" },
   { id: "nutrient", label: "Nutrient store (worlds with nutrient mode)", legendLow: "starved of nutrient", legendHigh: "store full" },
   { id: "water", label: "Water (worlds with drinking)", legendLow: "parched", legendHigh: "just drank" },
+  { id: "dietBalance", label: "Nutrient balance (worlds with dietary nutrients): its lowest reserve", legendLow: "short of a nutrient", legendHigh: "all three topped up" },
 ];
 
 const PALETTE_SIZE = 48;
@@ -97,6 +98,8 @@ export function organismColor(mode: ColorBy, frame: FrameMessage, i: number): st
       return pick(RAINBOW, frame.hydration ? frame.hydration[i]! : 0);
     case "nutrient":
       return pick(RAINBOW, frame.nutrientStore ? frame.nutrientStore[i]! : 0);
+    case "dietBalance":
+      return pick(RAINBOW, frame.dietBalance ? frame.dietBalance[i]! : 0);
     case "cell": {
       const type = frame.cellType ? frame.cellType[i]! : 0;
       return CELL_COLORS[type] ?? "#6b7480";
