@@ -445,6 +445,43 @@ describe("the diet ledger: how animals die", () => {
   });
 });
 
+describe("meat-eater kills (opt-in, watches every kill)", () => {
+  // Founders eat mostly meat and are armed, so meat eaters kill each other and anyone else.
+  const meaty = { worldWidth: 128, worldHeight: 128, initialOrganisms: 250, initialAttack: 0.6, initialDiet: 0.8, preyCondition: 0.5 };
+
+  it("is left out of 'all', and recording it never changes what happens", async () => {
+    expect(tiny({ measures: ["all"] }).measures).not.toContain("meatKills");
+    const plain = tiny({ arms: { control: meaty }, measures: ["population"] });
+    const watched = tiny({ arms: { control: meaty }, measures: ["population", "meatKills", "dietLedger"] });
+    const job = jobsOf(plain)[0]!;
+    expect((await runJob(watched, job))!.fingerprint).toBe((await runJob(plain, job))!.fingerprint);
+    // With herds on (relatives standing close defend each other), which the measure reads at every kill.
+    const herds = { ...meaty, kinDistance: 0.05, kinTolerance: 1, herdBonus: 0.3 };
+    const plainHerds = tiny({ arms: { control: herds }, measures: ["population"] });
+    const watchedHerds = tiny({ arms: { control: herds }, measures: ["population", "meatKills"], sampleEvery: 100 });
+    const r = (await runJob(watchedHerds, job))!;
+    expect(r.fingerprint).toBe((await runJob(plainHerds, job))!.fingerprint);
+    expect(r.rows.reduce((a, row) => a + (row.mk_mm_n ?? 0), 0)).toBeGreaterThan(0);
+    expect(r.rows.some((row) => row.mk_mm_herd! > 1 || row.mk_base_meat_herd! > 1)).toBe(true);
+  });
+
+  it("records kills among meat eaters, with shares between 0 and 1 and a baseline", async () => {
+    const exp = tiny({ arms: { control: meaty }, measures: ["population", "meatKills"], sampleEvery: 100 });
+    const r = (await runJob(exp, jobsOf(exp)[0]!))!;
+    const mm = r.rows.reduce((a, row) => a + (row.mk_mm_n ?? 0), 0);
+    expect(mm).toBeGreaterThan(0);
+    for (const row of r.rows) {
+      if (!(row.mk_mm_n! > 0)) continue;
+      for (const k of ["family", "sibling", "kin", "young", "carcass", "odds"]) {
+        expect(row[`mk_mm_${k}`]).toBeGreaterThanOrEqual(0);
+        expect(row[`mk_mm_${k}`]).toBeLessThanOrEqual(1);
+      }
+      expect(row.mk_mm_herd).toBeGreaterThanOrEqual(1);
+    }
+    expect(r.rows.some((row) => row.mk_base_meat_n! > 0 && row.mk_base_meat_herd! >= 1)).toBe(true);
+  });
+});
+
 describe("repeating invasions", () => {
   it("arrive at atTick and every repeatEvery ticks after, until `until`, and resume exactly", async () => {
     const { invasionDue } = await import("./invasion");

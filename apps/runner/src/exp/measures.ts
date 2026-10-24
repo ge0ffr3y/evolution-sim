@@ -964,3 +964,172 @@ MEASURES.matingSight = {
     pickOtherLate: lateMean(rows, "pickOther"),
   }),
 };
+
+// --- Meat-eater kills (opt-in, watches every kill): why do meat eaters kill each other? ---
+// Every kill that involves a meat eater (diet over 0.75) as killer or victim is noted as it happens, in three kinds:
+// mm = a meat eater kills a meat eater, mo = a meat eater kills anyone else, om = anyone else kills a meat eater.
+// For each: family ties, gene distance, the victim's age, condition, size, herd and odds, a carcass already there,
+// and what else was in the killer's reach. Each sample also notes a baseline: for meat eaters and for everyone else,
+// average herd factor, defense, tolerance, armor, and for meat eaters what share of the animals in their reach are meat eaters.
+type KillInternals = {
+  kill(attacker: number, prey: number): void;
+  geneDistanceSq(i: number, j: number): number;
+  weakness(i: number): number;
+  herdFactor(prey: number): number;
+  defendedBy(prey: number, attacker?: number): number;
+  isFamily(a: number, b: number): boolean;
+  parent2Id: Uint32Array;
+  cellOf: Uint32Array;
+  energy: Float32Array | Float64Array;
+  threshold: Float32Array;
+};
+const MK_KINDS = ["mm", "mo", "om"] as const;
+const MK_SUMS = ["n", "family", "sibling", "kin", "dist", "young", "victimAge", "victimWeak", "victimFed", "killerFed", "sizeRatio", "odds", "herd", "carcass", "meatNear", "otherNear", "killerTol", "victimArmor", "victimAttack", "killerAttack"] as const;
+type MkSums = Record<(typeof MK_SUMS)[number], number>;
+const emptyMk = (): Record<string, MkSums> => Object.fromEntries(MK_KINDS.map((k) => [k, Object.fromEntries(MK_SUMS.map((s) => [s, 0])) as MkSums]));
+const meatKillState = new WeakMap<Simulation, { w: Record<string, MkSums> }>();
+const MEAT = 0.75;
+
+/** Meat eaters and others within `who`'s attack reach (others only if small enough to be prey), the world wrapping round. */
+function neighboursInReach(sim: Simulation, who: number): { meat: number; other: number } {
+  const c = sim.config;
+  const W = c.worldWidth;
+  const H = c.worldHeight;
+  const r2 = sim.reach[who]! * sim.reach[who]!;
+  const sizeLimit = sim.size[who]! * c.preyMaxSizeRatio;
+  let meat = 0;
+  let other = 0;
+  for (let j = 0; j < sim.count; j++) {
+    if (j === who || sim.size[j]! > sizeLimit) continue;
+    let dx = sim.x[j]! - sim.x[who]!;
+    let dy = sim.y[j]! - sim.y[who]!;
+    if (dx > W / 2) dx -= W;
+    else if (dx < -W / 2) dx += W;
+    if (dy > H / 2) dy -= H;
+    else if (dy < -H / 2) dy += H;
+    if (dx * dx + dy * dy > r2) continue;
+    if (sim.diet[j]! > MEAT) meat++;
+    else other++;
+  }
+  return { meat, other };
+}
+
+/** The herd factor as defendedBy works it out (relatives within herdRange, capped), counted directly. */
+function herdNow(sim: Simulation, i: number): number {
+  const c = sim.config;
+  if (c.herdBonus <= 0) return 1;
+  const world = sim as unknown as KillInternals;
+  const W = c.worldWidth;
+  const H = c.worldHeight;
+  const r2 = c.herdRange * c.herdRange;
+  const kin2 = c.kinDistance * c.kinDistance;
+  let count = 0;
+  for (let j = 0; j < sim.count; j++) {
+    if (j === i) continue;
+    let dx = sim.x[j]! - sim.x[i]!;
+    let dy = sim.y[j]! - sim.y[i]!;
+    if (dx > W / 2) dx -= W;
+    else if (dx < -W / 2) dx += W;
+    if (dy > H / 2) dy -= H;
+    else if (dy < -H / 2) dy += H;
+    const d2 = dx * dx + dy * dy;
+    if (d2 <= 0 || d2 > r2) continue;
+    if (world.geneDistanceSq(i, j) <= kin2) count++;
+  }
+  const crowd = count < c.herdCap ? count : c.herdCap;
+  return 1 + (c.herdBonus * crowd) / c.herdCap;
+}
+
+function meatKillsOf(sim: Simulation): { w: Record<string, MkSums> } {
+  let st = meatKillState.get(sim);
+  if (st) return st;
+  const state = { w: emptyMk() };
+  st = state;
+  meatKillState.set(sim, st);
+  const world = sim as unknown as KillInternals;
+  const realKill = world.kill.bind(sim);
+  const sharesParent = (a: number, b: number): boolean => {
+    const pa = [sim.parentId[a]!, world.parent2Id.length ? world.parent2Id[a]! : 0].filter((p) => p !== 0);
+    const pb = [sim.parentId[b]!, world.parent2Id.length ? world.parent2Id[b]! : 0];
+    return pa.some((p) => pb.includes(p));
+  };
+  // Watching only: everything is read before the real kill runs unchanged (a test checks the world plays out the same).
+  world.kill = (attacker: number, prey: number): void => {
+    const killerMeat = sim.diet[attacker]! > MEAT;
+    const victimMeat = sim.diet[prey]! > MEAT;
+    if (killerMeat || victimMeat) {
+      const s = state.w[killerMeat ? (victimMeat ? "mm" : "mo") : "om"]!;
+      const c = sim.config;
+      const g = (i: number, gene: number): number => sim.genes[i * GENE_COUNT + gene]!;
+      const dist = Math.sqrt(world.geneDistanceSq(attacker, prey));
+      const power = sim.attackPower[attacker]!;
+      const near = neighboursInReach(sim, attacker);
+      s.n++;
+      if (world.isFamily(attacker, prey)) s.family++;
+      if (sharesParent(attacker, prey)) s.sibling++;
+      if (dist <= c.kinDistance) s.kin++;
+      s.dist += dist;
+      if (c.youngTicks > 0 && sim.age[prey]! < c.youngTicks) s.young++;
+      s.victimAge += sim.age[prey]!;
+      s.victimWeak += world.weakness(prey);
+      s.victimFed += world.energy[prey]! / world.threshold[prey]!;
+      s.killerFed += world.energy[attacker]! / world.threshold[attacker]!;
+      s.sizeRatio += sim.size[prey]! / sim.size[attacker]!;
+      s.odds += power / (power + world.defendedBy(prey, attacker));
+      s.herd += world.herdFactor(prey);
+      if (sim.corpseEnergy[world.cellOf[prey]!]! > 0) s.carcass++;
+      s.meatNear += near.meat;
+      s.otherNear += near.other;
+      s.killerTol += c.kinTolerance === 1 ? g(attacker, GENE.tolerance) : NaN;
+      s.victimArmor += g(prey, GENE.armor);
+      s.victimAttack += g(prey, GENE.attack);
+      s.killerAttack += g(attacker, GENE.attack);
+    }
+    realKill(attacker, prey);
+  };
+  return st;
+}
+
+function sampleMeatKills(sim: Simulation): Row {
+  const st = meatKillsOf(sim);
+  const row: Row = {};
+  for (const k of MK_KINDS) {
+    const s = st.w[k]!;
+    row[`mk_${k}_n`] = s.n;
+    for (const key of MK_SUMS) if (key !== "n") row[`mk_${k}_${key}`] = s.n > 0 ? round(s[key] / s.n, 4) : NaN;
+  }
+  st.w = emptyMk();
+  // The baseline, as the world stands now.
+  const world = sim as unknown as KillInternals;
+  const c = sim.config;
+  const base = { meat: { n: 0, herd: 0, defense: 0, tol: 0, armor: 0, attack: 0, meatNear: 0, otherNear: 0 }, other: { n: 0, herd: 0, defense: 0, tol: 0, armor: 0, attack: 0, meatNear: 0, otherNear: 0 } };
+  for (let i = 0; i < sim.count; i++) {
+    const b = sim.diet[i]! > MEAT ? base.meat : base.other;
+    b.n++;
+    // Herd and defense counted directly (between ticks the world's own neighbour index can be out of date).
+    const herd = herdNow(sim, i);
+    b.herd += herd;
+    b.defense += sim.defense[i]! * herd;
+    b.tol += c.kinTolerance === 1 ? sim.genes[i * GENE_COUNT + GENE.tolerance]! : NaN;
+    b.armor += sim.genes[i * GENE_COUNT + GENE.armor]!;
+    b.attack += sim.genes[i * GENE_COUNT + GENE.attack]!;
+    if (b === base.meat) {
+      const near = neighboursInReach(sim, i);
+      b.meatNear += near.meat;
+      b.otherNear += near.other;
+    }
+  }
+  for (const [name, b] of Object.entries(base)) {
+    row[`mk_base_${name}_n`] = b.n;
+    for (const key of ["herd", "defense", "tol", "armor", "attack", "meatNear", "otherNear"] as const) row[`mk_base_${name}_${key}`] = b.n > 0 ? round(b[key] / b.n, 4) : NaN;
+  }
+  return row;
+}
+
+MEASURES.meatKills = {
+  describe:
+    "meat-eater kills (opt-in, watches every kill): kills of a meat eater by a meat eater (mm), of anyone else by a meat eater (mo) and of a meat eater by anyone else (om), with family ties, gene distance, the victim's age, condition, size, herd and odds, a carcass already there and what else was in reach; plus a baseline for meat eaters and others",
+  optIn: true,
+  observe: (sim) => void meatKillsOf(sim),
+  sample: ({ sim }) => sampleMeatKills(sim),
+};

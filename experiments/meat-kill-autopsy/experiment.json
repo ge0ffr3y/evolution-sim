@@ -1,0 +1,20 @@
+{
+  "name": "meat-kill-autopsy",
+  "question": "Why do meat eaters (diet above 0.75) kill each other in the grand world with the gut and prey condition? The same 16 worlds as gut-condition-confirm (same seeds and settings, so the same history), now noting every kill that involves a meat eater: family ties, gene distance and kin restraint, the victim's age, condition, size, herd and the odds of the attack, a carcass already there, and how many meat eaters and other animals were in the killer's reach; plus, each sample, a baseline for meat eaters and everyone else (herd, defense, tolerance, armor, attack, and what share of a meat eater's neighbours are meat eaters).",
+  "base": "grand-world",
+  "ticks": 500000,
+  "seeds": "3201-3216",
+  "sampleEvery": 2500,
+  "arms": {
+    "gut-condition": {
+      "gutMode": 1,
+      "preyCondition": 0.5
+    }
+  },
+  "measures": [
+    "population",
+    "classes",
+    "dietLedger",
+    "meatKills"
+  ]
+}
