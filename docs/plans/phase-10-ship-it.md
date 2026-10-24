@@ -1,4 +1,4 @@
-# Plan: Phase 10, Ship it (proposal, not started)
+# Plan: Phase 10, Ship it (approved 2026-10-24)
 
 **Goal (roadmap):** a polished portfolio piece: a live demo anyone can open, share and embed, a strong README, a findings write-up, the devlog as a series, and a v1.0 release.
 
@@ -81,3 +81,12 @@ Mostly writing and front-end work. The only cloud run is the featured-worlds che
 2. **Your portfolio site.** Where does the demo go: embedded in a page on your site (which site, and what is it built with?), or linked out to the GitHub Pages address? This sets how much the embed mode matters.
 3. **Featured worlds.** Keep the six above, or swap any?
 4. **Order.** Steps 1 to 7 as listed, with a check-in after the front page (step 3) so you can see it before the rest?
+
+## The owner's decisions (2026-10-24)
+
+1. **Name:** keep "Evolution Sim".
+2. **Portfolio site:** GitHub Pages only for now. Embed mode (step 2) is left out, and the roadmap item "Embed on the portfolio site" stays open for later.
+3. **Featured worlds:** the six suggested, with the grand world as the one selected by default.
+4. **Order:** as listed, with a check-in after the front page.
+
+After Phase 10, some work on the user interface.

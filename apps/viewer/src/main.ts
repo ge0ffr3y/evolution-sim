@@ -1,10 +1,11 @@
 import "./style.css";
-import { GENE, GENES, parsePreset, type GeneName, type Preset, type SimEvent, type SpeciesEvent, type SpeciesRecord, type WorldEvent } from "@evo/sim-core";
+import { GENE, GENES, parsePreset, type GeneName, type Preset, type SimConfig, type SimEvent, type SpeciesEvent, type SpeciesRecord, type WorldEvent } from "@evo/sim-core";
 import { drawBrain } from "./brainview";
 import { Charts } from "./charts";
 import { ComplexityChart } from "./complexitychart";
 import { FlowTracker } from "./flows";
 import { HEATMAP_TRAITS, Heatmap } from "./heatmap";
+import { readLink, writeLink } from "./links";
 import type { FrameMessage, FromWorker, InspectedState, ToWorker } from "./protocol";
 import { COLOR_MODES, OVERLAYS, WorldRenderer, legendGradient, type ColorBy, type Overlay } from "./render";
 import { TreeView } from "./treeview";
@@ -20,7 +21,8 @@ const SPEEDS: readonly { label: string; ticksPerSecond: number }[] = [
 ];
 const DEFAULT_SPEED_INDEX = 1;
 const CHART_REFRESH_MS = 250;
-const DEFAULT_PRESET_ID = "default";
+/** The world a visitor sees first (the owner's choice for v1.0): the grand world. */
+const DEFAULT_PRESET_ID = "grand-world";
 
 function el<T extends HTMLElement>(id: string): T {
   const found = document.getElementById(id);
@@ -53,6 +55,8 @@ const speedsBox = el<HTMLDivElement>("speeds");
 const seedForm = el<HTMLFormElement>("seed-form");
 const seedInput = el<HTMLInputElement>("seed");
 const randomButton = el<HTMLButtonElement>("random-seed");
+const copyLinkButton = el<HTMLButtonElement>("copy-link");
+const linkSettings = el<HTMLParagraphElement>("link-settings");
 const presetSelect = el<HTMLSelectElement>("preset");
 const presetDescription = el<HTMLParagraphElement>("preset-description");
 const colorSelect = el<HTMLSelectElement>("color-by");
@@ -83,6 +87,8 @@ let running = true;
 let currentResetId = -1;
 let currentSeed = DEFAULT_SEED;
 let currentPreset = findPreset(null);
+/** Settings changed by a shared link, on top of the preset (empty for an ordinary preset). */
+let currentSettings: Partial<SimConfig> = {};
 let latestFrame: FrameMessage | null = null;
 let frameDirty = false;
 let chartsDirty = false;
@@ -91,30 +97,24 @@ let speedIndex = DEFAULT_SPEED_INDEX;
 let lastRateTick = 0;
 let lastRateTime = performance.now();
 
-// --- Seed and preset (kept in the address bar so a run can be shared) ---
-function readSeedFromUrl(): number {
-  const raw = new URLSearchParams(window.location.search).get("seed");
-  const value = raw === null ? NaN : Number(raw);
-  return Number.isInteger(value) && value >= 0 ? value : DEFAULT_SEED;
-}
-
-function restart(seed: number, preset: PresetEntry): void {
+// --- Seed, preset and changed settings (kept in the address bar so a run can be shared exactly) ---
+function restart(seed: number, preset: PresetEntry, settings: Partial<SimConfig> = {}): void {
   currentSeed = seed;
   currentPreset = preset;
+  currentSettings = settings;
   seedInput.value = String(seed);
   presetSelect.value = preset.id;
   presetDescription.textContent = preset.preset.description;
+  const changed = Object.entries(settings);
+  linkSettings.hidden = changed.length === 0;
+  linkSettings.textContent = changed.length ? `Changed by this link: ${changed.map(([name, value]) => `${name} ${value}`).join(", ")}.` : "";
 
-  const url = new URL(window.location.href);
-  url.searchParams.set("seed", String(seed));
-  if (preset.id === DEFAULT_PRESET_ID) url.searchParams.delete("preset");
-  else url.searchParams.set("preset", preset.id);
-  window.history.replaceState(null, "", url);
+  window.history.replaceState(null, "", writeLink(new URL(window.location.href), seed, preset.id, settings));
 
   clearHistory();
   lastRateTick = 0;
   lastRateTime = performance.now();
-  send({ type: "reset", seed, config: preset.preset.config });
+  send({ type: "reset", seed, config: { ...preset.preset.config, ...settings } });
   send({ type: running ? "play" : "pause" });
 }
 
@@ -164,13 +164,24 @@ seedForm.addEventListener("submit", (event) => {
     return;
   }
   showNotice(null);
-  restart(value, currentPreset);
+  restart(value, currentPreset, currentSettings);
 });
 
 randomButton.addEventListener("click", () => {
   // Choosing a starting seed is a UI action, so ordinary randomness is fine here.
   // The simulation itself only ever uses the seeded generator.
-  restart(Math.floor(Math.random() * 1_000_000), currentPreset);
+  restart(Math.floor(Math.random() * 1_000_000), currentPreset, currentSettings);
+});
+
+copyLinkButton.addEventListener("click", () => {
+  // The address already holds the seed, the world and any changed settings.
+  const link = window.location.href;
+  const done = (text: string): void => {
+    copyLinkButton.textContent = text;
+    window.setTimeout(() => (copyLinkButton.textContent = "Copy link"), 1500);
+  };
+  if (navigator.clipboard) navigator.clipboard.writeText(link).then(() => done("Copied"), () => window.prompt("Copy this link:", link));
+  else window.prompt("Copy this link:", link);
 });
 
 for (const { id, preset } of presets) {
@@ -715,5 +726,10 @@ renderTabs();
 renderLegend();
 renderInspector(null);
 send({ type: "speed", ticksPerSecond: SPEEDS[DEFAULT_SPEED_INDEX]!.ticksPerSecond });
-restart(readSeedFromUrl(), findPreset(new URLSearchParams(window.location.search).get("preset")));
+{
+  // Start from the address: seed, world and any settings a shared link changes.
+  const link = readLink(window.location.search, (id) => findPreset(id).preset.config);
+  if (link.problem) showNotice(`This link's changed settings could not be used (${link.problem}), so the world starts as the preset.`);
+  restart(link.seed ?? DEFAULT_SEED, findPreset(link.presetId), link.settings);
+}
 requestAnimationFrame(paint);

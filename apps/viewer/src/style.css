@@ -527,3 +527,134 @@ label {
 .chart-head select {
   max-width: 100%;
 }
+
+/* --- Front page (index.html) --- */
+.home {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 28px 16px 48px;
+}
+
+.home h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin: 32px 0 6px;
+}
+
+.home-hero h1 {
+  margin: 0 0 8px;
+  font-size: 2rem;
+  letter-spacing: 0.02em;
+}
+
+.home-pitch {
+  font-size: 1.1rem;
+  max-width: 46em;
+  margin: 0;
+}
+
+.home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 18px 0 0;
+}
+
+a.button {
+  display: inline-block;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  text-decoration: none;
+}
+
+a.button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #06121b;
+  font-weight: 600;
+}
+
+a.button:hover {
+  border-color: var(--accent);
+}
+
+.home-figure {
+  margin: 24px 0 0;
+}
+
+.home-figure img {
+  display: block;
+  width: 100%;
+  max-width: 512px;
+  height: auto;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.home-figure figcaption {
+  color: var(--muted);
+  font-size: 0.9rem;
+  max-width: 512px;
+  margin-top: 6px;
+}
+
+.featured {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.featured-card {
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.featured-card:hover {
+  border-color: var(--accent);
+}
+
+.featured-first {
+  border-color: var(--accent);
+}
+
+.featured-card h3 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+}
+
+.featured-card p {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 0.92rem;
+  flex: 1;
+}
+
+.featured-go {
+  color: var(--accent);
+  font-size: 0.92rem;
+}
+
+.home-how ul,
+.home-more ul {
+  padding-left: 20px;
+  margin: 6px 0 0;
+}
+
+.home-how li,
+.home-more li {
+  margin: 4px 0;
+}
+
+.home a:not(.button):not(.featured-card) {
+  color: var(--accent);
+}
