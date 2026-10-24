@@ -741,3 +741,226 @@ Evolution drops the gene: from 0.60 to 0.07 in 8h. And the fat gene counted towa
 - **The package pushes the whole population toward meat** (twice the mixed eaters, six times the animals eating mostly meat) but at a clear cost to the prey world (a quarter fewer animals, a third fewer species), and still no lasting meat-eating group.
 - **Over a million ticks the eye split fades** (correlation 0.10, against 0.24 at 300,000 ticks): eyes narrow for everyone, and pickiness rises evenly in all diets.
 - **So the package is not worth adopting as it is.** What it shows is that more hunting alone does not make a separate meat-eating group: the hunting is done by an ever larger crowd of mixed eaters.
+
+## 12. Predator life: a gut, rest and prey condition
+
+**Built** (all off by default; `predatorlife.test.ts`):
+- **The gut** (`gutMode`). Food goes into a stomach and becomes energy over time: `gutDigestRate` x metabolism x body size a tick.
+  - Eating speed is set by body size (no longer by metabolism); metabolism sets digestion speed.
+  - Plants are bulky, meat is dense. A full stomach eats nothing.
+  - Energy in the stomach counts in the books and goes into the carcass if the animal dies.
+  - Brains sense how full they are (a new input; brain goldens re-recorded).
+- **Rest** (`restSaving`): on a tick it eats nothing, the slower an animal goes, the less its basic upkeep.
+- **Prey condition** (`preyCondition`): defense falls with the worst of hunger, sickness, age past prime and youth.
+- **The diet ledger now records how animals die:** ran out of energy, killed by a meat eater, or killed by anyone else, plus how fed they were and how old.
+
+**Two bugs found on the way:**
+- A tiny energy leak with the gut: a rounding mismatch between claiming food and eating it. Fixed, and the books balance exactly.
+- A changed order of additions altered brains-off fingerprints. Fixed: worlds without the gut are bit-for-bit as before.
+
+**Experiment:** `predator-life`, 300,000 ticks, 8 fresh seeds (2901 to 2908), on the reworked grand world, 48 cores, about $1.
+
+**Rest never happened in this run.** As first built, it needed a pace below 0.2, a cliff no brain ever reached (none of 4 million animal-ticks), so "gut + rest" equals "gut", and "all three" is really the gut with prey condition. Rest has since been made graded (slowing a little saves a little) and needs a new run.
+
+| | Meat eaters (8 worlds, second half) | Biggest short-lived group | Diet above 0.5 | Mixed eaters | Meat in the diet | Kills | Metabolism | Population | Species |
+|---|---|---|---|---|---|---|---|---|---|
+| Grand world | 0 to 2 | 34 | 0.3% | 105 | 15% | 2,519 | 0.98 | 1,291 | 8.4 |
+| Gut | 0 to 5 | **657** | **2.6%*** | **407*** | **21%*** | **+42%*** | **0.58** | **-20%*** | **-36%*** |
+| Prey condition | 0 to 3 | 96 | 0.6% | 147 | 17%* | +28%* | | -21%* | -16% |
+| Gut + prey condition | **0 to 62; one world holds a group** | 149 | **3.9%*** | **377*** | **23%*** | **+48%*** | 0.60 | -20%* | -15% |
+| The same + unmuted prey sight and a pull toward prey | 0 to 10 | 81 | **7.2%*** | **575*** | **23%*** | **+49%*** | | -19%* | -10% |
+
+(* holds up, 8 seeds)
+
+**How meat eaters (diet above 0.75) die** (per animal per 1,000 ticks, second half):
+
+| | Deaths | Ran out of energy | Killed by a meat eater | Killed by anyone else | Fed at death |
+|---|---|---|---|---|---|
+| Grand world | 3.9 | 0.8 | 1.4 | 1.7 | 0.5 |
+| Gut | 3.5 | 0.8 | 0.9 | 1.8 | 0.4 |
+| Gut + prey condition | 2.3 | 0.4 | **1.5** | 0.3 | 0.5 |
+| The same + hunting helps | 2.9 | 0.5 | 1.1 | 1.3 | 0.4 |
+
+- **The gut is the strongest lever on meat eating so far.** Animals eating mostly meat rise nine- to twenty-fivefold, short-lived meat-eating groups reach 657 animals, and with prey condition one world in 8 keeps a meat-eating group through the second half (about 62 animals), the first in the grand world itself.
+- **Evolution answers the gut as expected:** metabolism falls from about 1.0 to 0.6, so slower, cheaper bodies digest at leisure.
+- **Meat eaters mostly do not starve. They are killed,** often by other meat eaters. Starvation is 15 to 25% of their deaths, they die about half fed, and where a group lasts two thirds of its deaths are kills by other meat eaters. Today nothing makes an armed animal dangerous to attack: defense counts armor and size, not the prey's own weapons.
+- **The cost:** about a fifth fewer animals everywhere, and with the gut alone a third fewer species.
+
+### 12b. The gut with prey condition, again; rest and fighting back
+
+**Built:** `fightBack` (off by default; test in `predatorlife.test.ts`): an animal's own attack power, times fightBack, adds to its defense, so armed animals are risky to attack. Rest was made graded (12).
+
+**Experiment:** `predator-life-2`, 300,000 ticks, 8 fresh seeds (3001 to 3008), 48 cores, about $1.
+
+| | Worlds with a lasting meat-eating group | Meat eaters in those worlds | Diet above 0.5 | Metabolism | Population | Species |
+|---|---|---|---|---|---|---|
+| Grand world | 0 of 8 | | 0.2% | 0.96 | 1,269 | 7.6 |
+| Gut + prey condition | **2 of 8** | 96, 31 | 4.0% | 0.62 | -20% | -8% |
+| + rest | **3 of 8** | 43, 36, 21 | 5.9% | 0.60 | -19% | -19% |
+| + fighting back | **2 of 8** | 134, 31 (14 in a third) | 6.7% | 0.62 | **-31%*** | -25% |
+| + rest + fighting back | 0 of 8 | | 4.3% | 0.61 | **-28%*** | -24% |
+
+(A lasting group: 10 or more meat eaters, diet above 0.75, for most of the second half. * holds up.)
+
+**How meat eaters die** (per animal per 1,000 ticks, second half):
+
+| | Deaths | Ran out of energy | Killed by a meat eater | Killed by anyone else |
+|---|---|---|---|---|
+| Gut + prey condition | 2.4 | 0.7 | **1.6** | 0.2 |
+| + rest | 3.0 | 0.4 | **2.0** | 0.6 |
+| + fighting back | 2.8 | 0.5 | **2.2** | 0.1 |
+| + rest + fighting back | 3.4 | 0.5 | **1.6** | 1.2 |
+
+- **The gut with prey condition reliably grows lasting meat eaters in some grand worlds:** 1 of 8 in 12, 2 of 8 here, with up to about 100 animals. The classic and reworked grand worlds never did. It costs about a fifth of the animals, and species less than the gut alone (-8% against -36%).
+- **Rest and fighting back make no clear difference.** 3, 2 and 0 of 8 are within luck for 8 worlds. Whether rest is used at all is not yet measured separately (its savings are counted with torpor's).
+- **Meat eaters' main cause of death is still other meat eaters,** about two thirds of their deaths, and fighting back does not change that: when both sides are armed, their weapons cancel out. Starvation is a fifth or less.
+
+### 12c. Hunters choosing the easiest prey
+
+**Built:** `preyChoice` (off by default; tests in `predatorlife.test.ts`). With 1, a hunter goes for the prey in reach with the weakest defense it can judge (armor and size, weapons with `fightBack`, condition with `preyCondition`, vigilance; not herds), not the nearest.
+
+**Experiment:** `prey-choice`, 300,000 ticks, 8 fresh seeds (3101 to 3108), 48 cores, about $1.
+
+| | Worlds with a lasting meat-eating group | Meat eaters in those worlds | Diet above 0.5 | Population | Species |
+|---|---|---|---|---|---|
+| Grand world | 0 of 8 | | 0.1% | 1,191 | 7.3 |
+| Gut + prey condition | **4 of 8** | 125, 112, 83, 50 | 7.3% | -13% | -4% |
+| + easiest-prey choice | 1 of 8 | 34 | 3.0% | -7% | -10% |
+| + fighting back | **4 of 8** | 105, 85, 68, 47 | 9.0% | -20% | -6% |
+| + both | 1 of 8 | 122 | 5.5% | **-26%*** | -11% |
+
+(* holds up, 8 seeds)
+
+- **Choosing the easiest prey makes meat eating rarer, not commoner** (1 of 8 worlds instead of 4). It does not stop meat eaters killing each other (still most of their deaths, 1.6 to 2.1 per animal per 1,000 ticks).
+- **The gut with prey condition is the setup that works:** across three screens it kept a lasting meat-eating group in 7 of 24 grand worlds (1, 2 and 4 of 8), against none in 24 for the grand world as it is. Here its cost was small (population -13% and species -4%, neither holding up).
+- **Fighting back adds nothing clear.**
+
+### 12d. Confirmation: the gut with prey condition, 16 fresh seeds, 500,000 ticks
+
+**Experiment:** `gut-condition-confirm`, the grand world against the grand world with `gutMode` 1 and `preyCondition` 0.5, seeds 3201 to 3216, 500,000 ticks, 32 cores, about $1.
+
+**The screens over-stated it.** A lasting meat-eating group (10 or more meat eaters in at least half the samples of the second half) formed in **1 of 16** worlds (seed 3216: about 85 meat eaters from 250,000 ticks to the end, 97 at the end). Judged at 300,000 ticks as in the screens it is also 1 of 16. All four experiments together: 8 of 40 worlds, about one in five, and the 8-seed screens were the lucky side of that.
+
+Meat eaters do arise often. In 7 of 16 worlds a group reached 50 or more, sometimes 150 to 300, and in 9 worlds 10 or more were still around after 400,000 ticks. But the groups come and go instead of holding. In the grand world as it is, no group ever passed 41.
+
+| | Grand world | With gut + prey condition |
+|---|---|---|
+| Worlds with a lasting meat-eating group | 0 of 16 | 1 of 16 |
+| Average diet gene | 0.13 | 0.25* |
+| Feeding levels | 1.98 | 2.13* (+8%) |
+| Mixed eaters (diet 0.25 to 0.5) | 114 | 389 |
+| Deaths by starving | 25% | 9%* |
+| Population | 1,193 | -19%* |
+| Species | 9.3 | **-35%*** (the gap widens over time: 8.2 against 9.3 in the first 50,000 ticks, 6.0 against 9.5 in the last) |
+| Species diversity | 1.78 | -23%* |
+| Average age | 645 | -42%* |
+| Kills | 2,458 per 1,000 ticks | +49%* |
+
+(* holds up, 16 seeds)
+
+How meat eaters die, per animal per 1,000 ticks over the second half: 2.9 deaths, of which **2.0 are killed by other meat eaters**, 0.3 by other animals, and 0.6 run out of energy. Starving is still not the problem; other meat eaters are.
+
+**Verdict:** the gut with prey condition is not a grand-world answer as it stands. It moves the whole world toward mixed eating, with a real extra half feeding level and much less starving. But it costs a third of the species and still rarely holds a meat-eating group. The barrier that remains is meat eaters killing each other.
+
+### 13. Why meat eaters kill each other (kill autopsy)
+
+**Built:** the `meatKills` measure (opt-in, watches every kill, changes nothing; tests in `exp.test.ts`). It notes every kill that involves a meat eater (diet above 0.75), with family ties, gene distance, the victim's age, condition, size, herd and the odds of the attack, whether a carcass was already there, and what else was in the killer's reach. Each sample also notes a baseline for meat eaters and everyone else.
+
+**Experiment:** `meat-kill-autopsy`, the 16 worlds of `gut-condition-confirm` played again (same seeds and settings, the same history: all 16 ended with the same fingerprint), 16 cores, about $0.50. Over the whole run: 136,981 kills of a meat eater by a meat eater, 1,016,936 of other animals by meat eaters, and 25,489 of meat eaters by others.
+
+| | Meat eater kills a meat eater | Meat eater kills another animal |
+|---|---|---|
+| Victim's size compared with the killer | 0.98 (an equal) | 0.19 (a fifth) |
+| Odds of the attack | 0.59 | 0.79 |
+| Meat eaters / other prey in the killer's reach at the time | 1.46 / 0.10 | 0.18 / 1.26 |
+| Victim a sibling or half-sibling | 18% | 0.2% |
+| Victim close enough to count as a relative (within `kinDistance`) | 31% | 0.2% |
+| Gene distance | 0.09 | 0.39 |
+| Victim under 100 ticks old | 40% | 46% |
+| Victim's armor gene | 0.28 | 0.75 |
+| A carcass already on the spot | 5% | 4% |
+
+Meat eaters' killers are other meat eaters five times out of six (137,000 against 25,000).
+
+What it shows:
+- **Meat eaters live among their own kind.** In a typical sample, 59% of the animals in a meat eater's reach that are small enough to attack are other meat eaters. Babies are born on the parent's spot and the line stays together, so a meat eater's neighbours are mostly its own lineage.
+- **A meat eater kills another meat eater when no other prey is in reach.** At those kills there were 1.5 meat eaters and 0.1 other animals in reach. Hunters attack the nearest animal they can, and the nearest is often a cousin.
+- **Kin restraint barely works for them.** Meat eaters' tolerance gene averages 0.30, against 0.56 in other animals. Even at full tolerance the rule spares only animals within 0.05 in gene distance, which covers a third of these victims. There is no family recognition beyond parent and young (`spareFamily`).
+- **Attacking an equal costs nothing extra.** The fights are between equals at 59% odds. A failed attack costs the same small fixed amount whether the target is a fifth of the attacker's size or its armed sibling, and nobody is ever hurt. Real predators avoid fighting each other mainly because of injury.
+- **Not the causes:** fights over carcasses (5%), herds (herd factor about 1.04 for everyone), weak or young victims (about the same as other victims), hunger (killers are about 60% fed in both cases).
+
+The one world that kept a meat-eating group (3216) looks the same in every column. Its meat eaters simply kill far more other prey (478,000 against 72,000).
+
+**Candidate levers** (none built yet):
+1. **Injury:** a failed attack hurts the attacker in proportion to the victim's weapons, so attacking an armed equal is dangerous and a small plant eater is not.
+2. **Young that move away:** babies leave the parent's spot, so a lineage spreads out instead of living in a clump where cousins are each other's nearest prey.
+
+### 13b. Injury and young that move away
+
+**Built** (both off by default; tests in `predatorlife.test.ts`):
+- `attackInjury`: a failed attack costs the attacker attackInjury × its breeding energy × the prey's share of the two animals' attack power, paid as fighting.
+- `natalDispersal`: a newborn starts this far from its parent, along the heading it is born with.
+
+**Experiment:** `injury-dispersal`. The grand world, and the grand world with the gut and prey condition alone, with injury 0.2, with young moving 12 units away (about one and a half food cells), and with both. Seeds 3301 to 3308, 300,000 ticks, with the diet ledger and the kill autopsy, 48 cores, about $0.85.
+
+| | Worlds with a lasting meat-eating group | Groups of 10+ at the end | Diet above 0.5 | Feeding levels | Population | Species | Sick |
+|---|---|---|---|---|---|---|---|
+| Grand world | 0 of 8 | 0 | 0.1% | 1.99 | 1,277 | 7.9 | 22% |
+| Gut + prey condition | 0 of 8 | 0 | 3.9% | +4%* | -25%* | -24% | +20% |
+| + injury | 1 of 8 | 1 | 4.3% | +7% | -28%* | -25% | +4% |
+| + young move away | **2 of 8** | **3** | **7.4%** | **+17%*** (2.33) | -27%* | -11% | **-59%*** |
+| + both | 0 of 8 | 0 | 5.4% | +5% | -26%* | +3% | **-83%*** |
+
+(* holds up, 8 seeds)
+
+- **Neither stops meat eaters killing meat eaters.** They still die mostly at the hands of other meat eaters (2.2 to 2.3 per animal per 1,000 ticks with either setting alone).
+- **Meat eaters stay in clumps even when their young move away.** About 50 to 63% of the animals in a meat eater's reach are other meat eaters in every setup. A 12-unit start is small next to how far an animal travels in its life, so the clumping comes from behaviour (meat eaters drawn to the same places), not from birth alone.
+- **Injury backfires in a quiet way.** Meat eaters under injury evolve less armor (0.15 against 0.49) and more attack. The fights between meat eaters that still happen are ones the attacker usually wins (odds 0.73 against 0.51).
+- **Young that move away is the most promising**, though not proven on 8 seeds (2 of 8 against 0 of 8 is within chance). It has the most meat eating, the most worlds with a group at the end, feeding levels up 17% (holds up), and a smaller species cost. It also cuts disease by more than half, because families no longer sit on top of each other.
+- **The gut with prey condition held no group in these 8 worlds.** Across all screens it is now 8 of 48.
+
+### 13c. Confirmation: young that move away, 16 fresh seeds, 500,000 ticks
+
+**Experiment:** `dispersal-confirm`. The grand world; the grand world with the gut, prey condition and young moving 12 units away; and the grand world with young moving away alone. Seeds 3401 to 3416, 500,000 ticks, with the diet ledger and the kill autopsy, 48 cores, about $1.75.
+
+**No.** A lasting meat-eating group formed in **0 of 16** worlds in every setup. One world with the gut, prey condition and young moving away had a group of 104 at the very end, which had grown late. The grand world itself had one of 69 at the end of one world.
+
+| | Grand world | Gut + prey condition + young move away | Young move away alone |
+|---|---|---|---|
+| Worlds with a lasting meat-eating group | 0 of 16 | 0 of 16 | 0 of 16 |
+| Diet above 0.5 | 0.3% | 4.1% | 0.5% |
+| Feeding levels | 1.98 | +5%* | +2% |
+| Population | 1,130 | -23%* | -3% |
+| Species | 9.3 | **-31%*** | -9% |
+| Species diversity | 1.76 | -21%* | -6% |
+| Sick | 20% | **-49%*** | -6% |
+
+(* holds up, 16 seeds)
+
+- **The 8-seed screen over-stated it again.** The 2 of 8 there was chance, and the feeding-level gain shrinks from +17% to +5%.
+- **Young moving away on their own change nothing measurable in the grand world.** Disease falls only alongside the gut (fewer animals, spread out).
+- **Meat eaters still live among their own kind:** 59 to 64% of the animals in a meat eater's reach are meat eaters in every setup. Young moving away cut siblings among their victims (25% to 8%), but not the clumping.
+- **Across all the predator-life work:**
+  - On 16 fresh seeds over 500,000 ticks, the gut with prey condition kept a group in 1 of 16 worlds, and with young moving away in 0 of 16. Both cost about a third of the species.
+  - The 8-seed screens at 300,000 ticks found 8 of 48 between them.
+
+  What the gut does reliably is turn the grand world toward mixed eating (diet gene about double, much less starving). It does not make meat specialists last.
+
+### 13d. Is small prey the barrier? No (existing data, no new run)
+
+The kill autopsy raised a question. Grand-world plant eaters evolve toward the smallest size (two-thirds of animals sit at the bottom of the size range), so is each kill worth too little? The saved results of earlier experiments say no:
+
+| World | Average body size (second half) | Share at the smallest size | Meat eaters |
+|---|---|---|---|
+| Grand world (16 seeds, 3 experiments) | 0.51 to 0.52 | 72 to 76% | 0 |
+| Grand world with the gut | 0.81 to 0.84 | 50 to 53% | 3 to 7 |
+| Classic grand world | 0.37 | 93% | 0 |
+| Grand world: hunters (lasting meat eaters in 13 of 16) | **0.46** | **83%** | **88** |
+| Simple world (meat eaters in every world) | 0.59 to 0.63 | 70 to 74% | about 100 |
+
+- **Meat eaters last in worlds whose animals are as small or smaller.** The gut made grand-world animals bigger by about 60%, yet meat eaters still did not last.
+- **A kill's worth scales with the victim's size relative to the hunter.** A body holds 4 × size of energy, and a meat eater needs 30 × its own size to breed. That exchange rate is the same in every world. Richer bodies were tested already (finding 8, `kill-payoff`): a richer body is carved out of the newborn's starting energy, so a carcass holds about the same.
+- **The diet ledger points at prey supply and running costs, not prey size** (`meat-margin`, classic grand world against the hunters world, with arriving meat eaters).
+  - Meat eaters there earn about the same from meat (7.8 against 7.2 breedings' worth per 1,000 ticks) but pay 57% more to stay alive.
+  - Plant eaters breed at about half the rate (2.6 against 4.7 births per animal per 1,000 ticks), so the same number of plant eaters feeds fewer hunters.
+- **Why plant eaters stay small:** size raises the energy needed to breed in proportion (30 × size) and upkeep (size to the 0.75), while bites grow only about as fast as upkeep. Size mostly buys defense. That is the same in every world, and only the gut (eating speed set by size) pushes animals bigger.

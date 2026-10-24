@@ -767,6 +767,17 @@ export class Simulation {
   private readonly eyeHalf: Float32Array;
   private readonly eyeReach: Float32Array;
   private visEyeHalf = 0;
+  /** The gut (gutMode): how much food is in each stomach (in matter, for fullness) and the energy it still holds. */
+  private readonly gutOn: boolean;
+  readonly gutMass: Float64Array;
+  readonly gutEnergy: Float64Array;
+  /** Scratch: how much of what it wants to eat this tick fits in its stomach (0 to 1). */
+  private readonly gutScale: Float64Array; // (full precision, so the claim and the meal agree exactly)
+  /** Rest (restSaving): on, and (scratch, this tick) how much of the full rest saving each animal had (0 to 1). */
+  private readonly restOn: boolean;
+  private readonly rested: Float32Array;
+  /** With attackInjury: what a failed attack cost the attacker this tick (scratch: charged with fighting in pass 2, cleared in pass 1). */
+  private readonly hurt: Float64Array;
   /** Mate scent (mateScent): laid by animals looking for a mate, in a plant-eater and a meat-eater layer. */
   private readonly mateScentOn: boolean;
   readonly matePlantScent: Float64Array;
@@ -871,6 +882,8 @@ export class Simulation {
   private pickAttacker = 0;
   private pickBest = -1;
   private pickBestDistSq = Infinity;
+  /** With preyChoice 1: the weakest defense found so far among the prey in reach. */
+  private pickBestDefense = Infinity;
   private pickSizeLimit = 0;
   private readonly considerPrey = (index: number, distSq: number): void => {
     if (index === this.pickAttacker || this.killed[index] === 1 || (this.colonyInfoOn && this.config.colonyProtect === 1 ? this.colonyMass[index]! : this.size[index]!) > this.pickSizeLimit) return;
@@ -889,11 +902,31 @@ export class Simulation {
       }
     }
     if (limitSq > 0 && this.geneDistanceSq(this.pickAttacker, index) <= limitSq) return;
+    if (this.config.preyChoice === 1) {
+      // The easiest prey in reach: the weakest defense as the hunter can judge it, nearest first on a tie.
+      const d = this.judgedDefense(index, this.pickAttacker);
+      if (d < this.pickBestDefense || (d === this.pickBestDefense && (distSq < this.pickBestDistSq || (distSq === this.pickBestDistSq && index < this.pickBest)))) {
+        this.pickBest = index;
+        this.pickBestDistSq = distSq;
+        this.pickBestDefense = d;
+      }
+      return;
+    }
     if (distSq < this.pickBestDistSq || (distSq === this.pickBestDistSq && index < this.pickBest)) {
       this.pickBest = index;
       this.pickBestDistSq = distSq;
     }
   };
+
+  /** A prey's defense as a hunter can judge it before attacking (everything in defendedBy except herds). */
+  private judgedDefense(prey: number, attacker: number): number {
+    const c = this.config;
+    let defense = this.defense[prey]!;
+    if (c.fightBack > 0) defense += c.fightBack * this.attackPower[prey]!;
+    if (c.preyCondition > 0) defense *= 1 - c.preyCondition * this.weakness(prey);
+    if (c.vigilance > 0 && c.brainMode > 0 && this.seesComing(prey, attacker)) defense *= 1 + c.vigilance;
+    return defense;
+  }
 
   /** Fat as breeding capital: if energy and fat together reach `level`, move the shortfall out of fat (no loss). Returns the energy. */
   private mobilizeFat(i: number, level: number): number {
@@ -904,6 +937,54 @@ export class Simulation {
     this.fatStore[i] = store - moved;
     this.energy[i] = level;
     return level;
+  }
+
+  /**
+   * The gut: what was just eaten (mass and energy) goes into the stomach, and the stomach turns some of what it
+   * holds into energy: gutDigestRate x metabolism x body size a tick at most. Returns the energy released.
+   */
+  private digest(i: number, mass: number, energy: number): number {
+    let held = this.gutEnergy[i]! + energy;
+    let fill = this.gutMass[i]! + mass;
+    const rate = this.config.gutDigestRate * this.metabolism[i]! * this.size[i]!;
+    const released = held < rate ? held : rate;
+    // The food leaves the stomach in step with its energy (meat is dense, so a little meat lasts a long time).
+    fill = held > 0 ? fill * (1 - released / held) : 0;
+    held -= released;
+    this.gutEnergy[i] = held;
+    this.gutMass[i] = held > 0 ? fill : 0;
+    return released;
+  }
+
+  /** The energy left in a stomach, taken out (for the carcass when an animal dies). */
+  private takeGut(i: number): number {
+    if (!this.gutOn) return 0;
+    const held = this.gutEnergy[i]!;
+    this.gutEnergy[i] = 0;
+    this.gutMass[i] = 0;
+    return held;
+  }
+
+  /** How weak an animal is, 0 to 1 (prey condition): the worst of hunger, sickness, age past its prime and youth. */
+  private weakness(i: number): number {
+    const c = this.config;
+    const fed = this.energy[i]! / this.threshold[i]!;
+    let weak = fed >= 1 ? 0 : fed <= 0 ? 1 : 1 - fed;
+    if (this.diseaseOn && this.sickFor[i]! > 0) weak = 1;
+    const age = this.age[i]!;
+    if (this.agingOn) {
+      const lifespan = this.lifespan[i]!;
+      const prime = lifespan * c.agingPrimeFraction;
+      if (age > prime) {
+        const old = Math.min(1, (age - prime) / (lifespan - prime));
+        if (old > weak) weak = old;
+      }
+    }
+    if (c.youngTicks > 0 && age < c.youngTicks) {
+      const young = 1 - age / c.youngTicks;
+      if (young > weak) weak = young;
+    }
+    return weak;
   }
 
   /** Can `viewer` see `other` right now: inside its field of view and sight range, and not hidden by camouflage? (Vigilance.) */
@@ -1095,6 +1176,13 @@ export class Simulation {
     this.staminaOn = c.brainMode > 0 && c.sprintFatigue === 1;
     this.thermalOn = c.climateMode === 1 && c.thermalCostCoeff > 0;
     this.thermalPref = new Float32Array(this.thermalOn ? n : 0);
+    this.gutOn = c.gutMode === 1;
+    this.gutMass = new Float64Array(this.gutOn ? n : 0);
+    this.gutEnergy = new Float64Array(this.gutOn ? n : 0);
+    this.gutScale = new Float64Array(this.gutOn ? n : 0);
+    this.restOn = c.restSaving > 0 && c.brainMode > 0;
+    this.rested = new Float32Array(this.restOn ? n : 0);
+    this.hurt = new Float64Array(c.attackInjury > 0 ? n : 0);
     this.eyeOn = c.eyeMode === 1 && c.brainMode > 0;
     this.eyeHalf = new Float32Array(this.eyeOn ? n : 0);
     this.eyeReach = new Float32Array(this.eyeOn ? n : 0);
@@ -1294,6 +1382,7 @@ export class Simulation {
     this.float64Fields = [this.energy, this.plantTaken, this.meatTaken];
     if (this.fatOn) this.float64Fields.push(this.fatStore);
     if (this.nutrientOn) this.float64Fields.push(this.nutrientStore);
+    if (this.gutOn) this.float64Fields.push(this.gutMass, this.gutEnergy);
     if (this.drinkOn) this.float32Fields.push(this.hydration);
     if (this.signalOn) this.float32Fields.push(this.sharedThreatX, this.sharedThreatY, this.sharedThreatNear, this.sharedFoodX, this.sharedFoodY, this.sharedFoodNear);
     this.uint32Fields = [this.id, this.parentId, this.age, this.kills];
@@ -1554,7 +1643,7 @@ export class Simulation {
   private killToCorpse(i: number): void {
     const cs = this.config.foodCellSize;
     const cell = Math.floor(this.y[i]! / cs) * this.gridWidth + Math.floor(this.x[i]! / cs);
-    this.corpseEnergy[cell] = this.corpseEnergy[cell]! + this.bodyEnergy[i]! + this.energy[i]! + (this.fatOn ? this.fatStore[i]! : 0);
+    this.corpseEnergy[cell] = this.corpseEnergy[cell]! + this.bodyEnergy[i]! + this.energy[i]! + (this.fatOn ? this.fatStore[i]! : 0) + this.takeGut(i);
     const matter = this.bodyMatter[i]! + this.takeStore(i);
     if (this.toxOn) this.foldToxin(cell, this.corpseMatter[cell]!, matter, this.genes[i * GENE_COUNT + GENE.toxicity]!);
     this.corpseMatter[cell] = this.corpseMatter[cell]! + matter;
@@ -2316,6 +2405,10 @@ export class Simulation {
     if (this.sexOn) this.parent2Id[i] = 0;
     if (this.sexGeneOn) this.sexMode[i] = 0;
     if (this.fatOn) this.fatStore[i] = 0;
+    if (this.gutOn) {
+      this.gutMass[i] = 0;
+      this.gutEnergy[i] = 0;
+    }
     if (this.nutrientOn) this.nutrientStore[i] = 0;
     if (this.drinkOn) this.hydration[i] = 1; // born with a full drink
     if (this.signalOn) {
@@ -2511,7 +2604,8 @@ export class Simulation {
     // Eating. The diet gene splits appetite between plants (diet 0) and meat (diet 1),
     // and a specialist digests its own food better than a generalist does.
     const eatingSize = (1 - c.biteSizeBlend) * sizeToThreeQuarters + c.biteSizeBlend * size;
-    const bite = c.biteRate * metabolism * eatingSize * biteFactor;
+    // (With the gut, how fast it eats is set by its size; metabolism sets how fast it digests instead.)
+    const bite = c.biteRate * (this.gutOn ? c.gutBite : metabolism) * eatingSize * biteFactor;
     // Claim on scarce food: bite (strength 0), bite squared (1) or bite cubed (2),
     // blending smoothly in between.
     const k = c.contestStrength;
@@ -2933,7 +3027,9 @@ export class Simulation {
 
   /** How much this cell can resist an attack: its own defense (and herd, if on), plus a share of its bonded neighbors' defense. */
   private defendedBy(prey: number, attacker = -1): number {
-    let defense = this.defense[prey]! * this.herdFactor(prey);
+    // (Fighting back: its own weapons count too. Kept in the old form when off, so older worlds stay the same.)
+    let defense = this.config.fightBack > 0 ? (this.defense[prey]! + this.config.fightBack * this.attackPower[prey]!) * this.herdFactor(prey) : this.defense[prey]! * this.herdFactor(prey);
+    if (this.config.preyCondition > 0) defense *= 1 - this.config.preyCondition * this.weakness(prey);
     // Vigilance: prey that see the attack coming are harder to catch.
     if (attacker >= 0 && this.config.vigilance > 0 && this.config.brainMode > 0 && this.seesComing(prey, attacker)) defense *= 1 + this.config.vigilance;
     const hungerDefense = this.config.preyHungerDefense;
@@ -3286,6 +3382,7 @@ export class Simulation {
       const north = ((cy + gh - 1) % gh) * gw + cx;
       if (this.nutrientOn) inputs[INPUT.nutrientStore] = Math.min(1, this.nutrientStore[i]! / (c.nutrientStoreCap * this.bodyMatter[i]!)) * 2 - 1;
       if (this.fatOn) inputs[INPUT.fatReserve] = Math.min(1, this.fatStore[i]! / (c.fatCap * this.threshold[i]!));
+      if (this.gutOn) inputs[INPUT.fullness] = Math.min(1, this.gutMass[i]! / (c.gutCapacity * this.bodyMatter[i]!));
       if (this.mateScentOn) {
         // Mate scent: the mix that matches its own diet, and which way it gets stronger.
         const ss = c.scentCellSize;
@@ -3369,7 +3466,7 @@ export class Simulation {
     if (this.trackOn) {
       // How did things go since the last thought? The energy change (counting what was handed to
       // young or neighbors as kept), as a share of what it needs to breed, scaled and capped.
-      const now = this.energy[i]! + (this.fatOn ? this.fatStore[i]! : 0);
+      const now = this.energy[i]! + (this.fatOn ? this.fatStore[i]! : 0) + (this.gutOn ? this.gutEnergy[i]! : 0);
       const before = this.learnPrevE[i]!;
       const reward = before < 0 ? 0 : clampUnit(((now + this.learnSpent[i]! - before) / this.threshold[i]!) * c.learnSenseScale);
       // Surprise: better (+) or worse (-) than usual. Then "usual" moves a little toward this result.
@@ -3515,6 +3612,31 @@ export class Simulation {
   // ---- Multicellularity ----
 
   /** How many cells are bonded to cell i. */
+  /**
+   * Young that move away (natalDispersal): place a newborn natalDispersal from its parent along the heading it was born
+   * with, unless that spot is water or the baby stayed bonded to a colony. Its body was already built where it was born,
+   * so no matter or energy moves with this.
+   */
+  private disperse(child: number, parent: number): void {
+    if (this.bondsOn && this.bondCount(child) > 0) return;
+    const c = this.config;
+    const W = c.worldWidth;
+    const H = c.worldHeight;
+    let nx = this.x[parent]! + this.headingX[child]! * c.natalDispersal;
+    let ny = this.y[parent]! + this.headingY[child]! * c.natalDispersal;
+    nx -= Math.floor(nx / W) * W;
+    ny -= Math.floor(ny / H) * H;
+    nx = Math.fround(nx);
+    ny = Math.fround(ny);
+    if (nx >= W) nx = 0;
+    if (ny >= H) ny = 0;
+    const cell = Math.floor(ny / c.foodCellSize) * this.gridWidth + Math.floor(nx / c.foodCellSize);
+    if (this.terrainOn && this.passable[cell] === 0) return;
+    this.x[child] = nx;
+    this.y[child] = ny;
+    this.cellOf[child] = cell;
+  }
+
   private bondCount(i: number): number {
     let count = 0;
     for (let k = 0; k < BOND_SLOTS; k++) if (this.bondTo[i * BOND_SLOTS + k]! >= 0) count++;
@@ -4342,6 +4464,7 @@ export class Simulation {
       let hx = this.headingX[i]!;
       let hy = this.headingY[i]!;
       this.attempted[i] = 0;
+      if (this.hurt.length > 0) this.hurt[i] = 0;
       if (this.resting[i]! > 0) this.resting[i] = this.resting[i]! - 1;
       if (this.torporOn) {
         // Where plants have stopped growing a dormant organism sits still (and cannot attack) and saves upkeep.
@@ -4482,6 +4605,7 @@ export class Simulation {
         this.pickAttacker = i;
         this.pickBest = -1;
         this.pickBestDistSq = Infinity;
+        this.pickBestDefense = Infinity;
         this.pickSizeLimit = this.size[i]! * c.preyMaxSizeRatio;
         this.hash.forEachNear(this.x[i]!, this.y[i]!, this.reach[i]!, this.considerPrey);
         const prey = this.pickBest;
@@ -4492,6 +4616,12 @@ export class Simulation {
         const power = this.attackPower[i]!;
         const odds = power / (power + this.defendedBy(prey, i));
         if (this.rng.next() < odds) this.kill(i, prey);
+        else if (this.hurt.length > 0) {
+          // Injury: the attack failed and the prey hurt the attacker, more the better armed it is compared with the attacker.
+          const preyPower = this.attackPower[prey]!;
+          const both = power + preyPower;
+          this.hurt[i] = both > 0 ? c.attackInjury * this.threshold[i]! * (preyPower / both) : 0;
+        }
       }
     }
 
@@ -4501,8 +4631,16 @@ export class Simulation {
     for (let i = 0; i < n; i++) {
       if (this.killed[i] === 1) continue;
       const cell = this.cellOf[i]!;
-      plantClaim[cell] = plantClaim[cell]! + this.plantWeight[i]!;
-      meatClaim[cell] = meatClaim[cell]! + this.meatWeight[i]! * this.meatAccess(i, cell);
+      let fits = 1;
+      if (this.gutOn) {
+        // A stomach holds only so much: it claims no more than fits.
+        const room = c.gutCapacity * this.bodyMatter[i]! - this.gutMass[i]!;
+        const want = this.plantBite[i]! + this.meatBite[i]!;
+        fits = want > 0 && room < want ? (room > 0 ? room / want : 0) : 1;
+        this.gutScale[i] = fits;
+      }
+      plantClaim[cell] = plantClaim[cell]! + this.plantWeight[i]! * fits;
+      meatClaim[cell] = meatClaim[cell]! + this.meatWeight[i]! * this.meatAccess(i, cell) * fits;
     }
 
     // Each cell works out how much food and meat there is per unit of claim. If
@@ -4545,9 +4683,10 @@ export class Simulation {
 
       // Standing still lets an organism with a brain eat faster (it must decide: roam or graze).
       const eatBonus = brainMode > 0 ? 1 + c.brainStillEatBonus * (1 - Math.min(this.moveScale[i]!, 1)) : 1;
-      const plantMass = Math.min(this.plantBite[i]! * eatBonus, this.plantWeight[i]! * plantShare[cell]!);
+      const fits = this.gutOn ? this.gutScale[i]! : 1; // (the gut: no more than the stomach has room for)
+      const plantMass = Math.min(this.plantBite[i]! * eatBonus * fits, this.plantWeight[i]! * fits * plantShare[cell]!);
       const access = this.meatAccess(i, cell);
-      const meatMass = Math.min(this.meatBite[i]! * access * eatBonus, this.meatWeight[i]! * access * meatShare[cell]!);
+      const meatMass = Math.min(this.meatBite[i]! * access * eatBonus * fits, this.meatWeight[i]! * access * fits * meatShare[cell]!);
       plantClaim[cell] = plantClaim[cell]! + plantMass;
       meatClaim[cell] = meatClaim[cell]! + meatMass;
       const plantRaw = plantMass * energyPerFood;
@@ -4625,7 +4764,9 @@ export class Simulation {
         this.homeValue[i] = best;
       }
       if (this.placeOn) this.rememberPlace(i, (plantGain + meatGain) / this.threshold[i]!);
-      let energy = this.energy[i]! + plantGain + meatGain;
+      // Without the gut, what it eats is energy at once; with it, food goes into the stomach and is digested over time.
+      // (Without the gut the sum is kept in its old order, so worlds without it stay bit-for-bit the same.)
+      let energy = this.gutOn ? this.energy[i]! + this.digest(i, plantMass + meatMass, plantGain + meatGain) : this.energy[i]! + plantGain + meatGain;
       if (this.typeOn) {
         // A photosynthesizing cell collects sunlight directly (the only new energy that enters the world, so it goes in the ledger as sunlight).
         const gain = this.photoGain[i]!;
@@ -4714,6 +4855,13 @@ export class Simulation {
       }
       if (this.fatOn) basal += c.fatUpkeep * (this.fatStore[i]! / this.threshold[i]!) * this.basalCost[i]!; // carrying fat costs upkeep
       if (this.torporOn) basal *= 1 - c.torporSaving * this.torpid[i]!;
+      if (this.restOn) {
+        // Rest: on a tick it eats nothing, the slower it goes the more cheaply the body ticks over (digestion carries on).
+        const pace = this.moveScale[i]!;
+        const share = plantMass + meatMass === 0 && pace < c.restBelow ? (c.restBelow - pace) / c.restBelow : 0;
+        this.rested[i] = share;
+        if (share > 0) basal *= 1 - c.restSaving * share;
+      }
       if (this.thermalOn) {
         // Too hot or too cold for comfort costs extra upkeep.
         const off = this.temperature[cell]! - this.thermalPref[i]!;
@@ -4729,7 +4877,8 @@ export class Simulation {
       if (this.torporOn) move *= (1 - this.torpid[i]!) * (1 - this.torpid[i]!); // slower costs less (cost goes with speed squared)
       if (this.staminaOn) move += this.staminaCost[i]!; // the upkeep of the sprint reserve counts as movement
       const sensing = this.senseCost[i]!;
-      const fighting = this.attackCost[i]! + (this.attempted[i] === 1 ? this.attemptCost[i]! : 0);
+      // (Injury, when on, is paid as fighting; kept in the old form when off.)
+      const fighting = this.hurt.length > 0 ? this.attackCost[i]! + (this.attempted[i] === 1 ? this.attemptCost[i]! : 0) + this.hurt[i]! : this.attackCost[i]! + (this.attempted[i] === 1 ? this.attemptCost[i]! : 0);
       const armoring = this.armorCost[i]!;
       const thinking = brainMode > 0 ? this.brainCost[i]! : 0;
       const cost = basal + move + sensing + fighting + armoring + thinking;
@@ -4982,6 +5131,7 @@ export class Simulation {
           this.totalBirths++;
           this.sexualBirths++;
           if (this.bondsOn) this.maybeAttach(a, child);
+          if (c.natalDispersal > 0) this.disperse(child, a);
         }
       }
     }
@@ -5033,6 +5183,7 @@ export class Simulation {
           }
           this.totalBirths++;
           if (this.bondsOn) this.maybeAttach(parent, child);
+          if (c.natalDispersal > 0) this.disperse(child, parent);
         }
       }
     }
@@ -5057,7 +5208,7 @@ export class Simulation {
         if (i !== alive) this.moveOrganism(alive, i);
       } else if (this.energy[i]! <= 0) {
         const cell = this.cellOf[i]!;
-        corpseEnergy[cell] = corpseEnergy[cell]! + this.bodyEnergy[i]! + (this.fatOn ? this.fatStore[i]! : 0);
+        corpseEnergy[cell] = corpseEnergy[cell]! + this.bodyEnergy[i]! + (this.fatOn ? this.fatStore[i]! : 0) + this.takeGut(i);
         const matter = this.bodyMatter[i]! + this.takeStore(i);
         if (this.toxOn) this.foldToxin(cell, corpseMatter[cell]!, matter, this.genes[i * GENE_COUNT + GENE.toxicity]!);
         corpseMatter[cell] = corpseMatter[cell]! + matter;
@@ -5127,7 +5278,7 @@ export class Simulation {
       this.corpseOwner[cell] = this.id[attacker]!;
       this.corpseOwnerUntil[cell] = this.tick + this.config.killOwnershipTicks;
     }
-    this.corpseEnergy[cell] = this.corpseEnergy[cell]! + this.bodyEnergy[prey]! + this.energy[prey]! + (this.fatOn ? this.fatStore[prey]! : 0);
+    this.corpseEnergy[cell] = this.corpseEnergy[cell]! + this.bodyEnergy[prey]! + this.energy[prey]! + (this.fatOn ? this.fatStore[prey]! : 0) + this.takeGut(prey);
     const preyMatter = this.bodyMatter[prey]! + this.takeStore(prey);
     if (this.toxOn) this.foldToxin(cell, this.corpseMatter[cell]!, preyMatter, this.genes[prey * GENE_COUNT + GENE.toxicity]!);
     this.corpseMatter[cell] = this.corpseMatter[cell]! + preyMatter;
@@ -5655,6 +5806,12 @@ export class Simulation {
         out.torporRest += s;
         basal += s;
       }
+      if (this.restOn && this.rested[i]! > 0) {
+        // Resting (restSaving) is counted with torpor as a saving from rest.
+        const s = -basal * c.restSaving * this.rested[i]!;
+        out.torporRest += s;
+        basal += s;
+      }
       if (this.thermalOn) {
         const off = this.temperature[cell]! - this.thermalPref[i]!;
         const excess = (off < 0 ? -off : off) - c.thermalTolerance;
@@ -5675,7 +5832,7 @@ export class Simulation {
       if (this.staminaOn) move += this.staminaCost[i]!;
       out.movement += move;
       out.sensing += this.senseCost[i]!;
-      out.attack += this.attackCost[i]! + (this.attempted[i] === 1 ? this.attemptCost[i]! : 0);
+      out.attack += this.attackCost[i]! + (this.attempted[i] === 1 ? this.attemptCost[i]! : 0) + (this.hurt.length > 0 ? this.hurt[i]! : 0);
       out.armor += this.armorCost[i]!;
       if (brains) out.brain += this.brainCost[i]!;
     }
@@ -5784,7 +5941,7 @@ export class Simulation {
     let stores = 0;
     let bodies = 0;
     for (let i = 0; i < this.count; i++) {
-      stores += this.energy[i]! + (this.fatOn ? this.fatStore[i]! : 0);
+      stores += this.energy[i]! + (this.fatOn ? this.fatStore[i]! : 0) + (this.gutOn ? this.gutEnergy[i]! : 0);
       bodies += this.bodyEnergy[i]!;
     }
     const plants = sumOf(this.food) * this.config.energyPerFood;

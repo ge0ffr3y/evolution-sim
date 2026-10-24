@@ -143,5 +143,35 @@
     "name": "full-package-long",
     "question": "Given a million ticks, do meat eaters (diet above 0.75) evolve and last in the grand world with the full mating-and-sight package: the eye gene, vigilance, prey sight not scaled by the viewer's diet, a founder pull toward prey, the pickiness gene and mate scent? 16 fresh seeds against the grand world. An answer: worlds with a lasting meat-eating group (10+ for most of the second half), when meat eaters first appear, eye and pickiness by diet, feeding levels, kills, species, population and its low point.",
     "file": "full-package-long.json"
+  },
+  {
+    "name": "predator-life",
+    "question": "Do a gut (food digested over time, eating speed by size, digestion speed by metabolism), rest (barely moving and not eating lowers upkeep) and prey condition (weak prey are easier to catch) give meat eaters (diet above 0.75) the lifestyle they need to take hold in the grand world? The gut alone, the gut with rest, prey condition alone, all three, and all three with prey sight not scaled by diet and a founder pull toward prey. 8 fresh seeds, 300,000 ticks, with the diet ledger recording how animals of each diet die. An answer: meat eaters, how they die, metabolism by diet, feeding levels, kills, species and population.",
+    "file": "predator-life.json"
+  },
+  {
+    "name": "predator-life-2",
+    "question": "With the gut and prey condition (the best setup in predator-life, where one world in 8 kept a meat-eating group), do graded rest (slowing on a tick it eats nothing lowers upkeep) and fighting back (an animal's own weapons count toward its defense, so armed animals, other hunters included, are risky to attack) help meat eaters (diet above 0.75) last? Grand world; gut with prey condition; plus rest; plus fighting back; plus both. 8 fresh seeds, 300,000 ticks, with the diet ledger recording how each diet dies. An answer: worlds with a lasting meat-eating group, how meat eaters die (killed by meat eaters should fall with fighting back), metabolism, species and population.",
+    "file": "predator-life-2.json"
+  },
+  {
+    "name": "prey-choice",
+    "question": "With the gut and prey condition, does letting hunters go for the easiest prey in reach (preyChoice 1: the weakest defense they can judge) instead of the nearest stop meat eaters (diet above 0.75) killing each other, and help them last? With and without fighting back (an animal's own weapons count toward its defense, so armed meat eaters are hard targets). 8 fresh seeds, 300,000 ticks, with the diet ledger recording how each diet dies. An answer: worlds with a lasting meat-eating group, meat eaters killed by meat eaters, species and population.",
+    "file": "prey-choice.json"
+  },
+  {
+    "name": "gut-condition-confirm",
+    "question": "Confirmation on 16 fresh seeds and a longer run: does the gut (food digested over time) with prey condition (weak prey defend less, 0.5) keep a lasting meat-eating group (diet above 0.75) in the grand world itself? Across three 8-seed screens it did in 7 of 24 worlds, against 0 of 24 for the grand world as it is. 16 seeds, 500,000 ticks, with the diet ledger. An answer: worlds with a lasting meat-eating group, how long they last, feeding levels, species, diversity and population, and whether the cost to population or species holds up.",
+    "file": "gut-condition-confirm.json"
+  },
+  {
+    "name": "injury-dispersal",
+    "question": "The kill autopsy found that meat eaters (diet above 0.75) live in clumps of their own lineage and kill equals and relatives when no other prey is in reach, at no extra cost. With the gut and prey condition, does injury from failed attacks (attackInjury 0.2: a failed attack against an equal costs a tenth of a breeding's worth) or young that move away (natalDispersal 12 world units, about one and a half food cells) cut meat eaters killing meat eaters and let a meat-eating group last? Each alone and together, 8 fresh seeds, 300,000 ticks, with the diet ledger and the kill autopsy. An answer: worlds with a lasting meat-eating group, meat eaters killed by meat eaters, species and population.",
+    "file": "injury-dispersal.json"
+  },
+  {
+    "name": "dispersal-confirm",
+    "question": "Confirmation on 16 fresh seeds and a longer run: in the grand world, do young that move away (natalDispersal 12) with the gut and prey condition keep a lasting meat-eating group (diet above 0.75), and do young that move away on their own help the grand world (fewer sick, more species, more feeding levels)? In the 8-seed screen the first held a group in 2 of 8 worlds (against 0 of 8 for gut + prey condition there), raised feeding levels by 17% and halved disease. 16 seeds, 500,000 ticks, with the diet ledger and the kill autopsy. An answer: worlds with a lasting meat-eating group, how long they last, feeding levels, species, diversity, disease and population, and whether any cost holds up.",
+    "file": "dispersal-confirm.json"
   }
 ]

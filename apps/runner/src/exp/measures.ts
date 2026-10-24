@@ -767,21 +767,36 @@ export function observeWorld(sim: Simulation, measures: string[]): void {
 // Bands by diet gene: 0 = under 0.25 (plant eaters), 1 = 0.25 to 0.5, 2 = 0.5 to 0.75, 3 = over 0.75 (meat eaters).
 const DIET_BANDS = 4;
 const bandOf = (diet: number): number => (diet < 0.25 ? 0 : diet < 0.5 ? 1 : diet < 0.75 ? 2 : 3);
-interface LedgerAnimal { band: number; plant: number; meat: number; kills: number; seen: number }
+interface LedgerAnimal { band: number; plant: number; meat: number; kills: number; seen: number; fed: number; age: number }
 interface LedgerState {
   animals: Map<number, LedgerAnimal>;
   ticks: number;
-  /** Per band, over the current window: animal-ticks, energy share summed, plant and meat income (in breedings' worth), kills, births, deaths. */
-  w: { animalTicks: number[]; fed: number[]; plant: number[]; meat: number[]; kills: number[]; births: number[]; deaths: number[] };
+  /** Animals killed this tick (by id), and the diet band of their killer. */
+  killedBy: Map<number, number>;
+  /**
+   * Per band, over the current window: animal-ticks, energy share summed, plant and meat income (in breedings' worth), kills,
+   * births, deaths; deaths split by cause (ran out of energy, killed by a meat eater, killed by anyone else), and, for the
+   * dead, how fed they were when last seen and their age.
+   */
+  w: { animalTicks: number[]; fed: number[]; plant: number[]; meat: number[]; kills: number[]; births: number[]; deaths: number[]; ranOut: number[]; byMeatEater: number[]; byOther: number[]; fedAtDeath: number[]; ageAtDeath: number[] };
 }
 const ledgers = new WeakMap<Simulation, LedgerState>();
-const emptyWindow = (): LedgerState["w"] => ({ animalTicks: [0, 0, 0, 0], fed: [0, 0, 0, 0], plant: [0, 0, 0, 0], meat: [0, 0, 0, 0], kills: [0, 0, 0, 0], births: [0, 0, 0, 0], deaths: [0, 0, 0, 0] });
+const emptyWindow = (): LedgerState["w"] => ({ animalTicks: [0, 0, 0, 0], fed: [0, 0, 0, 0], plant: [0, 0, 0, 0], meat: [0, 0, 0, 0], kills: [0, 0, 0, 0], births: [0, 0, 0, 0], deaths: [0, 0, 0, 0], ranOut: [0, 0, 0, 0], byMeatEater: [0, 0, 0, 0], byOther: [0, 0, 0, 0], fedAtDeath: [0, 0, 0, 0], ageAtDeath: [0, 0, 0, 0] });
 function ledgerOf(sim: Simulation): LedgerState {
   let st = ledgers.get(sim);
   if (!st) {
-    st = { animals: new Map(), ticks: 0, w: emptyWindow() };
-    for (let i = 0; i < sim.count; i++) st.animals.set(sim.id[i]!, { band: bandOf(sim.diet[i]!), plant: sim.plantTaken[i]!, meat: sim.meatTaken[i]!, kills: sim.kills[i]!, seen: sim.tick });
+    st = { animals: new Map(), ticks: 0, killedBy: new Map(), w: emptyWindow() };
+    for (let i = 0; i < sim.count; i++) st.animals.set(sim.id[i]!, { band: bandOf(sim.diet[i]!), plant: sim.plantTaken[i]!, meat: sim.meatTaken[i]!, kills: sim.kills[i]!, seen: sim.tick, fed: sim.energy[i]! / sim.threshold[i]!, age: sim.age[i]! });
     ledgers.set(sim, st);
+    // To tell how animals die, note every kill as it happens: the world's own kill step is wrapped, and the
+    // real one runs unchanged (watching only; a test checks that the world plays out the same).
+    const world = sim as unknown as { kill(attacker: number, prey: number): void };
+    const realKill = world.kill.bind(sim);
+    const killedBy = st.killedBy;
+    world.kill = (attacker: number, prey: number): void => {
+      killedBy.set(sim.id[prey]!, bandOf(sim.diet[attacker]!));
+      realKill(attacker, prey);
+    };
   }
   return st;
 }
@@ -799,7 +814,7 @@ function observeLedger(sim: Simulation): void {
       // Born since the last tick: a birth for its parent's diet band (its own band if the parent is not known).
       const parent = st.animals.get(sim.parentId[i]!);
       w.births[parent ? parent.band : band]!++;
-      a = { band, plant: sim.plantTaken[i]!, meat: sim.meatTaken[i]!, kills: sim.kills[i]!, seen: now };
+      a = { band, plant: sim.plantTaken[i]!, meat: sim.meatTaken[i]!, kills: sim.kills[i]!, seen: now, fed: sim.energy[i]! / thr, age: sim.age[i]! };
       st.animals.set(id, a);
     } else {
       w.plant[band]! += (sim.plantTaken[i]! - a.plant) / thr;
@@ -810,6 +825,8 @@ function observeLedger(sim: Simulation): void {
       a.kills = sim.kills[i]!;
       a.band = band;
       a.seen = now;
+      a.fed = sim.energy[i]! / thr;
+      a.age = sim.age[i]!;
     }
     w.animalTicks[band]!++;
     w.fed[band]! += sim.energy[i]! / thr;
@@ -817,9 +834,16 @@ function observeLedger(sim: Simulation): void {
   for (const [id, a] of st.animals) {
     if (a.seen !== now) {
       w.deaths[a.band]!++;
+      const killer = st.killedBy.get(id);
+      if (killer === undefined) w.ranOut[a.band]!++;
+      else if (killer === 3) w.byMeatEater[a.band]!++;
+      else w.byOther[a.band]!++;
+      w.fedAtDeath[a.band]! += a.fed;
+      w.ageAtDeath[a.band]! += a.age;
       st.animals.delete(id);
     }
   }
+  st.killedBy.clear();
 }
 function sampleLedger(sim: Simulation): Row {
   const st = ledgerOf(sim);
@@ -846,6 +870,12 @@ function sampleLedger(sim: Simulation): Row {
     row[`ld${b}_kills`] = per1000(w.kills[b]!);
     row[`ld${b}_births`] = per1000(w.births[b]!);
     row[`ld${b}_deaths`] = per1000(w.deaths[b]!);
+    // How they died: per animal per 1,000 ticks by cause, and (for the dead) how fed when last seen and how old.
+    row[`ld${b}_ranOut`] = per1000(w.ranOut[b]!);
+    row[`ld${b}_byMeatEater`] = per1000(w.byMeatEater[b]!);
+    row[`ld${b}_byOther`] = per1000(w.byOther[b]!);
+    row[`ld${b}_fedAtDeath`] = w.deaths[b]! > 0 ? round(w.fedAtDeath[b]! / w.deaths[b]!, 4) : NaN;
+    row[`ld${b}_ageAtDeath`] = w.deaths[b]! > 0 ? round(w.ageAtDeath[b]! / w.deaths[b]!, 1) : NaN;
     if (counts[b]! > 0) {
       const cost = sim.costBreakdown((i) => bands[i] === b);
       const scale = 1000 / (thresholdSum[b]! / counts[b]!);
@@ -862,7 +892,7 @@ function sampleLedger(sim: Simulation): Row {
   st.w = emptyWindow();
   return row;
 }
-const LEDGER_KEYS = ["share", "fed", "plantIn", "meatIn", "kills", "births", "deaths", "cost", "costUpkeep", "costLoad", "costThermal", "costMove", "costAttack"];
+const LEDGER_KEYS = ["share", "fed", "plantIn", "meatIn", "kills", "births", "deaths", "ranOut", "byMeatEater", "byOther", "fedAtDeath", "ageAtDeath", "cost", "costUpkeep", "costLoad", "costThermal", "costMove", "costAttack"];
 
 MEASURES.dietLedger = {
   describe:
@@ -933,4 +963,173 @@ MEASURES.matingSight = {
     pickPlantLate: lateMean(rows, "pickPlant"),
     pickOtherLate: lateMean(rows, "pickOther"),
   }),
+};
+
+// --- Meat-eater kills (opt-in, watches every kill): why do meat eaters kill each other? ---
+// Every kill that involves a meat eater (diet over 0.75) as killer or victim is noted as it happens, in three kinds:
+// mm = a meat eater kills a meat eater, mo = a meat eater kills anyone else, om = anyone else kills a meat eater.
+// For each: family ties, gene distance, the victim's age, condition, size, herd and odds, a carcass already there,
+// and what else was in the killer's reach. Each sample also notes a baseline: for meat eaters and for everyone else,
+// average herd factor, defense, tolerance, armor, and for meat eaters what share of the animals in their reach are meat eaters.
+type KillInternals = {
+  kill(attacker: number, prey: number): void;
+  geneDistanceSq(i: number, j: number): number;
+  weakness(i: number): number;
+  herdFactor(prey: number): number;
+  defendedBy(prey: number, attacker?: number): number;
+  isFamily(a: number, b: number): boolean;
+  parent2Id: Uint32Array;
+  cellOf: Uint32Array;
+  energy: Float32Array | Float64Array;
+  threshold: Float32Array;
+};
+const MK_KINDS = ["mm", "mo", "om"] as const;
+const MK_SUMS = ["n", "family", "sibling", "kin", "dist", "young", "victimAge", "victimWeak", "victimFed", "killerFed", "sizeRatio", "odds", "herd", "carcass", "meatNear", "otherNear", "killerTol", "victimArmor", "victimAttack", "killerAttack"] as const;
+type MkSums = Record<(typeof MK_SUMS)[number], number>;
+const emptyMk = (): Record<string, MkSums> => Object.fromEntries(MK_KINDS.map((k) => [k, Object.fromEntries(MK_SUMS.map((s) => [s, 0])) as MkSums]));
+const meatKillState = new WeakMap<Simulation, { w: Record<string, MkSums> }>();
+const MEAT = 0.75;
+
+/** Meat eaters and others within `who`'s attack reach (others only if small enough to be prey), the world wrapping round. */
+function neighboursInReach(sim: Simulation, who: number): { meat: number; other: number } {
+  const c = sim.config;
+  const W = c.worldWidth;
+  const H = c.worldHeight;
+  const r2 = sim.reach[who]! * sim.reach[who]!;
+  const sizeLimit = sim.size[who]! * c.preyMaxSizeRatio;
+  let meat = 0;
+  let other = 0;
+  for (let j = 0; j < sim.count; j++) {
+    if (j === who || sim.size[j]! > sizeLimit) continue;
+    let dx = sim.x[j]! - sim.x[who]!;
+    let dy = sim.y[j]! - sim.y[who]!;
+    if (dx > W / 2) dx -= W;
+    else if (dx < -W / 2) dx += W;
+    if (dy > H / 2) dy -= H;
+    else if (dy < -H / 2) dy += H;
+    if (dx * dx + dy * dy > r2) continue;
+    if (sim.diet[j]! > MEAT) meat++;
+    else other++;
+  }
+  return { meat, other };
+}
+
+/** The herd factor as defendedBy works it out (relatives within herdRange, capped), counted directly. */
+function herdNow(sim: Simulation, i: number): number {
+  const c = sim.config;
+  if (c.herdBonus <= 0) return 1;
+  const world = sim as unknown as KillInternals;
+  const W = c.worldWidth;
+  const H = c.worldHeight;
+  const r2 = c.herdRange * c.herdRange;
+  const kin2 = c.kinDistance * c.kinDistance;
+  let count = 0;
+  for (let j = 0; j < sim.count; j++) {
+    if (j === i) continue;
+    let dx = sim.x[j]! - sim.x[i]!;
+    let dy = sim.y[j]! - sim.y[i]!;
+    if (dx > W / 2) dx -= W;
+    else if (dx < -W / 2) dx += W;
+    if (dy > H / 2) dy -= H;
+    else if (dy < -H / 2) dy += H;
+    const d2 = dx * dx + dy * dy;
+    if (d2 <= 0 || d2 > r2) continue;
+    if (world.geneDistanceSq(i, j) <= kin2) count++;
+  }
+  const crowd = count < c.herdCap ? count : c.herdCap;
+  return 1 + (c.herdBonus * crowd) / c.herdCap;
+}
+
+function meatKillsOf(sim: Simulation): { w: Record<string, MkSums> } {
+  let st = meatKillState.get(sim);
+  if (st) return st;
+  const state = { w: emptyMk() };
+  st = state;
+  meatKillState.set(sim, st);
+  const world = sim as unknown as KillInternals;
+  const realKill = world.kill.bind(sim);
+  const sharesParent = (a: number, b: number): boolean => {
+    const pa = [sim.parentId[a]!, world.parent2Id.length ? world.parent2Id[a]! : 0].filter((p) => p !== 0);
+    const pb = [sim.parentId[b]!, world.parent2Id.length ? world.parent2Id[b]! : 0];
+    return pa.some((p) => pb.includes(p));
+  };
+  // Watching only: everything is read before the real kill runs unchanged (a test checks the world plays out the same).
+  world.kill = (attacker: number, prey: number): void => {
+    const killerMeat = sim.diet[attacker]! > MEAT;
+    const victimMeat = sim.diet[prey]! > MEAT;
+    if (killerMeat || victimMeat) {
+      const s = state.w[killerMeat ? (victimMeat ? "mm" : "mo") : "om"]!;
+      const c = sim.config;
+      const g = (i: number, gene: number): number => sim.genes[i * GENE_COUNT + gene]!;
+      const dist = Math.sqrt(world.geneDistanceSq(attacker, prey));
+      const power = sim.attackPower[attacker]!;
+      const near = neighboursInReach(sim, attacker);
+      s.n++;
+      if (world.isFamily(attacker, prey)) s.family++;
+      if (sharesParent(attacker, prey)) s.sibling++;
+      if (dist <= c.kinDistance) s.kin++;
+      s.dist += dist;
+      if (c.youngTicks > 0 && sim.age[prey]! < c.youngTicks) s.young++;
+      s.victimAge += sim.age[prey]!;
+      s.victimWeak += world.weakness(prey);
+      s.victimFed += world.energy[prey]! / world.threshold[prey]!;
+      s.killerFed += world.energy[attacker]! / world.threshold[attacker]!;
+      s.sizeRatio += sim.size[prey]! / sim.size[attacker]!;
+      s.odds += power / (power + world.defendedBy(prey, attacker));
+      s.herd += world.herdFactor(prey);
+      if (sim.corpseEnergy[world.cellOf[prey]!]! > 0) s.carcass++;
+      s.meatNear += near.meat;
+      s.otherNear += near.other;
+      s.killerTol += c.kinTolerance === 1 ? g(attacker, GENE.tolerance) : NaN;
+      s.victimArmor += g(prey, GENE.armor);
+      s.victimAttack += g(prey, GENE.attack);
+      s.killerAttack += g(attacker, GENE.attack);
+    }
+    realKill(attacker, prey);
+  };
+  return st;
+}
+
+function sampleMeatKills(sim: Simulation): Row {
+  const st = meatKillsOf(sim);
+  const row: Row = {};
+  for (const k of MK_KINDS) {
+    const s = st.w[k]!;
+    row[`mk_${k}_n`] = s.n;
+    for (const key of MK_SUMS) if (key !== "n") row[`mk_${k}_${key}`] = s.n > 0 ? round(s[key] / s.n, 4) : NaN;
+  }
+  st.w = emptyMk();
+  // The baseline, as the world stands now.
+  const world = sim as unknown as KillInternals;
+  const c = sim.config;
+  const base = { meat: { n: 0, herd: 0, defense: 0, tol: 0, armor: 0, attack: 0, meatNear: 0, otherNear: 0 }, other: { n: 0, herd: 0, defense: 0, tol: 0, armor: 0, attack: 0, meatNear: 0, otherNear: 0 } };
+  for (let i = 0; i < sim.count; i++) {
+    const b = sim.diet[i]! > MEAT ? base.meat : base.other;
+    b.n++;
+    // Herd and defense counted directly (between ticks the world's own neighbour index can be out of date).
+    const herd = herdNow(sim, i);
+    b.herd += herd;
+    b.defense += sim.defense[i]! * herd;
+    b.tol += c.kinTolerance === 1 ? sim.genes[i * GENE_COUNT + GENE.tolerance]! : NaN;
+    b.armor += sim.genes[i * GENE_COUNT + GENE.armor]!;
+    b.attack += sim.genes[i * GENE_COUNT + GENE.attack]!;
+    if (b === base.meat) {
+      const near = neighboursInReach(sim, i);
+      b.meatNear += near.meat;
+      b.otherNear += near.other;
+    }
+  }
+  for (const [name, b] of Object.entries(base)) {
+    row[`mk_base_${name}_n`] = b.n;
+    for (const key of ["herd", "defense", "tol", "armor", "attack", "meatNear", "otherNear"] as const) row[`mk_base_${name}_${key}`] = b.n > 0 ? round(b[key] / b.n, 4) : NaN;
+  }
+  return row;
+}
+
+MEASURES.meatKills = {
+  describe:
+    "meat-eater kills (opt-in, watches every kill): kills of a meat eater by a meat eater (mm), of anyone else by a meat eater (mo) and of a meat eater by anyone else (om), with family ties, gene distance, the victim's age, condition, size, herd and odds, a carcass already there and what else was in reach; plus a baseline for meat eaters and others",
+  optIn: true,
+  observe: (sim) => void meatKillsOf(sim),
+  sample: ({ sim }) => sampleMeatKills(sim),
 };

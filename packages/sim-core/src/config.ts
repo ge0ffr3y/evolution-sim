@@ -1269,6 +1269,62 @@ export interface SimConfig {
    * more of what is around them, so this is what a wide eye is for. It changes only the odds of a kill.
    */
   vigilance: number;
+  /**
+   * The gut (0 = off): food goes into a stomach first and becomes energy over time, as in real digestion.
+   * - The stomach holds gutCapacity x body matter of food. A full stomach eats nothing more.
+   * - Plants are bulky (a unit of plant is a unit of stomach and a unit of energy); meat is dense (a carcass's
+   *   energy per unit of matter, usually about ten times a plant's), so a meal of meat lasts.
+   * - How fast it eats is set by body size (biteRate x gutBite), no longer by metabolism. Metabolism instead sets
+   *   how fast the stomach turns food into energy: gutDigestRate x metabolism x body size a tick. So grazers
+   *   need a fast metabolism to keep up with bulky food, while a predator can gorge and digest slowly and cheaply.
+   * Energy in the stomach counts in the books, and goes into the carcass if the animal dies.
+   */
+  gutMode: number;
+  gutCapacity: number;
+  gutBite: number;
+  gutDigestRate: number;
+  /**
+   * Rest (0 = off; needs brains): on a tick an animal eats nothing, the slower its brain moves it the less its body
+   * costs: basic upkeep falls by restSaving x (restBelow - pace) / restBelow when pace is below restBelow (pace is 0
+   * standing still, 1 normal and 2 flat out), so standing still saves restSaving in full. Graded, so evolution can
+   * find it: slowing a little saves a little. Digestion carries on.
+   * A grazer that stops eating to rest goes hungry; a predator with a full stomach can rest for a long time.
+   */
+  restSaving: number;
+  restBelow: number;
+  /**
+   * Prey condition (0 = off): weak prey are easier to catch. An attack's odds use the prey's defense times
+   * 1 - preyCondition x weakness, where weakness is the worst of: hunger (1 - energy as a share of what it needs
+   * to breed), sickness (1 while sick), age past its prime (0 at the prime, 1 at the end of its lifespan, with
+   * aging on) and youth (1 at birth, 0 at youngTicks old). Hunters then take the weakest, as real ones do.
+   */
+  preyCondition: number;
+  youngTicks: number;
+  /**
+   * Fighting back (0 = off): an animal's own weapons count toward its defense. An attack's odds use the prey's
+   * defense plus fightBack x the prey's attack power (attack x size), so armed animals, other hunters included,
+   * are risky to attack and hunters do best on the unarmed.
+   */
+  fightBack: number;
+  /**
+   * Which prey a hunter goes for: 0 = the nearest in reach (as before), 1 = the easiest in reach, the one with the
+   * weakest defense as the hunter can judge it (armor and size, its weapons with fightBack, its condition with
+   * preyCondition, whether it sees the attack coming with vigilance; herds are not counted here), nearest first on
+   * a tie. Hunters then cull the weak and leave the strong and the armed, as real ones do.
+   */
+  preyChoice: number;
+  /**
+   * Injury (0 = off): a failed attack hurts the attacker. It loses attackInjury x its breeding energy x the prey's share
+   * of the two animals' attack power (prey power / (attacker power + prey power)), charged as a fighting cost. Attacking
+   * an armed equal is then dangerous (an equal's share is half), and a small or unarmed animal hardly hurts at all.
+   */
+  attackInjury: number;
+  /**
+   * Young that move away (0 = off): a newborn is placed this far from its parent (world units), along the random heading
+   * it is born with (so no extra random numbers are drawn), unless that spot is water or it is born bonded to a colony.
+   * A line then spreads out instead of living in a clump where relatives are each other's nearest prey.
+   */
+  natalDispersal: number;
 
   // --- Reproduction ---
   /** An organism splits when its energy reaches this x its size. */
@@ -1774,6 +1830,18 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   initialEye: 0.5,
   eyeSharpness: 0.5,
   vigilance: 0,
+  gutMode: 0,
+  gutCapacity: 3,
+  gutBite: 1.5,
+  gutDigestRate: 1.5,
+  restSaving: 0,
+  restBelow: 1,
+  preyCondition: 0,
+  youngTicks: 100,
+  fightBack: 0,
+  preyChoice: 0,
+  attackInjury: 0,
+  natalDispersal: 0,
 
   reproThresholdPerSize: 30,
   offspringEnergyFraction: 0.5,
@@ -2125,6 +2193,15 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (!(c.initialEye >= 0 && c.initialEye <= 1) || !(c.eyeSharpness >= 0 && c.eyeSharpness <= 1)) problems.push("initialEye and eyeSharpness must be between 0 and 1");
   if (!(c.vigilance >= 0)) problems.push("vigilance cannot be negative");
   if (c.vigilance > 0 && c.brainMode === 0) problems.push("vigilance needs brains (only brains see)");
+  if (c.gutMode !== 0 && c.gutMode !== 1) problems.push("gutMode must be 0 or 1");
+  if (!(c.gutCapacity > 0) || !(c.gutBite > 0) || !(c.gutDigestRate > 0)) problems.push("gutCapacity, gutBite and gutDigestRate must be positive");
+  if (!(c.restSaving >= 0 && c.restSaving <= 1) || !(c.restBelow >= 0 && c.restBelow <= 2)) problems.push("restSaving must be between 0 and 1, and restBelow (a pace: 0 still, 1 normal, 2 flat out) between 0 and 2");
+  if (c.restSaving > 0 && c.brainMode === 0) problems.push("restSaving needs brains (a brain decides to rest)");
+  if (!(c.preyCondition >= 0 && c.preyCondition <= 1) || !(c.youngTicks >= 0)) problems.push("preyCondition must be between 0 and 1, and youngTicks cannot be negative");
+  if (!(c.fightBack >= 0)) problems.push("fightBack cannot be negative");
+  if (c.preyChoice !== 0 && c.preyChoice !== 1) problems.push("preyChoice must be 0 (nearest) or 1 (easiest)");
+  if (!(c.attackInjury >= 0 && c.attackInjury <= 1)) problems.push("attackInjury must be between 0 and 1");
+  if (!(c.natalDispersal >= 0 && c.natalDispersal < Math.min(c.worldWidth, c.worldHeight) / 2)) problems.push("natalDispersal must be at least 0 and less than half the world");
   if (c.spareFamily !== 0 && c.spareFamily !== 1) problems.push("spareFamily must be 0 (off) or 1 (never attack your own parent or offspring)");
   for (const [name, value] of [["meatColdKeep", c.meatColdKeep], ["preyHungerDefense", c.preyHungerDefense], ["weaponGrazeLoss", c.weaponGrazeLoss]] as const) {
     if (!(value >= 0 && value <= 1)) problems.push(`${name} must be between 0 and 1`);
