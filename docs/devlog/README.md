@@ -41,3 +41,7 @@ One entry per phase or part of a phase, from an empty repository to living plant
 22. **[Mating and sight](0022-mating-and-sight.md)**. Phase 9, part 7. The owner's ideas: attraction (choosing mates by diet), a scent that helps ready mates find each other, and an eye that could specialize: narrow and sharp for hunters, wide for prey.
 23. **[Predator life](0023-predator-life.md)**. Phase 9, part 8. The owner's ideas: real predators digest slowly, rest a lot and take the easiest prey.
 24. **[Living plants](0024-living-plants.md)**. Phase 9, part 9. The owner's idea: plants were too simple.
+
+## Ship it (Phase 10, v1.0)
+
+25. **[Ship it](0025-ship-it.md)**. Phase 10, and the v1.0 release. The simulation becomes something a visitor can open, understand and share: a front page with six featured worlds, links that replay any run exactly, the findings and the devlog on the site, and a new README.

@@ -82,12 +82,12 @@ flowchart LR
 
 | World | What to watch for |
 |---|---|
-| [The grand world](https://ge0ffr3y.github.io/evolution-sim/app.html?seed=42&preset=grand-world) (the default) | Every feature at once. Species branch on the family tree; plant eaters, mixed eaters and short-lived meat-eating groups come and go. |
+| [The grand world](https://ge0ffr3y.github.io/evolution-sim/app.html?seed=42&preset=grand-world) (the default) | Every feature at once. Species branch on the family tree, and a second feeding level of mixed eaters takes hold. |
 | [Food webs from nothing](https://ge0ffr3y.github.io/evolution-sim/app.html?seed=12&preset=default) | The first kill within a few hundred ticks, then a lineage that lives on meat. |
 | [Predator arms race](https://ge0ffr3y.github.io/evolution-sim/app.html?seed=42&preset=arms-race) | Cheap fighting: killing at once, armor and speed climbing. |
-| [Ice age](https://ge0ffr3y.github.io/evolution-sim/app.html?seed=42&preset=ice-age) | At tick 60,000 the world cools: a crash, then cold-loving survivors. |
-| [Two continents](https://ge0ffr3y.github.io/evolution-sim/app.html?seed=42&preset=two-continents) | Each half grows its own species. |
-| [Living plants](https://ge0ffr3y.github.io/evolution-sim/app.html?seed=42&preset=grand-living-plants) | Plants evolve to fit their land: compare the Plant warmth and Temperature overlays. |
+| [Ice age](https://ge0ffr3y.github.io/evolution-sim/app.html?seed=42&preset=ice-age) | At tick 60,000 the world cools: the population halves, and the survivors like it colder. |
+| [Two continents](https://ge0ffr3y.github.io/evolution-sim/app.html?seed=12&preset=two-continents) | Each half grows its own species. |
+| [Living plants](https://ge0ffr3y.github.io/evolution-sim/app.html?seed=7&preset=grand-living-plants) | Plants evolve to fit their land: compare the Plant warmth and Temperature overlays. |
 
 There are 46 presets in all, in [`configs/`](configs) and in the viewer's World menu.
 

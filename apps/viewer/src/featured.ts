@@ -1,6 +1,8 @@
 /**
  * The featured worlds on the front page: a preset, a seed that shows it well, and what to watch for.
  * The grand world comes first: it is also the world the viewer opens with.
+ * Seeds were picked from 4 candidates per world over 100,000 ticks (experiments/featured-worlds): each stays alive
+ * and shows what its line promises.
  */
 export interface FeaturedWorld {
   presetId: string;
@@ -15,7 +17,7 @@ export const FEATURED: readonly FeaturedWorld[] = [
     presetId: "grand-world",
     title: "The grand world",
     seed: 42,
-    watchFor: "Every feature at once: continents, seasons, disasters, disease, brains, colonies. Watch species branch on the family tree and plant eaters, mixed eaters and short-lived meat-eating groups come and go.",
+    watchFor: "Every feature at once: continents, seasons, disasters, disease, brains, colonies. Watch species branch on the family tree and a second feeding level of mixed eaters (yellowish dots) take hold.",
   },
   {
     presetId: "default",
@@ -33,18 +35,18 @@ export const FEATURED: readonly FeaturedWorld[] = [
     presetId: "ice-age",
     title: "Ice age",
     seed: 42,
-    watchFor: "At tick 60,000 the world cools for 20,000 ticks. Turn on the Temperature overlay and watch the population crash and the survivors' preferred temperature shift.",
+    watchFor: "At tick 60,000 the world cools for 20,000 ticks. Watch the population halve, then pick Preferred temperature on the trait heatmap: the survivors like it colder.",
   },
   {
     presetId: "two-continents",
     title: "Two continents",
-    seed: 42,
+    seed: 12,
     watchFor: "Water splits the world in two. Watch each half grow its own species on the family tree.",
   },
   {
     presetId: "grand-living-plants",
     title: "Living plants",
-    seed: 42,
+    seed: 7,
     watchFor: "Plants evolve too. Switch the map to Plant warmth and compare with Temperature, or to Kinds of plant, and color the dots by Palate.",
   },
 ];

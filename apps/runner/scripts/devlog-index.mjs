@@ -9,7 +9,8 @@ const groups = [
   { title: "Brains and species (Phases 4 and 5, v0.2)", from: 4, to: 5 },
   { title: "A changing world and ecology (Phases 6 and 7, v0.3)", from: 6, to: 7 },
   { title: "Multicellularity and the grand world (Phase 8, v0.4)", from: 8, to: 15 },
-  { title: "Experiments at scale (Phase 9)", from: 16, to: 99 },
+  { title: "Experiments at scale (Phase 9)", from: 16, to: 24 },
+  { title: "Ship it (Phase 10, v1.0)", from: 25, to: 99 },
 ];
 const entries = readdirSync(dir)
   .filter((f) => /^\d{4}-.*\.md$/.test(f))
