@@ -945,3 +945,22 @@ The one world that kept a meat-eating group (3216) looks the same in every colum
   - The 8-seed screens at 300,000 ticks found 8 of 48 between them.
 
   What the gut does reliably is turn the grand world toward mixed eating (diet gene about double, much less starving). It does not make meat specialists last.
+
+### 13d. Is small prey the barrier? No (existing data, no new run)
+
+The kill autopsy raised a question. Grand-world plant eaters evolve toward the smallest size (two-thirds of animals sit at the bottom of the size range), so is each kill worth too little? The saved results of earlier experiments say no:
+
+| World | Average body size (second half) | Share at the smallest size | Meat eaters |
+|---|---|---|---|
+| Grand world (16 seeds, 3 experiments) | 0.51 to 0.52 | 72 to 76% | 0 |
+| Grand world with the gut | 0.81 to 0.84 | 50 to 53% | 3 to 7 |
+| Classic grand world | 0.37 | 93% | 0 |
+| Grand world: hunters (lasting meat eaters in 13 of 16) | **0.46** | **83%** | **88** |
+| Simple world (meat eaters in every world) | 0.59 to 0.63 | 70 to 74% | about 100 |
+
+- **Meat eaters last in worlds whose animals are as small or smaller.** The gut made grand-world animals bigger by about 60%, yet meat eaters still did not last.
+- **A kill's worth scales with the victim's size relative to the hunter.** A body holds 4 × size of energy, and a meat eater needs 30 × its own size to breed. That exchange rate is the same in every world. Richer bodies were tested already (finding 8, `kill-payoff`): a richer body is carved out of the newborn's starting energy, so a carcass holds about the same.
+- **The diet ledger points at prey supply and running costs, not prey size** (`meat-margin`, classic grand world against the hunters world, with arriving meat eaters).
+  - Meat eaters there earn about the same from meat (7.8 against 7.2 breedings' worth per 1,000 ticks) but pay 57% more to stay alive.
+  - Plant eaters breed at about half the rate (2.6 against 4.7 births per animal per 1,000 ticks), so the same number of plant eaters feeds fewer hunters.
+- **Why plant eaters stay small:** size raises the energy needed to breed in proportion (30 × size) and upkeep (size to the 0.75), while bites grow only about as fast as upkeep. Size mostly buys defense. That is the same in every world, and only the gut (eating speed set by size) pushes animals bigger.
