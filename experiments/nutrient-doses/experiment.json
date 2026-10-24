@@ -1,0 +1,16 @@
+{
+  "name": "nutrient-doses",
+  "question": "Dietary nutrients that bite: at the default use (0.001 a tick) food refills reserves far faster than they drain and almost nobody runs short. A plant eater takes in about 0.0075 breedings' worth of food a tick, so with dietPlantSkew 0.8 one kind of plant brings about 0.0015 of its poorest nutrient and a mixed diet about 0.0075 of each. With use set between those (0.004, and 0.006 near the limit of a mixed diet), and with plants that hold only their own nutrient (dietPlantSkew 1), do animals mix their diets, eat more meat, split into more species, and does a meat-eating group last? Fixed kinds of plant, and plants that evolve. 8 fresh seeds, 300,000 ticks, with the diet ledger.",
+  "base": "grand-world",
+  "ticks": 300000,
+  "seeds": "3801-3808",
+  "sampleEvery": 1500,
+  "arms": {
+    "control": {},
+    "use-004": { "dietNutrients": 1, "dietNutrientUse": 0.004 },
+    "use-004-pure": { "dietNutrients": 1, "dietNutrientUse": 0.004, "dietPlantSkew": 1 },
+    "use-006": { "dietNutrients": 1, "dietNutrientUse": 0.006 },
+    "living-use-004": { "plantEvolution": 1, "dietNutrients": 1, "dietNutrientUse": 0.004 }
+  },
+  "measures": ["all", "dietLedger"]
+}
