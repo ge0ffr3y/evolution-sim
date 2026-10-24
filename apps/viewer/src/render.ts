@@ -36,7 +36,7 @@ export const COLOR_MODES: readonly { id: ColorBy; label: string; legendLow: stri
   { id: "health", label: "Health (worlds with disease)", legendLow: "healthy", legendHigh: "red = sick, blue = immune" },
   { id: "colony", label: "Colony size (worlds with bonding)", legendLow: "alone (gray)", legendHigh: "colony of 16" },
   { id: "cell", label: "Cell type (worlds with cell types)", legendLow: "generalist (gray)", legendHigh: "feeder, mover, sun, armor, sensor" },
-  { id: "palate", label: "Palate (worlds with several kinds of plant)", legendLow: "first kind of plant", legendHigh: "last kind of plant" },
+  { id: "palate", label: "Palate (worlds with several kinds of plant, or plants that evolve)", legendLow: "first kind of plant (chemistry 0)", legendHigh: "last kind of plant (chemistry 1)" },
   { id: "toxicity", label: "Toxicity (worlds with toxicity)", legendLow: "safe to eat", legendHigh: "poisonous" },
   { id: "nutrient", label: "Nutrient store (worlds with nutrient mode)", legendLow: "starved of nutrient", legendHigh: "store full" },
   { id: "water", label: "Water (worlds with drinking)", legendLow: "parched", legendHigh: "just drank" },
