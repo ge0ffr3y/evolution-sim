@@ -84,3 +84,40 @@ Mutation can only push toxin up from 0, so part of the rise may be drift rather 
 - Plant eaters breed a little faster with toxins (2.8 against 2.5) and kills rise, but neither holds up on 8 seeds, and no meat-eating group lasts.
 - One red flag: with plants that evolve (no toxins), most animals end up with the attack gene at its lowest (newly pinned). Food that suits everyone nearly everywhere takes away the reason to fight.
 - Step 1's population gain (+9% there, not holding up) is +25% here and holds up.
+
+## 3. Dietary nutrients (step 3), and is toxin chosen or chance?
+
+**Built:** `dietNutrients` (off by default; needs kinds of plant or plants that evolve; tests in `livingplants.test.ts`).
+- Food holds three nutrients. A plant's mix follows its chemistry, and meat is an even mix.
+- Animals keep three reserves, and running short (below half) costs upkeep.
+
+To watch it: color the dots by Nutrient balance.
+
+**Experiment:** `living-plants-3`, six setups, seeds 3701 to 3708, 300,000 ticks, 48 cores, about $1.10.
+
+**Nutrients as set by default barely bite.**
+- Only 3 to 4% of animals are short of a nutrient at any time, and the average lowest reserve stays at about 0.88 (on a scale where 0.5 is short).
+- Food refills reserves much faster than they drain (0.001 a tick), so even an animal eating one kind of plant keeps up.
+- So none of the changes from nutrients hold up: with fixed kinds, species -1% and meat -8%. That says nothing yet about nutrients that matter; the default rates are too gentle.
+
+**Toxin is chosen, not only chance.**
+
+| Average toxin at the end | Range over 8 seeds |
+|---|---|
+| Toxin that harms (and slows the plant's growth) | 0.18 to 0.28 |
+| The same with nutrients | 0.17 to 0.30 |
+| Harmless toxin (no harm, no growth cost: chance alone) | 0.12 to 0.17 |
+
+Seven of the eight harmful-toxin worlds end above every harmless one, and the eighth (0.18) above all but two (0.17), even though toxin there also slows growth. Chance explains most of the level, and selection adds about a third more toxin, and twice the share of land with toxin above 0.3 (16% against 8%).
+
+**Every setup with plants that evolve cuts meat in the diet by 21 to 33%** (holds up in all four), as in steps 1 and 2. No setup kept a lasting meat-eating group (0 of 8 each).
+
+| Against the grand world | Population | Species | Meat in the diet |
+|---|---|---|---|
+| Nutrients (fixed kinds) | -5% | -1% | -8% |
+| Plants that evolve + nutrients | +25% | +8% | **-33%*** |
+| Plants that evolve + toxins + nutrients | +12% | +11% | **-21%*** |
+| Plants that evolve + toxins | +13% | +1% | **-22%*** |
+| Plants that evolve + harmless toxins | **+21%*** | +16% | **-22%*** |
+
+(* holds up, 8 seeds)
