@@ -133,3 +133,89 @@ describe("plants that evolve: the books and saving", () => {
     for (let cell = 0; cell < sim.plantChem.length; cell++) expect(copy.plantChem[cell]).toBe(sim.plantChem[cell]);
   }, 120_000);
 });
+
+describe("poisonous plants (plantToxins)", () => {
+  type T = { plantHarm(i: number, cell: number): number; plantWorth(i: number, cell: number): number; cellOf: Uint32Array; seedPlants(): void; gridWidth: number };
+  const t = (sim: Simulation): T => sim as unknown as T;
+
+  it("are off by default and need plants that evolve", () => {
+    expect(DEFAULT_CONFIG.plantToxins).toBe(0);
+    expect(new Simulation(1, { worldWidth: 64, worldHeight: 64, plantEvolution: 1 }).plantToxin).toHaveLength(0);
+    expect(() => new Simulation(1, { plantToxins: 1 })).toThrow(/plantEvolution/);
+    expect(() => new Simulation(1, { plantEvolution: 1, plantToxins: 1, plantToxinGrowthCost: 2 })).toThrow(/plantToxinGrowthCost/);
+  });
+
+  it("harm = plantToxinHarm x toxin x mismatch: nothing to an animal whose palate matches, full harm at plantPalateWidth away", () => {
+    const sim = new Simulation(1, { worldWidth: 64, worldHeight: 64, initialOrganisms: 1, plantEvolution: 1, plantToxins: 1, plantToxinHarm: 0.8, plantPalateWidth: 0.5 });
+    const cell = t(sim).cellOf[0]!;
+    sim.plantToxin[cell] = 0.5;
+    sim.genes[GENE.palate] = 0.3;
+    sim.plantChem[cell] = sim.genes[GENE.palate]!; // (genes are stored in single precision)
+    expect(t(sim).plantHarm(0, cell)).toBe(0);
+    sim.genes[GENE.palate] = 0.55; // half of plantPalateWidth away
+    expect(t(sim).plantHarm(0, cell)).toBeCloseTo(0.8 * 0.5 * ((sim.genes[GENE.palate]! - sim.plantChem[cell]!) / 0.5), 12);
+    sim.genes[GENE.palate] = 1;
+    expect(t(sim).plantHarm(0, cell)).toBeCloseTo(0.8 * 0.5, 12);
+    // Smell and steering see the poison: worth = how well it digests them, less the harm.
+    expect(t(sim).plantWorth(0, cell)).toBeLessThan(0);
+  });
+
+  it("an animal that eats poison pays for it on the upkeep line; one adapted to the plant does not", () => {
+    const meal = (palate: number, toxin: number): { energy: number; basal: number } => {
+      const sim = new Simulation(2, { worldWidth: 64, worldHeight: 64, initialOrganisms: 1, speciesEvery: 0, initialFoodFraction: 1, plantEvolution: 1, plantSeedRate: 0, plantToxins: 1, plantInitialToxin: toxin, plantInitialChem: 0.2, mutationRateMin: 0, mutationRateMax: 0, initialMutationRate: 0, metaMutationStd: 0, reproThresholdPerSize: 1e9 });
+      sim.genes[GENE.palate] = palate;
+      sim.express(0);
+      const before = sim.ledger.basalBurned;
+      sim.step();
+      return { energy: sim.energy[0]!, basal: sim.ledger.basalBurned - before };
+    };
+    const clean = meal(1, 0);
+    const poisoned = meal(1, 0.8);
+    expect(poisoned.basal).toBeGreaterThan(clean.basal);
+    expect(poisoned.energy).toBeLessThan(clean.energy);
+    expect(meal(Math.fround(0.2), 0.8).basal).toBeCloseTo(meal(Math.fround(0.2), 0).basal, 6); // its palate matches: almost no harm (single-precision genes)
+  });
+
+  it("making toxin slows a plant's growth", () => {
+    const grown = (toxin: number): number => {
+      const sim = new Simulation(3, { worldWidth: 64, worldHeight: 64, initialOrganisms: 0, initialFoodFraction: 0, plantEvolution: 1, plantSeedRate: 0, plantToxins: 1, plantInitialToxin: toxin, plantToxinGrowthCost: 0.3 });
+      sim.run(20);
+      return sim.food.reduce((a, b) => a + b, 0);
+    };
+    expect(grown(1) / grown(0)).toBeCloseTo(0.7, 2);
+  });
+
+  it("toxin is inherited through seeds, with mutation, and stays from 0 to 1", () => {
+    const sim = new Simulation(4, { worldWidth: 64, worldHeight: 64, initialOrganisms: 0, initialFoodFraction: 1, plantEvolution: 1, plantSeedRate: 1, plantToxins: 1, plantInitialToxin: 0.99, plantMutateToxin: 0.05 });
+    for (let cell = 0; cell < sim.food.length; cell += 2) sim.food[cell] = 0;
+    t(sim).seedPlants();
+    let changed = 0;
+    for (const x of sim.plantToxin) {
+      expect(x).toBeGreaterThanOrEqual(0.94 - 1e-12);
+      expect(x).toBeLessThanOrEqual(1);
+      if (x !== 0.99) changed++;
+    }
+    expect(changed).toBeGreaterThan(0);
+  });
+
+  it("the books balance with poisonous plants, and a saved world carries on exactly", () => {
+    const config = seasonal({ plantEvolution: 1, plantToxins: 1, plantInitialToxin: 0.3, plantMutateToxin: 0.05, initialOrganisms: 250, nutrientMode: 2, brainMode: 2 });
+    const sim = new Simulation(6, config);
+    sim.run(20);
+    const e0 = sim.energyAudit().total;
+    const m0 = sim.matterAudit().total;
+    const L0 = { ...sim.ledger };
+    sim.run(1500);
+    const L = sim.ledger;
+    expect(sim.count).toBeGreaterThan(0);
+    const burned = (y: typeof L): number => y.basalBurned + y.movementBurned + y.sensingBurned + y.attackBurned + y.armorBurned + y.brainBurned;
+    const expected = e0 + (L.sunlightIn - L0.sunlightIn) - (burned(L) - burned(L0)) - (L.digestionLoss - L0.digestionLoss) - (L.decayLoss - L0.decayLoss);
+    expect(Math.abs(sim.energyAudit().total - expected) / expected).toBeLessThan(1e-9);
+    expect(Math.abs(sim.matterAudit().total - m0) / m0).toBeLessThan(1e-9);
+    const copy = Simulation.load(sim.save());
+    sim.run(300);
+    copy.run(300);
+    expect(copy.fingerprint()).toBe(sim.fingerprint());
+    for (let cell = 0; cell < sim.plantToxin.length; cell++) expect(copy.plantToxin[cell]).toBe(sim.plantToxin[cell]);
+  }, 120_000);
+});

@@ -465,6 +465,19 @@ export interface SimConfig {
   plantMutateSeason: number;
   plantMutateWarm: number;
   plantInitialChem: number;
+  /**
+   * Poisonous plants (0 = off; needs plantEvolution). Each plant genome gains a toxin (0 to 1), inherited through seeds
+   * with mutation (plantMutateToxin) and starting at plantInitialToxin. Making toxin slows the plant's growth
+   * (by plantToxinGrowthCost x toxin). An animal eating it loses plantToxinHarm x toxin x mismatch x the plant energy
+   * it took, where mismatch is how far its palate is from the plant's chemistry, as a share of plantPalateWidth (0 when
+   * they match, 1 at plantPalateWidth or more). The loss is counted as upkeep, like poisonous meat. Smell and steering
+   * weigh a patch by its food value minus that harm, so animals avoid what poisons them, and only them.
+   */
+  plantToxins: number;
+  plantToxinHarm: number;
+  plantToxinGrowthCost: number;
+  plantMutateToxin: number;
+  plantInitialToxin: number;
   plantTypeScale: number;
   plantTypePhase: number;
   plantTypeTempSpread: number;
@@ -1515,6 +1528,11 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   plantMutateSeason: 0.02,
   plantMutateWarm: 0.02,
   plantInitialChem: 0.5,
+  plantToxins: 0,
+  plantToxinHarm: 0.5,
+  plantToxinGrowthCost: 0.3,
+  plantMutateToxin: 0.02,
+  plantInitialToxin: 0,
   plantTypeScale: 8,
   plantTypePhase: 1,
   plantTypeTempSpread: 0.1,
@@ -2079,6 +2097,12 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   }
   if (!Number.isInteger(c.plantTypes) || c.plantTypes < 1 || c.plantTypes > 6) problems.push("plantTypes must be a whole number from 1 to 6");
   if (c.plantEvolution !== 0 && c.plantEvolution !== 1) problems.push("plantEvolution must be 0 (off) or 1 (on)");
+  if (c.plantToxins !== 0 && c.plantToxins !== 1) problems.push("plantToxins must be 0 (off) or 1 (on)");
+  if (c.plantToxins === 1) {
+    if (c.plantEvolution !== 1) problems.push("plantToxins needs plants that evolve (plantEvolution 1)");
+    if (!(c.plantToxinHarm >= 0) || !(c.plantToxinGrowthCost >= 0 && c.plantToxinGrowthCost <= 1)) problems.push("plantToxinHarm cannot be negative, and plantToxinGrowthCost must be between 0 and 1");
+    if (!(c.plantMutateToxin >= 0 && c.plantMutateToxin <= 0.5) || !(c.plantInitialToxin >= 0 && c.plantInitialToxin <= 1)) problems.push("plantMutateToxin must be between 0 and 0.5, plantInitialToxin between 0 and 1");
+  }
   if (c.plantEvolution === 1) {
     if (!Number.isInteger(c.plantSeedEvery) || c.plantSeedEvery < 1) problems.push("plantSeedEvery must be a whole number of ticks, at least 1");
     if (!(c.plantSeedRate >= 0 && c.plantSeedRate <= 1)) problems.push("plantSeedRate must be between 0 and 1");

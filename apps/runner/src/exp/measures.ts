@@ -1151,6 +1151,14 @@ const stdOf = (xs: number[]): number => {
   return Math.sqrt(xs.reduce((a, x) => a + (x - m) * (x - m), 0) / xs.length);
 };
 
+/** Poisonous plants (NaN when off): average toxin over land cells, the share of land with toxin above 0.3, and the spread of toxin. */
+function toxinStats(sim: Simulation, capacity: Float64Array): Row {
+  if (sim.plantToxin.length === 0) return { plantToxin: NaN, plantToxicShare: NaN, plantToxinSpread: NaN };
+  const xs: number[] = [];
+  for (let cell = 0; cell < sim.plantToxin.length; cell++) if (capacity[cell]! > 0) xs.push(sim.plantToxin[cell]!);
+  return { plantToxin: round(mean(xs), 4), plantToxicShare: round(xs.filter((x) => x > 0.3).length / Math.max(xs.length, 1), 4), plantToxinSpread: round(stdOf(xs), 4) };
+}
+
 MEASURES.plants = {
   describe:
     "plants that evolve (NaN when off): the effective number of plant chemistries (exp of Shannon diversity over ten bins of land cells) and their spread, how far plants' best temperature is from the local average temperature and how closely the two follow each other (correlation), how spread out plants' growing seasons are (0 = all the same time of year, 1 = evenly spread), and the effective number and spread of animals' palates",
@@ -1194,6 +1202,7 @@ MEASURES.plants = {
       plantSeasonSpread: chem.length ? round(1 - Math.sqrt(cos * cos + sin * sin) / chem.length, 4) : NaN,
       palateKindsEff: round(effectiveKinds(palates), 4),
       palateSpread: round(stdOf(palates), 4),
+      ...toxinStats(sim, world.foodCapacity),
     };
   },
   summarize: (rows) => ({
@@ -1204,5 +1213,8 @@ MEASURES.plants = {
     plantSeasonSpreadLate: lateMean(rows, "plantSeasonSpread"),
     palateKindsEffLate: lateMean(rows, "palateKindsEff"),
     palateSpreadLate: lateMean(rows, "palateSpread"),
+    plantToxinLate: lateMean(rows, "plantToxin"),
+    plantToxicShareLate: lateMean(rows, "plantToxicShare"),
+    plantToxinSpreadLate: lateMean(rows, "plantToxinSpread"),
   }),
 };

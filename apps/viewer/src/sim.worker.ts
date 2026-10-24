@@ -230,7 +230,7 @@ function postFrame(s: Simulation): void {
   const background = sendCapacity && s.background.length > 0 ? s.background.slice() : null;
   const plantKindMap = sendCapacity && s.config.plantTypes > 1 ? s.plantKindMap().slice() : null;
   // Plants that evolve change all the time, so their genomes go with every frame.
-  const plantGenome = s.plantChem.length > 0 ? { chem: Float32Array.from(s.plantChem), warm: Float32Array.from(s.plantWarm) } : null;
+  const plantGenome = s.plantChem.length > 0 ? { chem: Float32Array.from(s.plantChem), warm: Float32Array.from(s.plantWarm), toxin: s.plantToxin.length > 0 ? Float32Array.from(s.plantToxin) : null } : null;
   let toxicity: Float32Array | null = null;
   if (s.config.toxinStrength > 0) {
     toxicity = new Float32Array(n);
@@ -341,6 +341,7 @@ function postFrame(s: Simulation): void {
   if (background) transfer.push(background.buffer);
   if (plantKindMap) transfer.push(plantKindMap.buffer);
   if (plantGenome) transfer.push(plantGenome.chem.buffer, plantGenome.warm.buffer);
+  if (plantGenome?.toxin) transfer.push(plantGenome.toxin.buffer);
   if (palate) transfer.push(palate.buffer);
   if (toxicity) transfer.push(toxicity.buffer);
   if (nutrientStore) transfer.push(nutrientStore.buffer);

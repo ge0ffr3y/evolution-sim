@@ -659,6 +659,10 @@ export class Simulation {
   readonly plantChem: Float64Array;
   readonly plantSeason: Float64Array;
   readonly plantWarm: Float64Array;
+  /** Poisonous plants: each cell's plant toxin (0 to 1), when plantToxins is on. */
+  private readonly plantToxOn: boolean;
+  readonly plantToxin: Float64Array;
+  private readonly seedToxin: Float64Array;
   private readonly plantRng: Rng;
   /** Scratch: the plant genomes as they stood before this round of seeding (all cells update together). */
   private readonly seedChem: Float64Array;
@@ -1105,6 +1109,9 @@ export class Simulation {
     this.seedChem = new Float64Array(plantCells);
     this.seedSeason = new Float64Array(plantCells);
     this.seedWarm = new Float64Array(plantCells);
+    this.plantToxOn = c.plantToxins === 1;
+    this.plantToxin = new Float64Array(this.plantToxOn ? cells : 0).fill(c.plantInitialToxin);
+    this.seedToxin = new Float64Array(this.plantToxOn ? cells : 0);
     // (Its own random stream, derived from the seed like the events', so plants never disturb anything else.)
     this.plantRng = new Rng((seed ^ 0x2c1b3c6d) >>> 0);
     if (this.plantEvoOn) this.initPlantGenomes();
@@ -3033,6 +3040,7 @@ export class Simulation {
     this.seedChem.set(this.plantChem);
     this.seedSeason.set(this.plantSeason);
     this.seedWarm.set(this.plantWarm);
+    if (this.plantToxOn) this.seedToxin.set(this.plantToxin);
     for (let cell = 0; cell < this.plantChem.length; cell++) {
       const cap = this.foodCapacity[cell]!;
       if (cap <= 0) continue; // water, or ground that grows nothing
@@ -3053,6 +3061,10 @@ export class Simulation {
       this.plantChem[cell] = chem < 0 ? 0 : chem > 1 ? 1 : chem;
       this.plantSeason[cell] = season - Math.floor(season);
       this.plantWarm[cell] = this.seedWarm[nb]! + (2 * rng.next() - 1) * c.plantMutateWarm;
+      if (this.plantToxOn) {
+        const toxin = this.seedToxin[nb]! + (2 * rng.next() - 1) * c.plantMutateToxin;
+        this.plantToxin[cell] = toxin < 0 ? 0 : toxin > 1 ? 1 : toxin;
+      }
     }
   }
 
@@ -3063,6 +3075,21 @@ export class Simulation {
     const distance = Math.abs(this.genes[i * GENE_COUNT + GENE.palate]! - position);
     const match = 1 - distance / c.plantPalateWidth;
     return match > c.plantPalateFloor ? match : c.plantPalateFloor;
+  }
+
+  /** Poisonous plants: how much plant energy organism i loses per unit eaten in a cell (toxin x how far its palate is from the plant's chemistry). */
+  private plantHarm(i: number, cell: number): number {
+    const toxin = this.plantToxin[cell]!;
+    if (toxin <= 0) return 0;
+    const c = this.config;
+    const distance = Math.abs(this.genes[i * GENE_COUNT + GENE.palate]! - this.plantChem[cell]!);
+    const mismatch = distance >= c.plantPalateWidth ? 1 : distance / c.plantPalateWidth;
+    return c.plantToxinHarm * toxin * mismatch;
+  }
+
+  /** What a cell's plants are worth to organism i, per unit, for smell and steering: how well it digests them, less any poison. */
+  private plantWorth(i: number, cell: number): number {
+    return this.plantToxOn ? this.palateMatch(i, cell) - this.plantHarm(i, cell) : this.palateMatch(i, cell);
   }
 
   /** Move organism i's four chemical signals (reward, stress, bond, calm) on by one thought. */
@@ -3280,8 +3307,8 @@ export class Simulation {
       const plantScale = 1 / c.foodCap;
       // With kinds of plant, what an animal smells is food it can digest.
       const kinds = this.palateOn;
-      const gxPlant = (this.food[east]! * (kinds ? this.palateMatch(i, east) : 1) - this.food[west]! * (kinds ? this.palateMatch(i, west) : 1)) * plantScale;
-      const gyPlant = (this.food[south]! * (kinds ? this.palateMatch(i, south) : 1) - this.food[north]! * (kinds ? this.palateMatch(i, north) : 1)) * plantScale;
+      const gxPlant = (this.food[east]! * (kinds ? this.plantWorth(i, east) : 1) - this.food[west]! * (kinds ? this.plantWorth(i, west) : 1)) * plantScale;
+      const gyPlant = (this.food[south]! * (kinds ? this.plantWorth(i, south) : 1) - this.food[north]! * (kinds ? this.plantWorth(i, north) : 1)) * plantScale;
       inputs[INPUT.smellPlantAhead] = clampUnit(gxPlant * hx + gyPlant * hy);
       inputs[INPUT.smellPlantSide] = clampUnit(hx * gyPlant - hy * gxPlant);
       const meatScale = 1 / MEAT_SMELL_FULL;
@@ -3289,7 +3316,7 @@ export class Simulation {
       const gyMeat = (this.corpseEnergy[south]! - this.corpseEnergy[north]!) * meatScale;
       inputs[INPUT.smellMeatAhead] = clampUnit(gxMeat * hx + gyMeat * hy);
       inputs[INPUT.smellMeatSide] = clampUnit(hx * gyMeat - hy * gxMeat);
-      inputs[INPUT.plantHere] = Math.min(1, this.food[here]! * (kinds ? this.palateMatch(i, here) : 1) * plantScale);
+      inputs[INPUT.plantHere] = Math.min(1, this.food[here]! * (kinds ? (this.plantToxOn ? Math.max(0, this.plantWorth(i, here)) : this.palateMatch(i, here)) : 1) * plantScale);
       inputs[INPUT.meatHere] = Math.min(1, this.corpseEnergy[here]! * meatScale);
 
       // Trails: which way does plant-eater and meat-eater scent get fresher?
@@ -4587,13 +4614,13 @@ export class Simulation {
           const hereCell = Math.floor(y0 / cs) * gw + Math.floor(x0 / cs);
           const kinds = this.palateOn;
           // (With kinds of plant it leans toward food it can digest.)
-          const here = food[hereCell]! * (kinds ? this.palateMatch(i, hereCell) : 1);
+          const here = food[hereCell]! * (kinds ? this.plantWorth(i, hereCell) : 1);
           let gx = 0;
           let gy = 0;
           for (let d = 0; d < 8; d++) {
             const cx = wrapCell(Math.floor((x0 + DIR_X[d]! * sense) / cs), gw);
             const cy = wrapCell(Math.floor((y0 + DIR_Y[d]! * sense) / cs), gh);
-            const diff = food[cy * gw + cx]! * (kinds ? this.palateMatch(i, cy * gw + cx) : 1) - here;
+            const diff = food[cy * gw + cx]! * (kinds ? this.plantWorth(i, cy * gw + cx) : 1) - here;
             gx += DIR_X[d]! * diff;
             gy += DIR_Y[d]! * diff;
           }
@@ -4849,6 +4876,8 @@ export class Simulation {
         }
       }
       const plantGain = plantRaw * this.plantEff[i]! * (this.palateOn ? this.palateMatch(i, cell) : 1);
+      // Poisonous plants: the meal costs extra energy, lost as heat on the upkeep line (like poisonous meat).
+      const plantPoison = this.plantToxOn && plantRaw > 0 ? this.plantHarm(i, cell) * plantRaw : 0;
       const meatGain = meatRaw * this.meatEff[i]!;
       plantEnergyTaken += plantRaw;
       meatEnergyTaken += meatRaw;
@@ -4909,6 +4938,7 @@ export class Simulation {
       }
 
       let basal = this.basalCost[i]! + toxinLoss;
+      if (plantPoison > 0) basal += plantPoison;
       if (this.colonyInfoOn && c.colonyScaleSaving > 0 && this.colonyCount[i]! > 1) {
         // Economies of scale: a cell in a bigger colony costs a little less to keep (cells^-1/8, built from square roots).
         const eighthRoot = Math.sqrt(Math.sqrt(Math.sqrt(this.colonyCount[i]!)));
@@ -5092,6 +5122,7 @@ export class Simulation {
       let potential = (this.foodRegrow[cell]! * soil) / (soil + halfSat);
       if (climateOn) potential *= this.growthFactor[cell]!;
       potential *= health;
+      if (this.plantToxOn) potential *= 1 - c.plantToxinGrowthCost * this.plantToxin[cell]!; // making poison slows growth
       if (this.eventsOn) {
         // Disasters: a blight or a good year changes the growth rate, volcanic ash raises it (and the ceiling), and flooded ground grows nothing.
         potential *= this.evGrowthMult * this.evKindMult[this.plantKinds > 1 ? this.kindIndex(cell) : 0]!;
@@ -5569,6 +5600,7 @@ export class Simulation {
       ...(this.fireOn ? ([["fireScar", this.fireScar]] as [string, SnapshotArray][]) : []),
       ...(this.qualityOn ? ([["plantQ", this.plantQ]] as [string, SnapshotArray][]) : []),
       ...(this.plantEvoOn ? ([["plantChem", this.plantChem], ["plantSeason", this.plantSeason], ["plantWarm", this.plantWarm]] as [string, SnapshotArray][]) : []),
+      ...(this.plantToxOn ? ([["plantToxin", this.plantToxin]] as [string, SnapshotArray][]) : []),
       ...(this.foulOn ? ([["foul", this.foul]] as [string, SnapshotArray][]) : []),
       ...(this.grazeOn ? ([["grazing", this.grazing]] as [string, SnapshotArray][]) : []),
       ["nutrient", this.nutrient],
@@ -6315,6 +6347,7 @@ export class Simulation {
       mixBits(this.plantChem, this.plantChem.length);
       mixBits(this.plantSeason, this.plantSeason.length);
       mixBits(this.plantWarm, this.plantWarm.length);
+      if (this.plantToxOn) mixBits(this.plantToxin, this.plantToxin.length);
     }
     if (this.drinkOn) mixBits(this.hydration, n);
     if (this.signalOn) {
