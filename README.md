@@ -1,70 +1,105 @@
-# Evolution Sim Project
+# Evolution Sim
 
 A browser-based artificial-life simulation where simple organisms evolve in a dynamic, changing world.
 
-Nobody is told to be a predator, a herbivore or a scavenger. Those roles, along with arms races, speciation and eventually multicellular life, **emerge** from random mutation plus one universal rule: everything costs energy.
+Nobody is told to be a predator, a plant eater or a scavenger. Those roles, along with arms races, new species and colonies of cells, **emerge** from random mutation plus one universal rule: everything costs energy.
 
-**Live demo:** https://ge0ffr3y.github.io/evolution-sim/
+**Live:** https://ge0ffr3y.github.io/evolution-sim/
+- [the simulator](https://ge0ffr3y.github.io/evolution-sim/app.html);
+- [what we found](https://ge0ffr3y.github.io/evolution-sim/read.html?doc=findings);
+- [the devlog](https://ge0ffr3y.github.io/evolution-sim/read.html?doc=devlog);
+- [experiment results](https://ge0ffr3y.github.io/evolution-sim/analysis.html).
 
 ![A time-lapse of one run: green plant eaters, then red meat eaters appear and a food web forms](docs/media/food-web.gif)
 
 *Seed 12 over 60,000 ticks. Everyone starts as a green, unarmed plant eater. The first kill happens at tick 60, the first scavenger at 566, and by tick 8,690 a lineage lives mostly on meat (red). Larger dots are larger bodies.*
 
-> **Status: Phase 8b (the grand world) on top of v0.4 (Phase 8, multicellularity), on top of Phase 7 (ecological depth, v0.3), Phase 6 (a dynamic world), v0.2 (species and family trees), Phase 4 (senses and brains) and the v0.1 food webs.** Predators, plant eaters and scavengers emerge on their own, from nothing but mutation and the rule that everything costs energy. In 12 of 12 seeds a lineage that lives mostly on meat evolves, and all 12 ecosystems were still going after 1,000,000 ticks. Phase 4 adds evolvable neural-network brains: prey evolve to run from threats, and meat eaters evolve to ambush. Chasing has not evolved yet (see the [Phase 4 devlog](docs/devlog/0004-senses-and-brains.md) for why). Phase 5 adds a family tree of species, saving and loading worlds, and sexual reproduction. Phase 6 adds terrain, climate, seasons and catastrophes, and Phase 7 adds aging, litter size, kin recognition, disease and camouflage, and Phase 8 adds bonded colonies with specialized cells (all optional, see the presets).
+## What emerges
+
+Nothing below is programmed in. There is no predator class; whether eating others pays depends on an organism's genes and its surroundings. Details and charts: [What we found](docs/findings/README.md).
+
+- **Food webs.** In the simple world a lineage that lives mostly on meat appears in 12 of 12 worlds, then plant eaters and meat eaters settle into irregular waves.
+- **Arms races.** Prey answer with armor and speed.
+- **Species.** 23 to 50 species over a million ticks, with three or four alive at a time.
+- **A changing world leaves its mark.** Water splits populations that then drift apart nine times as far. An ice age halves the population and leaves cold-loving survivors.
+- **Brains.** Prey learn to turn away from threats, and hunters learn to ambush. They never learned to chase.
+- **Colonies.** Colonies of specialized cells beat single cells in a sunlit, low-food world.
+- **Experiments at scale.** Thousands of worlds run in the cloud, compared seed by seed.
+  - Sex blends would-be meat eaters back into the plant eaters.
+  - Barriers raise diversity.
+  - Poorer plant food lengthens the food chain.
+- **The meat-eater puzzle.** In the full "grand world", four features together (seasons, harmful mutations, sex and kin restraint) erase lasting meat eaters, because each hurts a small group most. It is reported as an open problem, with an autopsy of what kills them.
+- **Living plants.** Plants evolve to fit their land, and poisonous plants are selected beyond chance.
 
 ![A family tree: green branches are plant eaters, orange and red are meat eaters, red crosses mark extinctions](docs/media/family-tree.png)
 
-*Seed 4 over 406,000 ticks: 27 species so far, 3 alive. Time runs left to right, a branch's thickness is its number of members, and a thin line joins a branch to the species it split from.*
+## How it works
 
-## What happens in a run
+- **Genes**, each 0 to 1, for size, speed, senses, metabolism, diet, attack, armor and more (up to 33 with every optional feature). Every trait costs energy every tick, so no trait is free.
+- **Two ledgers, both checked by tests.**
+  - Energy flows one way (sun, plants, eaters, heat) and balances to better than one part in a billion.
+  - Matter goes round in a circle (soil, plants, bodies, corpses, detritus, soil) and is never created or destroyed.
+- **Predation is physics.** An armed organism attacks the nearest prey in reach, with odds from attack and size against armor and size. A kill leaves a corpse that anyone with a meat appetite can eat.
+- **Optional layers.** All are off unless a preset switches them on:
+  - evolvable neural-network brains;
+  - terrain, climate, seasons and disasters;
+  - aging, disease, camouflage and kin recognition;
+  - sex;
+  - colonies of specialized cells;
+  - living plants.
+- **Determinism.** The same seed and settings give the same history in any browser, on a laptop or in the cloud. All randomness comes from one seeded generator, and the simulation avoids math functions whose rounding differs between browsers.
 
-Every organism starts as the same unarmed plant eater. Nobody is told to hunt. The simulation has:
+### Architecture
 
-- **Genes** for size, speed, sense range, metabolism, mutation rate, a color marker, **diet**, **attack**, **armor**, **stamina** (a sprint reserve, used when brains and sprint fatigue are on) a **preferred temperature** (used in worlds with a climate), a **lifespan** (with aging) and a **litter size**. Every trait costs energy every tick, so no trait is free.
-- **Brains (optional).** Switch on evolvable neural networks that see, smell and feel (including their own diet and stamina), and decide how to turn, how fast to move and whether to attack. Brains cost energy per thinking unit and connection. Brains off is the control world.
-- **A closed loop.** Sunlight and soil nutrients grow plants. Organisms eat plants (or each other), and eating, dying and rotting return matter to the soil as detritus, which turns back into nutrients. Newborns are built from nutrients in the soil they are born on, so soil limits the population.
-- **Two ledgers, both checked by tests.** Energy flows one way (sun, plants, eaters, heat) and the books balance to better than one part in a billion. Matter goes round in a circle and none is ever created or destroyed.
-- **Predation as physics.** An armed organism picks the nearest prey in reach that is not too big for it. The odds depend on its attack and size against the prey's armor and size. A kill leaves a corpse that anyone with a meat appetite can eat, so scavengers and hunters share a food supply.
-
-What emerged (details in the [devlog](docs/devlog)):
-
-1. Killing started within the first 50 ticks, and scavenging within a few hundred.
-2. A lineage that survives mostly on meat appeared in **12 of 12 seeds** (median tick 29,000).
-3. After the first predators arrive, plant eaters crash, then a stable predator and prey system settles in: about 230 plant eaters and 90 meat eaters, with carnivore numbers swinging in irregular waves.
-4. Prey answer with armor and speed, and the arms race never ends.
-5. A family tree grows: over 1,000,000 ticks every one of 12 seeds made 23 to 50 species (3 to 4 alive at the end), with a stream of short-lived offshoots from three lasting groups.
-6. In a dynamic world, populations separated by water drift apart (nine times as far as without the barrier, and each continent grows its own species), an ice age halves the population and leaves survivors that prefer the cold, and the population swells and shrinks with the seasons.
-7. Switch on ecological depth and each piece shows up in the numbers: with disease the plant eaters keep about a third more genetic variety, with camouflage their colors come to match the background, with a litter-size gene the population doubles, and with kin recognition sexual worlds stop collapsing (at the price of suppressing predators).
-8. Switch on multicellularity and colonies of specialized cells do arise and can beat single cells: in a sunlit, low-food world with no predators, a lineage of colonies roughly doubled the average population (628 against 331) in 7 of 12 worlds where it was given a head start. It rarely starts from nothing, it loses once predators evolve, and cells did not choose to bond across lineages (see devlog 8).
-9. With brains on, prey evolve to turn away from threats (about 0.68 of the time, against 0.52 for the no-brain control), and meat eaters evolve to ambush: they slow down and let prey walk into reach. They do not chase. In sparse worlds the meat eaters repeatedly crash and re-evolve, which wipes out any chasing wiring.
-
-## Goals
-
-- **Watch adaptation happen**: the emergent behavior and the data matter more than the graphics.
-- **Observable**: population graphs, trait histories, phylogenetic trees and an organism inspector.
-- **Rigorous**: seeded, deterministic runs, so results can be replayed, compared and turned into experiments.
-- **Shareable**: runs in the browser with zero install.
+```mermaid
+flowchart LR
+  core["packages/sim-core<br/>the simulation: pure TypeScript,<br/>deterministic, no browser or Node APIs"]
+  viewer["apps/viewer<br/>front page, simulator (Web Worker),<br/>experiment results, findings, devlog"]
+  runner["apps/runner<br/>headless runs, experiments,<br/>reports, GIFs"]
+  cloud["AWS<br/>one on-demand machine per experiment,<br/>results to S3, shuts itself down"]
+  results["experiment results<br/>(reports, exported summaries)"]
+  ci["GitHub Actions<br/>type check, tests, build"]
+  pages["GitHub Pages<br/>the live site"]
+  core --> viewer
+  core --> runner
+  runner -->|launch| cloud
+  cloud -->|fetch| results
+  results -->|export| viewer
+  viewer --> ci --> pages
+```
 
 ## Design principles
 
 1. Emergence over hard-coding. There is no `Predator` class.
-2. Energy is the universal currency, so every trait has a cost and no trait is free.
+2. Energy is the universal currency, so every trait has a cost.
 3. Eating is physics, not a role.
-4. The nutrient loop is closed (sun, plants, animals, corpses, soil, plants).
-5. Determinism: the same seed and config always give the same history.
-6. Observability first.
+4. The nutrient loop is closed.
+5. Determinism: the same seed and settings always give the same history.
+6. Observability first: charts, family trees and an inspector for any organism.
+7. Evidence over anecdote: claims rest on many seeds compared side by side, and open problems are reported as open.
 
-## Repo layout
+## Watch a world
 
-| Path | What it is |
+| World | What to watch for |
 |---|---|
-| `packages/sim-core` | The simulation: pure TypeScript, no UI, no browser APIs |
-| `apps/viewer` | Browser app: world view, charts, inspector, event log |
-| `apps/runner` | Node CLI for headless batch experiments, seed sweeps and GIF rendering |
-| `configs/` | Preset worlds (JSON) |
-| `tests/` | Repo-wide guardrail tests |
-| `docs/devlog` | One entry per development phase |
-| `docs/media` | Images for this README |
+| [The grand world](https://ge0ffr3y.github.io/evolution-sim/app.html?seed=42&preset=grand-world) (the default) | Every feature at once. Species branch on the family tree; plant eaters, mixed eaters and short-lived meat-eating groups come and go. |
+| [Food webs from nothing](https://ge0ffr3y.github.io/evolution-sim/app.html?seed=12&preset=default) | The first kill within a few hundred ticks, then a lineage that lives on meat. |
+| [Predator arms race](https://ge0ffr3y.github.io/evolution-sim/app.html?seed=42&preset=arms-race) | Cheap fighting: killing at once, armor and speed climbing. |
+| [Ice age](https://ge0ffr3y.github.io/evolution-sim/app.html?seed=42&preset=ice-age) | At tick 60,000 the world cools: a crash, then cold-loving survivors. |
+| [Two continents](https://ge0ffr3y.github.io/evolution-sim/app.html?seed=42&preset=two-continents) | Each half grows its own species. |
+| [Living plants](https://ge0ffr3y.github.io/evolution-sim/app.html?seed=42&preset=grand-living-plants) | Plants evolve to fit their land: compare the Plant warmth and Temperature overlays. |
+
+There are 46 presets in all, in [`configs/`](configs) and in the viewer's World menu.
+
+**Sharing a run.** The address holds everything needed to replay a run exactly, and the **Copy link** button copies it:
+- `seed` and `preset` pick the world;
+- `set` changes any setting on top of the preset, for example `?seed=5&preset=grand-world&set=plantEvolution:1,plantToxins:1`.
+
+In the simulator:
+- click any organism to inspect its genes, energy, family and (with brains) its brain thinking;
+- color the dots by diet, size, palate and more, and switch the map between plants, terrain, temperature and other overlays;
+- scroll down for the charts, the family tree and the timeline;
+- **Save world** and **Load world** store a run in a file and bring it back exactly.
 
 ## Getting started
 
@@ -72,82 +107,69 @@ Requires Node.js 20 or newer.
 
 ```bash
 npm install
-npm test            # run all tests (about a minute)
-npm run dev         # start the viewer at http://localhost:5173 (add ?seed=7 and ?preset=boom-and-bust)
-npm run sim -- --seed 42 --ticks 100000   # one headless run -> experiments/results/seed-42.csv (+ trait histograms)
-npm run sim -- --seeds 1-12 --ticks 100000 # many seeds in parallel, then a summary of how a food web emerged
-npm run gif -- --seed 12 --ticks 60000     # render a time-lapse GIF of a run (no browser needed)
+npm test            # all tests (they also run on GitHub for every push)
+npm run typecheck   # type-check every workspace
+npm run dev         # the site at http://localhost:5173 (front page; the simulator is app.html)
+npm run sim -- --seed 42 --ticks 100000     # one headless run: CSV of stats and trait histograms
+npm run sim -- --seeds 1-12 --ticks 100000  # many seeds in parallel, then a summary
+npm run sim -- --config configs/grand-world.json --seed 3 --set plantEvolution=1   # a preset world, with a change
+npm run gif -- --seed 12 --ticks 60000      # a time-lapse GIF (no browser needed)
 npm run bench       # how fast is the simulation?
 ```
 
-The headless runner also accepts `--config configs/<preset>.json` to run a named world, `--set name=value` to override any number in the config (for example `--set moveCostCoeff=0.05`), `--every N` (stats interval) and `--hist-every N` (histogram interval). Run `npm run sim -- --help` for details.
+### Experiments
 
-### In the viewer
+An experiment is a short JSON file in `experiments/<name>/`:
+- the base world;
+- the setups ("arms") to compare;
+- the seeds, the length and the measures.
 
-Switch the map between plants, terrain, temperature and plant growth. Scroll down for the **family tree** (click a branch to see how it differs from its ancestor) and the **timeline** of new species, extinctions and population crashes. **Save world** and **Load world** store a run in a file and bring it back exactly (tick the "as a branch" box to carry on with a different random future).
+```bash
+npm run exp -- check experiments/<name>      # is the file sound?
+npm run exp -- estimate experiments/<name>   # how long and how much
+npm run exp -- run experiments/<name>        # run it here (saves progress and resumes)
+npm run exp -- report experiments/<name>     # compare every arm with the control: report.md, red flags first
+npm run exp -- export experiments/<name>     # the summary the Experiment results page reads
+```
 
-Click any organism to inspect its genes, energy, age, parent, what it has eaten and how many kills it has. Color the dots by diet, speed, size, color gene, energy or sense range. Switch the map between plants, soil nutrients, corpses and detritus. Watch the energy-flow bar, the "who eats what" chart, the trait heatmaps over time, and the log of notable firsts.
+Big experiments run on one on-demand AWS machine:
 
-### Preset worlds
+```bash
+npm run exp -- cloud launch experiments/<name> --confirm --max-cost <dollars>
+```
 
-Each preset is a short JSON file in [`configs/`](configs) naming the settings it changes. Pick one in the viewer or with `?preset=<name>`.
+Nothing starts without an approved cost ceiling, and the machine shuts itself down. See [`infra/aws/README.md`](infra/aws/README.md).
 
-| Preset | What it shows |
+## Repo layout
+
+| Path | What it is |
 |---|---|
-| Default | The standard world |
-| Peaceful meadow (control) | Nobody can evolve weapons: same plants, no predators |
-| Boom and bust | No armor and quick digestion: carnivore numbers swing in slow waves (watch for 100,000+ ticks) |
-| Arms race | Fighting is cheap, so expect carnage, heavy armor and a small survivor population |
-| No armor | Prey cannot defend themselves |
-| Poor soil | Nutrients, not sunlight, limit the population: many births are blocked |
-| Costly movement / Cheap movement | One cost changed 5 times over: watch the speed histograms |
-| Scarce food | Plants regrow at half the rate |
-| Continents and seas | Terrain: water (a hard barrier), plains, forest, desert and mountains |
-| Two continents | Two water channels split the world in two, to watch separated populations drift apart |
-| Seasons | A climate with a 2,000-tick year: warm middle, cold edges, a population that follows the seasons |
-| Climate and continents | Terrain, climate, seasons and day and night together |
-| Slow climate change | Seasons plus a slow warming and cooling of the whole world |
-| Climate adaptation | A preferred-temperature gene: lineages in the cold bands evolve to like the cold |
-| Ice age | At tick 60,000 the world gets colder for 20,000 ticks: crash, extinctions, different survivors |
-| Meteor strike | At tick 30,000 everything in a circle dies: watch the crater refill |
-| Random catastrophes | Ice ages, droughts and meteors at random, listed in the timeline |
-| Aging | Bodies wear out; a longer lifespan costs more upkeep all the time |
-| Litter size | A gene for many cheap babies or few well-fed ones |
-| Life history | Aging and litter size together |
-| Kin recognition and herds | Nobody attacks a relative, brains sense relatives, prey with relatives near are harder to kill |
-| Sexual reproduction with kin recognition | Sex plus kin recognition: no more collapse into plant eaters killing each other |
-| Disease | Pathogens that hunt the common genotype: about a fifth sick, more genetic variety |
-| Camouflage and search images | A background color; matching it hides you, hunters learn the colors they eat |
-| Sexual reproduction with color choice | Sex where the color gene is the mating signal |
-| The grand world | Everything at once in a 512 x 512 world with sparse food (untuned: an open experiment) |
-| Colonies | Cells can stay attached to their parents, move together and share energy |
-| Sunlit colonies | The niche where colonies pay: specialized cells (feeders, movers, photosynthesizers, armor, sensors) in a low-food world |
-| Symbiosis | Cells can bond with any cell they touch; nothing rewards it (it does not catch on, see devlog 8) |
-| Sexual reproduction | Pairs of ready, compatible neighbors have babies with mixed genes. Result: one species, no meat eaters (see devlog 5) |
-| Rare big mutations | One baby in fifty gets a big jump in three genes: the family tree branches about three times as much |
-| Brains: evolvable layout | Neural-network brains whose layout evolves: click an organism to watch it think |
-| Brains: fixed layout | Every brain has the same wiring plan and only the strengths evolve |
-| Brains: sparse world (chase test) | Brains plus stamina and kill ownership in a world with scarce prey: meat eaters boom and crash |
-| Flat and fair | A control with no niches for plant eaters to split |
+| `packages/sim-core` | The simulation: pure TypeScript, no UI, no browser or Node APIs |
+| `apps/viewer` | The site: front page, simulator, experiment results, findings and devlog pages |
+| `apps/runner` | Node CLI: headless runs, seed sweeps, experiments (laptop and cloud), reports, GIFs; analysis scripts in `scripts/` |
+| `configs/` | Preset worlds (JSON) |
+| `experiments/` | Experiment files and their reports (raw results are not kept in git) |
+| `docs/findings` | What we found ([start here](docs/findings/README.md)) and the working notes behind it |
+| `docs/devlog` | One entry per phase ([index](docs/devlog/README.md)) |
+| `docs/plans` | Plans written before each piece of work |
+| `infra/aws` | How the cloud runner is set up |
+| `tests/` | Repo-wide guardrail tests (for example, no browser-dependent math in the simulation) |
 
 ## Roadmap
 
 | # | Phase | Outcome |
 |---|---|---|
-| 0 | Foundations | Repo, tooling, live placeholder page (done) |
-| 1 | Minimal living world | Organisms eat, reproduce, mutate, die (done) |
-| 2 | Genome and trade-offs | Real energy economics, diverging traits (done) |
-| 3 | Food webs | Emergent predators, nutrient loop (**v0.1, done**) |
-| 4 | Senses and brains | Prey flee and hunters ambush (done; chasing did not evolve) |
-| 5 | Species and phylogeny | Species tracking, family tree, sexual reproduction, save and load (**v0.2, done**) |
-| 6 | Dynamic world | Terrain, climate, seasons, catastrophes (**done**) |
-| 7 | Ecological depth | Aging, litter size, kin, disease, camouflage (**v0.3, done**; symbiosis not built) |
-| 8 | Multicellularity | Colonies, cell types, body plans (**v0.4, done**; arises rarely from scratch) |
-| 8d | Sex in the grand world | Found and fixed a ceiling in the harmful-mutation model; facultative sex; sex now holds its ground in the grand world (**built**; see devlog 12) |
-| 8c | Making features pay | Graded torpor, fat reserve, place memory and stress and calm responses now evolve; sex only partly (**built**; see devlog 11) |
-| 8b | The grand world | Evolvable kin tolerance and sex, weather, kinds of plant, brain memory and chemical signals, colonies with brains (**built**; see devlog 10) |
-| 9 | Experiments at scale | Parameter sweeps and findings |
-| 10 | Ship it | Portfolio page and write-ups (v1.0) |
+| 0 | Foundations | Repo, tooling, live placeholder page |
+| 1 | Minimal living world | Organisms eat, reproduce, mutate, die |
+| 2 | Genome and trade-offs | Real energy economics, diverging traits |
+| 3 | Food webs | Emergent predators, nutrient loop (**v0.1**) |
+| 4 | Senses and brains | Prey flee and hunters ambush (chasing did not evolve) |
+| 5 | Species and phylogeny | Species tracking, family tree, sexual reproduction, save and load (**v0.2**) |
+| 6 | Dynamic world | Terrain, climate, seasons, catastrophes |
+| 7 | Ecological depth | Aging, litter size, kin, disease, camouflage (**v0.3**) |
+| 8 | Multicellularity | Colonies, cell types, body plans (**v0.4**); then the grand world (8b to 8f) |
+| 9 | Experiments at scale | Cloud runner, audit of the grand world, headline experiments, the meat-eater hunt, living plants |
+| 10 | Ship it | Front page, shareable links, findings and devlog on the site, this README (**v1.0**) |
 
 ## License
 
