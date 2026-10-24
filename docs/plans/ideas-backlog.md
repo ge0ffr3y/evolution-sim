@@ -4,6 +4,8 @@ Ideas the owner raised that are not started yet, kept here so they are not lost.
 
 ## Plants that evolve, and many more kinds of plant (raised 2026-10-23)
 
+Plan proposed 2026-10-24: `docs/plans/living-plants.md` (waiting for the owner's decisions).
+
 The owner's idea: plants are too simple for a realistic outcome. Today a world has 1 to 6 fixed kinds of plant (the grand world uses 3). Each grows in patches, peaks at a different time of year, and is digested according to an animal's palate gene. Plants do not evolve.
 
 What the owner wants explored:
