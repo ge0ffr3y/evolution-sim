@@ -178,5 +178,10 @@
     "name": "living-plants-1",
     "question": "Living plants, step 1: in the grand world, do plants that evolve (plantEvolution 1) adapt to the land and diversify on every seed (plants' best temperature follows the local temperature; chemistry spreads from three kinds into many, in patches), and what does that do to the animals: palates, species, plant eaters' breeding, feeding levels and meat eaters? 8 fresh seeds, 300,000 ticks, with the diet ledger.",
     "file": "living-plants-1.json"
+  },
+  {
+    "name": "living-plants-2",
+    "question": "Living plants, step 2: in the grand world with plants that evolve, do poisonous plants (plantToxins 1: a toxin gene that slows growth and harms eaters whose palate is far from the plant's chemistry) evolve, and do they split plant eaters into specialists: more species, plant eaters breeding faster, more feeding levels, room for meat eaters? Against the grand world and against plants that evolve without toxins. 8 fresh seeds, 300,000 ticks, with the diet ledger.",
+    "file": "living-plants-2.json"
   }
 ]

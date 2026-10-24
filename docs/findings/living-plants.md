@@ -44,3 +44,43 @@ To watch it: the preset "Grand world: living plants", with the overlays Kinds of
   - Plants in cold places evolve to like the cold: met, on all 8 seeds.
   - Chemistry spreads into many kinds: met.
   - Patches with stable borders: seen on the overlay, but not measured.
+
+## 2. Poisonous plants (step 2)
+
+**Built:** `plantToxins` (off by default; needs plants that evolve; tests in `livingplants.test.ts`).
+- Each plant genome gains a toxin gene. It starts at 0 and is inherited through seeds with mutation.
+- Toxin slows the plant's growth (by 30% at full toxin).
+- An animal eating it loses plantToxinHarm × toxin × palate mismatch × the plant energy it took, on the upkeep line. An animal whose palate matches the plant's chemistry is not harmed.
+- Smell and steering weigh plants by their worth less the harm.
+
+To watch it: the overlay Plant toxin.
+
+**Experiment:** `living-plants-2`. The grand world; plants that evolve; plants that evolve with toxins. Seeds 3601 to 3608, 300,000 ticks, 32 cores, about $0.70. (The owner's computer crashed during the run. The cloud machine was unaffected and finished.)
+
+**Toxin evolves on every seed and is still rising at the end:**
+- Average toxin 0 → 0.15 at mid-run → 0.18 to 0.27 at the end.
+- Share of land with toxin above 0.3: 0 → 19 to 44% at the end.
+- Toxin is patchy (spread 0.10 to 0.13 between cells).
+
+Mutation can only push toxin up from 0, so part of the rise may be drift rather than selection. A setup with toxin that does no harm would tell the two apart.
+
+| | Grand world | Plants that evolve | Plants that evolve + toxins |
+|---|---|---|---|
+| Plants standing | 0.081 of capacity | 0% | **+40%*** |
+| Population | 1,208 | **+25%*** | +11% |
+| Species | 7.4 | -7% | -8% (2.4 to 10.6 between seeds) |
+| Distinct palates (effective number) | 3.8 | 8.7 | 8.2 |
+| Plant eaters' births per animal per 1,000 ticks | 2.5 | 2.2 | 2.8 |
+| Meat in the diet | 0.132 | -22% | -5% |
+| Kills | 2,161 per 1,000 ticks | -1% | +26% |
+| Births with two parents | 0.33 | -11% | **-15%*** |
+| Share of cells in colonies | 0.055 | +3% | **+21%*** |
+| Worlds with a lasting meat-eating group | 0 of 8 | 0 of 8 | 0 of 8 |
+
+(* holds up, 8 seeds)
+
+- **Grazers avoid poison, so more plants stand** (+40%), and poisoned patches act as refuges for plants.
+- **Poison does not split plant eaters into specialists here.** Palate variety is a little lower than with plants that evolve alone, and species are unchanged.
+- Plant eaters breed a little faster with toxins (2.8 against 2.5) and kills rise, but neither holds up on 8 seeds, and no meat-eating group lasts.
+- One red flag: with plants that evolve (no toxins), most animals end up with the attack gene at its lowest (newly pinned). Food that suits everyone nearly everywhere takes away the reason to fight.
+- Step 1's population gain (+9% there, not holding up) is +25% here and holds up.
