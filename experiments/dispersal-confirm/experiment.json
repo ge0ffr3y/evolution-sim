@@ -1,0 +1,14 @@
+{
+  "name": "dispersal-confirm",
+  "question": "Confirmation on 16 fresh seeds and a longer run: in the grand world, do young that move away (natalDispersal 12) with the gut and prey condition keep a lasting meat-eating group (diet above 0.75), and do young that move away on their own help the grand world (fewer sick, more species, more feeding levels)? In the 8-seed screen the first held a group in 2 of 8 worlds (against 0 of 8 for gut + prey condition there), raised feeding levels by 17% and halved disease. 16 seeds, 500,000 ticks, with the diet ledger and the kill autopsy. An answer: worlds with a lasting meat-eating group, how long they last, feeding levels, species, diversity, disease and population, and whether any cost holds up.",
+  "base": "grand-world",
+  "ticks": 500000,
+  "seeds": "3401-3416",
+  "sampleEvery": 2500,
+  "arms": {
+    "control": {},
+    "gut-condition-disperse": { "gutMode": 1, "preyCondition": 0.5, "natalDispersal": 12 },
+    "disperse": { "natalDispersal": 12 }
+  },
+  "measures": ["all", "dietLedger", "meatKills"]
+}
