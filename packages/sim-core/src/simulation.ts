@@ -654,6 +654,18 @@ export class Simulation {
   private readonly plantTypeOf: Uint8Array;
   private readonly kindGrowth: Float64Array;
   private readonly kindOptimum: Float64Array;
+  /** Plants that evolve: each food cell's plant genome (chemistry, season, warmth), and the plants' own random stream. */
+  private readonly plantEvoOn: boolean;
+  readonly plantChem: Float64Array;
+  readonly plantSeason: Float64Array;
+  readonly plantWarm: Float64Array;
+  private readonly plantRng: Rng;
+  /** Scratch: the plant genomes as they stood before this round of seeding (all cells update together). */
+  private readonly seedChem: Float64Array;
+  private readonly seedSeason: Float64Array;
+  private readonly seedWarm: Float64Array;
+  /** Whether animals digest plants by palate (several fixed kinds, or plants that evolve). */
+  private readonly palateOn: boolean;
   private readonly weatherA: Float32Array;
   private readonly weatherB: Float32Array;
   private readonly fatOn: boolean;
@@ -1084,11 +1096,28 @@ export class Simulation {
     this.plantTypeOf = c.plantTypes > 1 ? generatePlantTypes(seed, this.gridWidth, this.gridHeight, c.plantTypeScale, c.plantTypes) : new Uint8Array(0);
     this.kindGrowth = new Float64Array(c.plantTypes);
     this.kindOptimum = new Float64Array(c.plantTypes);
+    this.plantEvoOn = c.plantEvolution === 1;
+    this.palateOn = c.plantTypes > 1 || this.plantEvoOn;
+    const plantCells = this.plantEvoOn ? cells : 0;
+    this.plantChem = new Float64Array(plantCells);
+    this.plantSeason = new Float64Array(plantCells);
+    this.plantWarm = new Float64Array(plantCells);
+    this.seedChem = new Float64Array(plantCells);
+    this.seedSeason = new Float64Array(plantCells);
+    this.seedWarm = new Float64Array(plantCells);
+    // (Its own random stream, derived from the seed like the events', so plants never disturb anything else.)
+    this.plantRng = new Rng((seed ^ 0x2c1b3c6d) >>> 0);
+    if (this.plantEvoOn) this.initPlantGenomes();
     this.weatherOn = this.climateOn && c.weatherAmplitude > 0;
     this.weatherA = this.weatherOn ? generateWeatherMap(seed, this.gridWidth, this.gridHeight, c.weatherScale, 0x51f3a7c9) : new Float32Array(0);
     this.weatherB = this.weatherOn ? generateWeatherMap(seed, this.gridWidth, this.gridHeight, c.weatherScale, 0x1d8e4b27) : new Float32Array(0);
     if (this.climateOn) this.setUpClimate();
     if (moistureNoise) this.setUpClimateBiomes(moistureNoise);
+    if (moistureNoise && this.plantEvoOn && c.plantTypes > 1) {
+      // Climate biomes chose each cell's kind by its temperature: start the plant genomes from that choice.
+      this.initPlantGenomes();
+      this.updateClimate();
+    }
     this.food = new Float64Array(cells);
     for (let cell = 0; cell < cells; cell++) this.food[cell] = this.foodCapacity[cell]! * c.initialFoodFraction;
     this.nutrient = new Float64Array(cells).fill(c.initialNutrientPerCell);
@@ -1224,7 +1253,7 @@ export class Simulation {
         (k === GENE.sex && c.sexualReproduction === 2) ||
         (k === GENE.fat && c.fatDepositRate > 0) ||
         (k === GENE.torpor && this.climateOn && c.torporSaving > 0) ||
-        (k === GENE.palate && c.plantTypes > 1) ||
+        (k === GENE.palate && (c.plantTypes > 1 || c.plantEvolution === 1)) ||
         (k === GENE.generosity && c.shareRate > 0) ||
         (k === GENE.toxicity && c.toxinStrength > 0) ||
         (k === GENE.signal && c.signaling === 1 && c.multicellular === 1 && c.brainMode > 0) ||
@@ -1570,10 +1599,19 @@ export class Simulation {
       }
       const temp = this.tempBase[cell]! + this.tempSwing[cell]! * season + drift - cooling + weather;
       this.temperature[cell] = temp;
-      const kind = kinds > 1 ? this.plantTypeOf[cell]! : 0;
-      const off = (temp - (kinds > 1 ? this.kindOptimum[kind]! : optimum)) / tolerance;
-      const comfort = 1 - off * off;
-      this.growthFactor[cell] = comfort > 0 ? this.lightBase[cell]! * daylight * (kinds > 1 ? this.kindGrowth[kind]! : seasonGrowth) * comfort : 0;
+      if (this.plantEvoOn) {
+        // Plants that evolve: each cell's own season and warmth (the same formulas as for the fixed kinds).
+        const wave = c.yearLength > 0 ? smoothWave(t / c.yearLength + 0.25 - this.plantSeason[cell]!) * yearMult : 0;
+        const swung = 1 + c.seasonGrowthSwing * wave;
+        const off = (temp - this.plantWarm[cell]!) / tolerance;
+        const comfort = 1 - off * off;
+        this.growthFactor[cell] = comfort > 0 ? this.lightBase[cell]! * daylight * (swung > 0 ? swung : 0) * dryness * comfort : 0;
+      } else {
+        const kind = kinds > 1 ? this.plantTypeOf[cell]! : 0;
+        const off = (temp - (kinds > 1 ? this.kindOptimum[kind]! : optimum)) / tolerance;
+        const comfort = 1 - off * off;
+        this.growthFactor[cell] = comfort > 0 ? this.lightBase[cell]! * daylight * (kinds > 1 ? this.kindGrowth[kind]! : seasonGrowth) * comfort : 0;
+      }
       if (this.climateBiomesOn) {
         // Plants need water: wetter ground grows more, and the growing season is the wet season.
         let m = this.moistureBase[cell]! * (1 + c.moistureSeasonSwing * season);
@@ -2954,10 +2992,74 @@ export class Simulation {
     return this.plantTypeOf;
   }
 
+  /** Plants that evolve: start each cell's genome from today's kinds (or one kind), so switching it on changes nothing at first. */
+  private initPlantGenomes(): void {
+    const c = this.config;
+    const kinds = this.plantKinds;
+    for (let cell = 0; cell < this.plantChem.length; cell++) {
+      if (kinds > 1) {
+        const j = this.plantTypeOf[cell]!;
+        const phase = (j / kinds) * c.plantTypePhase;
+        this.plantChem[cell] = j / (kinds - 1);
+        this.plantSeason[cell] = phase - Math.floor(phase);
+        this.plantWarm[cell] = c.plantTempOptimum + (j - (kinds - 1) / 2) * c.plantTypeTempSpread;
+      } else {
+        this.plantChem[cell] = c.plantInitialChem;
+        this.plantSeason[cell] = 0;
+        this.plantWarm[cell] = c.plantTempOptimum;
+      }
+    }
+  }
+
+  /** The fixed kind a cell's plants count as (for blights aimed at one kind): with plants that evolve, the nearest kind to its chemistry. */
+  private kindIndex(cell: number): number {
+    if (!this.plantEvoOn) return this.plantTypeOf[cell]!;
+    const k = this.plantKinds - 1;
+    const j = Math.floor(this.plantChem[cell]! * k + 0.5);
+    return j < 0 ? 0 : j > k ? k : j;
+  }
+
+  /**
+   * Plants that evolve: each land cell may take seed from one neighbour (chosen at random), more likely the taller the
+   * neighbour stands and the barer the cell is. A seed is the neighbour's genome, mutated a little. Every cell reads the
+   * genomes as they stood before this round, so the order cells are visited in changes nothing. Only the plants' label
+   * changes: no plant mass, energy or nutrient moves.
+   */
+  private seedPlants(): void {
+    const c = this.config;
+    const gw = this.gridWidth;
+    const gh = this.gridHeight;
+    const rng = this.plantRng;
+    this.seedChem.set(this.plantChem);
+    this.seedSeason.set(this.plantSeason);
+    this.seedWarm.set(this.plantWarm);
+    for (let cell = 0; cell < this.plantChem.length; cell++) {
+      const cap = this.foodCapacity[cell]!;
+      if (cap <= 0) continue; // water, or ground that grows nothing
+      const side = rng.int(4);
+      const cx = cell % gw;
+      const cy = (cell - cx) / gw;
+      const nx = side === 0 ? (cx + 1) % gw : side === 1 ? (cx - 1 + gw) % gw : cx;
+      const ny = side === 2 ? (cy + 1) % gh : side === 3 ? (cy - 1 + gh) % gh : cy;
+      const nb = ny * gw + nx;
+      const nbCap = this.foodCapacity[nb]!;
+      if (nbCap <= 0) continue;
+      const nbFill = this.food[nb]! / nbCap;
+      const fill = this.food[cell]! / cap;
+      const chance = c.plantSeedRate * (nbFill < 1 ? nbFill : 1) * (fill < 1 ? 1 - fill : 0);
+      if (!(rng.next() < chance)) continue;
+      const chem = this.seedChem[nb]! + (2 * rng.next() - 1) * c.plantMutateChem;
+      const season = this.seedSeason[nb]! + (2 * rng.next() - 1) * c.plantMutateSeason;
+      this.plantChem[cell] = chem < 0 ? 0 : chem > 1 ? 1 : chem;
+      this.plantSeason[cell] = season - Math.floor(season);
+      this.plantWarm[cell] = this.seedWarm[nb]! + (2 * rng.next() - 1) * c.plantMutateWarm;
+    }
+  }
+
   /** How well organism i digests the plants growing in a cell: 1 for its favorite kind, falling to the floor (kinds are spaced evenly from 0 to 1). */
   private palateMatch(i: number, cell: number): number {
     const c = this.config;
-    const position = this.plantTypeOf[cell]! / (this.plantKinds - 1);
+    const position = this.plantEvoOn ? this.plantChem[cell]! : this.plantTypeOf[cell]! / (this.plantKinds - 1);
     const distance = Math.abs(this.genes[i * GENE_COUNT + GENE.palate]! - position);
     const match = 1 - distance / c.plantPalateWidth;
     return match > c.plantPalateFloor ? match : c.plantPalateFloor;
@@ -3177,7 +3279,7 @@ export class Simulation {
       const north = ((cy + gh - 1) % gh) * gw + cx;
       const plantScale = 1 / c.foodCap;
       // With kinds of plant, what an animal smells is food it can digest.
-      const kinds = this.plantKinds > 1;
+      const kinds = this.palateOn;
       const gxPlant = (this.food[east]! * (kinds ? this.palateMatch(i, east) : 1) - this.food[west]! * (kinds ? this.palateMatch(i, west) : 1)) * plantScale;
       const gyPlant = (this.food[south]! * (kinds ? this.palateMatch(i, south) : 1) - this.food[north]! * (kinds ? this.palateMatch(i, north) : 1)) * plantScale;
       inputs[INPUT.smellPlantAhead] = clampUnit(gxPlant * hx + gyPlant * hy);
@@ -4439,6 +4541,8 @@ export class Simulation {
     if (this.foulOn && brainMode > 0) this.foulMeanNow = this.meanFoul();
     if (this.eventsOn) this.eventsStep();
     if (this.climateOn) this.updateClimate();
+    // Plants that evolve: every so often, ground eaten bare is reseeded from a neighbour standing tall.
+    if (this.plantEvoOn && this.tick % c.plantSeedEvery === 0) this.seedPlants();
     // Bonded cells even out their energy and turn toward their neighbors' heading.
     if (this.bondsOn) {
       this.shareEnergy(n);
@@ -4481,7 +4585,7 @@ export class Simulation {
         const sense = this.senseRange[i]!;
         if (sense > 0) {
           const hereCell = Math.floor(y0 / cs) * gw + Math.floor(x0 / cs);
-          const kinds = this.plantKinds > 1;
+          const kinds = this.palateOn;
           // (With kinds of plant it leans toward food it can digest.)
           const here = food[hereCell]! * (kinds ? this.palateMatch(i, hereCell) : 1);
           let gx = 0;
@@ -4744,7 +4848,7 @@ export class Simulation {
           this.avoidStrength[i] = faded < 1e-4 ? 0 : faded;
         }
       }
-      const plantGain = plantRaw * this.plantEff[i]! * (this.plantKinds > 1 ? this.palateMatch(i, cell) : 1);
+      const plantGain = plantRaw * this.plantEff[i]! * (this.palateOn ? this.palateMatch(i, cell) : 1);
       const meatGain = meatRaw * this.meatEff[i]!;
       plantEnergyTaken += plantRaw;
       meatEnergyTaken += meatRaw;
@@ -4990,7 +5094,7 @@ export class Simulation {
       potential *= health;
       if (this.eventsOn) {
         // Disasters: a blight or a good year changes the growth rate, volcanic ash raises it (and the ceiling), and flooded ground grows nothing.
-        potential *= this.evGrowthMult * this.evKindMult[this.plantKinds > 1 ? this.plantTypeOf[cell]! : 0]!;
+        potential *= this.evGrowthMult * this.evKindMult[this.plantKinds > 1 ? this.kindIndex(cell) : 0]!;
         if (this.ashOn) potential *= 1 + this.ash[cell]!;
         if (this.floodOn && this.passable[cell] === 0) potential = 0;
       }
@@ -5431,6 +5535,7 @@ export class Simulation {
       brainLayout: [INPUT_COUNT, CONN_MAX],
       // (Only in worlds with disaster events, so older saved worlds still load.)
       ...(this.eventsOn ? { activeEvents: this.activeEvents, eventRng: Array.from(this.eventRng.getState()) } : {}),
+      ...(this.plantEvoOn ? { plantRng: Array.from(this.plantRng.getState()) } : {}),
       strains: this.strains.map((a) => Array.from(a)),
       totalInfections: this.totalInfections,
       ledger: this.ledger,
@@ -5463,6 +5568,7 @@ export class Simulation {
       ...(this.ashOn ? ([["ash", this.ash]] as [string, SnapshotArray][]) : []),
       ...(this.fireOn ? ([["fireScar", this.fireScar]] as [string, SnapshotArray][]) : []),
       ...(this.qualityOn ? ([["plantQ", this.plantQ]] as [string, SnapshotArray][]) : []),
+      ...(this.plantEvoOn ? ([["plantChem", this.plantChem], ["plantSeason", this.plantSeason], ["plantWarm", this.plantWarm]] as [string, SnapshotArray][]) : []),
       ...(this.foulOn ? ([["foul", this.foul]] as [string, SnapshotArray][]) : []),
       ...(this.grazeOn ? ([["grazing", this.grazing]] as [string, SnapshotArray][]) : []),
       ["nutrient", this.nutrient],
@@ -5510,6 +5616,7 @@ export class Simulation {
       brainLayout?: [number, number];
       activeEvents?: ActiveEvent[];
       eventRng?: number[];
+      plantRng?: number[];
       catastrophe: [number, number, number];
       strains?: number[][];
       totalInfections?: number;
@@ -5604,6 +5711,7 @@ export class Simulation {
     [this.catKind, this.catStart, this.catEnd] = s.catastrophe;
     this.activeEvents = (s.activeEvents ?? []).map((e) => ({ ...e, cells: [...e.cells], left: [...e.left] }));
     this.eventRng.setState(newFuture ? new Rng(((this.seed + this.tick) ^ 0x5bd1e995) >>> 0).getState() : ((s.eventRng ?? Array.from(this.eventRng.getState())) as unknown as [number, number, number, number]));
+    if (this.plantEvoOn) this.plantRng.setState(newFuture ? new Rng(((this.seed + this.tick) ^ 0x2c1b3c6d) >>> 0).getState() : ((s.plantRng ?? Array.from(this.plantRng.getState())) as unknown as [number, number, number, number]));
     this.strains = (s.strains ?? []).map((a) => Float64Array.from(a));
     this.totalInfections = s.totalInfections ?? 0;
     Object.assign(this.ledger, s.ledger);
@@ -6203,6 +6311,11 @@ export class Simulation {
     }
     if (this.nutrientOn) mixBits(this.nutrientStore, n);
     if (this.qualityOn) mixBits(this.plantQ, this.plantQ.length);
+    if (this.plantEvoOn) {
+      mixBits(this.plantChem, this.plantChem.length);
+      mixBits(this.plantSeason, this.plantSeason.length);
+      mixBits(this.plantWarm, this.plantWarm.length);
+    }
     if (this.drinkOn) mixBits(this.hydration, n);
     if (this.signalOn) {
       mixBits(this.sharedThreatNear, n);

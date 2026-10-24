@@ -448,6 +448,23 @@ export interface SimConfig {
    * plants in proportion to how well they can digest them.
    */
   plantTypes: number;
+  /**
+   * Plants that evolve (0 = off). Each food cell carries a small plant genome instead of a fixed kind:
+   * chemistry (0 to 1, read by the palate gene as a continuous kind), season (the time of year it grows best, as a
+   * fraction of the year) and warmth (the temperature it likes best). It starts as today's kinds (with plantTypes 2 to 6)
+   * or as one kind (chemistry plantInitialChem). Every plantSeedEvery ticks each land cell may be reseeded from one
+   * neighbouring cell, with chance plantSeedRate x the neighbour's fill x how bare the cell is (fill = standing plants
+   * / capacity), and each seed mutates by up to plantMutateChem, plantMutateSeason and plantMutateWarm. Plants that
+   * stand tall (well suited, not eaten) spread into ground eaten bare. Only the label of the plants changes: no plant
+   * mass, energy or nutrient moves. Plants use their own random stream, so animals' dice are not disturbed.
+   */
+  plantEvolution: number;
+  plantSeedEvery: number;
+  plantSeedRate: number;
+  plantMutateChem: number;
+  plantMutateSeason: number;
+  plantMutateWarm: number;
+  plantInitialChem: number;
   plantTypeScale: number;
   plantTypePhase: number;
   plantTypeTempSpread: number;
@@ -1491,6 +1508,13 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   climateDriftPeriod: 0,
   climateDriftAmplitude: 0.15,
   plantTypes: 1,
+  plantEvolution: 0,
+  plantSeedEvery: 50,
+  plantSeedRate: 0.5,
+  plantMutateChem: 0.03,
+  plantMutateSeason: 0.02,
+  plantMutateWarm: 0.02,
+  plantInitialChem: 0.5,
   plantTypeScale: 8,
   plantTypePhase: 1,
   plantTypeTempSpread: 0.1,
@@ -2054,6 +2078,15 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
     if (c.weatherDriftTicks < 0 || c.weatherDriftYTicks < 0 || c.weatherMorphPeriod < 0) problems.push("weather drift and morph times cannot be negative");
   }
   if (!Number.isInteger(c.plantTypes) || c.plantTypes < 1 || c.plantTypes > 6) problems.push("plantTypes must be a whole number from 1 to 6");
+  if (c.plantEvolution !== 0 && c.plantEvolution !== 1) problems.push("plantEvolution must be 0 (off) or 1 (on)");
+  if (c.plantEvolution === 1) {
+    if (!Number.isInteger(c.plantSeedEvery) || c.plantSeedEvery < 1) problems.push("plantSeedEvery must be a whole number of ticks, at least 1");
+    if (!(c.plantSeedRate >= 0 && c.plantSeedRate <= 1)) problems.push("plantSeedRate must be between 0 and 1");
+    if (!(c.plantMutateChem >= 0 && c.plantMutateChem <= 0.5 && c.plantMutateSeason >= 0 && c.plantMutateSeason <= 0.5 && c.plantMutateWarm >= 0 && c.plantMutateWarm <= 1)) problems.push("plantMutateChem and plantMutateSeason must be between 0 and 0.5, plantMutateWarm between 0 and 1");
+    if (!(c.plantInitialChem >= 0 && c.plantInitialChem <= 1)) problems.push("plantInitialChem must be between 0 and 1");
+    if (c.plantTypes === 1 && !(c.plantPalateWidth > 0)) problems.push("plantPalateWidth must be positive");
+    if (c.plantTypes === 1 && (c.plantPalateFloor < 0 || c.plantPalateFloor > 1)) problems.push("plantPalateFloor must be between 0 and 1");
+  }
   if (c.plantTypes > 1) {
     const gw = c.worldWidth / c.foodCellSize;
     const gh = c.worldHeight / c.foodCellSize;

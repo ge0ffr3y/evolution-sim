@@ -4,7 +4,7 @@ import type { FrameMessage } from "./protocol";
 export type ColorBy = "diet" | "speed" | "size" | "hue" | "energy" | "sense" | "health" | "colony" | "cell" | "palate" | "toxicity" | "nutrient" | "water";
 
 /** What the map background shows. */
-export type Overlay = "plants" | "nutrients" | "corpses" | "detritus" | "trails" | "terrain" | "temperature" | "light" | "background" | "plantKinds" | "grazing" | "fouling" | "erosion" | "events" | "plantQuality" | "moisture";
+export type Overlay = "plants" | "nutrients" | "corpses" | "detritus" | "trails" | "terrain" | "temperature" | "light" | "background" | "plantKinds" | "grazing" | "fouling" | "erosion" | "events" | "plantQuality" | "moisture" | "plantWarmth";
 
 export const OVERLAYS: readonly { id: Overlay; label: string }[] = [
   { id: "plants", label: "Plants" },
@@ -17,7 +17,8 @@ export const OVERLAYS: readonly { id: Overlay; label: string }[] = [
   { id: "temperature", label: "Temperature (worlds with a climate)" },
   { id: "light", label: "Plant growth (worlds with a climate)" },
   { id: "background", label: "Background color (worlds with camouflage)" },
-  { id: "plantKinds", label: "Kinds of plant (worlds with several kinds)" },
+  { id: "plantKinds", label: "Kinds of plant (worlds with several kinds, or plants that evolve: by chemistry)" },
+  { id: "plantWarmth", label: "Plant warmth: the temperature plants grow best at (plants that evolve; same colors as Temperature)" },
   { id: "grazing", label: "Grazing damage (worlds with overgrazing)" },
   { id: "fouling", label: "Fouled ground (worlds with fouling)" },
   { id: "erosion", label: "Worn-away soil (worlds with erosion)" },
@@ -346,14 +347,31 @@ export class WorldRenderer {
         data[o + 3] = 255;
         continue;
       }
-      if (overlay === "plantKinds" && this.plantKinds) {
+      if (overlay === "plantKinds" && (this.plantKinds || frame.plantGenome)) {
         // Each kind has its own hue (on the same scale as the palate dots); brighter where more plant is standing.
+        // With plants that evolve, the hue follows each cell's chemistry.
         const kinds = frame.world.plantKinds;
-        const [kr, kg, kb] = hueToRgb(kinds > 1 ? (this.plantKinds[cell]! / (kinds - 1)) * 0.75 : 0.3);
+        const position = frame.plantGenome ? frame.plantGenome.chem[cell]! : kinds > 1 && this.plantKinds ? this.plantKinds[cell]! / (kinds - 1) : 0.4;
+        const [kr, kg, kb] = hueToRgb(position * 0.75);
         const cover = 0.25 + 0.75 * Math.min(frame.food[cell]! / Math.max(this.maxCapacity, foodCap), 1);
         data[o] = Math.round(kr * cover);
         data[o + 1] = Math.round(kg * cover);
         data[o + 2] = Math.round(kb * cover);
+        data[o + 3] = 255;
+        continue;
+      }
+      if (overlay === "plantWarmth" && frame.plantGenome) {
+        // The temperature each cell's plants grow best at, on the Temperature overlay's colors (water stays dark).
+        if (capacity && capacity[cell]! <= 0) {
+          data[o] = r;
+          data[o + 1] = g;
+          data[o + 2] = b;
+        } else {
+          const t = Math.max(0, Math.min(1, frame.plantGenome.warm[cell]!));
+          data[o] = Math.round(30 + 225 * Math.max(0, (t - 0.4) / 0.6));
+          data[o + 1] = Math.round(60 + 150 * (1 - Math.abs(t - 0.5) * 2));
+          data[o + 2] = Math.round(70 + 180 * Math.max(0, (0.6 - t) / 0.6));
+        }
         data[o + 3] = 255;
         continue;
       }

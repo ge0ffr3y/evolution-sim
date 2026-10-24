@@ -1133,3 +1133,76 @@ MEASURES.meatKills = {
   observe: (sim) => void meatKillsOf(sim),
   sample: ({ sim }) => sampleMeatKills(sim),
 };
+
+// --- Plants that evolve (living plants, step 1) ---
+const PLANT_BINS = 10;
+/** exp(Shannon diversity) of values from 0 to 1 sorted into ten bins: the effective number of distinct kinds. */
+function effectiveKinds(values: number[]): number {
+  if (values.length === 0) return NaN;
+  const bins = new Array<number>(PLANT_BINS).fill(0);
+  for (const v of values) bins[Math.min(PLANT_BINS - 1, Math.max(0, Math.floor(v * PLANT_BINS)))]!++;
+  let h = 0;
+  for (const b of bins) if (b > 0) h -= (b / values.length) * Math.log(b / values.length);
+  return Math.exp(h);
+}
+const stdOf = (xs: number[]): number => {
+  if (xs.length < 2) return NaN;
+  const m = mean(xs);
+  return Math.sqrt(xs.reduce((a, x) => a + (x - m) * (x - m), 0) / xs.length);
+};
+
+MEASURES.plants = {
+  describe:
+    "plants that evolve (NaN when off): the effective number of plant chemistries (exp of Shannon diversity over ten bins of land cells) and their spread, how far plants' best temperature is from the local average temperature and how closely the two follow each other (correlation), how spread out plants' growing seasons are (0 = all the same time of year, 1 = evenly spread), and the effective number and spread of animals' palates",
+  sample: ({ sim }) => {
+    const world = sim as unknown as { foodCapacity: Float64Array; tempBase: Float64Array };
+    const chem: number[] = [];
+    const warm: number[] = [];
+    const base: number[] = [];
+    let cos = 0;
+    let sin = 0;
+    for (let cell = 0; cell < sim.plantChem.length; cell++) {
+      if (world.foodCapacity[cell]! <= 0) continue;
+      chem.push(sim.plantChem[cell]!);
+      if (world.tempBase.length > 0) {
+        warm.push(sim.plantWarm[cell]!);
+        base.push(world.tempBase[cell]!);
+      }
+      // (The runner may use trigonometry: it only watches.)
+      cos += Math.cos(2 * Math.PI * sim.plantSeason[cell]!);
+      sin += Math.sin(2 * Math.PI * sim.plantSeason[cell]!);
+    }
+    const palates: number[] = [];
+    if (inside(sim).activeGene[GENE.palate]) for (let i = 0; i < sim.count; i++) palates.push(gene(sim, i, GENE.palate));
+    let gap = NaN;
+    let corr = NaN;
+    if (warm.length > 1) {
+      gap = mean(warm.map((w, k) => Math.abs(w - base[k]!)));
+      const sw = stdOf(warm);
+      const sb = stdOf(base);
+      if (sw > 1e-12 && sb > 1e-12) {
+        const mw = mean(warm);
+        const mb = mean(base);
+        corr = mean(warm.map((w, k) => (w - mw) * (base[k]! - mb))) / (sw * sb);
+      }
+    }
+    return {
+      plantKindsEff: round(effectiveKinds(chem), 4),
+      plantChemSpread: round(stdOf(chem), 4),
+      plantWarmGap: round(gap, 4),
+      plantWarmCorr: round(corr, 4),
+      plantSeasonSpread: chem.length ? round(1 - Math.sqrt(cos * cos + sin * sin) / chem.length, 4) : NaN,
+      palateKindsEff: round(effectiveKinds(palates), 4),
+      palateSpread: round(stdOf(palates), 4),
+    };
+  },
+  summarize: (rows) => ({
+    plantKindsEffLate: lateMean(rows, "plantKindsEff"),
+    plantChemSpreadLate: lateMean(rows, "plantChemSpread"),
+    plantWarmGapLate: lateMean(rows, "plantWarmGap"),
+    plantWarmCorrLate: lateMean(rows, "plantWarmCorr"),
+    plantSeasonSpreadLate: lateMean(rows, "plantSeasonSpread"),
+    palateKindsEffLate: lateMean(rows, "palateKindsEff"),
+    palateSpreadLate: lateMean(rows, "palateSpread"),
+  }),
+};
