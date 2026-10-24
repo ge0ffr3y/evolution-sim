@@ -1,3 +1,4 @@
+import { jobsOf } from "./experiment";
 import { Simulation } from "@evo/sim-core";
 import type { Experiment, Job } from "./experiment";
 import { readProgress, readResult } from "./job";
@@ -107,6 +108,20 @@ export function measureSpeeds(exp: Experiment, jobs: Job[], trialTicks = 1500): 
     speeds[arm] = ticks / Math.max(seconds, 1e-3);
   }
   return speeds;
+}
+
+/**
+ * Speeds without a trial on this computer: the slowest speed seen in another experiment's finished runs (converted to
+ * laptop terms), used for every arm. For worlds like ones already run in the cloud; --hours still fixes the hard stop.
+ */
+export function speedsFrom(exp: Experiment, other: Experiment): Record<string, number> {
+  const seen = jobsOf(other)
+    .map((j) => readResult(other, j))
+    .filter((r): r is NonNullable<typeof r> => r !== null && r.ticksPerSecond > 0)
+    .map((r) => r.ticksPerSecond / speedOf(r.machine));
+  if (!seen.length) throw new Error(`${other.name} has no finished runs here to take speeds from (fetch it first)`);
+  const slowest = Math.min(...seen);
+  return Object.fromEntries(Object.keys(exp.arms).map((arm) => [arm, slowest]));
 }
 
 /** The time to finish a set of jobs on `workers` cores, longest first (a good, simple schedule). */
