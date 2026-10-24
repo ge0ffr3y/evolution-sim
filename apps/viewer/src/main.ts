@@ -1,11 +1,12 @@
 import "./style.css";
-import { GENE, GENES, parsePreset, type GeneName, type Preset, type SimConfig, type SimEvent, type SpeciesEvent, type SpeciesRecord, type WorldEvent } from "@evo/sim-core";
+import { GENE, GENES, type GeneName, type SimConfig, type SimEvent, type SpeciesEvent, type SpeciesRecord, type WorldEvent } from "@evo/sim-core";
 import { drawBrain } from "./brainview";
 import { Charts } from "./charts";
 import { ComplexityChart } from "./complexitychart";
 import { FlowTracker } from "./flows";
 import { HEATMAP_TRAITS, Heatmap } from "./heatmap";
 import { readLink, writeLink } from "./links";
+import { findPreset, presets, type PresetEntry } from "./presets";
 import type { FrameMessage, FromWorker, InspectedState, ToWorker } from "./protocol";
 import { COLOR_MODES, OVERLAYS, WorldRenderer, legendGradient, type ColorBy, type Overlay } from "./render";
 import { TreeView } from "./treeview";
@@ -21,8 +22,6 @@ const SPEEDS: readonly { label: string; ticksPerSecond: number }[] = [
 ];
 const DEFAULT_SPEED_INDEX = 1;
 const CHART_REFRESH_MS = 250;
-/** The world a visitor sees first (the owner's choice for v1.0): the grand world. */
-const DEFAULT_PRESET_ID = "grand-world";
 
 function el<T extends HTMLElement>(id: string): T {
   const found = document.getElementById(id);
@@ -30,23 +29,7 @@ function el<T extends HTMLElement>(id: string): T {
   return found as T;
 }
 
-// --- Presets: every JSON file in the repo's configs/ folder is bundled in ---
-interface PresetEntry {
-  id: string;
-  preset: Preset;
-}
-
-const presetFiles = import.meta.glob("../../../configs/*.json", { eager: true, import: "default" }) as Record<string, unknown>;
-const presets: PresetEntry[] = Object.entries(presetFiles)
-  .map(([path, json]) => {
-    const id = path.split("/").pop()!.replace(/\.json$/, "");
-    return { id, preset: parsePreset(json, id) };
-  })
-  .sort((a, b) => (a.id === DEFAULT_PRESET_ID ? -1 : b.id === DEFAULT_PRESET_ID ? 1 : a.preset.name.localeCompare(b.preset.name)));
-
-function findPreset(id: string | null): PresetEntry {
-  return presets.find((p) => p.id === id) ?? presets.find((p) => p.id === DEFAULT_PRESET_ID) ?? presets[0]!;
-}
+// --- Presets (shared module) ---
 
 // --- Elements ---
 const canvas = el<HTMLCanvasElement>("world");
@@ -591,6 +574,7 @@ worker.onmessage = (event: MessageEvent<FromWorker>) => {
     showNotice(`Could not load that file: ${message.message}`);
     return;
   }
+  if (message.type === "spotlight") return; // this page never asks for a spotlight
   const frame = message;
   if (frame.resetId !== currentResetId) {
     // First frame after a restart: start the charts fresh.

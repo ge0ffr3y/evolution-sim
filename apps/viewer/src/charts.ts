@@ -52,13 +52,14 @@ export class Charts {
   /** Each chart with the box it fills, so it can be fitted to that box when the window changes size. */
   private readonly fitted: [uPlot, HTMLElement][];
 
-  constructor(popContainer: HTMLElement, traitContainer: HTMLElement, webContainer: HTMLElement, brainContainer: HTMLElement) {
+  /** height: each chart's height in pixels (190 by default; other layouts can use taller charts). */
+  constructor(popContainer: HTMLElement, traitContainer: HTMLElement, webContainer: HTMLElement, brainContainer: HTMLElement, private readonly height = CHART_HEIGHT) {
     const width = (el: HTMLElement): number => Math.max(el.clientWidth, 280);
 
     this.popChart = new uPlot(
       {
         width: width(popContainer),
-        height: CHART_HEIGHT,
+        height: this.height,
         legend: { live: true },
         cursor: { drag: { x: false, y: false } },
         scales: {
@@ -85,7 +86,7 @@ export class Charts {
     this.traitChart = new uPlot(
       {
         width: width(traitContainer),
-        height: CHART_HEIGHT,
+        height: this.height,
         legend: { live: true },
         cursor: { drag: { x: false, y: false } },
         scales: { x: { time: false }, sense: { auto: true } },
@@ -109,7 +110,7 @@ export class Charts {
     this.webChart = new uPlot(
       {
         width: width(webContainer),
-        height: CHART_HEIGHT,
+        height: this.height,
         legend: { live: true },
         cursor: { drag: { x: false, y: false } },
         scales: { x: { time: false } },
@@ -128,7 +129,7 @@ export class Charts {
     this.brainChart = new uPlot(
       {
         width: width(brainContainer),
-        height: CHART_HEIGHT,
+        height: this.height,
         legend: { live: true },
         cursor: { drag: { x: false, y: false } },
         scales: { x: { time: false }, hidden: { auto: true } },
@@ -169,7 +170,7 @@ export class Charts {
   private fit(): void {
     for (const [chart, container] of this.fitted) {
       const width = Math.max(container.clientWidth, 280);
-      if (chart.width !== width) chart.setSize({ width, height: CHART_HEIGHT });
+      if (chart.width !== width) chart.setSize({ width, height: this.height });
     }
   }
 

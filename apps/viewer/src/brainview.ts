@@ -31,18 +31,23 @@ function activationColor(value: number | null): string {
  * (middle), and what it does (right). Lines are connections: blue pushes up, red pushes
  * down, thicker means stronger. Node brightness shows what the organism is thinking right now.
  */
-export function drawBrain(canvas: HTMLCanvasElement, brain: BrainSnapshot): void {
+/**
+ * height: drawing height in pixels (a smaller panel can use a shorter one).
+ * compact: show only the inputs the brain is wired to, spaced out, in larger text (for small panels, where all
+ * 82 inputs would not be readable).
+ */
+export function drawBrain(canvas: HTMLCanvasElement, brain: BrainSnapshot, height = HEIGHT, compact = false): void {
   const ratio = window.devicePixelRatio || 1;
   const width = Math.max(canvas.clientWidth, 260);
-  if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(HEIGHT * ratio)) {
+  if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
     canvas.width = Math.round(width * ratio);
-    canvas.height = Math.round(HEIGHT * ratio);
-    canvas.style.height = `${HEIGHT}px`;
+    canvas.height = Math.round(height * ratio);
+    canvas.style.height = `${height}px`;
   }
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
   ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-  ctx.clearRect(0, 0, width, HEIGHT);
+  ctx.clearRect(0, 0, width, height);
 
   const activity = brain.activity;
   const inputX = Math.min(112, width * 0.4);
@@ -50,12 +55,15 @@ export function drawBrain(canvas: HTMLCanvasElement, brain: BrainSnapshot): void
   const hiddenX = (inputX + outputX) / 2;
 
   // Positions of every node that is drawn.
-  const inputY = (i: number): number => 12 + (i * (HEIGHT - 24)) / (INPUT_COUNT - 1);
-  const outputY = (o: number): number => HEIGHT * (0.25 + 0.25 * o);
+  const wiredInputs = [...new Set(brain.links.map((l) => l.from).filter((n) => n < INPUT_COUNT))].sort((a, b) => a - b);
+  const shownInputs = compact ? wiredInputs : Array.from({ length: INPUT_COUNT }, (_, i) => i);
+  const inputRow = new Map(shownInputs.map((node, k) => [node, k]));
+  const inputY = (i: number): number => (shownInputs.length <= 1 ? height / 2 : 12 + ((inputRow.get(i) ?? 0) * (height - 24)) / (shownInputs.length - 1));
+  const outputY = (o: number): number => height * (0.25 + 0.25 * o);
   const usedHidden = [...new Set(brain.links.flatMap((l) => [l.from, l.to]).filter((n) => n >= HIDDEN_START && n < OUTPUT_START))].sort((a, b) => a - b);
   const hiddenY = (node: number): number => {
     const k = usedHidden.indexOf(node);
-    return 20 + ((k + 0.5) * (HEIGHT - 40)) / Math.max(usedHidden.length, 1);
+    return 20 + ((k + 0.5) * (height - 40)) / Math.max(usedHidden.length, 1);
   };
   const position = (node: number): [number, number] => {
     if (node < INPUT_COUNT) return [inputX, inputY(node)];
@@ -76,12 +84,12 @@ export function drawBrain(canvas: HTMLCanvasElement, brain: BrainSnapshot): void
     ctx.stroke();
   }
 
-  ctx.font = "9px system-ui, sans-serif";
+  ctx.font = compact ? "11px system-ui, sans-serif" : "9px system-ui, sans-serif";
   ctx.textBaseline = "middle";
 
   // Inputs, with labels (brighter when something is being sensed).
   const connectedInputs = new Set(brain.links.map((l) => l.from));
-  for (let i = 0; i < INPUT_COUNT; i++) {
+  for (const i of shownInputs) {
     const value = activity ? activity.inputs[i]! : null;
     const [x, y] = position(i);
     ctx.fillStyle = activationColor(value);

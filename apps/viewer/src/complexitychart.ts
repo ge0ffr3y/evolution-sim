@@ -25,11 +25,11 @@ export class ComplexityChart {
   private seen = 0;
   private readonly chart: uPlot;
 
-  constructor(private readonly container: HTMLElement) {
+  constructor(private readonly container: HTMLElement, private readonly height = HEIGHT) {
     this.chart = new uPlot(
       {
         width: Math.max(container.clientWidth, 280),
-        height: HEIGHT,
+        height: this.height,
         legend: { live: true },
         cursor: { drag: { x: false, y: false } },
         scales: { x: { time: false }, share: { range: [0, 1] }, count: { auto: true } },
@@ -55,7 +55,7 @@ export class ComplexityChart {
   /** Fit the chart to its box (also checked at every redraw: see Charts.fit). */
   private fit(): void {
     const width = Math.max(this.container.clientWidth, 280);
-    if (this.chart.width !== width) this.chart.setSize({ width, height: HEIGHT });
+    if (this.chart.width !== width) this.chart.setSize({ width, height: this.height });
   }
 
   add(points: readonly HistoryPoint[]): void {

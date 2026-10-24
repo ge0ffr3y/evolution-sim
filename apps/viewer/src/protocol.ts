@@ -10,6 +10,8 @@ export type ToWorker =
   /** Select the organism nearest this point (in world units), if there is one close enough. */
   | { type: "inspectAt"; x: number; y: number }
   | { type: "clearInspect" }
+  /** Spotlight: pick an organism of this kind, select it and trace its brain (answered with "spotlight"). */
+  | { type: "spotlight"; kind: SpotlightKind }
   /** Ask for the whole world as bytes (answered with a "saved" message). */
   | { type: "save" }
   /** Replace the world with a saved one. With branchSeed, carry on from the same moment with a different random future. */
@@ -30,7 +32,18 @@ export interface LoadFailedMessage {
 }
 
 /** Everything the worker can send the page. */
-export type FromWorker = FrameMessage | SavedMessage | LoadFailedMessage;
+export type FromWorker = FrameMessage | SavedMessage | LoadFailedMessage | SpotlightMessage;
+
+/** Kinds of organism the spotlight can ask for. */
+export type SpotlightKind = "random" | "meatEater" | "oldest" | "topHunter" | "newSpecies";
+
+/** The worker's answer to "spotlight": who was picked (null if none of that kind is alive) and why, in words. */
+export interface SpotlightMessage {
+  type: "spotlight";
+  kind: SpotlightKind;
+  id: number | null;
+  reason: string;
+}
 
 /** One sample of the numbers drawn on the charts and the energy-flow readout. */
 export interface HistoryPoint {
