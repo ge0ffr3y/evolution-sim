@@ -10,8 +10,8 @@ const SAMPLE_EVERY = 10;
 /** Take a trait histogram every this many ticks. */
 const HISTOGRAM_EVERY = 1000;
 const HISTOGRAM_BINS = 24;
-/** Send a picture of the world to the page at most this often. */
-const FRAME_INTERVAL_MS = 33;
+/** How often a picture of the world is sent to the page: about 30 a second, or as set by a "frameRate" message. */
+let frameIntervalMs = 33;
 /** The family tree is big, so it goes out about once a second (and right after a restart). */
 const SPECIES_INTERVAL_MS = 1000;
 /** Species history is thinned to about this many samples so the tree message stays small in long runs. */
@@ -422,7 +422,7 @@ function loop(): void {
     }
   }
 
-  if (sim && needsFrame && now - lastFrame >= FRAME_INTERVAL_MS) postFrame(sim);
+  if (sim && needsFrame && now - lastFrame >= frameIntervalMs) postFrame(sim);
 }
 
 /** Pick the living organism closest to a point, or null if none is near enough. */
@@ -503,6 +503,10 @@ self.onmessage = (event: MessageEvent<ToWorker>) => {
           needsFrame = true;
         }
       }
+      break;
+    case "frameRate":
+      // Fewer pictures a second means less work making and drawing them (the simulation's speed is unchanged).
+      frameIntervalMs = Math.round(1000 / Math.min(60, Math.max(1, message.framesPerSecond)));
       break;
     case "spotlight": {
       const pick = sim ? spotlightPick(sim, message.kind) : null;

@@ -7,6 +7,8 @@ export type ToWorker =
   | { type: "pause" }
   /** How many simulation ticks to run per real second. Infinity means "as fast as possible". */
   | { type: "speed"; ticksPerSecond: number }
+  /** How many pictures of the world a second to send (1 to 60; 30 by default). */
+  | { type: "frameRate"; framesPerSecond: number }
   /** Select the organism nearest this point (in world units), if there is one close enough. */
   | { type: "inspectAt"; x: number; y: number }
   | { type: "clearInspect" }
