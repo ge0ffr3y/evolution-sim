@@ -50,8 +50,19 @@ export function drawBrain(canvas: HTMLCanvasElement, brain: BrainSnapshot, heigh
   ctx.clearRect(0, 0, width, height);
 
   const activity = brain.activity;
+  ctx.font = compact ? "11px system-ui, sans-serif" : "9px system-ui, sans-serif";
+
+  // Outputs: the three movement outputs always, the memory outputs only when the brain is wired to them (they
+  // exist only in working-memory worlds). Spaced evenly, with room on the right for the longest label.
+  const wiredTargets = new Set(brain.links.map((l) => l.to));
+  const shownOutputs = OUTPUT_LABELS.map((_, o) => o).filter((o) => o < 3 || wiredTargets.has(OUTPUT_START + o));
+  const outputRow = new Map(shownOutputs.map((o, k) => [o, k]));
+  const longestLabel = Math.max(...shownOutputs.map((o) => ctx.measureText(OUTPUT_LABELS[o]!).width));
+  // Each output's current value goes under its label, or beside it when the rows are too close for two lines.
+  const valueBeside = height / (shownOutputs.length + 1) < (compact ? 28 : 22);
+  const valueWidth = valueBeside ? ctx.measureText("-0.00").width + 6 : 0;
   const inputX = Math.min(112, width * 0.4);
-  const outputX = width - 64;
+  const outputX = width - Math.max(64, Math.ceil(longestLabel + valueWidth) + 18);
   const hiddenX = (inputX + outputX) / 2;
 
   // Positions of every node that is drawn.
@@ -59,7 +70,8 @@ export function drawBrain(canvas: HTMLCanvasElement, brain: BrainSnapshot, heigh
   const shownInputs = compact ? wiredInputs : Array.from({ length: INPUT_COUNT }, (_, i) => i);
   const inputRow = new Map(shownInputs.map((node, k) => [node, k]));
   const inputY = (i: number): number => (shownInputs.length <= 1 ? height / 2 : 12 + ((inputRow.get(i) ?? 0) * (height - 24)) / (shownInputs.length - 1));
-  const outputY = (o: number): number => height * (0.25 + 0.25 * o);
+  // With three outputs this is the old layout (a quarter, half and three quarters of the way down).
+  const outputY = (o: number): number => (height * ((outputRow.get(o) ?? 0) + 1)) / (shownOutputs.length + 1);
   const usedHidden = [...new Set(brain.links.flatMap((l) => [l.from, l.to]).filter((n) => n >= HIDDEN_START && n < OUTPUT_START))].sort((a, b) => a - b);
   const hiddenY = (node: number): number => {
     const k = usedHidden.indexOf(node);
@@ -84,7 +96,6 @@ export function drawBrain(canvas: HTMLCanvasElement, brain: BrainSnapshot, heigh
     ctx.stroke();
   }
 
-  ctx.font = compact ? "11px system-ui, sans-serif" : "9px system-ui, sans-serif";
   ctx.textBaseline = "middle";
 
   // Inputs, with labels (brighter when something is being sensed).
@@ -123,7 +134,7 @@ export function drawBrain(canvas: HTMLCanvasElement, brain: BrainSnapshot, heigh
   }
 
   // Outputs.
-  for (let o = 0; o < OUTPUT_LABELS.length; o++) {
+  for (const o of shownOutputs) {
     const [x, y] = position(OUTPUT_START + o);
     const value = activity ? activity.outputs[o]! : null;
     ctx.fillStyle = activationColor(value);
@@ -134,8 +145,10 @@ export function drawBrain(canvas: HTMLCanvasElement, brain: BrainSnapshot, heigh
     ctx.stroke();
     ctx.textAlign = "left";
     ctx.fillStyle = "#e6edf3";
-    ctx.fillText(OUTPUT_LABELS[o]!, x + 11, y - 5);
+    ctx.fillText(OUTPUT_LABELS[o]!, x + 11, valueBeside ? y : y - 5);
     ctx.fillStyle = "#8b98a5";
-    ctx.fillText(value === null ? "" : value.toFixed(2), x + 11, y + 6);
+    const valueText = value === null ? "" : value.toFixed(2);
+    if (valueBeside) ctx.fillText(valueText, x + 11 + ctx.measureText(OUTPUT_LABELS[o]!).width + 6, y);
+    else ctx.fillText(valueText, x + 11, y + 6);
   }
 }
