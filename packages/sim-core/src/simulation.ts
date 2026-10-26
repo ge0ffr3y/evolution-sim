@@ -175,12 +175,27 @@ export interface ColonyStats {
 /** Things that happen to the whole world: catastrophes and their ends. */
 export interface WorldEvent {
   tick: number;
-  kind: "iceAge" | "drought" | "meteor" | "recovery" | "wildfire" | "storm" | "flood" | "volcano" | "blight" | "outbreak" | "goodYear";
+  kind: "iceAge" | "drought" | "meteor" | "recovery" | "wildfire" | "storm" | "flood" | "volcano" | "blight" | "outbreak" | "goodYear" | "bloom" | "rain" | "thaw" | "fertilize" | "mutation";
   text: string;
 }
 
 /** The kinds of disaster the event engine can start (see the ev* settings in the config). */
-export type DisasterKind = "iceAge" | "drought" | "wildfire" | "storm" | "flood" | "volcano" | "blight" | "goodYear";
+export type DisasterKind = "iceAge" | "drought" | "wildfire" | "storm" | "flood" | "volcano" | "blight" | "goodYear" | "mutation";
+
+/** The outside nudges a world accepts (see Simulation.intervene). */
+export type InterventionKind = "goodYear" | "bloom" | "rain" | "thaw" | "fertilize" | "mutate";
+
+/** An outside nudge that happened, for the log (seed plus log replays a world exactly). */
+export interface Intervention {
+  tick: number;
+  kind: InterventionKind;
+}
+
+/** What came of a nudge: whether it happened, and a sentence about it. */
+export interface InterventionResult {
+  ok: boolean;
+  text: string;
+}
 
 /**
  * A disaster that is going on now. Meteors and outbreaks happen in one instant, so they never
@@ -714,6 +729,10 @@ export class Simulation {
   private evCooling = 0;
   private evDryness = 1;
   private evGrowthMult = 1;
+  /** Mutation rates are multiplied by this now (1 unless a "mutate" nudge is going on; worked out fresh each tick). */
+  private evMutationMult = 1;
+  /** Every outside nudge so far (see intervene), saved with the world. */
+  readonly interventionLog: Intervention[] = [];
   private evKindMult: number[] = [1];
   /** The average amount of plant on a land cell this tick (worked out while a fire burns): fire spreads through plants at least that thick. */
   private fuelRef = 0;
@@ -1897,6 +1916,7 @@ export class Simulation {
     this.evCooling = 0;
     this.evDryness = 1;
     this.evGrowthMult = 1;
+    this.evMutationMult = 1;
     const kinds = this.plantKinds > 1 ? this.plantKinds : 1;
     if (this.evKindMult.length !== kinds) this.evKindMult = new Array<number>(kinds).fill(1);
     else this.evKindMult.fill(1);
@@ -1925,6 +1945,9 @@ export class Simulation {
           break;
         case "goodYear":
           this.evGrowthMult *= ev.intensity;
+          break;
+        case "mutation":
+          this.evMutationMult *= ev.intensity;
           break;
         case "blight":
           if (ev.target < 0) for (let j = 0; j < kinds; j++) this.evKindMult[j] = this.evKindMult[j]! * ev.intensity;
@@ -1985,6 +2008,9 @@ export class Simulation {
         break;
       case "goodYear":
         this.worldEvents.push({ tick: t, kind: "recovery", text: "The good year ends" });
+        break;
+      case "mutation":
+        this.worldEvents.push({ tick: t, kind: "recovery", text: "Mutation rates settle back down" });
         break;
     }
   }
@@ -2227,7 +2253,13 @@ export class Simulation {
     }
     for (const cell of this.cellsWithin(x, y, radius)) this.burnPlants(cell);
     // Richer ground around it: biggest at the crater, thinning to nothing at reach times the radius.
-    const reach = radius * c.evVolcanoBoostReach;
+    this.enrichGround(x, y, radius * c.evVolcanoBoostReach, c.evVolcanoBoost);
+    this.worldEvents.push({ tick: this.tick, kind: "volcano", text: `A volcano erupts near (${Math.round(x)}, ${Math.round(y)}): ${killed} organisms killed, the world cools by up to ${Math.round(cooling * 100) / 100} for ${length} ticks` });
+  }
+
+  /** Richer ground (the "ash" field, which holds and grows more plants and fades slowly): boost at (x, y), thinning to nothing at reach. */
+  private enrichGround(x: number, y: number, reach: number, peak: number): void {
+    const c = this.config;
     const cs = c.foodCellSize;
     for (const cell of this.cellsWithin(x, y, reach)) {
       const cx = cell % this.gridWidth;
@@ -2238,10 +2270,72 @@ export class Simulation {
       else if (dx < -c.worldWidth / 2) dx += c.worldWidth;
       if (dy > c.worldHeight / 2) dy -= c.worldHeight;
       else if (dy < -c.worldHeight / 2) dy += c.worldHeight;
-      const boost = c.evVolcanoBoost * (1 - Math.sqrt(dx * dx + dy * dy) / reach);
+      const boost = peak * (1 - Math.sqrt(dx * dx + dy * dy) / reach);
       if (boost > this.ash[cell]!) this.ash[cell] = boost;
     }
-    this.worldEvents.push({ tick: this.tick, kind: "volcano", text: `A volcano erupts near (${Math.round(x)}, ${Math.round(y)}): ${killed} organisms killed, the world cools by up to ${Math.round(cooling * 100) / 100} for ${length} ticks` });
+  }
+
+  /**
+   * An outside nudge to the world, given between ticks (for example from a stream's chat). Each one works through
+   * the event engine's own mechanisms, so energy and matter stay balanced:
+   * - goodYear: a good year begins (plants grow faster everywhere for a while; sunlight is an energy source);
+   * - bloom: rich ground in a circle somewhere on land, like the ground a volcano leaves (needs volcanoes on);
+   * - rain: a drought going on ends now; thaw: an ice age or volcanic winter going on ends now;
+   * - fertilize: dead matter (detritus) in a circle goes straight back into the soil (matter moves; none is made);
+   * - mutate: mutation rates are multiplied for a while, so babies vary more from their parents.
+   * Needs the event engine (some ev*Every setting above 0). A nudge that cannot happen (no drought to end) changes
+   * nothing and draws no random numbers. Each one that happens is logged with its tick in interventionLog (saved
+   * with the world), so the seed plus the log replays the world exactly.
+   */
+  intervene(kind: InterventionKind): InterventionResult {
+    if (!this.eventsOn) return { ok: false, text: "This world has no events, so it takes no nudges." };
+    const c = this.config;
+    const at = (x: number, y: number): string => `(${Math.round(x)}, ${Math.round(y)})`;
+    let event: WorldEvent | null = null;
+    switch (kind) {
+      case "goodYear":
+        this.beginGoodYear(); // logs its own "A good year begins" line
+        break;
+      case "bloom": {
+        if (!this.ashOn) return { ok: false, text: "The ground can't be enriched in this world (it has no volcanoes)." };
+        const [x, y] = this.randomLandPoint();
+        this.enrichGround(x, y, c.interveneBloomRadius, c.interveneBloomBoost);
+        event = { tick: this.tick, kind: "bloom", text: `A bloom near ${at(x, y)}: the ground there holds and grows up to ${Math.round(c.interveneBloomBoost * 100)}% more plants, fading slowly` };
+        break;
+      }
+      case "rain": {
+        const droughts = this.activeEvents.filter((ev) => ev.kind === "drought");
+        if (droughts.length === 0) return { ok: false, text: "There's no drought to end right now." };
+        for (const ev of droughts) ev.end = this.tick; // they end (and say so) at the start of the next tick
+        event = { tick: this.tick, kind: "rain", text: "Rain breaks the drought early" };
+        break;
+      }
+      case "thaw": {
+        const cold = this.activeEvents.filter((ev) => ev.kind === "iceAge" || ev.kind === "volcano");
+        if (cold.length === 0) return { ok: false, text: "There's no ice age or volcanic winter to end right now." };
+        for (const ev of cold) ev.end = this.tick;
+        event = { tick: this.tick, kind: "thaw", text: "A thaw ends the cold early" };
+        break;
+      }
+      case "fertilize": {
+        const [x, y] = this.randomLandPoint();
+        for (const cell of this.cellsWithin(x, y, c.interveneFertilizeRadius)) {
+          this.nutrient[cell] = this.nutrient[cell]! + this.detritus[cell]!;
+          this.detritus[cell] = 0;
+        }
+        event = { tick: this.tick, kind: "fertilize", text: `Dead matter near ${at(x, y)} turns straight back into rich soil` };
+        break;
+      }
+      case "mutate": {
+        const length = Math.max(1, Math.round(c.interveneMutateLength));
+        this.newEvent("mutation", length, 0, 0, 0, c.interveneMutateFactor);
+        event = { tick: this.tick, kind: "mutation", text: `Mutation rates rise ${c.interveneMutateFactor}x for ${length} ticks: babies born now vary more from their parents` };
+        break;
+      }
+    }
+    if (event) this.worldEvents.push(event);
+    this.interventionLog.push({ tick: this.tick, kind });
+    return { ok: true, text: event ? event.text : this.worldEvents[this.worldEvents.length - 1]!.text };
   }
 
   private beginBlight(): void {
@@ -2702,7 +2796,8 @@ export class Simulation {
   /** Give a new organism (at index `child`) a mutated copy of its parent's genes. */
   private inheritGenes(child: number, parent: number): void {
     const meta = this.config.metaMutationStd;
-    const rate = this.mutationRate[parent]!;
+    // (evMutationMult is 1, exactly, unless a "mutate" nudge is going on.)
+    const rate = this.mutationRate[parent]! * this.evMutationMult;
     for (let k = 0; k < GENE_COUNT; k++) {
       // A gene that is not doing anything in this world (see activeGene) is copied without a random
       // draw, which keeps worlds without it identical to how they played out before it existed.
@@ -2839,7 +2934,7 @@ export class Simulation {
   /** Mix two parents' genes (each gene comes from one or the other) and mutate the result. */
   private inheritGenesFromTwo(child: number, a: number, b: number): void {
     const meta = this.config.metaMutationStd;
-    const rate = (this.mutationRate[a]! + this.mutationRate[b]!) / 2;
+    const rate = ((this.mutationRate[a]! + this.mutationRate[b]!) / 2) * this.evMutationMult;
     for (let k = 0; k < GENE_COUNT; k++) {
       if (!this.activeGene[k]) {
         this.genes[child * GENE_COUNT + k] = this.genes[a * GENE_COUNT + k]!;
@@ -5615,6 +5710,8 @@ export class Simulation {
       seen: [this.seenScavenger, this.seenKill, this.seenPredator, this.seenCarnivore],
       events: this.events,
       worldEvents: this.worldEvents,
+      // (Only once there has been a nudge, so older saved worlds and saves without nudges are unchanged.)
+      ...(this.interventionLog.length > 0 ? { interventionLog: this.interventionLog } : {}),
       catastrophe: [this.catKind, this.catStart, this.catEnd],
       brainLayout: [INPUT_COUNT, CONN_MAX],
       // (Only in worlds with disaster events, so older saved worlds still load.)
@@ -5698,6 +5795,7 @@ export class Simulation {
       seen: boolean[];
       events: SimEvent[];
       worldEvents: WorldEvent[];
+      interventionLog?: Intervention[];
       brainLayout?: [number, number];
       activeEvents?: ActiveEvent[];
       eventRng?: number[];
@@ -5793,6 +5891,8 @@ export class Simulation {
     this.events.push(...s.events);
     this.worldEvents.length = 0;
     this.worldEvents.push(...s.worldEvents);
+    this.interventionLog.length = 0;
+    this.interventionLog.push(...(s.interventionLog ?? []));
     [this.catKind, this.catStart, this.catEnd] = s.catastrophe;
     this.activeEvents = (s.activeEvents ?? []).map((e) => ({ ...e, cells: [...e.cells], left: [...e.left] }));
     this.eventRng.setState(newFuture ? new Rng(((this.seed + this.tick) ^ 0x5bd1e995) >>> 0).getState() : ((s.eventRng ?? Array.from(this.eventRng.getState())) as unknown as [number, number, number, number]));
