@@ -1,4 +1,4 @@
-import type { BehaviorStats, GeneName, InterventionKind, OrganismSnapshot, SimConfig, SimEvent, SimStats, SpeciesEvent, SpeciesRecord, TraitRange, WorldEvent } from "@evo/sim-core";
+import type { BehaviorStats, GeneName, InterventionKind, LineageInfo, OrganismSnapshot, PredatorStyle, SimConfig, SimEvent, SimStats, SpeciesEvent, SpeciesRecord, TraitRange, WorldEvent } from "@evo/sim-core";
 
 /** Messages from the page to the simulation worker. */
 export type ToWorker =
@@ -19,7 +19,9 @@ export type ToWorker =
   /** Replace the world with a saved one. With branchSeed, carry on from the same moment with a different random future. */
   | { type: "load"; bytes: Uint8Array; branchSeed?: number }
   /** An outside nudge to the world, given before the next tick (answered with "intervened"; see Simulation.intervene). */
-  | { type: "intervene"; kind: InterventionKind; requestId: number; strength?: number };
+  | { type: "intervene"; kind: InterventionKind; requestId: number; strength?: number; style?: PredatorStyle }
+  /** Select (and trace) the organism with this id, if it is alive. */
+  | { type: "inspectId"; id: number };
 
 /** The worker's answer to "save". */
 export interface SavedMessage {
@@ -45,6 +47,9 @@ export interface IntervenedMessage {
   kind: InterventionKind;
   /** The tick it happened at (the world's events list shows it at this tick). */
   tick: number;
+  /** For a predator: its organism id and the lineage it founds. */
+  organismId?: number;
+  lineage?: number;
   ok: boolean;
   text: string;
 }
@@ -224,6 +229,8 @@ export interface FrameMessage {
   /** Histogram snapshots taken since the previous frame. */
   histograms: HistogramSample[];
   inspected: InspectedState | null;
+  /** Lineages founded by predator nudges (only in worlds that have had one; see Simulation.lineages). */
+  lineages?: LineageInfo[];
   /** Notable firsts so far (the first kill, the first carnivore...). */
   events: SimEvent[];
   /** How purposefully organisms have been turning recently (0.5 = random). */

@@ -363,6 +363,7 @@ function postFrame(s: Simulation): void {
     points,
     histograms,
     inspected: inspect(s),
+    ...(s.interventionLog.some((n) => n.kind === "predator") ? { lineages: s.lineages() } : {}),
     events: s.events,
     behavior: recentBehavior(),
     species: sendSpecies ? speciesForSending(s) : null,
@@ -492,6 +493,14 @@ self.onmessage = (event: MessageEvent<ToWorker>) => {
       ticksPerSecond = message.ticksPerSecond;
       owedTicks = 0;
       break;
+    case "inspectId":
+      if (sim && sim.indexOfId(message.id) >= 0) {
+        selectedId = message.id;
+        sim.traceId = message.id;
+        lastInspected = null;
+        needsFrame = true;
+      }
+      break;
     case "inspectAt":
       if (sim) {
         const picked = pickNear(sim, message.x, message.y);
@@ -510,7 +519,7 @@ self.onmessage = (event: MessageEvent<ToWorker>) => {
       break;
     case "intervene": {
       // Messages are handled between batches of ticks, so the nudge lands cleanly before the next tick.
-      const result = sim ? sim.intervene(message.kind, { strength: message.strength }) : { ok: false, text: "There is no world yet." };
+      const result = sim ? sim.intervene(message.kind, { strength: message.strength, style: message.style }) : { ok: false, text: "There is no world yet." };
       self.postMessage({ type: "intervened", requestId: message.requestId, kind: message.kind, tick: sim ? sim.tick : 0, ...result } satisfies IntervenedMessage);
       needsFrame = true;
       break;

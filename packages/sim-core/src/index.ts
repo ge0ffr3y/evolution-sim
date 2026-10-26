@@ -54,6 +54,8 @@ export type {
   Intervention,
   InterventionKind,
   InterventionResult,
+  LineageInfo,
+  PredatorStyle,
   SimEventKind,
   SimStats,
   TraitSummary,
