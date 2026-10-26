@@ -904,6 +904,8 @@ export interface SimConfig {
   interveneFertilizeRadius: number;
   interveneMutateFactor: number;
   interveneMutateLength: number;
+  /** A predator made by a nudge cannot be attacked for this many ticks (a head start in a world full of hunters). */
+  intervenePredatorShelter: number;
 
   // --- Aging and litter size (off by default) ---
   /**
@@ -1793,6 +1795,7 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   interveneFertilizeRadius: 40,
   interveneMutateFactor: 4,
   interveneMutateLength: 20000,
+  intervenePredatorShelter: 3000,
   agingCoeff: 0,
   agingPrimeFraction: 0.5,
   agingRepairCoeff: 0.3,

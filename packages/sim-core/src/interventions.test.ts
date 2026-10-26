@@ -28,6 +28,13 @@ const WORLD: Partial<SimConfig> = {
 };
 
 type Hidden = {
+  considerPrey(index: number, distSq: number): void;
+  pickAttacker: number;
+  pickBest: number;
+  pickBestDistSq: number;
+  pickBestDefense: number;
+  pickSizeLimit: number;
+  tick: number;
   inheritLineage(child: number, parentA: number, parentB: number): void;
   mateMask: number[];
   parent2Id: Uint32Array;
@@ -240,7 +247,7 @@ describe("predator nudges", () => {
     const i = sim.indexOfId(result.organismId!);
     expect(sim.diet[i]!).toBeGreaterThan(0.75);
     expect(sim.attack[i]!).toBeGreaterThan(0);
-    expect(result.text).toBe(`Organism #${result.organismId} turns into a predator: it now eats meat and fights harder, and can only breed with a mate`);
+    expect(result.text).toBe(`Organism #${result.organismId} turns into a predator: it now eats meat, fights harder and wears more armor, and can only breed with a mate`);
     // Its genes moved less than the mating limit (measured over the genes that count for mating).
     const mask = hidden(sim).mateMask;
     const founders = new Simulation(20, MATING); // the same world before the nudge
@@ -326,6 +333,30 @@ describe("predator nudges", () => {
     copy.run(400);
     expect(copy.fingerprint()).toBe(sim.fingerprint());
     expect(copy.interventionLog).toEqual([{ tick: 100, kind: "predator", style: "fast" }]);
+  });
+
+  it("cannot be picked as prey during their head start, and can be afterwards", () => {
+    const sim = new Simulation(28, { ...MATING, intervenePredatorShelter: 300 });
+    sim.run(100);
+    const founder = sim.intervene("predator").organismId!;
+    const wouldHunt = (): boolean => {
+      const h = hidden(sim);
+      const prey = sim.indexOfId(founder);
+      h.pickAttacker = prey === 0 ? 1 : 0;
+      h.pickBest = -1;
+      h.pickBestDistSq = Infinity;
+      h.pickBestDefense = Infinity;
+      h.pickSizeLimit = Infinity;
+      h.considerPrey(prey, 1);
+      return h.pickBest === prey;
+    };
+    expect(wouldHunt()).toBe(false);
+    const copy = Simulation.load(snapshotFromBytes(snapshotToBytes(sim.save())));
+    for (let t = 0; t < 300 && sim.indexOfId(founder) >= 0; t++) sim.step();
+    if (sim.indexOfId(founder) >= 0) expect(wouldHunt()).toBe(true);
+    // The head start is saved with the world.
+    copy.run(300);
+    expect(copy.fingerprint()).toBe(sim.fingerprint());
   });
 
   it("are refused when nobody could become one", () => {
