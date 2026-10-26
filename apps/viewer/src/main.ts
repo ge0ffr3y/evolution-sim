@@ -574,7 +574,7 @@ worker.onmessage = (event: MessageEvent<FromWorker>) => {
     showNotice(`Could not load that file: ${message.message}`);
     return;
   }
-  if (message.type === "spotlight") return; // this page never asks for a spotlight
+  if (message.type === "spotlight" || message.type === "intervened") return; // this page never asks for these
   const frame = message;
   if (frame.resetId !== currentResetId) {
     // First frame after a restart: start the charts fresh.

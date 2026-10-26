@@ -1,5 +1,5 @@
 import { GENES, SAMPLE_STRIDE, Simulation, SpatialHash, snapshotFromBytes, snapshotToBytes, type BehaviorStats, type GeneName, type SpeciesRecord } from "@evo/sim-core";
-import type { FrameMessage, HistogramSample, HistoryPoint, InspectedState, LoadFailedMessage, SavedMessage, SpotlightKind, SpotlightMessage, ToWorker, WorldInfo } from "./protocol";
+import type { FrameMessage, HistogramSample, HistoryPoint, InspectedState, IntervenedMessage, LoadFailedMessage, SavedMessage, SpotlightKind, SpotlightMessage, ToWorker, WorldInfo } from "./protocol";
 
 // The simulation runs here, off the main thread, so the page stays smooth.
 // Real-time clocks are fine in this file: they only decide how many ticks to
@@ -508,6 +508,13 @@ self.onmessage = (event: MessageEvent<ToWorker>) => {
       // Fewer pictures a second means less work making and drawing them (the simulation's speed is unchanged).
       frameIntervalMs = Math.round(1000 / Math.min(60, Math.max(1, message.framesPerSecond)));
       break;
+    case "intervene": {
+      // Messages are handled between batches of ticks, so the nudge lands cleanly before the next tick.
+      const result = sim ? sim.intervene(message.kind) : { ok: false, text: "There is no world yet." };
+      self.postMessage({ type: "intervened", requestId: message.requestId, kind: message.kind, ...result } satisfies IntervenedMessage);
+      needsFrame = true;
+      break;
+    }
     case "spotlight": {
       const pick = sim ? spotlightPick(sim, message.kind) : null;
       if (sim && pick) {

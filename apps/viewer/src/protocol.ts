@@ -1,4 +1,4 @@
-import type { BehaviorStats, GeneName, OrganismSnapshot, SimConfig, SimEvent, SimStats, SpeciesEvent, SpeciesRecord, TraitRange, WorldEvent } from "@evo/sim-core";
+import type { BehaviorStats, GeneName, InterventionKind, OrganismSnapshot, SimConfig, SimEvent, SimStats, SpeciesEvent, SpeciesRecord, TraitRange, WorldEvent } from "@evo/sim-core";
 
 /** Messages from the page to the simulation worker. */
 export type ToWorker =
@@ -17,7 +17,9 @@ export type ToWorker =
   /** Ask for the whole world as bytes (answered with a "saved" message). */
   | { type: "save" }
   /** Replace the world with a saved one. With branchSeed, carry on from the same moment with a different random future. */
-  | { type: "load"; bytes: Uint8Array; branchSeed?: number };
+  | { type: "load"; bytes: Uint8Array; branchSeed?: number }
+  /** An outside nudge to the world, given before the next tick (answered with "intervened"; see Simulation.intervene). */
+  | { type: "intervene"; kind: InterventionKind; requestId: number };
 
 /** The worker's answer to "save". */
 export interface SavedMessage {
@@ -34,7 +36,16 @@ export interface LoadFailedMessage {
 }
 
 /** Everything the worker can send the page. */
-export type FromWorker = FrameMessage | SavedMessage | LoadFailedMessage | SpotlightMessage;
+export type FromWorker = FrameMessage | SavedMessage | LoadFailedMessage | SpotlightMessage | IntervenedMessage;
+
+/** The worker's answer to "intervene": whether the nudge happened, and a sentence about it. */
+export interface IntervenedMessage {
+  type: "intervened";
+  requestId: number;
+  kind: InterventionKind;
+  ok: boolean;
+  text: string;
+}
 
 /** Kinds of organism the spotlight can ask for. */
 export type SpotlightKind = "random" | "meatEater" | "oldest" | "topHunter" | "newSpecies";

@@ -893,6 +893,17 @@ export interface SimConfig {
   evGoodYearBoostMax: number;
   evGoodYearLengthMin: number;
   evGoodYearLengthMax: number;
+  /**
+   * Outside nudges (Simulation.intervene, for example from a stream's chat; they only matter when used).
+   * Bloom: rich ground in a circle of this radius, holding and growing up to this much more plant (like the ground a
+   * volcano leaves, fading the same way; needs volcanoes switched on). Fertilize: dead matter in a circle of this
+   * radius goes straight back into the soil. Mutate: mutation rates are multiplied by this factor for this many ticks.
+   */
+  interveneBloomRadius: number;
+  interveneBloomBoost: number;
+  interveneFertilizeRadius: number;
+  interveneMutateFactor: number;
+  interveneMutateLength: number;
 
   // --- Aging and litter size (off by default) ---
   /**
@@ -1777,6 +1788,11 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   evGoodYearBoostMax: 1.8,
   evGoodYearLengthMin: 2000,
   evGoodYearLengthMax: 4000,
+  interveneBloomRadius: 40,
+  interveneBloomBoost: 0.8,
+  interveneFertilizeRadius: 40,
+  interveneMutateFactor: 4,
+  interveneMutateLength: 3000,
   agingCoeff: 0,
   agingPrimeFraction: 0.5,
   agingRepairCoeff: 0.3,
