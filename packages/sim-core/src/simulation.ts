@@ -769,6 +769,8 @@ export class Simulation {
   /** Lineages founded by predator nudges (see LineageInfo), and the living members' tags by organism id. */
   private readonly lineageRecords: Omit<LineageInfo, "alive" | "aliveMeat">[] = [];
   private readonly lineageOf = new Map<number, number>();
+  /** Predators made by a nudge that cannot be attacked yet: id to the tick their head start ends. */
+  private readonly shelterUntil = new Map<number, number>();
   private evKindMult: number[] = [1];
   /** The average amount of plant on a land cell this tick (worked out while a fire burns): fire spreads through plants at least that thick. */
   private fuelRef = 0;
@@ -962,6 +964,7 @@ export class Simulation {
   private pickBestDefense = Infinity;
   private pickSizeLimit = 0;
   private readonly considerPrey = (index: number, distSq: number): void => {
+    if (this.shelterUntil.size > 0 && this.sheltered(index)) return; // a nudged predator's head start
     if (index === this.pickAttacker || this.killed[index] === 1 || (this.colonyInfoOn && this.config.colonyProtect === 1 ? this.colonyMass[index]! : this.size[index]!) > this.pickSizeLimit) return;
     if (this.camoOn && !this.detects(this.pickAttacker, index)) return; // never noticed it
     if (this.toxOn && this.avoidStrength[this.pickAttacker]! > 0 && this.avoids(this.pickAttacker, index)) return; // it remembers that this color was poison
@@ -2320,10 +2323,12 @@ export class Simulation {
    * - rain: a drought going on ends now; thaw: an ice age or volcanic winter going on ends now;
    * - fertilize: dead matter (detritus) in a circle goes straight back into the soil (matter moves; none is made);
    * - mutate: mutation rates are multiplied for a while, so babies vary more from their parents;
-   * - predator: an animal already in the world (a mixed eater not in a colony, if there is one) becomes a predator:
-   *   its diet turns to meat and its attack rises, held back if need be so it can still mate with its own kind; a
+   * - predator: the fittest animal in the world (the best fed in its prime, a mixed eater not in a colony if there is
+   *   one) becomes a predator: its diet turns to meat and its attack and armor rise, held back if need be so it can
+   *   still mate with its own kind; a
    *   style makes it also bigger (paid for from its own energy and stores, as a newborn's body is, or not at all),
-   *   faster, or colored like the ground it stands on. It may only breed with a mate. It founds a lineage that
+   *   faster, or colored like the ground it stands on. It may only breed with a mate, and nothing can attack it for its
+   *   first intervenePredatorShelter ticks (a head start in a world full of hunters). It founds a lineage that
    *   follows its descendants (see lineages()); nothing is made from nowhere;
    * - meteor, wildfire, storm, flood: a local disaster starts now, exactly as one would by itself (wildfire, storm and
    *   flood need their own ev*Every switched on), except that its sizes (radius, length, spread) are drawn from only
@@ -2391,12 +2396,28 @@ export class Simulation {
     const c = this.config;
     const free = (i: number): boolean =>
       this.killed[i] !== 1 && !(this.bondsOn && this.bondCount(i) > 0) && !(this.typeOn && this.cellType[i] !== 0) && !this.lineageOf.has(this.id[i]!);
-    // Mixed eaters first: a predator made from one can still find mates among its own kind.
-    let candidates: number[] = [];
-    for (let i = 0; i < this.count; i++) if (free(i) && this.diet[i]! >= 0.25 && this.diet[i]! <= 0.75) candidates.push(i);
-    if (candidates.length === 0) for (let i = 0; i < this.count; i++) if (free(i)) candidates.push(i);
-    if (candidates.length === 0) return { ok: false, text: "There is nobody who could become a predator." };
-    const i = candidates[Math.floor(this.eventRng.next() * candidates.length)]!;
+    // The fittest candidate: of the healthy animals (in their prime: past their first 100 ticks and, with aging, not yet
+    // past it; and fed to at least half of what they need to breed), the one whose diet is already closest to meat, so
+    // the change is smallest; mixed eaters first, since a predator made from one can still find mates among its own
+    // kind. Chosen outright, with no random draw.
+    const inPrime = (i: number): boolean => this.age[i]! >= 100 && (!this.agingOn || this.age[i]! <= this.lifespan[i]! * c.agingPrimeFraction);
+    const fittest = (mixedOnly: boolean): number => {
+      let best = -1;
+      let bestScore = -Infinity;
+      for (let i = 0; i < this.count; i++) {
+        if (!free(i) || (mixedOnly && (this.diet[i]! < 0.25 || this.diet[i]! > 0.75))) continue;
+        const fed = this.energy[i]! / this.threshold[i]!;
+        const score = (inPrime(i) ? 10 : 0) + (fed >= 0.5 ? 5 : 0) + this.diet[i]! + Math.min(fed, 2) * 0.01;
+        if (score > bestScore) {
+          bestScore = score;
+          best = i;
+        }
+      }
+      return best;
+    };
+    let i = fittest(true);
+    if (i < 0) i = fittest(false);
+    if (i < 0) return { ok: false, text: "There is nobody who could become a predator." };
     const g = i * GENE_COUNT;
     const genes = this.genes;
     const before = Array.from(genes.subarray(g, g + GENE_COUNT));
@@ -2404,28 +2425,36 @@ export class Simulation {
       const r = this.ranges[gene];
       return Math.min(1, Math.max(0, (trait - r.min) / (r.max - r.min)));
     };
-    genes[g + GENE.diet] = Math.max(before[GENE.diet]!, 0.9);
-    genes[g + GENE.attack] = Math.max(before[GENE.attack]!, 0.8);
-    if (style === "fast") genes[g + GENE.speed] = Math.min(1, before[GENE.speed]! + 0.25);
-    if (style === "sneaky" && this.camoOn) genes[g + GENE.hue] = toGene("hue", this.background[this.cellOf[i]!]!);
-    // Still able to mate with its own kind: if the change is too big, scale it back (to 95% of the mating limit).
-    let sumSq = 0;
-    for (const k of this.mateMask) {
-      const d = genes[g + k]! - before[k]!;
-      sumSq += d * d;
-    }
-    const distance = Math.sqrt(sumSq / this.mateMask.length);
+    // The changes, most important first. It must stay able to mate with its own kind, so the genes that count for
+    // mating may move only so far in all (95% of the mating limit): diet gets that allowance first (it is what makes
+    // a predator), then attack, then armor (so it can come through a fight), then the style; whatever does not fit in
+    // full goes as far as the allowance left lets it.
+    const wanted: [number, number][] = [
+      [GENE.diet, Math.max(before[GENE.diet]!, 0.9)],
+      [GENE.attack, Math.max(before[GENE.attack]!, 0.8)],
+      [GENE.armor, Math.max(before[GENE.armor]!, 0.7)],
+    ];
+    if (style === "big") wanted.push([GENE.size, toGene("size", Math.min(this.ranges.size.max, this.size[i]! * 1.5))]);
+    if (style === "fast") wanted.push([GENE.speed, Math.min(1, before[GENE.speed]! + 0.25)]);
+    if (style === "sneaky" && this.camoOn) wanted.push([GENE.hue, toGene("hue", this.background[this.cellOf[i]!]!)]);
     const limit = 0.95 * c.mateDistance;
-    if (distance > limit) {
-      const keep = limit / distance;
-      for (let k = 0; k < GENE_COUNT; k++) genes[g + k] = before[k]! + (genes[g + k]! - before[k]!) * keep;
+    let room = limit * limit * this.mateMask.length;
+    for (const [k, target] of wanted) {
+      const d = target - before[k]!;
+      const counts = this.mateMask.includes(k);
+      if (!counts || d * d <= room) {
+        genes[g + k] = target;
+        if (counts) room -= d * d;
+      } else {
+        genes[g + k] = before[k]! + (d > 0 ? Math.sqrt(room) : -Math.sqrt(room));
+        room = 0;
+      }
     }
     if (this.sexGeneOn) genes[g + GENE.sex] = 1;
     // A bigger body is paid for from the animal's own energy and stores (then the soil and dead matter where it
     // stands), as a newborn's is; if it cannot pay, it keeps its size.
     const energyBefore = this.bodyEnergy[i]!;
     const matterBefore = this.bodyMatter[i]!;
-    if (style === "big") genes[g + GENE.size] = toGene("size", Math.min(this.ranges.size.max, this.size[i]! * 1.5));
     this.express(i);
     let extraEnergy = this.bodyEnergy[i]! - energyBefore;
     let extraMatter = this.bodyMatter[i]! - matterBefore;
@@ -2447,6 +2476,7 @@ export class Simulation {
     }
     const id = this.id[i]!;
     this.mustMateIds.add(id);
+    if (c.intervenePredatorShelter > 0) this.shelterUntil.set(id, this.tick + c.intervenePredatorShelter);
     if (this.sexGeneOn) {
       this.sexMode[i] = 2;
       this.mateSince[i] = this.tick;
@@ -2455,10 +2485,20 @@ export class Simulation {
     this.lineageRecords.push({ tag, founderId: id, startTick: this.tick, founderAlive: true, founderAge: this.age[i]!, founderKills: this.kills[i]!, founderX: this.x[i]!, founderY: this.y[i]!, born: 0 });
     this.lineageOf.set(id, tag);
     const styleWord = style === "plain" ? "" : ` ${style}`;
-    const text = `Organism #${id} turns into a${style === "plain" ? "" : styleWord} predator: it now eats meat and fights harder, and can only breed with a mate`;
+    const text = `Organism #${id} turns into a${style === "plain" ? "" : styleWord} predator: it now eats meat, fights harder and wears more armor, and can only breed with a mate`;
     this.worldEvents.push({ tick: this.tick, kind: "predator", text });
     this.interventionLog.push({ tick: this.tick, kind: "predator", style });
     return { ok: true, text, organismId: id, lineage: tag };
+  }
+
+  /** Is organism `index` a nudged predator still in its head start? (Forgets it once the head start is over.) */
+  private sheltered(index: number): boolean {
+    const id = this.id[index]!;
+    const until = this.shelterUntil.get(id);
+    if (until === undefined) return false;
+    if (this.tick < until) return true;
+    this.shelterUntil.delete(id);
+    return false;
   }
 
   /** A newborn joins its parents' lineage, if either has one (the tag only watches; see LineageInfo). */
@@ -5908,7 +5948,7 @@ export class Simulation {
       // (Only once there has been a nudge, so older saved worlds and saves without nudges are unchanged.)
       ...(this.interventionLog.length > 0 ? { interventionLog: this.interventionLog } : {}),
       ...(this.lineageRecords.length > 0
-        ? { lineages: { records: this.lineageRecords, members: [...this.lineageOf], mustMate: [...this.mustMateIds] } }
+        ? { lineages: { records: this.lineageRecords, members: [...this.lineageOf], mustMate: [...this.mustMateIds], shelter: [...this.shelterUntil] } }
         : {}),
       catastrophe: [this.catKind, this.catStart, this.catEnd],
       brainLayout: [INPUT_COUNT, CONN_MAX],
@@ -5994,7 +6034,7 @@ export class Simulation {
       events: SimEvent[];
       worldEvents: WorldEvent[];
       interventionLog?: Intervention[];
-      lineages?: { records: Omit<LineageInfo, "alive" | "aliveMeat">[]; members: [number, number][]; mustMate: number[] };
+      lineages?: { records: Omit<LineageInfo, "alive" | "aliveMeat">[]; members: [number, number][]; mustMate: number[]; shelter?: [number, number][] };
       brainLayout?: [number, number];
       activeEvents?: ActiveEvent[];
       eventRng?: number[];
@@ -6095,7 +6135,9 @@ export class Simulation {
     this.lineageRecords.length = 0;
     this.lineageOf.clear();
     this.mustMateIds.clear();
+    this.shelterUntil.clear();
     if (s.lineages) {
+      for (const [id, until] of s.lineages.shelter ?? []) this.shelterUntil.set(id, until);
       this.lineageRecords.push(...s.lineages.records.map((r) => ({ ...r })));
       for (const [id, tag] of s.lineages.members) this.lineageOf.set(id, tag);
       for (const id of s.lineages.mustMate) this.mustMateIds.add(id);
