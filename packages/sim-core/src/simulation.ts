@@ -5565,7 +5565,6 @@ export class Simulation {
         for (let baby = 0; baby < litter; baby++) {
           const savedNextId = this.nextId;
           const child = this.spawn(this.id[a]!, this.x[a]!, this.y[a]!);
-          if (child >= 0 && this.lineageOf.size > 0) this.inheritLineage(child, this.id[a]!, this.id[b]!);
           if (child < 0) break birthsLoop;
           this.parent2Id[child] = this.id[b]!;
           if (this.homeX.length > 0 && c.homeMode >= 2) {
@@ -5606,6 +5605,8 @@ export class Simulation {
           }
           this.totalBirths++;
           this.sexualBirths++;
+          // (Only once the birth is sure: an undone birth hands its id to the next newborn.)
+          if (this.lineageOf.size > 0) this.inheritLineage(child, this.id[a]!, this.id[b]!);
           if (this.bondsOn) this.maybeAttach(a, child);
           if (c.natalDispersal > 0) this.disperse(child, a);
         }
@@ -5625,7 +5626,6 @@ export class Simulation {
         for (let baby = 0; baby < litter; baby++) {
           const savedNextId = this.nextId;
           const child = this.spawn(this.id[parent]!, this.x[parent]!, this.y[parent]!);
-          if (child >= 0 && this.lineageOf.size > 0) this.inheritLineage(child, this.id[parent]!, 0);
           if (child < 0) break birthsLoop;
           if (this.homeX.length > 0 && c.homeMode >= 2) {
             this.homeX[child] = this.homeX[parent]!;
@@ -5659,6 +5659,7 @@ export class Simulation {
             this.giveFat(child, fatEach);
           }
           this.totalBirths++;
+          if (this.lineageOf.size > 0) this.inheritLineage(child, this.id[parent]!, 0);
           if (this.bondsOn) this.maybeAttach(parent, child);
           if (c.natalDispersal > 0) this.disperse(child, parent);
         }

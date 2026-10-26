@@ -301,6 +301,20 @@ describe("predator nudges", () => {
     expect(b.fingerprint()).toBe(a.fingerprint());
   });
 
+  it("count only real births as descendants (a birth that is undone does not leak its tag to the next newborn)", () => {
+    // Food is scarce, so many births are started and undone for want of energy or soil.
+    const sim = new Simulation(27, { ...MATING, initialFoodFraction: 0.3, foodRegrowPerTick: 0.004 });
+    sim.run(100);
+    sim.intervene("predator");
+    const birthsBefore = sim.totalBirths;
+    for (let k = 0; k < 6; k++) {
+      sim.run(250);
+      const line = sim.lineages()[0]!;
+      expect(line.born).toBeLessThanOrEqual(sim.totalBirths - birthsBefore);
+      expect(line.alive).toBeLessThanOrEqual(line.born + 1);
+    }
+  });
+
   it("survive saving and loading: the lineage, and the rule about mates", () => {
     const sim = new Simulation(25, MATING);
     sim.run(100);
