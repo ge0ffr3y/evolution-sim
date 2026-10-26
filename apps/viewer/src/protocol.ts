@@ -20,6 +20,12 @@ export type ToWorker =
   | { type: "load"; bytes: Uint8Array; branchSeed?: number }
   /** An outside nudge to the world, given before the next tick (answered with "intervened"; see Simulation.intervene). */
   | { type: "intervene"; kind: InterventionKind; requestId: number; strength?: number; style?: PredatorStyle }
+  /**
+   * How much species detail to send: species (and the event lists) every speciesEveryMs (1,000 by default), only the
+   * extinctSpecies most recently extinct species besides living ones and their ancestors (all by default), and only
+   * the latest recentEvents of each event list (all by default).
+   */
+  | { type: "detail"; speciesEveryMs?: number; extinctSpecies?: number; recentEvents?: number }
   /** Select (and trace) the organism with this id, if it is alive. */
   | { type: "inspectId"; id: number };
 

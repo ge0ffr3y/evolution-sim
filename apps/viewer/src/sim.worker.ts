@@ -13,7 +13,11 @@ const HISTOGRAM_BINS = 24;
 /** How often a picture of the world is sent to the page: about 30 a second, or as set by a "frameRate" message. */
 let frameIntervalMs = 33;
 /** The family tree is big, so it goes out about once a second (and right after a restart). */
-const SPECIES_INTERVAL_MS = 1000;
+/** How often species (and the event lists) are sent; a page can ask for less (see the "detail" message). */
+let speciesIntervalMs = 1000;
+/** How many extinct species to send (besides the ancestors of living ones), and how many recent events of each list. */
+let extinctLimit = Infinity;
+let eventLimit = Infinity;
 /** Species history is thinned to about this many samples so the tree message stays small in long runs. */
 const MAX_HISTORY_SAMPLES = 300;
 /** In "as fast as possible" mode, run for about this long between frames. */
@@ -219,25 +223,45 @@ function worldInfo(s: Simulation): WorldInfo {
 }
 
 /** Copy the family tree for sending, keeping only about MAX_HISTORY_SAMPLES samples of each history. */
+/**
+ * The species to send: all of them, or (with a limit on extinct ones, see "detail") the living species, their
+ * ancestors (so their branches still join up) and the most recently extinct. Long histories are thinned.
+ */
 function speciesForSending(s: Simulation): SpeciesRecord[] {
-  return s.speciesRecords.map((record) => {
+  let records = s.speciesRecords;
+  if (extinctLimit !== Infinity) {
+    const byId = new Map(records.map((r) => [r.id, r]));
+    const keep = new Set<number>();
+    for (const r of records) {
+      if (r.diedTick !== null) continue;
+      // A living species and its line of ancestors.
+      for (let at: SpeciesRecord | undefined = r; at && !keep.has(at.id); at = byId.get(at.parent)) keep.add(at.id);
+    }
+    const extinct = records.filter((r) => r.diedTick !== null && !keep.has(r.id)).sort((a, b) => b.diedTick! - a.diedTick!);
+    for (const r of extinct.slice(0, extinctLimit)) keep.add(r.id);
+    records = records.filter((r) => keep.has(r.id));
+  }
+  return records.map((record) => {
     const samples = record.history.length / SAMPLE_STRIDE;
     const step = Math.max(1, Math.ceil(samples / MAX_HISTORY_SAMPLES));
-    let history = record.history;
-    if (step > 1) {
-      history = [];
-      for (let k = 0; k < samples; k += step) history.push(...record.history.slice(k * SAMPLE_STRIDE, (k + 1) * SAMPLE_STRIDE));
-      // Always keep the latest sample so the branch reaches the present.
-      const last = samples - 1;
-      if ((last % step) !== 0) history.push(...record.history.slice(last * SAMPLE_STRIDE, (last + 1) * SAMPLE_STRIDE));
-    }
+    if (step === 1) return { ...record };
+    const history: number[] = [];
+    const copy = (k: number): void => {
+      for (let j = k * SAMPLE_STRIDE; j < (k + 1) * SAMPLE_STRIDE; j++) history.push(record.history[j]!);
+    };
+    for (let k = 0; k < samples; k += step) copy(k);
+    // Always keep the latest sample so the branch reaches the present.
+    if ((samples - 1) % step !== 0) copy(samples - 1);
     return { ...record, history };
   });
 }
 
+/** The latest `eventLimit` entries of an event list (all of them by default). */
+const recent = <T>(list: readonly T[]): T[] => (eventLimit === Infinity ? list.slice() : list.slice(-eventLimit));
+
 function postFrame(s: Simulation): void {
   const n = s.count;
-  const sendSpecies = performance.now() - lastSpeciesSent >= SPECIES_INTERVAL_MS;
+  const sendSpecies = performance.now() - lastSpeciesSent >= speciesIntervalMs;
   if (sendSpecies) lastSpeciesSent = performance.now();
   // Copy the live arrays (the simulation keeps using them) and hand the copies over.
   const x = s.x.slice(0, n);
@@ -367,8 +391,8 @@ function postFrame(s: Simulation): void {
     events: s.events,
     behavior: recentBehavior(),
     species: sendSpecies ? speciesForSending(s) : null,
-    speciesEvents: sendSpecies ? s.speciesEvents.slice() : null,
-    worldEvents: sendSpecies ? s.worldEvents.slice() : null,
+    speciesEvents: sendSpecies ? recent(s.speciesEvents) : null,
+    worldEvents: sendSpecies ? recent(s.worldEvents) : null,
   };
   points = [];
   histograms = [];
@@ -512,6 +536,14 @@ self.onmessage = (event: MessageEvent<ToWorker>) => {
           needsFrame = true;
         }
       }
+      break;
+    case "detail":
+      // A page that only shows the living and the recent (the stream) asks for less, so a very old world stays light.
+      speciesIntervalMs = Math.max(250, message.speciesEveryMs ?? 1000);
+      extinctLimit = message.extinctSpecies ?? Infinity;
+      eventLimit = message.recentEvents ?? Infinity;
+      lastSpeciesSent = -Infinity;
+      needsFrame = true;
       break;
     case "frameRate":
       // Fewer pictures a second means less work making and drawing them (the simulation's speed is unchanged).
