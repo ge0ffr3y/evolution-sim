@@ -43,6 +43,8 @@ export interface IntervenedMessage {
   type: "intervened";
   requestId: number;
   kind: InterventionKind;
+  /** The tick it happened at (the world's events list shows it at this tick). */
+  tick: number;
   ok: boolean;
   text: string;
 }

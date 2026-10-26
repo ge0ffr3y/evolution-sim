@@ -511,7 +511,7 @@ self.onmessage = (event: MessageEvent<ToWorker>) => {
     case "intervene": {
       // Messages are handled between batches of ticks, so the nudge lands cleanly before the next tick.
       const result = sim ? sim.intervene(message.kind) : { ok: false, text: "There is no world yet." };
-      self.postMessage({ type: "intervened", requestId: message.requestId, kind: message.kind, ...result } satisfies IntervenedMessage);
+      self.postMessage({ type: "intervened", requestId: message.requestId, kind: message.kind, tick: sim ? sim.tick : 0, ...result } satisfies IntervenedMessage);
       needsFrame = true;
       break;
     }
