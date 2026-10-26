@@ -18,6 +18,9 @@ const WORLD: Partial<SimConfig> = {
   terrainMode: 1,
   evGoodYearEvery: 1e12,
   evVolcanoEvery: 1e12,
+  evFireEvery: 1e12,
+  evStormEvery: 1e12,
+  evFloodEvery: 1e12,
   interveneBloomRadius: 30,
   interveneFertilizeRadius: 30,
   interveneMutateLength: 200,
@@ -53,7 +56,7 @@ const sum = (a: ArrayLike<number>): number => {
 
 describe("outside nudges (intervene)", () => {
   it("are refused in a world without the event engine, changing nothing", () => {
-    const sim = new Simulation(1, { ...WORLD, evGoodYearEvery: 0, evVolcanoEvery: 0 });
+    const sim = new Simulation(1, { ...WORLD, evGoodYearEvery: 0, evVolcanoEvery: 0, evFireEvery: 0, evStormEvery: 0, evFloodEvery: 0 });
     sim.run(50);
     const before = sim.fingerprint();
     expect(sim.intervene("goodYear").ok).toBe(false);
@@ -62,7 +65,7 @@ describe("outside nudges (intervene)", () => {
   });
 
   it("keep energy and matter balanced, each of them", () => {
-    for (const kind of ["goodYear", "bloom", "fertilize", "mutate", "rain", "thaw"] as InterventionKind[]) {
+    for (const kind of ["goodYear", "bloom", "fertilize", "mutate", "rain", "thaw", "meteor", "wildfire", "storm", "flood"] as InterventionKind[]) {
       const sim = new Simulation(2, WORLD);
       sim.run(150);
       // Something for rain and thaw to end.
@@ -176,5 +179,47 @@ describe("outside nudges (intervene)", () => {
     sim.run(300);
     copy.run(300);
     expect(copy.fingerprint()).toBe(sim.fingerprint());
+  });
+});
+
+describe("disaster nudges", () => {
+  it("at strength 0 are always the smallest version, and a low strength stays near the bottom of the range", () => {
+    const smallest = new Simulation(10, WORLD);
+    smallest.run(50);
+    expect(smallest.intervene("storm", { strength: 0 }).ok).toBe(true);
+    const storm = hidden(smallest).activeEvents.find((e) => e.kind === "storm")!;
+    expect(storm.radius).toBe(smallest.config.evStormRadiusMin);
+    expect(storm.end - storm.start).toBe(Math.round(smallest.config.evStormLengthMin));
+    for (let seed = 11; seed < 16; seed++) {
+      const sim = new Simulation(seed, WORLD);
+      sim.run(50);
+      sim.intervene("storm", { strength: 0.25 });
+      const ev = hidden(sim).activeEvents.find((e) => e.kind === "storm")!;
+      const c = sim.config;
+      expect(ev.radius).toBeLessThanOrEqual(c.evStormRadiusMin + 0.25 * (c.evStormRadiusMax - c.evStormRadiusMin));
+    }
+  });
+
+  it("are turned down while another disaster is going on, or where the world does not have them", () => {
+    const sim = new Simulation(16, WORLD);
+    sim.run(50);
+    hidden(sim).beginClimateEvent("drought", 0.3, 0.3, 500, 500);
+    const before = sim.fingerprint();
+    expect(sim.intervene("meteor")).toEqual({ ok: false, text: "Another disaster is going on. The world gets a breather first." });
+    expect(sim.fingerprint()).toBe(before);
+    // A good year or a mutation spike is no disaster: they do not stand in the way.
+    const calm = new Simulation(16, WORLD);
+    calm.run(50);
+    calm.intervene("goodYear");
+    expect(calm.intervene("meteor").ok).toBe(true);
+    const noFires = new Simulation(16, { ...WORLD, evFireEvery: 0 });
+    expect(noFires.intervene("wildfire")).toEqual({ ok: false, text: "This world has no wildfires." });
+  });
+
+  it("are logged with their strength", () => {
+    const sim = new Simulation(17, WORLD);
+    sim.run(50);
+    sim.intervene("meteor", { strength: 0.25 });
+    expect(sim.interventionLog).toEqual([{ tick: 50, kind: "meteor", strength: 0.25 }]);
   });
 });

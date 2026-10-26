@@ -182,13 +182,15 @@ export interface WorldEvent {
 /** The kinds of disaster the event engine can start (see the ev* settings in the config). */
 export type DisasterKind = "iceAge" | "drought" | "wildfire" | "storm" | "flood" | "volcano" | "blight" | "goodYear" | "mutation";
 
-/** The outside nudges a world accepts (see Simulation.intervene). */
-export type InterventionKind = "goodYear" | "bloom" | "rain" | "thaw" | "fertilize" | "mutate";
+/** The outside nudges a world accepts (see Simulation.intervene); the last four are local disasters. */
+export type InterventionKind = "goodYear" | "bloom" | "rain" | "thaw" | "fertilize" | "mutate" | "meteor" | "wildfire" | "storm" | "flood";
 
 /** An outside nudge that happened, for the log (seed plus log replays a world exactly). */
 export interface Intervention {
   tick: number;
   kind: InterventionKind;
+  /** For a disaster, how far up its size ranges it could reach (see intervene). */
+  strength?: number;
 }
 
 /** What came of a nudge: whether it happened, and a sentence about it. */
@@ -731,6 +733,8 @@ export class Simulation {
   private evGrowthMult = 1;
   /** Mutation rates are multiplied by this now (1 unless a "mutate" nudge is going on; worked out fresh each tick). */
   private evMutationMult = 1;
+  /** How far up its ranges an event's sizes may be drawn: 1, except while a disaster nudge is set up (see intervene). */
+  private evDrawCap = 1;
   /** Every outside nudge so far (see intervene), saved with the world. */
   readonly interventionLog: Intervention[] = [];
   private evKindMult: number[] = [1];
@@ -1850,7 +1854,8 @@ export class Simulation {
 
   /** A number drawn from the event stream, between lo and hi. */
   private evDraw(lo: number, hi: number): number {
-    return lo + this.eventRng.next() * (hi - lo);
+    // (evDrawCap is exactly 1 except while a disaster nudge is being set up, so natural events draw as before.)
+    return lo + this.eventRng.next() * (hi - lo) * this.evDrawCap;
   }
 
   /** A random spot on land (or anywhere, if the world has no water), from the event stream. */
@@ -2282,13 +2287,18 @@ export class Simulation {
    * - bloom: rich ground in a circle somewhere on land, like the ground a volcano leaves (needs volcanoes on);
    * - rain: a drought going on ends now; thaw: an ice age or volcanic winter going on ends now;
    * - fertilize: dead matter (detritus) in a circle goes straight back into the soil (matter moves; none is made);
-   * - mutate: mutation rates are multiplied for a while, so babies vary more from their parents.
+   * - mutate: mutation rates are multiplied for a while, so babies vary more from their parents;
+   * - meteor, wildfire, storm, flood: a local disaster starts now, exactly as one would by itself (wildfire, storm and
+   *   flood need their own ev*Every switched on), except that its sizes (radius, length, spread) are drawn from only
+   *   the bottom `strength` of their ranges: 1 = anywhere in the range, 0 = always the smallest. A disaster is turned
+   *   down while another disaster is going on, so the world gets a breather between them.
    * Needs the event engine (some ev*Every setting above 0). A nudge that cannot happen (no drought to end) changes
-   * nothing and draws no random numbers. Each one that happens is logged with its tick in interventionLog (saved
-   * with the world), so the seed plus the log replays the world exactly.
+   * nothing and draws no random numbers. Each one that happens is logged with its tick (and strength) in
+   * interventionLog (saved with the world), so the seed plus the log replays the world exactly.
    */
-  intervene(kind: InterventionKind): InterventionResult {
+  intervene(kind: InterventionKind, options: { strength?: number } = {}): InterventionResult {
     if (!this.eventsOn) return { ok: false, text: "This world has no events, so it takes no nudges." };
+    if (kind === "meteor" || kind === "wildfire" || kind === "storm" || kind === "flood") return this.disasterNudge(kind, options.strength ?? 1);
     const c = this.config;
     const at = (x: number, y: number): string => `(${Math.round(x)}, ${Math.round(y)})`;
     let event: WorldEvent | null = null;
@@ -2336,6 +2346,33 @@ export class Simulation {
     if (event) this.worldEvents.push(event);
     this.interventionLog.push({ tick: this.tick, kind });
     return { ok: true, text: event ? event.text : this.worldEvents[this.worldEvents.length - 1]!.text };
+  }
+
+  /** A local disaster asked for from outside, held to the bottom `strength` of its size ranges (see intervene). */
+  private disasterNudge(kind: "meteor" | "wildfire" | "storm" | "flood", strength: number): InterventionResult {
+    const c = this.config;
+    if ((kind === "wildfire" && !this.fireOn) || (kind === "storm" && !this.stormOn) || (kind === "flood" && !this.floodOn)) {
+      return { ok: false, text: `This world has no ${kind === "wildfire" ? "wildfires" : `${kind}s`}.` };
+    }
+    const calm = new Set<DisasterKind>(["goodYear", "mutation"]);
+    if (this.activeEvents.some((ev) => !calm.has(ev.kind))) return { ok: false, text: "Another disaster is going on. The world gets a breather first." };
+    const cap = strength < 0 ? 0 : strength > 1 ? 1 : strength;
+    const before = this.worldEvents.length;
+    this.evDrawCap = cap;
+    try {
+      if (kind === "meteor") {
+        const [x, y] = this.randomLandPoint();
+        this.meteorAt(x, y, this.evDraw(c.evMeteorRadiusMin, c.evMeteorRadiusMax));
+      } else if (kind === "wildfire") this.beginFire();
+      else if (kind === "storm") this.beginStorm();
+      else this.beginFlood();
+    } finally {
+      this.evDrawCap = 1;
+    }
+    this.interventionLog.push({ tick: this.tick, kind, strength: cap });
+    // Each disaster logs its own line (a flood with no low ground to cover may not).
+    const text = this.worldEvents.length > before ? this.worldEvents[this.worldEvents.length - 1]!.text : `A ${kind} comes and goes without harm`;
+    return { ok: true, text };
   }
 
   private beginBlight(): void {
