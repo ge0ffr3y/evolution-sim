@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SimConfig } from "./config";
+import { GENE, GENE_COUNT } from "./genome";
 import { Simulation, type ActiveEvent, type InterventionKind } from "./simulation";
 import { snapshotFromBytes, snapshotToBytes } from "./snapshot";
 
@@ -27,6 +28,9 @@ const WORLD: Partial<SimConfig> = {
 };
 
 type Hidden = {
+  inheritLineage(child: number, parentA: number, parentB: number): void;
+  mateMask: number[];
+  parent2Id: Uint32Array;
   beginClimateEvent(kind: "iceAge" | "drought", a: number, b: number, c: number, d: number): void;
   activeEvents: ActiveEvent[];
   ash: Float64Array;
@@ -221,5 +225,111 @@ describe("disaster nudges", () => {
     sim.run(50);
     sim.intervene("meteor", { strength: 0.25 });
     expect(sim.interventionLog).toEqual([{ tick: 50, kind: "meteor", strength: 0.25 }]);
+  });
+});
+
+/** A world of mixed eaters that mate (with a sex gene and the "give up and split" fallback after 50 ticks). */
+const MATING: Partial<SimConfig> = { ...WORLD, initialDiet: 0.5, sexualReproduction: 2, sexWaitLimit: 50, mateReadyFraction: 0.6 };
+
+describe("predator nudges", () => {
+  it("turn a mixed eater into a meat eater that can still mate with its own kind", () => {
+    const sim = new Simulation(20, MATING);
+    sim.run(100);
+    const result = sim.intervene("predator");
+    expect(result.ok).toBe(true);
+    const i = sim.indexOfId(result.organismId!);
+    expect(sim.diet[i]!).toBeGreaterThan(0.75);
+    expect(sim.attack[i]!).toBeGreaterThan(0);
+    expect(result.text).toBe(`Organism #${result.organismId} turns into a predator: it now eats meat and fights harder, and can only breed with a mate`);
+    // Its genes moved less than the mating limit (measured over the genes that count for mating).
+    const mask = hidden(sim).mateMask;
+    const founders = new Simulation(20, MATING); // the same world before the nudge
+    founders.run(100);
+    const j = founders.indexOfId(result.organismId!);
+    let sumSq = 0;
+    for (const k of mask) {
+      const d = sim.genes[i * GENE_COUNT + k]! - founders.genes[j * GENE_COUNT + k]!;
+      sumSq += d * d;
+    }
+    expect(Math.sqrt(sumSq / mask.length)).toBeLessThanOrEqual(sim.config.mateDistance);
+    expect(sim.lineages()).toMatchObject([{ tag: 1, founderId: result.organismId, founderAlive: true, alive: 1, aliveMeat: 1, born: 0 }]);
+  });
+
+  it("keep energy and matter balanced, a big one included (it pays for its bigger body)", () => {
+    for (const style of ["plain", "big", "fast", "sneaky"] as const) {
+      const sim = new Simulation(21, { ...MATING, camouflageMode: 1, nutrientMode: 1 });
+      sim.run(150);
+      const books = bookmark(sim);
+      expect(sim.intervene("predator", { style }).ok, style).toBe(true);
+      sim.run(200);
+      expectBooksBalance(sim, books);
+    }
+  });
+
+  it("never breed alone, however long they wait for a mate", () => {
+    const sim = new Simulation(22, MATING);
+    sim.run(100);
+    const founder = sim.intervene("predator").organismId!;
+    sim.run(2000);
+    // No newborn has the predator as its only parent.
+    let alone = 0;
+    for (let i = 0; i < sim.count; i++) if (sim.parentId[i] === founder && hidden(sim).parent2Id[i] === 0) alone++;
+    expect(alone).toBe(0);
+    expect(sim.genes[sim.indexOfId(founder) * GENE_COUNT + GENE.sex] ?? 1).toBe(1);
+  });
+
+  it("found a lineage its young join, which the tag only watches", () => {
+    const sim = new Simulation(23, MATING);
+    sim.run(100);
+    const founder = sim.intervene("predator").organismId!;
+    // Pretend another animal was born to the predator: it joins the lineage.
+    const other = sim.indexOfId(founder) === 0 ? 1 : 0;
+    hidden(sim).inheritLineage(other, founder, 0);
+    expect(sim.lineages()[0]).toMatchObject({ alive: 2, born: 1 });
+    // Watching changes nothing: the same world with and without asking for lineages plays out the same.
+    const a = new Simulation(24, MATING);
+    const b = new Simulation(24, MATING);
+    for (const sim2 of [a, b]) {
+      sim2.run(50);
+      sim2.intervene("predator");
+    }
+    for (let t = 0; t < 300; t++) {
+      a.step();
+      b.step();
+      b.lineages();
+    }
+    expect(b.fingerprint()).toBe(a.fingerprint());
+  });
+
+  it("count only real births as descendants (a birth that is undone does not leak its tag to the next newborn)", () => {
+    // Food is scarce, so many births are started and undone for want of energy or soil.
+    const sim = new Simulation(27, { ...MATING, initialFoodFraction: 0.3, foodRegrowPerTick: 0.004 });
+    sim.run(100);
+    sim.intervene("predator");
+    const birthsBefore = sim.totalBirths;
+    for (let k = 0; k < 6; k++) {
+      sim.run(250);
+      const line = sim.lineages()[0]!;
+      expect(line.born).toBeLessThanOrEqual(sim.totalBirths - birthsBefore);
+      expect(line.alive).toBeLessThanOrEqual(line.born + 1);
+    }
+  });
+
+  it("survive saving and loading: the lineage, and the rule about mates", () => {
+    const sim = new Simulation(25, MATING);
+    sim.run(100);
+    sim.intervene("predator", { style: "fast" });
+    sim.run(100);
+    const copy = Simulation.load(snapshotFromBytes(snapshotToBytes(sim.save())));
+    expect(copy.lineages()).toEqual(sim.lineages());
+    sim.run(400);
+    copy.run(400);
+    expect(copy.fingerprint()).toBe(sim.fingerprint());
+    expect(copy.interventionLog).toEqual([{ tick: 100, kind: "predator", style: "fast" }]);
+  });
+
+  it("are refused when nobody could become one", () => {
+    const empty = new Simulation(26, { ...MATING, initialOrganisms: 0 });
+    expect(empty.intervene("predator")).toEqual({ ok: false, text: "There is nobody who could become a predator." });
   });
 });

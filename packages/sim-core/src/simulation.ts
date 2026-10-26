@@ -175,7 +175,7 @@ export interface ColonyStats {
 /** Things that happen to the whole world: catastrophes and their ends. */
 export interface WorldEvent {
   tick: number;
-  kind: "iceAge" | "drought" | "meteor" | "recovery" | "wildfire" | "storm" | "flood" | "volcano" | "blight" | "outbreak" | "goodYear" | "bloom" | "rain" | "thaw" | "fertilize" | "mutation";
+  kind: "iceAge" | "drought" | "meteor" | "recovery" | "wildfire" | "storm" | "flood" | "volcano" | "blight" | "outbreak" | "goodYear" | "bloom" | "rain" | "thaw" | "fertilize" | "mutation" | "predator";
   text: string;
 }
 
@@ -183,7 +183,29 @@ export interface WorldEvent {
 export type DisasterKind = "iceAge" | "drought" | "wildfire" | "storm" | "flood" | "volcano" | "blight" | "goodYear" | "mutation";
 
 /** The outside nudges a world accepts (see Simulation.intervene); the last four are local disasters. */
-export type InterventionKind = "goodYear" | "bloom" | "rain" | "thaw" | "fertilize" | "mutate" | "meteor" | "wildfire" | "storm" | "flood";
+export type InterventionKind = "goodYear" | "bloom" | "rain" | "thaw" | "fertilize" | "mutate" | "meteor" | "wildfire" | "storm" | "flood" | "predator";
+
+/** How a predator nudge shapes its predator (see intervene): plain, or also bigger, faster, or colored like its ground. */
+export type PredatorStyle = "plain" | "big" | "fast" | "sneaky";
+
+/**
+ * A lineage: one founder (a predator made by a nudge) and everyone descended from it, followed by an inherited tag
+ * that only watches (it never changes what anyone does). Founder figures freeze when the founder dies.
+ */
+export interface LineageInfo {
+  tag: number;
+  founderId: number;
+  startTick: number;
+  founderAlive: boolean;
+  founderAge: number;
+  founderKills: number;
+  founderX: number;
+  founderY: number;
+  /** Descendants (and the founder) alive now, how many of them eat mostly meat, and how many were ever born. */
+  alive: number;
+  aliveMeat: number;
+  born: number;
+}
 
 /** An outside nudge that happened, for the log (seed plus log replays a world exactly). */
 export interface Intervention {
@@ -191,12 +213,17 @@ export interface Intervention {
   kind: InterventionKind;
   /** For a disaster, how far up its size ranges it could reach (see intervene). */
   strength?: number;
+  /** For a predator, its style. */
+  style?: PredatorStyle;
 }
 
 /** What came of a nudge: whether it happened, and a sentence about it. */
 export interface InterventionResult {
   ok: boolean;
   text: string;
+  /** For a predator: its organism id, and the tag of the lineage it founds. */
+  organismId?: number;
+  lineage?: number;
 }
 
 /**
@@ -737,6 +764,11 @@ export class Simulation {
   private evDrawCap = 1;
   /** Every outside nudge so far (see intervene), saved with the world. */
   readonly interventionLog: Intervention[] = [];
+  /** Predators made by a nudge, by id: they may only breed with a mate (their young are ordinary). */
+  private readonly mustMateIds = new Set<number>();
+  /** Lineages founded by predator nudges (see LineageInfo), and the living members' tags by organism id. */
+  private readonly lineageRecords: Omit<LineageInfo, "alive" | "aliveMeat">[] = [];
+  private readonly lineageOf = new Map<number, number>();
   private evKindMult: number[] = [1];
   /** The average amount of plant on a land cell this tick (worked out while a fire burns): fire spreads through plants at least that thick. */
   private fuelRef = 0;
@@ -2288,6 +2320,11 @@ export class Simulation {
    * - rain: a drought going on ends now; thaw: an ice age or volcanic winter going on ends now;
    * - fertilize: dead matter (detritus) in a circle goes straight back into the soil (matter moves; none is made);
    * - mutate: mutation rates are multiplied for a while, so babies vary more from their parents;
+   * - predator: an animal already in the world (a mixed eater not in a colony, if there is one) becomes a predator:
+   *   its diet turns to meat and its attack rises, held back if need be so it can still mate with its own kind; a
+   *   style makes it also bigger (paid for from its own energy and stores, as a newborn's body is, or not at all),
+   *   faster, or colored like the ground it stands on. It may only breed with a mate. It founds a lineage that
+   *   follows its descendants (see lineages()); nothing is made from nowhere;
    * - meteor, wildfire, storm, flood: a local disaster starts now, exactly as one would by itself (wildfire, storm and
    *   flood need their own ev*Every switched on), except that its sizes (radius, length, spread) are drawn from only
    *   the bottom `strength` of their ranges: 1 = anywhere in the range, 0 = always the smallest. A disaster is turned
@@ -2296,9 +2333,10 @@ export class Simulation {
    * nothing and draws no random numbers. Each one that happens is logged with its tick (and strength) in
    * interventionLog (saved with the world), so the seed plus the log replays the world exactly.
    */
-  intervene(kind: InterventionKind, options: { strength?: number } = {}): InterventionResult {
+  intervene(kind: InterventionKind, options: { strength?: number; style?: PredatorStyle } = {}): InterventionResult {
     if (!this.eventsOn) return { ok: false, text: "This world has no events, so it takes no nudges." };
     if (kind === "meteor" || kind === "wildfire" || kind === "storm" || kind === "flood") return this.disasterNudge(kind, options.strength ?? 1);
+    if (kind === "predator") return this.predatorNudge(options.style ?? "plain");
     const c = this.config;
     const at = (x: number, y: number): string => `(${Math.round(x)}, ${Math.round(y)})`;
     let event: WorldEvent | null = null;
@@ -2346,6 +2384,121 @@ export class Simulation {
     if (event) this.worldEvents.push(event);
     this.interventionLog.push({ tick: this.tick, kind });
     return { ok: true, text: event ? event.text : this.worldEvents[this.worldEvents.length - 1]!.text };
+  }
+
+  /** A predator asked for from outside (see intervene). */
+  private predatorNudge(style: PredatorStyle): InterventionResult {
+    const c = this.config;
+    const free = (i: number): boolean =>
+      this.killed[i] !== 1 && !(this.bondsOn && this.bondCount(i) > 0) && !(this.typeOn && this.cellType[i] !== 0) && !this.lineageOf.has(this.id[i]!);
+    // Mixed eaters first: a predator made from one can still find mates among its own kind.
+    let candidates: number[] = [];
+    for (let i = 0; i < this.count; i++) if (free(i) && this.diet[i]! >= 0.25 && this.diet[i]! <= 0.75) candidates.push(i);
+    if (candidates.length === 0) for (let i = 0; i < this.count; i++) if (free(i)) candidates.push(i);
+    if (candidates.length === 0) return { ok: false, text: "There is nobody who could become a predator." };
+    const i = candidates[Math.floor(this.eventRng.next() * candidates.length)]!;
+    const g = i * GENE_COUNT;
+    const genes = this.genes;
+    const before = Array.from(genes.subarray(g, g + GENE_COUNT));
+    const toGene = (gene: GeneName, trait: number): number => {
+      const r = this.ranges[gene];
+      return Math.min(1, Math.max(0, (trait - r.min) / (r.max - r.min)));
+    };
+    genes[g + GENE.diet] = Math.max(before[GENE.diet]!, 0.9);
+    genes[g + GENE.attack] = Math.max(before[GENE.attack]!, 0.8);
+    if (style === "fast") genes[g + GENE.speed] = Math.min(1, before[GENE.speed]! + 0.25);
+    if (style === "sneaky" && this.camoOn) genes[g + GENE.hue] = toGene("hue", this.background[this.cellOf[i]!]!);
+    // Still able to mate with its own kind: if the change is too big, scale it back (to 95% of the mating limit).
+    let sumSq = 0;
+    for (const k of this.mateMask) {
+      const d = genes[g + k]! - before[k]!;
+      sumSq += d * d;
+    }
+    const distance = Math.sqrt(sumSq / this.mateMask.length);
+    const limit = 0.95 * c.mateDistance;
+    if (distance > limit) {
+      const keep = limit / distance;
+      for (let k = 0; k < GENE_COUNT; k++) genes[g + k] = before[k]! + (genes[g + k]! - before[k]!) * keep;
+    }
+    if (this.sexGeneOn) genes[g + GENE.sex] = 1;
+    // A bigger body is paid for from the animal's own energy and stores (then the soil and dead matter where it
+    // stands), as a newborn's is; if it cannot pay, it keeps its size.
+    const energyBefore = this.bodyEnergy[i]!;
+    const matterBefore = this.bodyMatter[i]!;
+    if (style === "big") genes[g + GENE.size] = toGene("size", Math.min(this.ranges.size.max, this.size[i]! * 1.5));
+    this.express(i);
+    let extraEnergy = this.bodyEnergy[i]! - energyBefore;
+    let extraMatter = this.bodyMatter[i]! - matterBefore;
+    const cell = this.cellOf[i]!;
+    const store = this.nutrientOn ? this.nutrientStore[i]! : 0;
+    if (extraEnergy > 0 && (extraEnergy >= this.energy[i]! || extraMatter > store + this.nutrient[cell]! + this.detritus[cell]!)) {
+      genes[g + GENE.size] = before[GENE.size]!;
+      this.express(i);
+      extraEnergy = this.bodyEnergy[i]! - energyBefore;
+      extraMatter = this.bodyMatter[i]! - matterBefore;
+    }
+    this.energy[i] = this.energy[i]! - extraEnergy;
+    if (extraMatter > 0) {
+      const fromStore = Math.min(extraMatter, store);
+      const fromSoil = Math.min(extraMatter - fromStore, this.nutrient[cell]!);
+      if (this.nutrientOn) this.nutrientStore[i] = store - fromStore;
+      this.nutrient[cell] = this.nutrient[cell]! - fromSoil;
+      this.detritus[cell] = this.detritus[cell]! - (extraMatter - fromStore - fromSoil);
+    }
+    const id = this.id[i]!;
+    this.mustMateIds.add(id);
+    if (this.sexGeneOn) {
+      this.sexMode[i] = 2;
+      this.mateSince[i] = this.tick;
+    }
+    const tag = this.lineageRecords.length + 1;
+    this.lineageRecords.push({ tag, founderId: id, startTick: this.tick, founderAlive: true, founderAge: this.age[i]!, founderKills: this.kills[i]!, founderX: this.x[i]!, founderY: this.y[i]!, born: 0 });
+    this.lineageOf.set(id, tag);
+    const styleWord = style === "plain" ? "" : ` ${style}`;
+    const text = `Organism #${id} turns into a${style === "plain" ? "" : styleWord} predator: it now eats meat and fights harder, and can only breed with a mate`;
+    this.worldEvents.push({ tick: this.tick, kind: "predator", text });
+    this.interventionLog.push({ tick: this.tick, kind: "predator", style });
+    return { ok: true, text, organismId: id, lineage: tag };
+  }
+
+  /** A newborn joins its parents' lineage, if either has one (the tag only watches; see LineageInfo). */
+  private inheritLineage(child: number, parentA: number, parentB: number): void {
+    const tag = this.lineageOf.get(parentA) ?? this.lineageOf.get(parentB);
+    if (tag === undefined) return;
+    this.lineageOf.set(this.id[child]!, tag);
+    this.lineageRecords[tag - 1]!.born++;
+  }
+
+  /** Every lineage founded by a predator nudge, as it stands now (see LineageInfo). */
+  lineages(): LineageInfo[] {
+    const info: LineageInfo[] = this.lineageRecords.map((r) => ({ ...r, founderAlive: false, alive: 0, aliveMeat: 0 }));
+    if (info.length === 0) return info;
+    const living = new Map<number, number>();
+    for (let i = 0; i < this.count; i++) {
+      if (this.killed[i] === 1) continue;
+      const id = this.id[i]!;
+      const tag = this.lineageOf.get(id);
+      if (tag === undefined) continue;
+      living.set(id, tag);
+      const line = info[tag - 1]!;
+      line.alive++;
+      if (this.diet[i]! > 0.75) line.aliveMeat++;
+      if (id === line.founderId) {
+        const record = this.lineageRecords[tag - 1]!;
+        record.founderAge = this.age[i]!;
+        record.founderKills = this.kills[i]!;
+        record.founderX = this.x[i]!;
+        record.founderY = this.y[i]!;
+        Object.assign(line, { founderAlive: true, founderAge: record.founderAge, founderKills: record.founderKills, founderX: record.founderX, founderY: record.founderY });
+      }
+    }
+    for (const line of info) this.lineageRecords[line.tag - 1]!.founderAlive = line.founderAlive;
+    // Only the living can have young, so the dead are dropped from the tag list.
+    if (living.size < this.lineageOf.size) {
+      this.lineageOf.clear();
+      for (const [id, tag] of living) this.lineageOf.set(id, tag);
+    }
+    return info;
   }
 
   /** A local disaster asked for from outside, held to the bottom `strength` of its size ranges (see intervene). */
@@ -5365,12 +5518,14 @@ export class Simulation {
       soloList = this.soloParents;
       for (let p = 0; p < parentCount; p++) {
         const i = this.parents[p]!;
+        // (A predator made by a nudge always looks for a mate, with no random draw.)
+        const mustMate = this.mustMateIds.size > 0 && this.mustMateIds.has(this.id[i]!);
         if (this.sexMode[i] === 0) {
-          this.sexMode[i] = this.rng.next() < this.genes[i * GENE_COUNT + GENE.sex]! ? 2 : 1;
+          this.sexMode[i] = mustMate ? 2 : this.rng.next() < this.genes[i * GENE_COUNT + GENE.sex]! ? 2 : 1;
           if (this.sexMode[i] === 2) this.mateSince[i] = this.tick;
         }
-        // Facultative sex: a seeker that has waited too long gives up and splits in two.
-        if (this.sexMode[i] === 2 && c.sexWaitLimit > 0 && this.tick - this.mateSince[i]! >= c.sexWaitLimit) this.sexMode[i] = 1;
+        // Facultative sex: a seeker that has waited too long gives up and splits in two (but never such a predator).
+        if (this.sexMode[i] === 2 && c.sexWaitLimit > 0 && this.tick - this.mateSince[i]! >= c.sexWaitLimit && !mustMate) this.sexMode[i] = 1;
         if (this.sexMode[i] === 2) this.sexParents[mateCount++] = i;
         else this.soloParents[soloCount++] = i;
       }
@@ -5450,6 +5605,8 @@ export class Simulation {
           }
           this.totalBirths++;
           this.sexualBirths++;
+          // (Only once the birth is sure: an undone birth hands its id to the next newborn.)
+          if (this.lineageOf.size > 0) this.inheritLineage(child, this.id[a]!, this.id[b]!);
           if (this.bondsOn) this.maybeAttach(a, child);
           if (c.natalDispersal > 0) this.disperse(child, a);
         }
@@ -5502,6 +5659,7 @@ export class Simulation {
             this.giveFat(child, fatEach);
           }
           this.totalBirths++;
+          if (this.lineageOf.size > 0) this.inheritLineage(child, this.id[parent]!, 0);
           if (this.bondsOn) this.maybeAttach(parent, child);
           if (c.natalDispersal > 0) this.disperse(child, parent);
         }
@@ -5749,6 +5907,9 @@ export class Simulation {
       worldEvents: this.worldEvents,
       // (Only once there has been a nudge, so older saved worlds and saves without nudges are unchanged.)
       ...(this.interventionLog.length > 0 ? { interventionLog: this.interventionLog } : {}),
+      ...(this.lineageRecords.length > 0
+        ? { lineages: { records: this.lineageRecords, members: [...this.lineageOf], mustMate: [...this.mustMateIds] } }
+        : {}),
       catastrophe: [this.catKind, this.catStart, this.catEnd],
       brainLayout: [INPUT_COUNT, CONN_MAX],
       // (Only in worlds with disaster events, so older saved worlds still load.)
@@ -5833,6 +5994,7 @@ export class Simulation {
       events: SimEvent[];
       worldEvents: WorldEvent[];
       interventionLog?: Intervention[];
+      lineages?: { records: Omit<LineageInfo, "alive" | "aliveMeat">[]; members: [number, number][]; mustMate: number[] };
       brainLayout?: [number, number];
       activeEvents?: ActiveEvent[];
       eventRng?: number[];
@@ -5930,6 +6092,14 @@ export class Simulation {
     this.worldEvents.push(...s.worldEvents);
     this.interventionLog.length = 0;
     this.interventionLog.push(...(s.interventionLog ?? []));
+    this.lineageRecords.length = 0;
+    this.lineageOf.clear();
+    this.mustMateIds.clear();
+    if (s.lineages) {
+      this.lineageRecords.push(...s.lineages.records.map((r) => ({ ...r })));
+      for (const [id, tag] of s.lineages.members) this.lineageOf.set(id, tag);
+      for (const id of s.lineages.mustMate) this.mustMateIds.add(id);
+    }
     [this.catKind, this.catStart, this.catEnd] = s.catastrophe;
     this.activeEvents = (s.activeEvents ?? []).map((e) => ({ ...e, cells: [...e.cells], left: [...e.left] }));
     this.eventRng.setState(newFuture ? new Rng(((this.seed + this.tick) ^ 0x5bd1e995) >>> 0).getState() : ((s.eventRng ?? Array.from(this.eventRng.getState())) as unknown as [number, number, number, number]));
