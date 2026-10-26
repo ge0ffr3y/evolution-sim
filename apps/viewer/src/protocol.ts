@@ -19,7 +19,7 @@ export type ToWorker =
   /** Replace the world with a saved one. With branchSeed, carry on from the same moment with a different random future. */
   | { type: "load"; bytes: Uint8Array; branchSeed?: number }
   /** An outside nudge to the world, given before the next tick (answered with "intervened"; see Simulation.intervene). */
-  | { type: "intervene"; kind: InterventionKind; requestId: number };
+  | { type: "intervene"; kind: InterventionKind; requestId: number; strength?: number };
 
 /** The worker's answer to "save". */
 export interface SavedMessage {
