@@ -1173,6 +1173,18 @@ export interface SimConfig {
   speciesProbation: number;
   /** Every this many ticks each living species records its size and average traits (a multiple of speciesEvery). */
   speciesSampleEvery: number;
+  /**
+   * Keeping the species record book bounded however long a world runs (it only watches, so these change nothing in the
+   * world): a living species keeps at most speciesHistoryMax samples (when it gets there, it keeps half of them, evenly
+   * spread, so its whole life stays at coarser detail); a species that dies out keeps speciesExtinctHistory samples
+   * spread over its life; beyond the speciesKeepExtinct most recently extinct, older species become summaries (dates,
+   * peak, traits, no samples); and beyond speciesKeepSummaries summaries (and species events), the oldest are forgotten
+   * (still counted in "species ever").
+   */
+  speciesHistoryMax: number;
+  speciesExtinctHistory: number;
+  speciesKeepExtinct: number;
+  speciesKeepSummaries: number;
 
   /**
    * A population crash is logged when the population falls below (1 - speciesCrashDrop) times its
@@ -1872,6 +1884,10 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   speciesMinMembers: 10,
   speciesProbation: 2000,
   speciesSampleEvery: 500,
+  speciesHistoryMax: 400,
+  speciesExtinctHistory: 16,
+  speciesKeepExtinct: 500,
+  speciesKeepSummaries: 5000,
   speciesCrashDrop: 0.4,
   speciesCrashWindow: 2000,
   brainLearning: 0,
