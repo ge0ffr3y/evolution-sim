@@ -52,7 +52,7 @@ describe("the species record book stays bounded", () => {
     for (let k = 0; k < 10; k++) {
       const history: number[] = [];
       for (let t = 0; t < 50; t++) history.push(t * 100, 10 + t, ...first.traits);
-      loose.speciesRecords.push({ ...first, id: 1_000 + k, parent: 1, bornTick: 0, diedTick: 5_000 + k, count: 0, history, traits: first.traits.slice(), founderTraits: first.traits.slice() });
+      (loose.speciesRecords as SpeciesRecord[]).push({ ...first, id: 1_000 + k, parent: 1, bornTick: 0, diedTick: 5_000 + k, count: 0, history, traits: first.traits.slice(), founderTraits: first.traits.slice() });
     }
     const snapshot = snapshotFromBytes(snapshotToBytes(loose.save()));
     snapshot.config = { ...snapshot.config, ...TIGHT };
