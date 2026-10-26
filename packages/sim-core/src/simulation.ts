@@ -6434,7 +6434,7 @@ export class Simulation {
       totalFood: sumOf(this.food),
       totalEnergy: energySum,
       meanEnergy: n > 0 ? energySum / n : 0,
-      species: { alive: this.tracker?.aliveCount ?? 0, ever: this.tracker?.records.length ?? 0 },
+      species: { alive: this.tracker?.aliveCount ?? 0, ever: this.tracker?.everCount ?? 0 },
       colonies: this.colonyStats(),
       disease: this.diseaseStats(),
       nutrientStore: this.nutrientStats(),

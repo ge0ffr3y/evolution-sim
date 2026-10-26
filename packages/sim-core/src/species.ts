@@ -100,6 +100,8 @@ export class SpeciesTracker {
   private readonly live = new Map<number, Live>();
   private readonly byId = new Map<number, SpeciesRecord>();
   private nextId = 1;
+  /** Species forgotten entirely to keep the record book bounded (see compact): still counted as "ever". */
+  private forgotten = 0;
   private nextCandidate = CANDIDATE_BASE;
   /** Recent population (one value per update, averaged over a year if there are seasons), for spotting crashes. */
   private readonly recentPopulation: number[] = [];
@@ -145,6 +147,7 @@ export class SpeciesTracker {
       recentPopulation: this.recentPopulation,
       smoothing: this.smoothing,
       inCrash: this.inCrash,
+      forgotten: this.forgotten,
     };
   }
 
@@ -159,6 +162,7 @@ export class SpeciesTracker {
       recentPopulation: number[];
       smoothing?: number[];
       inCrash: boolean;
+      forgotten?: number;
     };
     this.records.length = 0;
     this.records.push(...saved.records);
@@ -181,6 +185,49 @@ export class SpeciesTracker {
     this.smoothing.length = 0;
     this.smoothing.push(...(saved.smoothing ?? []));
     this.inCrash = saved.inCrash;
+    this.forgotten = saved.forgotten ?? 0;
+    // A world saved before the record book was bounded (or with other limits) is brought within them.
+    this.compact(true);
+  }
+
+  /** How many real species there have ever been (kept records, and ones forgotten to keep the book bounded). */
+  get everCount(): number {
+    return this.records.length + this.forgotten;
+  }
+
+  /**
+   * Keep the record book within its limits (see speciesHistoryMax and the settings after it). With `all`, every
+   * record is checked (after loading); otherwise only what a new extinction or sample can have changed.
+   */
+  private compact(all: boolean): void {
+    const c = this.config;
+    if (all) {
+      for (const record of this.records) {
+        const max = record.diedTick === null ? c.speciesHistoryMax : c.speciesExtinctHistory;
+        if (record.history.length / SAMPLE_STRIDE > max) record.history = thinHistory(record.history, max);
+      }
+    }
+    // Beyond the most recent extinct species, older ones become summaries (no samples, no ancestor traits)...
+    const extinct = this.records.filter((r) => r.diedTick !== null && r.history.length > 0);
+    if (extinct.length > c.speciesKeepExtinct) {
+      extinct.sort((a, b) => a.diedTick! - b.diedTick! || a.id - b.id);
+      for (const r of extinct.slice(0, extinct.length - c.speciesKeepExtinct)) {
+        r.history = [];
+        r.ancestorTraits = null;
+      }
+    }
+    // ...and beyond the most recent summaries, the oldest are forgotten.
+    const summaries = this.records.filter((r) => r.diedTick !== null && r.history.length === 0);
+    if (summaries.length > c.speciesKeepSummaries) {
+      summaries.sort((a, b) => a.diedTick! - b.diedTick! || a.id - b.id);
+      const gone = new Set(summaries.slice(0, summaries.length - c.speciesKeepSummaries).map((r) => r.id));
+      for (const id of gone) this.byId.delete(id);
+      const kept = this.records.filter((r) => !gone.has(r.id));
+      this.records.length = 0;
+      this.records.push(...kept);
+      this.forgotten += gone.size;
+    }
+    if (this.events.length > c.speciesKeepSummaries) this.events.splice(0, this.events.length - c.speciesKeepSummaries);
   }
 
   /** Species alive now, and how many real species there have ever been. */
@@ -408,6 +455,9 @@ export class SpeciesTracker {
         record.count = 0;
         this.events.push({ tick, kind: "extinction", species: live.id, parent: live.parent });
         this.live.delete(live.id);
+        // A species that has died out keeps only a short history (and the oldest extinct ones less; see compact).
+        if (record.history.length / SAMPLE_STRIDE > this.config.speciesExtinctHistory) record.history = thinHistory(record.history, this.config.speciesExtinctHistory);
+        this.compact(false);
         continue;
       }
       record.count = members;
@@ -422,7 +472,24 @@ export class SpeciesTracker {
           meanAge: total.ticks / total.members,
         };
       }
-      if (tick % this.config.speciesSampleEvery === 0) record.history.push(tick, members, ...record.traits);
+      if (tick % this.config.speciesSampleEvery === 0) {
+        record.history.push(tick, members, ...record.traits);
+        // A long life keeps half its samples, evenly spread, each time it reaches the limit.
+        if (record.history.length / SAMPLE_STRIDE > this.config.speciesHistoryMax) record.history = thinHistory(record.history, Math.ceil(this.config.speciesHistoryMax / 2));
+      }
     }
   }
+}
+
+/** A history thinned to `max` samples spread evenly over it (the first and the last always kept). */
+function thinHistory(history: number[], max: number): number[] {
+  const samples = history.length / SAMPLE_STRIDE;
+  if (samples <= max) return history;
+  if (max <= 0) return [];
+  const out: number[] = [];
+  for (let j = 0; j < max; j++) {
+    const k = max === 1 ? samples - 1 : Math.floor((j * (samples - 1)) / (max - 1) + 0.5);
+    for (let m = k * SAMPLE_STRIDE; m < (k + 1) * SAMPLE_STRIDE; m++) out.push(history[m]!);
+  }
+  return out;
 }
