@@ -1792,7 +1792,7 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   interveneBloomBoost: 0.8,
   interveneFertilizeRadius: 40,
   interveneMutateFactor: 4,
-  interveneMutateLength: 3000,
+  interveneMutateLength: 20000,
   agingCoeff: 0,
   agingPrimeFraction: 0.5,
   agingRepairCoeff: 0.3,
