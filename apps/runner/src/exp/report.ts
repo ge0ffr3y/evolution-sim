@@ -35,6 +35,8 @@ export const KEY_MEASURES: [string, string][] = [
   ["colonyShareLate", "share of cells in colonies"],
   ["sickShareLate", "share sick"],
   ["brainConnectionsLate", "brain connections"],
+  ["brainBiggestConnectionsEver", "most complex brain ever (connections)"],
+  ["brainSensesPerBrainLate", "senses read per brain"],
   ["plantFillLate", "plants standing (share of capacity)"],
   ["wornShareLate", "worn ground"],
   ["pinnedGenesLate", "genes pinned at a limit"],

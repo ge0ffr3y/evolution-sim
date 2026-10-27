@@ -101,6 +101,9 @@ export interface HistoryPoint {
   connectionsHerbivores: number;
   hiddenCarnivores: number;
   connectionsCarnivores: number;
+  /** The most complex brain alive: its working connections and thinking units. */
+  connectionsBiggest: number;
+  hiddenBiggest: number;
   /** Multicellular complexity (zeros without bonding): the share of organisms that are in a colony, and the colonies' average size, average number of cell types and symmetry. */
   colonyShare: number;
   colonyMeanSize: number;

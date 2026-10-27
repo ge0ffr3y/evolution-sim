@@ -110,12 +110,20 @@ export interface CostBreakdown {
   total: number;
 }
 
-/** How big evolved brains are, on average. */
+/** How big evolved brains are, on average, and the most complex one alive. */
 export interface BrainStats {
   /** Averages over everyone in each group: hidden units and working connections. */
   all: { hidden: number; connections: number };
   herbivores: { hidden: number; connections: number };
   carnivores: { hidden: number; connections: number };
+  /**
+   * The most complex brain alive: most working connections, then most thinking units, then the
+   * oldest id. `senses` is how many different inputs it reads. All zero when there are no brains.
+   */
+  biggest: { id: number; hidden: number; connections: number; senses: number };
+  /** How many different inputs at least one brain reads, and how many an average brain reads. */
+  sensesInUse: number;
+  sensesPerBrain: number;
 }
 
 /** One brain, for the brain viewer: its working connections and (if traced) what it is thinking right now. */
@@ -6453,6 +6461,7 @@ export class Simulation {
         all: { hidden: mean(allHidden, n), connections: mean(allConnections, n) },
         herbivores: { hidden: mean(herbHidden, herbivores), connections: mean(herbConnections, herbivores) },
         carnivores: { hidden: mean(carnHidden, carnivores), connections: mean(carnConnections, carnivores) },
+        ...this.brainCensus(),
       },
       traits,
       classes: { herbivores, omnivores: n - herbivores - carnivores, carnivores },
@@ -6461,6 +6470,48 @@ export class Simulation {
       totalDetritus: sumOf(this.detritus),
       ledger: { ...this.ledger },
     };
+  }
+
+  /** The most complex brain alive, and how many different senses brains read (watch only). */
+  private brainCensus(): Pick<BrainStats, "biggest" | "sensesInUse" | "sensesPerBrain"> {
+    const biggest = { id: 0, hidden: 0, connections: 0, senses: 0 };
+    if (this.config.brainMode === 0 || this.count === 0) return { biggest, sensesInUse: 0, sensesPerBrain: 0 };
+    const prune = this.config.brainPruneBelow;
+    // lastSeenBy[k] = 1 + the last organism found reading input k, so each brain counts each input once.
+    const lastSeenBy = new Int32Array(INPUT_COUNT);
+    const anyone = new Uint8Array(INPUT_COUNT);
+    let best = -1;
+    let sensesTotal = 0;
+    for (let i = 0; i < this.count; i++) {
+      const base = i * CONN_MAX;
+      let senses = 0;
+      for (let k = 0; k < this.brainCount[i]!; k++) {
+        const w = this.brainWeight[base + k]!;
+        if (w < prune && w > -prune) continue;
+        const source = this.brainFrom[base + k]!;
+        if (source >= INPUT_COUNT || lastSeenBy[source] === i + 1) continue;
+        lastSeenBy[source] = i + 1;
+        anyone[source] = 1;
+        senses++;
+      }
+      sensesTotal += senses;
+      const conn = this.brainConnections[i]!;
+      const hid = this.brainHidden[i]!;
+      if (
+        best < 0 ||
+        conn > biggest.connections ||
+        (conn === biggest.connections && (hid > biggest.hidden || (hid === biggest.hidden && this.id[i]! < biggest.id)))
+      ) {
+        best = i;
+        biggest.id = this.id[i]!;
+        biggest.hidden = hid;
+        biggest.connections = conn;
+        biggest.senses = senses;
+      }
+    }
+    let inUse = 0;
+    for (let k = 0; k < INPUT_COUNT; k++) inUse += anyone[k]!;
+    return { biggest, sensesInUse: inUse, sensesPerBrain: sensesTotal / this.count };
   }
 
   /** Add up all the matter in the world, in every form. It should never change. */

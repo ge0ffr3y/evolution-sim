@@ -79,6 +79,8 @@ function recordPoint(s: Simulation): void {
     connectionsHerbivores: stats.brain.herbivores.connections,
     hiddenCarnivores: stats.brain.carnivores.hidden,
     connectionsCarnivores: stats.brain.carnivores.connections,
+    connectionsBiggest: stats.brain.biggest.connections,
+    hiddenBiggest: stats.brain.biggest.hidden,
     colonyShare: stats.population > 0 ? stats.colonies.cells / stats.population : 0,
     colonyMeanSize: stats.colonies.meanSize,
     colonyMeanTypes: stats.colonies.meanTypes,

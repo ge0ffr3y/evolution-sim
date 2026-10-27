@@ -42,6 +42,9 @@ export class Charts {
   private readonly connCarn: number[] = [];
   private readonly hiddenHerb: number[] = [];
   private readonly hiddenCarn: number[] = [];
+  /** The most complex brain alive at each sample: its connections and thinking units. */
+  private readonly connBiggest: number[] = [];
+  private readonly hiddenBiggest: number[] = [];
   private stride = 1;
   private seen = 0;
 
@@ -145,9 +148,12 @@ export class Charts {
           // Blue and orange (not the green and red of the connection lines) so the four lines can be told apart.
           { label: "plant eaters: thinking units", stroke: "#5aa9ff", width: 1.5, dash: [5, 4], scale: "hidden" },
           { label: "meat eaters: thinking units", stroke: "#ffa94d", width: 1.5, dash: [5, 4], scale: "hidden" },
+          // The most complex brain alive, in light grey: how far brains have gone, not just the average.
+          { label: "most complex: connections", stroke: "#d8d8d8", width: 1.5, scale: "y" },
+          { label: "most complex: thinking units", stroke: "#d8d8d8", width: 1, dash: [2, 3], scale: "hidden" },
         ],
       },
-      [[], [], [], [], []],
+      [[], [], [], [], [], [], []],
       brainContainer,
     );
 
@@ -190,6 +196,8 @@ export class Charts {
     this.connCarn.length = 0;
     this.hiddenHerb.length = 0;
     this.hiddenCarn.length = 0;
+    this.connBiggest.length = 0;
+    this.hiddenBiggest.length = 0;
     this.stride = 1;
     this.seen = 0;
     this.redraw();
@@ -213,12 +221,14 @@ export class Charts {
       this.connCarn.push(p.connectionsCarnivores);
       this.hiddenHerb.push(p.hiddenHerbivores);
       this.hiddenCarn.push(p.hiddenCarnivores);
+      this.connBiggest.push(p.connectionsBiggest);
+      this.hiddenBiggest.push(p.hiddenBiggest);
       if (this.ticks.length > MAX_POINTS) this.thin();
     }
   }
 
   private thin(): void {
-    for (const series of [this.ticks, this.population, this.food, this.speed, this.size, this.metabolism, this.sense, this.herbivores, this.omnivores, this.carnivores, this.connHerb, this.connCarn, this.hiddenHerb, this.hiddenCarn]) {
+    for (const series of [this.ticks, this.population, this.food, this.speed, this.size, this.metabolism, this.sense, this.herbivores, this.omnivores, this.carnivores, this.connHerb, this.connCarn, this.hiddenHerb, this.hiddenCarn, this.connBiggest, this.hiddenBiggest]) {
       let write = 0;
       for (let read = 0; read < series.length; read += 2) series[write++] = series[read]!;
       series.length = write;
@@ -231,6 +241,6 @@ export class Charts {
     this.popChart.setData([this.ticks, this.population, this.food]);
     this.traitChart.setData([this.ticks, this.speed, this.size, this.metabolism, this.sense]);
     this.webChart.setData([this.ticks, this.herbivores, this.omnivores, this.carnivores]);
-    this.brainChart.setData([this.ticks, this.connHerb, this.connCarn, this.hiddenHerb, this.hiddenCarn]);
+    this.brainChart.setData([this.ticks, this.connHerb, this.connCarn, this.hiddenHerb, this.hiddenCarn, this.connBiggest, this.hiddenBiggest]);
   }
 }
