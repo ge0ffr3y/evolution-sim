@@ -402,6 +402,8 @@ const SENSE_BODY = 4;
 const SENSE_SOCIAL = 8;
 /** Crowding and ground tremor (worldSenses): need a count of the animals around. */
 const SENSE_AROUND = 16;
+/** Hearing (calls): needs a listen around for calls. */
+const SENSE_HEAR = 32;
 /** Room for this many remembered feeding places per animal (placeSlotsMax can allow fewer). */
 const PLACE_SLOTS = 4;
 /** Feelings (Phase 11): per organism, pain, the direction pain came from (x, y), joy and taste. */
@@ -954,6 +956,16 @@ export class Simulation {
   private aroundCrowdSq = 0;
   private aroundTremorSq = 0;
   private aroundSize = 0;
+  /**
+   * Calls (calls): on; how loud each animal is calling now (from its last thought), and the same as it was at the
+   * start of this tick, which is what everyone hears (so the order animals think in never matters).
+   */
+  private readonly callsOn: boolean;
+  private readonly callNow: Float32Array;
+  private readonly callHeard: Float32Array;
+  /** Scratch while listening: the loudest call heard so far and who made it. */
+  private hearBest = 0;
+  private hearFrom = -1;
   private readonly eyeHalf: Float32Array;
   private readonly eyeReach: Float32Array;
   private visEyeHalf = 0;
@@ -1408,6 +1420,9 @@ export class Simulation {
     this.novelty = new Int32Array(this.curiosityOn ? n * (NOVELTY_SLOTS + 1) : 0);
     this.richOn = c.richVision === 1 && c.brainMode > 0;
     this.worldSensesOn = c.worldSenses === 1 && c.brainMode > 0;
+    this.callsOn = c.calls === 1 && c.brainMode > 0;
+    this.callNow = new Float32Array(this.callsOn ? n : 0);
+    this.callHeard = new Float32Array(this.callsOn ? n : 0);
     this.focusOn = c.focusAction === 1 && c.brainMode > 0;
     this.outFocus = new Float32Array(this.focusOn ? n : 0);
     this.focusIdx = new Int32Array(this.focusOn ? n : 0).fill(-1);
@@ -2972,6 +2987,7 @@ export class Simulation {
       this.focusIdx[i] = -1;
       this.focusId[i] = 0;
     }
+    if (this.callsOn) this.callNow[i] = 0;
     return i;
   }
 
@@ -3425,6 +3441,7 @@ export class Simulation {
       else if (source < INPUT.energy) senses |= SENSE_SMELL;
       else if (source >= INPUT.rayColour && source <= INPUT.focusClosing) senses |= SENSE_VISION; // better eyes need a look around
       else if (source === INPUT.crowding || source === INPUT.tremor) senses |= SENSE_AROUND;
+      else if (source >= INPUT.hearLoud && source <= INPUT.hearKin) senses |= SENSE_HEAR;
       else if (source >= INPUT.kinDensity && source <= INPUT.kinSide) senses |= SENSE_SOCIAL;
       else senses |= SENSE_BODY;
     }
@@ -3673,6 +3690,20 @@ export class Simulation {
   }
 
   /** What an organism notices when something is within sight: sorts it into the vision ray it falls in. */
+  /** Hearing: one animal near the listener (see think); a call carries loudness x callRange and fades with distance. */
+  private readonly hearCall = (index: number, distSq: number): void => {
+    if (index === this.visSelf || this.killed[index] === 1) return;
+    const loud = this.callHeard[index]!;
+    if (loud <= 0) return;
+    const reach = loud * this.config.callRange;
+    if (distSq >= reach * reach) return;
+    const level = loud * (1 - Math.sqrt(distSq) / reach);
+    if (level > this.hearBest) {
+      this.hearBest = level;
+      this.hearFrom = index;
+    }
+  };
+
   /** Surroundings: one animal near the one feeling around (see think). */
   private readonly feelAround = (index: number, distSq: number): void => {
     if (index === this.visSelf || this.killed[index] === 1) return;
@@ -3763,6 +3794,7 @@ export class Simulation {
       this.outSpeed[i] = 0;
       this.outAttack[i] = 0;
       if (this.focusOn) this.outFocus[i] = 0;
+      if (this.callsOn) this.callNow[i] = 0;
       return;
     }
     // (An animal holding a focus keeps looking, so it can find its target again.)
@@ -3934,6 +3966,7 @@ export class Simulation {
         this.outSpeed[i] = 0;
         this.outAttack[i] = 0;
         if (this.focusOn) this.outFocus[i] = 0;
+        if (this.callsOn) this.callNow[i] = 0;
         return;
       }
     }
@@ -4174,6 +4207,25 @@ export class Simulation {
       inputs[INPUT.compassNorth] = -hy;
       inputs[INPUT.compassEast] = hx;
     }
+    if (this.callsOn && ((senses & SENSE_HEAR) !== 0 || traced)) {
+      // Listen: the loudest call that reaches here (heard as it was at the start of this tick).
+      this.visSelf = i;
+      this.visX = x;
+      this.visY = y;
+      this.hearBest = 0;
+      this.hearFrom = -1;
+      this.hash.forEachNear(x, y, c.callRange, this.hearCall);
+      const from = this.hearFrom;
+      if (from >= 0) {
+        const [dx, dy, d] = this.wayTo(i, from);
+        inputs[INPUT.hearLoud] = this.hearBest;
+        if (d > 0) {
+          inputs[INPUT.hearAhead] = (dx * hx + dy * hy) / d;
+          inputs[INPUT.hearSide] = (hx * dy - hy * dx) / d;
+        }
+        inputs[INPUT.hearKin] = this.colourLikeness(i, from);
+      }
+    }
     if (this.feelOn) {
       const f = i * FEEL_SLOTS;
       const pain = this.feel[f + FEEL_PAIN]!;
@@ -4241,6 +4293,7 @@ export class Simulation {
     this.outSpeed[i] = outputs[OUTPUT.speed]!;
     this.outAttack[i] = outputs[OUTPUT.attack]!;
     if (this.focusOn) this.outFocus[i] = outputs[OUTPUT.focus]!;
+    if (this.callsOn) this.callNow[i] = outputs[OUTPUT.call]! > 0 ? outputs[OUTPUT.call]! : 0;
     if (this.wmOn) {
       // Working memory: the brain's hold gates decide, cell by cell, whether to overwrite or hold.
       carryMemory(this.memState, i * MEMORY_COUNT, outputs, this.wmCells[i]!, c.wmKeepMax);
@@ -5185,6 +5238,8 @@ export class Simulation {
     if (this.signalOn) this.listen(n);
 
     if (this.feelOn) this.feelingsStep(n);
+    // Calls: everyone hears this tick the calls as they stand now (made at their callers' last thoughts).
+    if (this.callsOn) this.callHeard.set(this.callNow.subarray(0, n));
 
     // Pass 0 (brains only): everyone who is due to think looks, smells and decides, before
     // anyone moves, so all brains see the same world whatever order they are processed in.
@@ -5632,7 +5687,9 @@ export class Simulation {
       if (this.torporOn) move *= (1 - this.torpid[i]!) * (1 - this.torpid[i]!); // slower costs less (cost goes with speed squared)
       if (this.staminaOn) move += this.staminaCost[i]!; // the upkeep of the sprint reserve counts as movement
       // (Holding a focus costs a little more attention while it lasts.)
-      const sensing = this.focusOn && this.outFocus[i]! > 0 ? this.senseCost[i]! + c.focusCost : this.senseCost[i]!;
+      // (Calling costs in proportion to how loud.)
+      let sensing = this.focusOn && this.outFocus[i]! > 0 ? this.senseCost[i]! + c.focusCost : this.senseCost[i]!;
+      if (this.callsOn) sensing += c.callCost * this.callNow[i]!;
       // (Injury, when on, is paid as fighting; kept in the old form when off.)
       const fighting = this.hurt.length > 0 ? this.attackCost[i]! + (this.attempted[i] === 1 ? this.attemptCost[i]! : 0) + this.hurt[i]! : this.attackCost[i]! + (this.attempted[i] === 1 ? this.attemptCost[i]! : 0);
       const armoring = this.armorCost[i]!;
@@ -6251,6 +6308,7 @@ export class Simulation {
       if (this.depthOn) this.brainState.copyWithin(to * HIDDEN_MAX, from * HIDDEN_MAX, (from + 1) * HIDDEN_MAX);
       if (this.feelOn) this.feel.copyWithin(to * FEEL_SLOTS, from * FEEL_SLOTS, (from + 1) * FEEL_SLOTS);
       if (this.curiosityOn) this.novelty.copyWithin(to * (NOVELTY_SLOTS + 1), from * (NOVELTY_SLOTS + 1), (from + 1) * (NOVELTY_SLOTS + 1));
+      if (this.callsOn) this.callNow[to] = this.callNow[from]!;
       if (this.focusOn) {
         this.outFocus[to] = this.outFocus[from]!;
         this.focusIdx[to] = this.focusIdx[from]!;
@@ -6307,6 +6365,7 @@ export class Simulation {
     if (this.depthOn) organism("brainState", this.brainState, HIDDEN_MAX);
     if (this.feelOn) organism("feel", this.feel, FEEL_SLOTS);
     if (this.curiosityOn) organism("novelty", this.novelty, NOVELTY_SLOTS + 1);
+    if (this.callsOn) organism("callNow", this.callNow);
     if (this.focusOn) {
       organism("outFocus", this.outFocus);
       organism("focusIdx", this.focusIdx);
@@ -6510,6 +6569,7 @@ export class Simulation {
     if (this.depthOn && snapshot.arrays.brainState) take("brainState", this.brainState);
     // (Switched on for a world saved without them, feelings start calm and nothing has been noted yet.)
     if (this.feelOn && snapshot.arrays.feel) take("feel", this.feel);
+    if (this.callsOn && snapshot.arrays.callNow) take("callNow", this.callNow);
     if (this.focusOn && snapshot.arrays.focusId) {
       take("outFocus", this.outFocus);
       take("focusIdx", this.focusIdx);
@@ -6811,7 +6871,7 @@ export class Simulation {
       if (this.torporOn) move *= (1 - this.torpid[i]!) * (1 - this.torpid[i]!);
       if (this.staminaOn) move += this.staminaCost[i]!;
       out.movement += move;
-      out.sensing += this.senseCost[i]! + (this.focusOn && this.outFocus[i]! > 0 ? c.focusCost : 0);
+      out.sensing += this.senseCost[i]! + (this.focusOn && this.outFocus[i]! > 0 ? c.focusCost : 0) + (this.callsOn ? c.callCost * this.callNow[i]! : 0);
       out.attack += this.attackCost[i]! + (this.attempted[i] === 1 ? this.attemptCost[i]! : 0) + (this.hurt.length > 0 ? this.hurt[i]! : 0);
       out.armor += this.armorCost[i]!;
       if (brains) out.brain += this.brainCost[i]!;
@@ -7251,6 +7311,7 @@ export class Simulation {
       if (this.depthOn) mixBits(this.brainState, n * HIDDEN_MAX);
       if (this.feelOn) mixBits(this.feel, n * FEEL_SLOTS);
       if (this.curiosityOn) for (let k = 0; k < n * (NOVELTY_SLOTS + 1); k++) mix(this.novelty[k]! >>> 0);
+      if (this.callsOn) mixBits(this.callNow, n);
       if (this.focusOn) {
         mixBits(this.outFocus, n);
         mixInts(this.focusId, n);

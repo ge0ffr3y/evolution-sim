@@ -169,10 +169,18 @@ export const INPUT = {
   light: VISION_INPUTS + 100,
   compassNorth: VISION_INPUTS + 101,
   compassEast: VISION_INPUTS + 102,
-  bias: VISION_INPUTS + 103,
-  noise: VISION_INPUTS + 104,
+  /**
+   * Hearing (Phase 11, calls; all 0 without it): the loudest call heard (0 to 1, fading with distance), which
+   * way it came from (ahead, left) and how like its own colour the caller is (-1 to 1).
+   */
+  hearLoud: VISION_INPUTS + 103,
+  hearAhead: VISION_INPUTS + 104,
+  hearSide: VISION_INPUTS + 105,
+  hearKin: VISION_INPUTS + 106,
+  bias: VISION_INPUTS + 107,
+  noise: VISION_INPUTS + 108,
 } as const;
-export const INPUT_COUNT = VISION_INPUTS + 105;
+export const INPUT_COUNT = VISION_INPUTS + 109;
 /**
  * Every brain layout so far, oldest first, so a saved world from any of them can be renumbered.
  * Each step inserted its new inputs at `insertedAt` (where the bias input was), so nodes below
@@ -190,6 +198,7 @@ export const BRAIN_LAYOUTS: readonly { inputs: number; slots: number; insertedAt
   { inputs: VISION_INPUTS + 69, slots: 768, insertedAt: VISION_INPUTS + 60 }, // Phase 11: feelings and body (pain, joy, sick, ready, taste)
   { inputs: VISION_INPUTS + 100, slots: 768, insertedAt: VISION_INPUTS + 67 }, // Phase 11: better eyes (colour, motion, count, behind, plants by sight, focus); the focus output was added after the others
   { inputs: VISION_INPUTS + 105, slots: 768, insertedAt: VISION_INPUTS + 98 }, // Phase 11: surroundings (crowding, tremor, light, compass)
+  { inputs: VISION_INPUTS + 109, slots: 768, insertedAt: VISION_INPUTS + 103 }, // Phase 11: hearing (the call output was added after the others)
 ];
 /** Room for thinking units before Phase 11 (worlds saved then have their actions straight after 16 units). */
 export const OLD_HIDDEN_MAX = 16;
@@ -224,9 +233,9 @@ export const OUTPUT_START = INPUT_COUNT + HIDDEN_MAX;
  * instead of overwriting: 0 or above means overwrite (what every brain did before), below 0 means
  * hold, up to wmKeepMax at -1. They come last, so adding them moved no other node.
  */
-export const OUTPUT = { turn: 0, speed: 1, attack: 2, memory0: 3, memory1: 4, memory2: 5, memory3: 6, gate0: 7, gate1: 8, gate2: 9, gate3: 10, focus: 11 } as const;
-/** (focus, Phase 11, came last, so adding it moved no other node.) */
-export const OUTPUT_COUNT = 12;
+export const OUTPUT = { turn: 0, speed: 1, attack: 2, memory0: 3, memory1: 4, memory2: 5, memory3: 6, gate0: 7, gate1: 8, gate2: 9, gate3: 10, focus: 11, call: 12 } as const;
+/** (focus and call, Phase 11, came last, so adding them moved no other node.) */
+export const OUTPUT_COUNT = 13;
 export const NODE_COUNT = OUTPUT_START + OUTPUT_COUNT;
 /** Node numbers are stored in single bytes (Uint8Array), so there can be at most 256 nodes. A test checks this. */
 export const NODE_LIMIT = 256;
@@ -344,13 +353,17 @@ export function inputLabel(index: number): string {
     [INPUT.light]: "daylight",
     [INPUT.compassNorth]: "compass: facing north",
     [INPUT.compassEast]: "compass: facing east",
+    [INPUT.hearLoud]: "hear a call: how loud",
+    [INPUT.hearAhead]: "hear a call: ahead",
+    [INPUT.hearSide]: "hear a call: left",
+    [INPUT.hearKin]: "hear a call: my colour",
     [INPUT.bias]: "bias",
     [INPUT.noise]: "noise",
   };
   return names[index] ?? `input ${index}`;
 }
 
-export const OUTPUT_LABELS = ["turn left", "speed", "attack", "write memory 1", "write memory 2", "write memory 3", "write memory 4", "hold memory 1", "hold memory 2", "hold memory 3", "hold memory 4", "focus"] as const;
+export const OUTPUT_LABELS = ["turn left", "speed", "attack", "write memory 1", "write memory 2", "write memory 3", "write memory 4", "hold memory 1", "hold memory 2", "hold memory 3", "hold memory 4", "focus", "call"] as const;
 
 /** A smooth squashing function between -1 and 1, built from exact arithmetic only. */
 export function soft(x: number): number {

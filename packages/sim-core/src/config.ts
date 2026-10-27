@@ -397,6 +397,16 @@ export interface SimConfig {
   crowdHalf: number;
   tremorRange: number;
   tremorHalf: number;
+  /**
+   * Phase 11, calls and hearing (0 = off; needs brains). A new brain output, call: above 0 it is how loud the
+   * animal calls (0 to 1), heard up to loudness x callRange away and fading with distance, one tick later (so
+   * the order animals are processed in never matters). Calling costs callCost x loudness a tick (sensing line).
+   * Four inputs: the loudest call heard, which way it came from (ahead, left) and how like its own colour the
+   * caller is. Nothing rewards calling itself: alarm, mating or hunting calls appear only if they pay.
+   */
+  calls: number;
+  callRange: number;
+  callCost: number;
 
   // --- Terrain (off by default) ---
   /**
@@ -1670,6 +1680,9 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   crowdHalf: 5,
   tremorRange: 12,
   tremorHalf: 2,
+  calls: 0,
+  callRange: 20,
+  callCost: 0.003,
   terrainMode: 0,
   terrainScale: 8,
   terrainWaterFraction: 0.25,
@@ -2545,6 +2558,10 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (!(c.visionCountHalf > 0)) problems.push("visionCountHalf must be positive");
   for (const [name, value] of [["behindRange", c.behindRange], ["plantSightReach", c.plantSightReach]] as const) if (!(value >= 0 && value <= 1)) problems.push(`${name} must be between 0 and 1`);
   if (!(c.focusHold >= 1) || !(c.focusCost >= 0)) problems.push("focusHold must be at least 1 and focusCost cannot be negative");
+  if (c.calls !== 0 && c.calls !== 1) problems.push("calls must be 0 or 1");
+  else if (c.calls === 1 && c.brainMode === 0) problems.push("calls needs brains");
+  if (!(c.callRange > 0) || !(c.callCost >= 0)) problems.push("callRange must be positive and callCost cannot be negative");
+  else if (c.calls === 1 && c.callRange >= Math.min(c.worldWidth, c.worldHeight) / 2) problems.push("callRange must be under half the world");
   if (c.worldSenses !== 0 && c.worldSenses !== 1) problems.push("worldSenses must be 0 or 1");
   else if (c.worldSenses === 1 && c.brainMode === 0) problems.push("worldSenses needs brains");
   if (!(c.crowdRange > 0) || !(c.crowdHalf > 0) || !(c.tremorRange > 0) || !(c.tremorHalf > 0)) problems.push("crowdRange, crowdHalf, tremorRange and tremorHalf must be positive");
