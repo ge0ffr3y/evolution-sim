@@ -157,7 +157,8 @@ Each step is a small set of commits on `phase-11-brains`, CI green before the ne
 
 Steps 4 to 7 can each be stopped or reordered if the experiments say so.
 
-## 10. Open questions for the owner
+## 10. Owner's decisions (2026-10-27)
 
-- Is "Phase 11" the right name, and should it be added to the Obsidian roadmap now?
-- The stream world: once released, should the stream keep its current world (a saved world keeps its own settings, so the new features would be switched on for it as it loads, and its existing brains would then have to discover them), or start a fresh grand world with the upgrades on?
+- Plan approved as Phase 11 and added to the Obsidian roadmap.
+- The stream world: keep the current world and switch the upgrades on for it as it loads, so its brains carry on and discover the new senses. If that turns out not to be workable, starting a fresh grand world with the upgrades on is acceptable.
+  - What this needs: a way for the stream page to load a saved world with some settings changed (the new features on). Loading already renumbers older brains; the new pieces must start from sensible values (feelings at 0, loop state at 0, new genes at their founder values). Tested on a copy of the stream's save before it goes live.
