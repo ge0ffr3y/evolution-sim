@@ -34,3 +34,47 @@ Brains are nowhere near their limits: bigger brains do not pay yet.
 - **The attention gene rose** from 0 to about 0.2. That is not proof that it pays: a gene that starts at its floor creeps up by mutation alone, and its cost (0.001 x gene a tick) is small.
 - **Reading:** how faintly plant eaters see prey is not what holds meat eating back in the grand world. That fits Phase 9's findings (harmful mutations, sex blending diets, kin restraint and the climate are the brakes). Appetite tuning stays available as a setting; the grand world keeps today's appetite senses for now.
 - **Next:** test the whole Phase 11 package (deeper brains, feelings, better eyes and focus, surroundings, with the eye gene and vigilance) against the control, where the senses that make chasing possible may matter more than seeing prey a little.
+
+## 2. The whole package in the grand world (`phase-11-package`)
+
+**Question:** with everything from Phase 11 on (32 thinking units with depth and loops, feelings and curiosity, better eyes and the focus action, surroundings, calls), alone, with the eye gene and vigilance, and with learning that learns from joy and pain: do brains grow, which new senses get used, do eyes split by diet, and do meat eaters take hold?
+
+**Setup:** grand world, 16 fresh seeds (4201 to 4216), 500,000 ticks, 64 runs on one c8g.16xlarge, about $2.50 (the longest run took 0.8 hours). Report: `experiments/phase-11-package/report.md`. Sense use was counted in all 64 saved final worlds.
+
+| Second half of the run | Control | Package | + eye gene, vigilance | + learning |
+|---|---|---|---|---|
+| Population | 1,181 | 1,125 (-5%) | 1,048 (-11%) | 1,017 (-14%) |
+| Species alive | 8.2 | 7.6 | 8.1 | 7.4 |
+| Worlds with a lasting meat-eating group | 0 / 16 | 0 / 16 | 0 / 16 | 0 / 16 |
+| Share sick | 23% | 17% | 15% | **11%** |
+| Brain connections | 9.9 | 10.4 | 10.7 | 10.5 |
+| Thinking units | 2.5 | **3.6** | **3.6** | **3.9** |
+| Brains with a loop | 0 | **91%** | **90%** | **87%** |
+| Longest chain of units ever | 1 | **6.1** | **6.0** | **6.3** |
+| Most complex brain ever (connections) | 25 | 24 | 25 | 24 |
+| Senses read per brain | 4.8 | 3.6 | 3.9 | 3.5 |
+| Eye: plant eaters / others (0.5 = today's) | | | 0.70 / 0.79 | 0.74 / 0.79 |
+| Curiosity gene | | 0.26 | 0.24 | 0.29 |
+| Speed (ticks a second, one core) | 277 | 238 (-14%) | 238 | 232 |
+
+**Which new senses are used.** In the control, where they all read 0, brains still carry stray wiring to them by chance (each read by about 2 to 5% of brains); that is the baseline. Clearly above it:
+- **Joy:** 10.5% of brains in the package, **29.5%** with the eye gene and vigilance (4.7% by chance). With learning on it falls back to chance (3.1%): there joy feeds learning instead of being read directly.
+- **Ground tremor:** 8.5% in the package.
+- **The focus target coming closer:** 8.3% with the eye gene (2% by chance); "something behind: bigger" 5.2%.
+- Pain, colour, motion, crowding, daylight, compass and hearing stay at or near chance. The call and focus actions are wired no more often than by chance (calls 14 to 21% against 25% in the control).
+
+**What it means:**
+- **Brains grew deeper, not bigger.** Nearly every brain grew a loop (a unit holding its value between thoughts), chains up to six units deep appeared in every world, and thinking units rose by half, but connections barely rose and the most complex brain is no bigger. Brains read fewer different senses (3.6 to 3.9 against 4.8): they lean on held thoughts more than on extra inputs.
+- **Joy is the one new sense evolution clearly wants**, most of all alongside the eye gene and vigilance.
+- **Disease fell by up to half** (23% sick to 11%), the strongest single effect (2.9 noise units with learning). Why is not known yet: the feelings or crowding senses could help animals keep apart, or the new costs thin the population that spreads disease. Worth a closer look before claiming a cause.
+- **Eyes narrow for everyone.** With the eye gene, plant eaters' eyes narrow too (0.70 to 0.74, narrower than today's), and meat and mixed eaters a little more (0.79); the link with diet is weak (correlation 0.14 to 0.19), as in Phase 9. Wide grazer eyes did not evolve: seeing far still pays every animal more than seeing around.
+- **No meat eaters.** As with appetite tuning, the brakes on meat eating in the grand world are not in the brains.
+- **Costs:** 5 to 14% fewer animals, a few percent fewer species, and the simulation runs about 14% slower.
+
+**Done-when check (plan section "Done when"):**
+1. Off by default, older worlds unchanged: met (brains-off goldens never changed; brain goldens re-recorded with checks).
+2. Older saves load, the stream's included: met (tested; the stream's save loads under the new layout).
+3. Brains grow beyond the baseline and most new senses are used: partly. Brains are deeper (loops, chains of six, half again as many units) but not bigger; only a few new senses are used above chance.
+4. More lasting meat eaters: not met (0 of 16 in every arm).
+5. Brains beat brainless controls: not tested yet.
+6. The stream runs smoothly: not tested yet (about 14% slower per tick).
