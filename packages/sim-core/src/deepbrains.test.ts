@@ -225,7 +225,7 @@ describe("deep brains in a world", () => {
     loaded.run(500);
     expect(loaded.fingerprint()).toBe(sim.fingerprint());
     // The same older save with depth switched on loads too, every unit starting from 0.
-    const deeper = Simulation.load({ ...older, config: { ...older.config, brainDepth: 1, brainHiddenMax: 32 } });
+    const deeper = Simulation.load(older, { changes: { brainDepth: 1, brainHiddenMax: 32 } });
     deeper.run(300);
     expect(deeper.count).toBeGreaterThan(0);
   }, 60_000);

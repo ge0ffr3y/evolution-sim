@@ -363,6 +363,29 @@ export interface SimConfig {
   noveltyCellSize: number;
   /** With learning brains and feelings: the learning reward is the energy change plus joy minus pain (0 = energy change only). */
   learnFeelings: number;
+  /**
+   * Phase 11, better eyes (0 = off; needs brains). Thirty-one more inputs, all 0 when off: for each of the ten
+   * things the eyes report, how like its own colour it is and whether it is coming closer (its own pace toward
+   * the viewer, as a share of speedMax); how many smaller and bigger animals are in view (n / (n +
+   * visionCountHalf)); the nearest animal close behind, outside the eye's view and within behindRange x sight
+   * range (how near, bigger or smaller: a rough feel, so a wide eye still pays); and how much plant food stands
+   * plantSightReach x sight range away, ahead and half-left and half-right. With appetite senses, everything
+   * about smaller animals is scaled by meat appetite (as prey sight is) and plant sight by plant appetite.
+   */
+  richVision: number;
+  visionCountHalf: number;
+  behindRange: number;
+  plantSightReach: number;
+  /**
+   * The focus action (0 = off; needs brains): a new brain output. While it is above 0 the eyes lock on to the
+   * nearest smaller animal in view and keep tracking it, even out of view, while it is within focusHold x sight
+   * range (a far-reaching narrow eye holds a lock further). Four inputs: which way it is (ahead, left), how near,
+   * and whether it is coming closer. Focusing costs focusCost a tick (sensing line). It only informs: steering
+   * and attacking are still up to the brain and the usual rules.
+   */
+  focusAction: number;
+  focusHold: number;
+  focusCost: number;
 
   // --- Terrain (off by default) ---
   /**
@@ -1624,6 +1647,13 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   noveltyEvery: 20,
   noveltyCellSize: 16,
   learnFeelings: 0,
+  richVision: 0,
+  visionCountHalf: 3,
+  behindRange: 0.4,
+  plantSightReach: 0.7,
+  focusAction: 0,
+  focusHold: 1.5,
+  focusCost: 0.002,
   terrainMode: 0,
   terrainScale: 8,
   terrainWaterFraction: 0.25,
@@ -2492,6 +2522,13 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   else if (c.curiosity === 1 && c.feelings !== 1) problems.push("curiosity needs feelings (it gives joy)");
   if (!Number.isInteger(c.noveltyEvery) || c.noveltyEvery < 1) problems.push("noveltyEvery must be a whole number of 1 or more");
   if (!(c.noveltyCellSize > 0)) problems.push("noveltyCellSize must be positive");
+  if (c.richVision !== 0 && c.richVision !== 1) problems.push("richVision must be 0 or 1");
+  else if (c.richVision === 1 && c.brainMode === 0) problems.push("richVision needs brains");
+  if (c.focusAction !== 0 && c.focusAction !== 1) problems.push("focusAction must be 0 or 1");
+  else if (c.focusAction === 1 && c.brainMode === 0) problems.push("focusAction needs brains");
+  if (!(c.visionCountHalf > 0)) problems.push("visionCountHalf must be positive");
+  for (const [name, value] of [["behindRange", c.behindRange], ["plantSightReach", c.plantSightReach]] as const) if (!(value >= 0 && value <= 1)) problems.push(`${name} must be between 0 and 1`);
+  if (!(c.focusHold >= 1) || !(c.focusCost >= 0)) problems.push("focusHold must be at least 1 and focusCost cannot be negative");
   if (c.learnFeelings !== 0 && c.learnFeelings !== 1) problems.push("learnFeelings must be 0 or 1");
   else if (c.learnFeelings === 1 && c.feelings !== 1) problems.push("learnFeelings needs feelings");
   if (c.scentDeposit < 0) problems.push("scentDeposit cannot be negative");

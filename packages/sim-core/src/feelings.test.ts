@@ -250,7 +250,7 @@ describe("feelings in a world", () => {
     const plain = new Simulation(14, { worldWidth: 128, worldHeight: 128, initialOrganisms: 150, brainMode: 2 });
     plain.run(800);
     const snapshot = plain.save();
-    const awake = Simulation.load({ ...snapshot, config: { ...snapshot.config, feelings: 1, curiosity: 1 } });
+    const awake = Simulation.load(snapshot, { changes: { feelings: 1, curiosity: 1 } });
     awake.run(400);
     expect(awake.count).toBeGreaterThan(0);
     expect(h(awake).feel.length).toBeGreaterThan(0);

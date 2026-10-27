@@ -139,12 +139,12 @@ describe("saving and loading a world", () => {
     const rebuilt = new Set([
       // Settings and layout worked out from the config when a world is built.
       "config", "ranges", "seed", "gridHeight", "gridWidth", "terrainOn", "agingOn", "litterOn", "camoOn", "bondsOn", "bondSelf", "tryContact", "typeOn", "photoGain", "alignX", "alignY", "shareDelta", "visitMark", "visitStamp", "colonyStack", "colonyRoot", "diseaseOn", "diseaseHost", "pending", "strains", "totalInfections", "tryInfect", "catKind", "catStart", "catEnd", "worldEvents", "nearestWater", "climateBiomesOn", "moistureBase", "iced", "biomeSeen", "biomeDisease", "eventRng", "eventsOn", "ashOn", "floodOn", "stormOn", "fireOn", "burning", "stormCell", "stormDelta", "evCooling", "evDryness", "evGrowthMult", "evMutationMult", "evDrawCap", "evKindMult", "thermalOn", "thermalScale", "activeGene", "kinToleranceOn", "toleranceSq", "sexGeneOn", "sexMode", "sexParents", "soloParents", "matedNow", "mateSince", "partnerList", "weatherOn", "plantKinds", "plantTypeOf", "kindGrowth", "kindOptimum", "memoryOn", "memState", "chemOn", "bodyChemOn", "chem", "chemIntake", "chemHit", "homeX", "homeY", "homeValue", "weatherA", "weatherB", "fatOn", "toxOn", "corpseToxin", "avoidStrength", "avoidHue", "lastKillHue", "lastKillTick", "erodeOn", "foulOn", "foulMeanNow", "grazeOn", "loadOn", "giveOn", "giftDelta", "giftPick", "giftKey", "giftCount", "giftGiver", "luckOn", "upkeepLuck", "fertilityLuck", "torporOn", "torpid", "climateOn", "temperature", "growthFactor", "tempBase", "tempSwing", "lightBase", "scentWidth", "scentHeight", "scentOn", "guardOn", "staminaOn", "hash", "tracker",
-      "float32Fields", "float64Fields", "uint32Fields", "uint16Fields", "uint8Fields", "seeOther", "considerPrey",
+      "float32Fields", "float64Fields", "uint32Fields", "uint16Fields", "uint8Fields", "layout", "seeOther", "considerPrey",
       // Scratch space: filled in and used up within one tick, or only used while measuring.
       "behaviorHeading", "behaviorIds", "behaviorIsHunter", "behaviorSideLeft",
       "pickAttacker", "pickBest", "pickBestDistSq", "pickSizeLimit", "hurt", "seedChem", "seedSeason", "seedWarm", "seedToxin",
       "rayDistLarge", "rayDistSmall", "rayTargetLarge", "rayTargetSmall",
-      "visHx", "visHy", "visSelf", "visSizeLimit", "visX", "visY",
+      "visHx", "visHy", "visSelf", "visSizeLimit", "visX", "visY", "visCountSmall", "visCountLarge", "visBehind", "visBehindDistSq", "visBehindLimitSq",
       "thinkHidden", "thinkInputs", "thinkOutputs", "traceHidden", "traceInputs", "traceOutputs", "traceValid", "traceId",
       "meatClaim", "plantClaim", "plantShare", "meatShare", "meatDensity", "parents",
       "kinLimitSq", "kinCount", "kinVx", "kinVy", "herdSelf", "seeKin", "countHerd", "ready", "pairs", "mateMask", "mateSelf", "mateBest", "mateBestDistSq", "mateBestScore", "considerMate", "sexOn",
@@ -170,4 +170,56 @@ describe("saving and loading a world", () => {
       }
     }
   }, 60_000);
+});
+
+describe("loading with features switched on (organismLayout)", () => {
+  it("finds every saved array by name, so switching the eye gene on keeps home, camouflage, luck and the rest intact", () => {
+    // The grand world's features that keep per-animal arrays (as on the stream), in a small world.
+    const config: Partial<SimConfig> = {
+      worldWidth: 128,
+      worldHeight: 128,
+      initialOrganisms: 150,
+      maxOrganisms: 3000,
+      brainMode: 2,
+      climateMode: 1,
+      plantTypes: 3,
+      brainMemory: 1,
+      homeMode: 3,
+      chemicals: 1,
+      kinDistance: 0.05,
+      kinTolerance: 1,
+      sexualReproduction: 2,
+      diseaseTransmission: 0.5,
+      camouflageMode: 1,
+      mutationLoadRate: 3,
+      luckSpread: 0.08,
+      nutrientMode: 2,
+      fatDepositRate: 0.5,
+    };
+    const sim = new Simulation(31, config);
+    sim.run(600);
+    const snapshot = snapshotFromBytes(snapshotToBytes(sim.save()));
+    const loaded = Simulation.load(snapshot, { changes: { eyeMode: 1, vigilance: 1 } });
+    const n = sim.count;
+    expect(loaded.count).toBe(n);
+    // Arrays saved after the eye's place in the list must land in the right arrays, not one slot over.
+    for (const name of ["homeX", "homeY", "homeValue", "searchHue", "upkeepLuck", "fertilityLuck", "energy", "fatStore", "nutrientStore", "sexMode", "mateSince", "brainCount"]) {
+      const a = (sim as unknown as Record<string, ArrayLike<number>>)[name]!;
+      const b = (loaded as unknown as Record<string, ArrayLike<number>>)[name]!;
+      expect(a.length, name).toBeGreaterThan(0);
+      for (let i = 0; i < n; i++) expect(b[i], `${name}[${i}]`).toBe(a[i]);
+    }
+    // The eye starts as today's eye (the gene was never in use, so it sits at its founder value) and the world runs on.
+    loaded.run(300);
+    expect(loaded.count).toBeGreaterThan(0);
+  }, 60_000);
+
+  it("with unchanged settings, loading changes nothing (the same history as before)", () => {
+    const sim = new Simulation(32, WORLDS[1]!.config);
+    sim.run(500);
+    const loaded = Simulation.load(snapshotFromBytes(snapshotToBytes(sim.save())), { changes: {} });
+    sim.run(300);
+    loaded.run(300);
+    expect(loaded.fingerprint()).toBe(sim.fingerprint());
+  });
 });

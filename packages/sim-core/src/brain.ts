@@ -138,10 +138,31 @@ export const INPUT = {
   sick: VISION_INPUTS + 64,
   ready: VISION_INPUTS + 65,
   taste: VISION_INPUTS + 66,
-  bias: VISION_INPUTS + 67,
-  noise: VISION_INPUTS + 68,
+  /**
+   * Better eyes (Phase 11, richVision; all 0 without it). For each of the ten things the eyes report (ray k,
+   * smaller then bigger: slot start + k x 2 + 0 or 1): how like its own colour it is (rayColour, -1 to 1) and
+   * whether it is coming toward it (+) or moving away (-) (rayMotion). Then how many smaller and bigger animals
+   * are in view, the nearest animal close behind (outside the view: how near, bigger + or smaller -), how much
+   * plant food lies at the edge of sight (ahead, ahead-left, ahead-right), and the focused target (focus
+   * action): which way, how near, coming closer or not.
+   */
+  rayColour: VISION_INPUTS + 67,
+  rayMotion: VISION_INPUTS + 77,
+  countSmaller: VISION_INPUTS + 87,
+  countBigger: VISION_INPUTS + 88,
+  behindNear: VISION_INPUTS + 89,
+  behindBigger: VISION_INPUTS + 90,
+  plantSightAhead: VISION_INPUTS + 91,
+  plantSightLeft: VISION_INPUTS + 92,
+  plantSightRight: VISION_INPUTS + 93,
+  focusAhead: VISION_INPUTS + 94,
+  focusSide: VISION_INPUTS + 95,
+  focusNear: VISION_INPUTS + 96,
+  focusClosing: VISION_INPUTS + 97,
+  bias: VISION_INPUTS + 98,
+  noise: VISION_INPUTS + 99,
 } as const;
-export const INPUT_COUNT = VISION_INPUTS + 69;
+export const INPUT_COUNT = VISION_INPUTS + 100;
 /**
  * Every brain layout so far, oldest first, so a saved world from any of them can be renumbered.
  * Each step inserted its new inputs at `insertedAt` (where the bias input was), so nodes below
@@ -157,6 +178,7 @@ export const BRAIN_LAYOUTS: readonly { inputs: number; slots: number; insertedAt
   { inputs: VISION_INPUTS + 61, slots: 768, insertedAt: VISION_INPUTS + 57 }, // Phase 9: mate scent
   { inputs: VISION_INPUTS + 62, slots: 768, insertedAt: VISION_INPUTS + 59 }, // Phase 9: stomach fullness
   { inputs: VISION_INPUTS + 69, slots: 768, insertedAt: VISION_INPUTS + 60 }, // Phase 11: feelings and body (pain, joy, sick, ready, taste)
+  { inputs: VISION_INPUTS + 100, slots: 768, insertedAt: VISION_INPUTS + 67 }, // Phase 11: better eyes (colour, motion, count, behind, plants by sight, focus); the focus output was added after the others
 ];
 /** Room for thinking units before Phase 11 (worlds saved then have their actions straight after 16 units). */
 export const OLD_HIDDEN_MAX = 16;
@@ -191,8 +213,9 @@ export const OUTPUT_START = INPUT_COUNT + HIDDEN_MAX;
  * instead of overwriting: 0 or above means overwrite (what every brain did before), below 0 means
  * hold, up to wmKeepMax at -1. They come last, so adding them moved no other node.
  */
-export const OUTPUT = { turn: 0, speed: 1, attack: 2, memory0: 3, memory1: 4, memory2: 5, memory3: 6, gate0: 7, gate1: 8, gate2: 9, gate3: 10 } as const;
-export const OUTPUT_COUNT = 11;
+export const OUTPUT = { turn: 0, speed: 1, attack: 2, memory0: 3, memory1: 4, memory2: 5, memory3: 6, gate0: 7, gate1: 8, gate2: 9, gate3: 10, focus: 11 } as const;
+/** (focus, Phase 11, came last, so adding it moved no other node.) */
+export const OUTPUT_COUNT = 12;
 export const NODE_COUNT = OUTPUT_START + OUTPUT_COUNT;
 /** Node numbers are stored in single bytes (Uint8Array), so there can be at most 256 nodes. A test checks this. */
 export const NODE_LIMIT = 256;
@@ -219,6 +242,12 @@ export function inputLabel(index: number): string {
     const where = ["far right", "right", "ahead", "left", "far left"][ray]!;
     const what = ["smaller: near", "smaller: meaty", "bigger: near", "bigger: meaty"][channel]!;
     return `see ${where} ${what}`;
+  }
+  if (index >= INPUT.rayColour && index < INPUT.rayMotion + 2 * RAY_COUNT) {
+    const colour = index < INPUT.rayMotion;
+    const k = index - (colour ? INPUT.rayColour : INPUT.rayMotion);
+    const where = ["far right", "right", "ahead", "left", "far left"][Math.floor(k / 2)]!;
+    return `see ${where} ${k % 2 === 0 ? "smaller" : "bigger"}: ${colour ? "my colour" : "coming closer"}`;
   }
   const names: Record<number, string> = {
     [INPUT.smellPlantAhead]: "smell plants: ahead",
@@ -288,13 +317,24 @@ export function inputLabel(index: number): string {
     [INPUT.sick]: "feeling sick",
     [INPUT.ready]: "ready to breed",
     [INPUT.taste]: "taste of last bite",
+    [INPUT.countSmaller]: "how many smaller in view",
+    [INPUT.countBigger]: "how many bigger in view",
+    [INPUT.behindNear]: "something behind: how near",
+    [INPUT.behindBigger]: "something behind: bigger",
+    [INPUT.plantSightAhead]: "plants in sight: ahead",
+    [INPUT.plantSightLeft]: "plants in sight: ahead-left",
+    [INPUT.plantSightRight]: "plants in sight: ahead-right",
+    [INPUT.focusAhead]: "focused target: ahead",
+    [INPUT.focusSide]: "focused target: left",
+    [INPUT.focusNear]: "focused target: how near",
+    [INPUT.focusClosing]: "focused target: coming closer",
     [INPUT.bias]: "bias",
     [INPUT.noise]: "noise",
   };
   return names[index] ?? `input ${index}`;
 }
 
-export const OUTPUT_LABELS = ["turn left", "speed", "attack", "write memory 1", "write memory 2", "write memory 3", "write memory 4", "hold memory 1", "hold memory 2", "hold memory 3", "hold memory 4"] as const;
+export const OUTPUT_LABELS = ["turn left", "speed", "attack", "write memory 1", "write memory 2", "write memory 3", "write memory 4", "hold memory 1", "hold memory 2", "hold memory 3", "hold memory 4", "focus"] as const;
 
 /** A smooth squashing function between -1 and 1, built from exact arithmetic only. */
 export function soft(x: number): number {

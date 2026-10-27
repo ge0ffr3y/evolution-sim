@@ -474,6 +474,65 @@ const EVENT_CHECK_EVERY = 10;
  * One call to step() is one tick. Everything is driven by the seeded Rng, so
  * the same seed and config always produce exactly the same history.
  */
+/** The per-organism arrays a world keeps, by kind, in the order they are saved (as "f32.0", "f32.1", ...). */
+export type OrganismLayout = Record<"f32" | "f64" | "u32" | "u16" | "u8", string[]>;
+
+/**
+ * Which per-organism arrays a world with these settings keeps, and their order. The world builds its lists from
+ * this, and loading uses it with a saved world's own settings to find each array by name, so a world saved with
+ * some features off can be loaded with them on. Keep the order: saved worlds depend on it.
+ */
+export function organismLayout(c: SimConfig): OrganismLayout {
+  const brains = c.brainMode > 0;
+  const bonds = c.multicellular === 1;
+  const f32 = ["x", "y", "headingX", "headingY", "size", "speed", "senseRange", "metabolism", "mutationRate", "diet", "attack", "armor", "basalCost", "moveCost", "senseCost", "attackCost", "attemptCost", "armorCost", "plantBite", "meatBite", "plantWeight", "meatWeight", "plantEff", "meatEff", "attackPower", "defense", "reach", "bodyEnergy", "bodyMatter", "threshold"];
+  if (brains) f32.push("brainCost", "outTurn", "outSpeed", "outAttack", "moveScale");
+  if (brains && c.sprintFatigue === 1) f32.push("stamina", "staminaMax", "staminaCost");
+  if (c.climateMode === 1 && c.thermalCostCoeff > 0) f32.push("thermalPref", "thermalScale");
+  if (c.agingCoeff > 0) f32.push("lifespan");
+  if (c.litterMax > 1) f32.push("litter");
+  if (c.kinTolerance === 1) f32.push("toleranceSq");
+  if (c.eyeMode === 1 && brains) f32.push("eyeHalf", "eyeReach");
+  if (brains && c.homeMode > 0) f32.push("homeX", "homeY");
+  if (brains && c.homeMode === 3) f32.push("homeValue");
+  if (brains && c.chemicals === 1) f32.push("chemIntake");
+  const f64 = ["energy", "plantTaken", "meatTaken"];
+  if (c.fatDepositRate > 0) f64.push("fatStore");
+  if (c.nutrientMode >= 1) f64.push("nutrientStore");
+  if (c.gutMode === 1) f64.push("gutMass", "gutEnergy");
+  if (c.drinking === 1) f32.push("hydration");
+  if (c.dietNutrients === 1) f64.push("dietA", "dietB", "dietC");
+  if (bonds && c.signaling === 1 && brains) f32.push("sharedThreatX", "sharedThreatY", "sharedThreatNear", "sharedFoodX", "sharedFoodY", "sharedFoodNear");
+  const u32 = ["id", "parentId", "age", "kills"];
+  if (c.speciesEvery > 0) u32.push("species");
+  if (c.sexualReproduction >= 1) u32.push("parent2Id");
+  const u8 = ["killed", "attempted"];
+  if (bonds && c.cellTypes === 1) {
+    u8.push("cellType");
+    f32.push("photoGain");
+  }
+  if (c.camouflageMode === 1) {
+    u8.push("hasImage");
+    f32.push("searchHue");
+  }
+  if (c.sexualReproduction === 2) u8.push("sexMode");
+  if (c.mutationLoadRate > 0) u32.push("loadMask");
+  if (c.toxinStrength > 0) {
+    f32.push("avoidStrength", "avoidHue", "lastKillHue");
+    u32.push("lastKillTick");
+  }
+  if (c.luckSpread > 0) f32.push("upkeepLuck", "fertilityLuck");
+  if (c.sexualReproduction === 2) u32.push("mateSince");
+  if (brains && c.chemicals === 1) u8.push("chemHit");
+  const u16 = ["resting"];
+  if (c.diseaseTransmission > 0) u16.push("infection", "sickFor", "immuneFor");
+  if (brains) {
+    u16.push("brainCount", "brainConnections");
+    u8.push("brainHidden", "brainSenses");
+  }
+  return { f32, f64, u32, u16, u8 };
+}
+
 export class Simulation {
   readonly config: SimConfig;
   readonly seed: number;
@@ -874,6 +933,18 @@ export class Simulation {
   /** Curiosity (the 35th gene): on, and the squares each animal noted lately (NOVELTY_SLOTS + 1 per organism). */
   private readonly curiosityOn: boolean;
   private readonly novelty: Int32Array;
+  /** Better eyes (richVision) and the focus action: on; each organism's last focus output and its locked target (index and id). */
+  private readonly richOn: boolean;
+  private readonly focusOn: boolean;
+  private readonly outFocus: Float32Array;
+  private readonly focusIdx: Int32Array;
+  private readonly focusId: Uint32Array;
+  /** Scratch while looking: how many smaller and bigger animals are in view, and the nearest one close behind. */
+  private visCountSmall = 0;
+  private visCountLarge = 0;
+  private visBehind = -1;
+  private visBehindDistSq = Infinity;
+  private visBehindLimitSq = 0;
   private readonly eyeHalf: Float32Array;
   private readonly eyeReach: Float32Array;
   private visEyeHalf = 0;
@@ -1145,6 +1216,8 @@ export class Simulation {
   private seenCarnivore = false;
 
   // Arrays that must all move together when an organism is shuffled to a new slot.
+  /** The names of the per-organism arrays below, by kind, in saved order (organismLayout). */
+  private readonly layout: OrganismLayout;
   private readonly float32Fields: Float32Array[];
   private readonly float64Fields: Float64Array[];
   private readonly uint32Fields: Uint32Array[];
@@ -1324,6 +1397,11 @@ export class Simulation {
     this.feel = new Float32Array(this.feelOn ? n * FEEL_SLOTS : 0);
     this.curiosityOn = this.feelOn && c.curiosity === 1;
     this.novelty = new Int32Array(this.curiosityOn ? n * (NOVELTY_SLOTS + 1) : 0);
+    this.richOn = c.richVision === 1 && c.brainMode > 0;
+    this.focusOn = c.focusAction === 1 && c.brainMode > 0;
+    this.outFocus = new Float32Array(this.focusOn ? n : 0);
+    this.focusIdx = new Int32Array(this.focusOn ? n : 0).fill(-1);
+    this.focusId = new Uint32Array(this.focusOn ? n : 0);
     this.eyeHalf = new Float32Array(this.eyeOn ? n : 0);
     this.eyeReach = new Float32Array(this.eyeOn ? n : 0);
     this.thermalScale = new Float32Array(this.thermalOn ? n : 0);
@@ -1503,60 +1581,19 @@ export class Simulation {
     this.corpseOwner = new Uint32Array(guardCells);
     this.corpseOwnerUntil = new Uint32Array(guardCells);
 
-    this.float32Fields = [
-      this.x, this.y, this.headingX, this.headingY, this.size, this.speed, this.senseRange, this.metabolism,
-      this.mutationRate, this.diet, this.attack, this.armor, this.basalCost, this.moveCost, this.senseCost,
-      this.attackCost, this.attemptCost, this.armorCost, this.plantBite, this.meatBite, this.plantWeight,
-      this.meatWeight, this.plantEff, this.meatEff, this.attackPower, this.defense, this.reach,
-      this.bodyEnergy, this.bodyMatter, this.threshold,
-    ];
-    if (c.brainMode > 0) {
-      this.float32Fields.push(this.brainCost, this.outTurn, this.outSpeed, this.outAttack, this.moveScale);
-    }
-    if (this.staminaOn) this.float32Fields.push(this.stamina, this.staminaMax, this.staminaCost);
-    if (this.thermalOn) this.float32Fields.push(this.thermalPref, this.thermalScale);
-    if (this.agingOn) this.float32Fields.push(this.lifespan);
-    if (this.litterOn) this.float32Fields.push(this.litter);
-    if (this.kinToleranceOn) this.float32Fields.push(this.toleranceSq);
-    if (this.eyeOn) this.float32Fields.push(this.eyeHalf, this.eyeReach);
-    if (this.homeX.length > 0) this.float32Fields.push(this.homeX, this.homeY);
-    if (this.homeValue.length > 0) this.float32Fields.push(this.homeValue);
-
-    if (this.chemOn) this.float32Fields.push(this.chemIntake);
-    this.float64Fields = [this.energy, this.plantTaken, this.meatTaken];
-    if (this.fatOn) this.float64Fields.push(this.fatStore);
-    if (this.nutrientOn) this.float64Fields.push(this.nutrientStore);
-    if (this.gutOn) this.float64Fields.push(this.gutMass, this.gutEnergy);
-    if (this.drinkOn) this.float32Fields.push(this.hydration);
-    if (this.dietOn) this.float64Fields.push(this.dietA, this.dietB, this.dietC);
-    if (this.signalOn) this.float32Fields.push(this.sharedThreatX, this.sharedThreatY, this.sharedThreatNear, this.sharedFoodX, this.sharedFoodY, this.sharedFoodNear);
-    this.uint32Fields = [this.id, this.parentId, this.age, this.kills];
-    if (this.tracker) this.uint32Fields.push(this.species);
-    if (this.sexOn) this.uint32Fields.push(this.parent2Id);
-    this.uint8Fields = [this.killed, this.attempted];
-    if (this.typeOn) {
-      this.uint8Fields.push(this.cellType);
-      this.float32Fields.push(this.photoGain);
-    }
-    if (this.camoOn) {
-      this.uint8Fields.push(this.hasImage);
-      this.float32Fields.push(this.searchHue);
-    }
-    if (this.sexGeneOn) this.uint8Fields.push(this.sexMode);
-    if (this.loadOn) this.uint32Fields.push(this.loadMask);
-    if (this.toxOn) {
-      this.float32Fields.push(this.avoidStrength, this.avoidHue, this.lastKillHue);
-      this.uint32Fields.push(this.lastKillTick);
-    }
-    if (this.luckOn) this.float32Fields.push(this.upkeepLuck, this.fertilityLuck);
-    if (this.sexGeneOn) this.uint32Fields.push(this.mateSince);
-    if (this.chemOn) this.uint8Fields.push(this.chemHit);
-    this.uint16Fields = [this.resting];
-    if (this.diseaseOn) this.uint16Fields.push(this.infection, this.sickFor, this.immuneFor);
-    if (c.brainMode > 0) {
-      this.uint16Fields.push(this.brainCount, this.brainConnections);
-      this.uint8Fields.push(this.brainHidden, this.brainSenses);
-    }
+    // Per-organism arrays, by kind, in the order they are saved (see organismLayout).
+    this.layout = organismLayout(c);
+    const field = (name: string): SnapshotArray => {
+      const array = (this as unknown as Record<string, SnapshotArray>)[name];
+      // A name listed for these settings must be a full per-organism array (catches a layout out of step with the constructor).
+      if (!array || array.length < n) throw new Error(`organismLayout lists "${name}", but it is not a per-organism array in this world`);
+      return array;
+    };
+    this.float32Fields = this.layout.f32.map(field) as Float32Array[];
+    this.float64Fields = this.layout.f64.map(field) as Float64Array[];
+    this.uint32Fields = this.layout.u32.map(field) as Uint32Array[];
+    this.uint16Fields = this.layout.u16.map(field) as Uint16Array[];
+    this.uint8Fields = this.layout.u8.map(field) as Uint8Array[];
 
     // First generation: identical plant-eating, unarmed bodies with a random color each.
     const founder: number[] = new Array<number>(GENE_COUNT).fill(0);
@@ -2920,6 +2957,11 @@ export class Simulation {
       this.outAttack[i] = 0;
       this.moveScale[i] = 1;
     }
+    if (this.focusOn) {
+      this.outFocus[i] = 0;
+      this.focusIdx[i] = -1;
+      this.focusId[i] = 0;
+    }
     return i;
   }
 
@@ -3371,6 +3413,7 @@ export class Simulation {
       if (source >= INPUT.chemReward && source <= INPUT.chemCalm) readsChem = true;
       if (source < INPUT.smellPlantAhead) senses |= SENSE_VISION;
       else if (source < INPUT.energy) senses |= SENSE_SMELL;
+      else if (source >= INPUT.rayColour && source <= INPUT.focusClosing) senses |= SENSE_VISION; // better eyes need a look around
       else if (source >= INPUT.kinDensity && source <= INPUT.kinSide) senses |= SENSE_SOCIAL;
       else senses |= SENSE_BODY;
     }
@@ -3639,20 +3682,37 @@ export class Simulation {
       // over its width. The angle is measured without trigonometry (see EYE_TODAY).
       const angle = forward >= 0 ? (forward + across > 0 ? across / (forward + across) : 0) : 2 - across / (across - forward);
       const half = this.visEyeHalf;
-      if (angle >= half) return; // outside this eye's view
+      if (angle >= half) {
+        // Outside this eye's view; better eyes still give a rough feel of something close behind.
+        if (this.richOn && distSq < this.visBehindDistSq && distSq <= this.visBehindLimitSq) {
+          this.visBehindDistSq = distSq;
+          this.visBehind = index;
+        }
+        return;
+      }
       if (angle < EYE_CUT1 * half) ray = 2;
       else if (angle < EYE_CUT2 * half) ray = side > 0 ? 3 : 1;
       else ray = side > 0 ? 4 : 0;
     } else {
-      if (forward <= 0) return; // behind me
       // Five rays, each 30 degrees wide: straight ahead, and two on each side. The cut-offs are
       // the tangents of 15, 45 and 75 degrees, so no trigonometry is needed.
-      if (across < 0.2679491924311227 * forward) ray = 2;
-      else if (across < forward) ray = side > 0 ? 3 : 1;
-      else if (across < 3.732050807568877 * forward) ray = side > 0 ? 4 : 0;
-      else return;
+      if (forward > 0 && across < 0.2679491924311227 * forward) ray = 2;
+      else if (forward > 0 && across < forward) ray = side > 0 ? 3 : 1;
+      else if (forward > 0 && across < 3.732050807568877 * forward) ray = side > 0 ? 4 : 0;
+      else {
+        // Behind me or too far to the side (see above: a rough feel of something close behind).
+        if (this.richOn && distSq < this.visBehindDistSq && distSq <= this.visBehindLimitSq) {
+          this.visBehindDistSq = distSq;
+          this.visBehind = index;
+        }
+        return;
+      }
     }
     // Is it something a hunter of my size could handle, or something bigger?
+    if (this.richOn) {
+      if (this.size[index]! <= this.visSizeLimit) this.visCountSmall++;
+      else this.visCountLarge++;
+    }
     if (this.size[index]! <= this.visSizeLimit) {
       if (distSq < this.rayDistSmall[ray]!) {
         this.rayDistSmall[ray] = distSq;
@@ -3682,9 +3742,11 @@ export class Simulation {
       this.outTurn[i] = 0;
       this.outSpeed[i] = 0;
       this.outAttack[i] = 0;
+      if (this.focusOn) this.outFocus[i] = 0;
       return;
     }
-    const seeing = (senses & SENSE_VISION) !== 0 || traced || publishing;
+    // (An animal holding a focus keeps looking, so it can find its target again.)
+    const seeing = (senses & SENSE_VISION) !== 0 || traced || publishing || (this.focusOn && this.outFocus[i]! > 0);
     const smelling = (senses & SENSE_SMELL) !== 0 || traced || publishing;
     inputs.fill(0);
     const x = this.x[i]!;
@@ -3709,6 +3771,14 @@ export class Simulation {
       this.visHx = hx;
       this.visHy = hy;
       this.visEyeHalf = this.eyeOn ? this.eyeHalf[i]! : 0;
+      if (this.richOn) {
+        this.visCountSmall = 0;
+        this.visCountLarge = 0;
+        this.visBehind = -1;
+        this.visBehindDistSq = Infinity;
+        const behind = range * c.behindRange;
+        this.visBehindLimitSq = behind * behind;
+      }
       this.hash.forEachNear(x, y, range, this.seeOther);
       for (let k = 0; k < RAY_COUNT; k++) {
         const slot = INPUT.visionStart + k * RAY_CHANNELS;
@@ -3722,8 +3792,36 @@ export class Simulation {
           inputs[slot + 2] = 1 - Math.sqrt(this.rayDistLarge[k]!) / range;
           inputs[slot + 3] = this.diet[larger]! * 2 - 1;
         }
+        if (this.richOn) {
+          // Better eyes: how like me each one looks, and whether it is coming my way.
+          for (let big = 0; big < 2; big++) {
+            const target = big === 0 ? smaller : larger;
+            if (target < 0) continue;
+            inputs[INPUT.rayColour + k * 2 + big] = this.colourLikeness(i, target);
+            inputs[INPUT.rayMotion + k * 2 + big] = this.comingCloser(i, target);
+          }
+        }
+      }
+      if (this.richOn) {
+        const half = c.visionCountHalf;
+        inputs[INPUT.countSmaller] = this.visCountSmall / (this.visCountSmall + half);
+        inputs[INPUT.countBigger] = this.visCountLarge / (this.visCountLarge + half);
+        const behind = this.visBehind;
+        if (behind >= 0) {
+          inputs[INPUT.behindNear] = 1 - Math.sqrt(this.visBehindDistSq / this.visBehindLimitSq);
+          inputs[INPUT.behindBigger] = this.size[behind]! > this.visSizeLimit ? 1 : -1;
+        }
       }
     }
+    if (this.richOn && seeing && range > 0.25) {
+      // Plants in sight: how much stands at the edge of sight, ahead and half-left and half-right.
+      const reach = range * c.plantSightReach;
+      const r = Math.SQRT1_2;
+      inputs[INPUT.plantSightAhead] = this.plantsAt(i, x + hx * reach, y + hy * reach);
+      inputs[INPUT.plantSightLeft] = this.plantsAt(i, x + (hx - hy) * r * reach, y + (hy + hx) * r * reach);
+      inputs[INPUT.plantSightRight] = this.plantsAt(i, x + (hx + hy) * r * reach, y + (hy - hx) * r * reach);
+    }
+    if (this.focusOn) this.trackFocus(i, seeing && range > 0.25, range, hx, hy);
 
     // Smell: which way do plants and corpses get stronger? (Compared across the four neighboring cells.)
     if (smelling) {
@@ -3815,6 +3913,7 @@ export class Simulation {
         this.outTurn[i] = 0;
         this.outSpeed[i] = 0;
         this.outAttack[i] = 0;
+        if (this.focusOn) this.outFocus[i] = 0;
         return;
       }
     }
@@ -3845,6 +3944,16 @@ export class Simulation {
       inputs[INPUT.smellPlantAhead] = inputs[INPUT.smellPlantAhead]! * plant;
       inputs[INPUT.smellPlantSide] = inputs[INPUT.smellPlantSide]! * plant;
       inputs[INPUT.plantHere] = inputs[INPUT.plantHere]! * plant;
+      if (this.richOn || this.focusOn) {
+        // Better eyes and focus: everything about smaller animals is prey sight; plants in sight are food sight.
+        for (let k = 0; k < RAY_COUNT; k++) {
+          inputs[INPUT.rayColour + k * 2] = inputs[INPUT.rayColour + k * 2]! * meat;
+          inputs[INPUT.rayMotion + k * 2] = inputs[INPUT.rayMotion + k * 2]! * meat;
+        }
+        inputs[INPUT.countSmaller] = inputs[INPUT.countSmaller]! * meat;
+        for (const k of [INPUT.focusAhead, INPUT.focusSide, INPUT.focusNear, INPUT.focusClosing]) inputs[k] = inputs[k]! * meat;
+        for (const k of [INPUT.plantSightAhead, INPUT.plantSightLeft, INPUT.plantSightRight]) inputs[k] = inputs[k]! * plant;
+      }
     }
 
     // Relatives nearby: how many, and which way the herd lies.
@@ -4091,6 +4200,7 @@ export class Simulation {
     this.outTurn[i] = outputs[OUTPUT.turn]!;
     this.outSpeed[i] = outputs[OUTPUT.speed]!;
     this.outAttack[i] = outputs[OUTPUT.attack]!;
+    if (this.focusOn) this.outFocus[i] = outputs[OUTPUT.focus]!;
     if (this.wmOn) {
       // Working memory: the brain's hold gates decide, cell by cell, whether to overwrite or hold.
       carryMemory(this.memState, i * MEMORY_COUNT, outputs, this.wmCells[i]!, c.wmKeepMax);
@@ -5481,7 +5591,8 @@ export class Simulation {
       if (this.fatOn) move *= 1 + c.fatMoveCost * (this.fatStore[i]! / this.threshold[i]!);
       if (this.torporOn) move *= (1 - this.torpid[i]!) * (1 - this.torpid[i]!); // slower costs less (cost goes with speed squared)
       if (this.staminaOn) move += this.staminaCost[i]!; // the upkeep of the sprint reserve counts as movement
-      const sensing = this.senseCost[i]!;
+      // (Holding a focus costs a little more attention while it lasts.)
+      const sensing = this.focusOn && this.outFocus[i]! > 0 ? this.senseCost[i]! + c.focusCost : this.senseCost[i]!;
       // (Injury, when on, is paid as fighting; kept in the old form when off.)
       const fighting = this.hurt.length > 0 ? this.attackCost[i]! + (this.attempted[i] === 1 ? this.attemptCost[i]! : 0) + this.hurt[i]! : this.attackCost[i]! + (this.attempted[i] === 1 ? this.attemptCost[i]! : 0);
       const armoring = this.armorCost[i]!;
@@ -5867,6 +5978,89 @@ export class Simulation {
     return this.config.killOwnershipLeak;
   }
 
+  /** Better eyes: how like viewer's colour target's is, from +1 (the same) to -1 (opposite on the colour wheel). */
+  private colourLikeness(viewer: number, target: number): number {
+    let d = this.genes[target * GENE_COUNT + GENE.hue]! - this.genes[viewer * GENE_COUNT + GENE.hue]!;
+    if (d < 0) d = -d;
+    if (d > 0.5) d = 1 - d;
+    return 1 - 4 * d;
+  }
+
+  /** The way from viewer to target across the wrap-around edges (x, y) and how far that is. */
+  private wayTo(viewer: number, target: number): [number, number, number] {
+    const c = this.config;
+    let dx = this.x[target]! - this.x[viewer]!;
+    let dy = this.y[target]! - this.y[viewer]!;
+    if (dx > c.worldWidth / 2) dx -= c.worldWidth;
+    else if (dx < -c.worldWidth / 2) dx += c.worldWidth;
+    if (dy > c.worldHeight / 2) dy -= c.worldHeight;
+    else if (dy < -c.worldHeight / 2) dy += c.worldHeight;
+    return [dx, dy, Math.sqrt(dx * dx + dy * dy)];
+  }
+
+  /** Better eyes: whether target is coming toward viewer (+) or moving away (-), by its own pace, as a share of speedMax. */
+  private comingCloser(viewer: number, target: number): number {
+    const [dx, dy, d] = this.wayTo(viewer, target);
+    if (d === 0) return 0;
+    const pace = this.speed[target]! * this.moveScale[target]!;
+    const toward = -(dx * this.headingX[target]! + dy * this.headingY[target]!) * pace;
+    return clampUnit(toward / (d * this.config.speedMax));
+  }
+
+  /** Better eyes: how much plant food (it could digest) stands at world point (px, py), 0 to 1. */
+  private plantsAt(i: number, px: number, py: number): number {
+    const c = this.config;
+    const wx = ((px % c.worldWidth) + c.worldWidth) % c.worldWidth;
+    const wy = ((py % c.worldHeight) + c.worldHeight) % c.worldHeight;
+    const cell = Math.floor(wy / c.foodCellSize) * this.gridWidth + Math.floor(wx / c.foodCellSize);
+    const worth = this.palateOn ? (this.plantToxOn ? Math.max(0, this.plantWorth(i, cell)) : this.palateMatch(i, cell)) : 1;
+    return Math.min(1, (this.food[cell]! * worth) / c.foodCap);
+  }
+
+  /**
+   * The focus action: while the brain's focus output (from its last thought) is above 0, keep the locked target
+   * if it is still alive and within focusHold x sight range, or else lock on to the nearest smaller animal in
+   * view; report where it is. Otherwise let go.
+   */
+  private trackFocus(i: number, looked: boolean, range: number, hx: number, hy: number): void {
+    const c = this.config;
+    const inputs = this.thinkInputs;
+    if (this.outFocus[i]! <= 0) {
+      this.focusIdx[i] = -1;
+      this.focusId[i] = 0;
+      return;
+    }
+    const hold = range * c.focusHold;
+    let t = this.focusIdx[i]!;
+    // (Other animals can move to new slots when some die, so the lock is checked by identity.)
+    if (!(t >= 0 && t < this.count && t !== i && this.id[t] === this.focusId[i] && this.killed[t] !== 1 && this.wayTo(i, t)[2] <= hold)) {
+      t = -1;
+      if (looked) {
+        let best = Infinity;
+        for (let k = 0; k < RAY_COUNT; k++) {
+          if (this.rayTargetSmall[k]! >= 0 && this.rayDistSmall[k]! < best) {
+            best = this.rayDistSmall[k]!;
+            t = this.rayTargetSmall[k]!;
+          }
+        }
+      }
+    }
+    if (t < 0) {
+      this.focusIdx[i] = -1;
+      this.focusId[i] = 0;
+      return;
+    }
+    this.focusIdx[i] = t;
+    this.focusId[i] = this.id[t]!;
+    const [dx, dy, d] = this.wayTo(i, t);
+    if (d > 0 && hold > 0) {
+      inputs[INPUT.focusAhead] = (dx * hx + dy * hy) / d;
+      inputs[INPUT.focusSide] = (hx * dy - hy * dx) / d;
+      inputs[INPUT.focusNear] = Math.max(0, 1 - d / hold);
+    } else inputs[INPUT.focusNear] = 1;
+    inputs[INPUT.focusClosing] = this.comingCloser(i, t);
+  }
+
   /** Feelings: organism i is hurt by `amount`, by organism `from` (pain points toward where that one stands). */
   private addPain(i: number, amount: number, from: number): void {
     const c = this.config;
@@ -6017,6 +6211,11 @@ export class Simulation {
       if (this.depthOn) this.brainState.copyWithin(to * HIDDEN_MAX, from * HIDDEN_MAX, (from + 1) * HIDDEN_MAX);
       if (this.feelOn) this.feel.copyWithin(to * FEEL_SLOTS, from * FEEL_SLOTS, (from + 1) * FEEL_SLOTS);
       if (this.curiosityOn) this.novelty.copyWithin(to * (NOVELTY_SLOTS + 1), from * (NOVELTY_SLOTS + 1), (from + 1) * (NOVELTY_SLOTS + 1));
+      if (this.focusOn) {
+        this.outFocus[to] = this.outFocus[from]!;
+        this.focusIdx[to] = this.focusIdx[from]!;
+        this.focusId[to] = this.focusId[from]!;
+      }
       if (this.chemOn) this.chem.copyWithin(to * 4, from * 4, from * 4 + 4);
       if (this.learnOn) {
         this.learnDelta.copyWithin(to * LEARN_SLOTS, from * LEARN_SLOTS, (from + 1) * LEARN_SLOTS);
@@ -6068,6 +6267,11 @@ export class Simulation {
     if (this.depthOn) organism("brainState", this.brainState, HIDDEN_MAX);
     if (this.feelOn) organism("feel", this.feel, FEEL_SLOTS);
     if (this.curiosityOn) organism("novelty", this.novelty, NOVELTY_SLOTS + 1);
+    if (this.focusOn) {
+      organism("outFocus", this.outFocus);
+      organism("focusIdx", this.focusIdx);
+      organism("focusId", this.focusId);
+    }
     if (this.learnOn) {
       organism("learnDelta", this.learnDelta, LEARN_SLOTS);
       organism("learnTrace", this.learnTrace, LEARN_SLOTS);
@@ -6128,9 +6332,11 @@ export class Simulation {
    * Bring a saved world back. With `seed` given, the world continues from the same moment
    * but with a different random future (a branch of the original history).
    */
-  static load(snapshot: SimSnapshot, options: { seed?: number } = {}): Simulation {
+  static load(snapshot: SimSnapshot, options: { seed?: number; changes?: Partial<SimConfig> } = {}): Simulation {
     if (snapshot.format !== SNAPSHOT_FORMAT) throw new Error(`Cannot load a saved world of format ${snapshot.format}`);
-    const sim = new Simulation(options.seed ?? snapshot.seed, snapshot.config);
+    // `changes`: settings to change as the world loads (features switched on, say). The save keeps its own
+    // settings, so loading still knows exactly what the saved world held.
+    const sim = new Simulation(options.seed ?? snapshot.seed, { ...snapshot.config, ...options.changes });
     sim.restore(snapshot, options.seed !== undefined);
     return sim;
   }
@@ -6206,11 +6412,18 @@ export class Simulation {
       rng: [number, number, number, number];
       species: Record<string, unknown> | null;
     };
-    this.float32Fields.forEach((array, k) => take(`f32.${k}`, array));
-    this.float64Fields.forEach((array, k) => take(`f64.${k}`, array));
-    this.uint32Fields.forEach((array, k) => take(`u32.${k}`, array));
-    this.uint16Fields.forEach((array, k) => take(`u16.${k}`, array));
-    this.uint8Fields.forEach((array, k) => take(`u8.${k}`, array));
+    // Each array is found by name in the saved world's own layout (worked out from its settings), so a world
+    // saved with some features off loads correctly with them switched on: the new arrays start empty.
+    const saved = organismLayout(snapshot.config);
+    // (Settings added since the save take their defaults, which are "off", so they do not count as a change.)
+    const changed = JSON.stringify(makeConfig(snapshot.config)) !== JSON.stringify(this.config);
+    for (const kind of ["f32", "f64", "u32", "u16", "u8"] as const) {
+      const arrays = { f32: this.float32Fields, f64: this.float64Fields, u32: this.uint32Fields, u16: this.uint16Fields, u8: this.uint8Fields }[kind];
+      this.layout[kind].forEach((name, k) => {
+        const at = changed ? saved[kind].indexOf(name) : k;
+        if (at >= 0) take(`${kind}.${at}`, arrays[k]!);
+      });
+    }
     // A world saved before a gene was added has fewer genes per animal. Copy each animal's genes
     // across at its own spacing so they line up (genes it never had stay 0: they are not in use there).
     const savedGenes = snapshot.arrays.genes;
@@ -6257,6 +6470,11 @@ export class Simulation {
     if (this.depthOn && snapshot.arrays.brainState) take("brainState", this.brainState);
     // (Switched on for a world saved without them, feelings start calm and nothing has been noted yet.)
     if (this.feelOn && snapshot.arrays.feel) take("feel", this.feel);
+    if (this.focusOn && snapshot.arrays.focusId) {
+      take("outFocus", this.outFocus);
+      take("focusIdx", this.focusIdx);
+      take("focusId", this.focusId);
+    } else if (this.focusOn) this.focusIdx.fill(-1);
     if (this.curiosityOn) {
       if (snapshot.arrays.novelty) take("novelty", this.novelty);
       else for (let i = 0; i < s.count; i++) this.novelty.fill(-1, i * (NOVELTY_SLOTS + 1), i * (NOVELTY_SLOTS + 1) + NOVELTY_SLOTS);
@@ -6322,6 +6540,14 @@ export class Simulation {
     this.rng.setState(newFuture ? new Rng((this.seed + this.tick) >>> 0).getState() : s.rng);
     if (this.tracker && s.species) this.tracker.importState(s.species);
     if (this.climateOn) this.updateClimate();
+    // Settings changed since the save (features switched on, say): work out every animal's traits, costs and
+    // brain again under the new settings. With unchanged settings nothing is recomputed.
+    if (changed) {
+      for (let i = 0; i < this.count; i++) {
+        this.express(i);
+        if (this.config.brainMode > 0) this.refreshBrain(i);
+      }
+    }
   }
 
   /** Every real species so far (alive or extinct), and the births and extinctions among them. */
@@ -6545,7 +6771,7 @@ export class Simulation {
       if (this.torporOn) move *= (1 - this.torpid[i]!) * (1 - this.torpid[i]!);
       if (this.staminaOn) move += this.staminaCost[i]!;
       out.movement += move;
-      out.sensing += this.senseCost[i]!;
+      out.sensing += this.senseCost[i]! + (this.focusOn && this.outFocus[i]! > 0 ? c.focusCost : 0);
       out.attack += this.attackCost[i]! + (this.attempted[i] === 1 ? this.attemptCost[i]! : 0) + (this.hurt.length > 0 ? this.hurt[i]! : 0);
       out.armor += this.armorCost[i]!;
       if (brains) out.brain += this.brainCost[i]!;
@@ -6985,6 +7211,10 @@ export class Simulation {
       if (this.depthOn) mixBits(this.brainState, n * HIDDEN_MAX);
       if (this.feelOn) mixBits(this.feel, n * FEEL_SLOTS);
       if (this.curiosityOn) for (let k = 0; k < n * (NOVELTY_SLOTS + 1); k++) mix(this.novelty[k]! >>> 0);
+      if (this.focusOn) {
+        mixBits(this.outFocus, n);
+        mixInts(this.focusId, n);
+      }
     }
     if (this.staminaOn) mixBits(this.stamina, n);
     if (this.bondsOn) for (let k = 0; k < n * BOND_SLOTS; k++) mix(this.bondTo[k]! >>> 0);
