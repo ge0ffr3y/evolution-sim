@@ -17,7 +17,8 @@ export type ToWorker =
   /** Ask for the whole world as bytes (answered with a "saved" message). */
   | { type: "save" }
   /** Replace the world with a saved one. With branchSeed, carry on from the same moment with a different random future. */
-  | { type: "load"; bytes: Uint8Array; branchSeed?: number }
+  /** changes: settings to switch as the world loads (Simulation.load's changes), e.g. new features for a saved world. */
+  | { type: "load"; bytes: Uint8Array; branchSeed?: number; changes?: Partial<SimConfig> }
   /** An outside nudge to the world, given before the next tick (answered with "intervened"; see Simulation.intervene). */
   | { type: "intervene"; kind: InterventionKind; requestId: number; strength?: number; style?: PredatorStyle }
   /**

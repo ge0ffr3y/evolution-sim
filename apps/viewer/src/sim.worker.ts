@@ -502,7 +502,7 @@ self.onmessage = (event: MessageEvent<ToWorker>) => {
     case "load":
       try {
         const snapshot = snapshotFromBytes(message.bytes);
-        startWorld(Simulation.load(snapshot, message.branchSeed === undefined ? {} : { seed: message.branchSeed }));
+        startWorld(Simulation.load(snapshot, { ...(message.branchSeed === undefined ? {} : { seed: message.branchSeed }), ...(message.changes ? { changes: message.changes } : {}) }));
       } catch (error) {
         self.postMessage({ type: "loadFailed", message: error instanceof Error ? error.message : String(error) } satisfies LoadFailedMessage);
       }
