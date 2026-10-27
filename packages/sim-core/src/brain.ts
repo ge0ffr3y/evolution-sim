@@ -126,10 +126,22 @@ export const INPUT = {
   mateScentSide: VISION_INPUTS + 58,
   /** How full its stomach is (0 empty, 1 full; 0 without the gut). */
   fullness: VISION_INPUTS + 59,
-  bias: VISION_INPUTS + 60,
-  noise: VISION_INPUTS + 61,
+  /**
+   * Feelings and body (Phase 11, the feelings setting; all 0 without it): pain (0 to 1) and which way it came
+   * from (ahead and left, scaled by how strong it is), joy (0 to 1), feeling sick (0 or 1), ready to breed
+   * (0 or 1) and the taste of the last bite (-1 harmful to +1 good).
+   */
+  pain: VISION_INPUTS + 60,
+  painAhead: VISION_INPUTS + 61,
+  painSide: VISION_INPUTS + 62,
+  joy: VISION_INPUTS + 63,
+  sick: VISION_INPUTS + 64,
+  ready: VISION_INPUTS + 65,
+  taste: VISION_INPUTS + 66,
+  bias: VISION_INPUTS + 67,
+  noise: VISION_INPUTS + 68,
 } as const;
-export const INPUT_COUNT = VISION_INPUTS + 62;
+export const INPUT_COUNT = VISION_INPUTS + 69;
 /**
  * Every brain layout so far, oldest first, so a saved world from any of them can be renumbered.
  * Each step inserted its new inputs at `insertedAt` (where the bias input was), so nodes below
@@ -144,6 +156,7 @@ export const BRAIN_LAYOUTS: readonly { inputs: number; slots: number; insertedAt
   { inputs: VISION_INPUTS + 59, slots: 768, insertedAt: VISION_INPUTS + 56 }, // Phase 9: the fat-reserve sense
   { inputs: VISION_INPUTS + 61, slots: 768, insertedAt: VISION_INPUTS + 57 }, // Phase 9: mate scent
   { inputs: VISION_INPUTS + 62, slots: 768, insertedAt: VISION_INPUTS + 59 }, // Phase 9: stomach fullness
+  { inputs: VISION_INPUTS + 69, slots: 768, insertedAt: VISION_INPUTS + 60 }, // Phase 11: feelings and body (pain, joy, sick, ready, taste)
 ];
 /** Room for thinking units before Phase 11 (worlds saved then have their actions straight after 16 units). */
 export const OLD_HIDDEN_MAX = 16;
@@ -268,6 +281,13 @@ export function inputLabel(index: number): string {
     [INPUT.mateScentAhead]: "mate scent: ahead",
     [INPUT.mateScentSide]: "mate scent: left",
     [INPUT.fullness]: "my stomach: how full",
+    [INPUT.pain]: "pain",
+    [INPUT.painAhead]: "pain from: ahead",
+    [INPUT.painSide]: "pain from: left",
+    [INPUT.joy]: "joy",
+    [INPUT.sick]: "feeling sick",
+    [INPUT.ready]: "ready to breed",
+    [INPUT.taste]: "taste of last bite",
     [INPUT.bias]: "bias",
     [INPUT.noise]: "noise",
   };

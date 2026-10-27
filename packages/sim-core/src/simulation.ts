@@ -402,6 +402,15 @@ const SENSE_BODY = 4;
 const SENSE_SOCIAL = 8;
 /** Room for this many remembered feeding places per animal (placeSlotsMax can allow fewer). */
 const PLACE_SLOTS = 4;
+/** Feelings (Phase 11): per organism, pain, the direction pain came from (x, y), joy and taste. */
+const FEEL_PAIN = 0;
+const FEEL_PAIN_X = 1;
+const FEEL_PAIN_Y = 2;
+const FEEL_JOY = 3;
+const FEEL_TASTE = 4;
+const FEEL_SLOTS = 5;
+/** Curiosity: the squares an animal noted lately (the last of the slots holds where the next one goes). */
+const NOVELTY_SLOTS = 8;
 /** Room for this many bonds per cell (the config can allow fewer). */
 const BOND_SLOTS = 6;
 
@@ -859,6 +868,12 @@ export class Simulation {
   private readonly eyeOn: boolean;
   /** Phase 11 appetite tuning: the attention gene is in use (preyAttention). */
   private readonly attentionOn: boolean;
+  /** Phase 11 feelings: on, and per organism FEEL_SLOTS numbers (pain, its direction, joy, taste). */
+  private readonly feelOn: boolean;
+  private readonly feel: Float32Array;
+  /** Curiosity (the 35th gene): on, and the squares each animal noted lately (NOVELTY_SLOTS + 1 per organism). */
+  private readonly curiosityOn: boolean;
+  private readonly novelty: Int32Array;
   private readonly eyeHalf: Float32Array;
   private readonly eyeReach: Float32Array;
   private visEyeHalf = 0;
@@ -1305,6 +1320,10 @@ export class Simulation {
     this.hurt = new Float64Array(c.attackInjury > 0 ? n : 0);
     this.eyeOn = c.eyeMode === 1 && c.brainMode > 0;
     this.attentionOn = c.preyAttention === 1 && c.brainMode > 0 && c.brainAppetiteSenses === 1;
+    this.feelOn = c.feelings === 1 && c.brainMode > 0;
+    this.feel = new Float32Array(this.feelOn ? n * FEEL_SLOTS : 0);
+    this.curiosityOn = this.feelOn && c.curiosity === 1;
+    this.novelty = new Int32Array(this.curiosityOn ? n * (NOVELTY_SLOTS + 1) : 0);
     this.eyeHalf = new Float32Array(this.eyeOn ? n : 0);
     this.eyeReach = new Float32Array(this.eyeOn ? n : 0);
     this.thermalScale = new Float32Array(this.thermalOn ? n : 0);
@@ -1355,6 +1374,7 @@ export class Simulation {
         (k === GENE.pickiness && c.matePickiness === 1 && c.sexualReproduction >= 1) ||
         (k === GENE.eye && c.eyeMode === 1 && c.brainMode > 0) ||
         (k === GENE.attention && this.attentionOn) ||
+        (k === GENE.curiosity && this.curiosityOn) ||
         ((k === GENE.stressResponse || k === GENE.calmResponse) && c.brainMode > 0 && c.chemicals === 1 && c.chemBodyEffects === 1),
     );
     this.kinLimitSq = c.kinDistance * c.kinDistance;
@@ -1467,12 +1487,12 @@ export class Simulation {
       // How much fat an animal banks can be left out too (fatRelated 0): physiology, not kind.
       if (name === "fat" && c.fatRelated === 0) continue;
       // How choosy it is about mates, and how closely it watches for prey, are behaviors, not part of what kind of organism it is.
-      if (name === "pickiness" || name === "attention") continue;
+      if (name === "pickiness" || name === "attention" || name === "curiosity") continue;
       this.mateMask.push(GENE[name]);
     }
     this.species = new Uint32Array(c.speciesEvery > 0 ? n : 0);
     // Species, like compatibility, ignore tolerance of relatives: it is a behavior setting, not a kind of body.
-    const speciesGenes = this.activeGene.map((on, k) => on && k !== GENE.tolerance && k !== GENE.sex && k !== GENE.stressResponse && k !== GENE.calmResponse && k !== GENE.generosity && k !== GENE.signal && k !== GENE.learning && k !== GENE.placeMemory && k !== GENE.workingMemory && k !== GENE.pickiness && k !== GENE.attention && !(k === GENE.fat && c.fatRelated === 0));
+    const speciesGenes = this.activeGene.map((on, k) => on && k !== GENE.tolerance && k !== GENE.sex && k !== GENE.stressResponse && k !== GENE.calmResponse && k !== GENE.generosity && k !== GENE.signal && k !== GENE.learning && k !== GENE.placeMemory && k !== GENE.workingMemory && k !== GENE.pickiness && k !== GENE.attention && k !== GENE.curiosity && !(k === GENE.fat && c.fatRelated === 0));
     this.tracker = c.speciesEvery > 0 ? new SpeciesTracker(c, this.ranges, speciesGenes) : null;
     const staminaOrganisms = this.staminaOn ? n : 0;
     this.stamina = new Float32Array(staminaOrganisms);
@@ -1569,6 +1589,7 @@ export class Simulation {
     founder[GENE.pickiness] = c.initialPickiness;
     founder[GENE.eye] = c.initialEye;
     founder[GENE.attention] = c.initialAttention;
+    founder[GENE.curiosity] = c.initialCuriosity;
     founder[GENE.generosity] = c.initialShare;
     for (let i = 0; i < c.initialOrganisms; i++) {
       let fx = this.rng.range(0, c.worldWidth);
@@ -2806,6 +2827,11 @@ export class Simulation {
     if (this.sexOn) this.parent2Id[i] = 0;
     if (this.sexGeneOn) this.sexMode[i] = 0;
     if (this.fatOn) this.fatStore[i] = 0;
+    if (this.feelOn) this.feel.fill(0, i * FEEL_SLOTS, (i + 1) * FEEL_SLOTS);
+    if (this.curiosityOn) {
+      this.novelty.fill(-1, i * (NOVELTY_SLOTS + 1), i * (NOVELTY_SLOTS + 1) + NOVELTY_SLOTS);
+      this.novelty[i * (NOVELTY_SLOTS + 1) + NOVELTY_SLOTS] = 0;
+    }
     if (this.gutOn) {
       this.gutMass[i] = 0;
       this.gutEnergy[i] = 0;
@@ -2978,6 +3004,8 @@ export class Simulation {
     if (this.pickyOn) this.senseCost[i] = this.senseCost[i]! + c.pickinessCost * genes[g + GENE.pickiness]!;
     // Paying attention to prey (the attention gene) is a small cost on the sensing line too.
     if (this.attentionOn) this.senseCost[i] = this.senseCost[i]! + c.attentionCost * genes[g + GENE.attention]!;
+    // Curiosity (noticing what is new) is a small cost on the sensing line as well.
+    if (this.curiosityOn) this.senseCost[i] = this.senseCost[i]! + c.curiosityCost * genes[g + GENE.curiosity]!;
     if (this.eyeOn) {
       // The eye: wider (gene toward 0) sees more of the world around but less far; narrower (toward 1) the reverse.
       const e = genes[g + GENE.eye]!;
@@ -3997,6 +4025,20 @@ export class Simulation {
     inputs[INPUT.diet] = this.diet[i]! * 2 - 1;
     // Stamina left: -1 empty, +1 full (0 in worlds without sprint fatigue).
     if (this.staminaOn) inputs[INPUT.stamina] = this.staminaMax[i]! > 0 ? (this.stamina[i]! / this.staminaMax[i]!) * 2 - 1 : -1;
+    if (this.feelOn) {
+      const f = i * FEEL_SLOTS;
+      const pain = this.feel[f + FEEL_PAIN]!;
+      const px = this.feel[f + FEEL_PAIN_X]!;
+      const py = this.feel[f + FEEL_PAIN_Y]!;
+      inputs[INPUT.pain] = pain;
+      // Which way the hurt came from, compared with where it faces (as the smells are), as strong as the pain.
+      inputs[INPUT.painAhead] = pain * (px * hx + py * hy);
+      inputs[INPUT.painSide] = pain * (hx * py - hy * px);
+      inputs[INPUT.joy] = this.feel[f + FEEL_JOY]!;
+      inputs[INPUT.taste] = this.feel[f + FEEL_TASTE]!;
+      if (this.diseaseOn && this.sickFor[i]! > 0) inputs[INPUT.sick] = 1;
+      if (this.sexGeneOn ? this.sexMode[i] === 2 : this.energy[i]! >= this.threshold[i]!) inputs[INPUT.ready] = 1;
+    }
     inputs[INPUT.bias] = 1;
     inputs[INPUT.noise] = ((Math.imul(this.tick + 1, 0x9e3779b1) ^ Math.imul(this.id[i]!, 0x85ebca6b)) >>> 0) / 2147483648 - 1;
 
@@ -4007,7 +4049,9 @@ export class Simulation {
       // young or neighbors as kept), as a share of what it needs to breed, scaled and capped.
       const now = this.energy[i]! + (this.fatOn ? this.fatStore[i]! : 0) + (this.gutOn ? this.gutEnergy[i]! : 0);
       const before = this.learnPrevE[i]!;
-      const reward = before < 0 ? 0 : clampUnit(((now + this.learnSpent[i]! - before) / this.threshold[i]!) * c.learnSenseScale);
+      let reward = before < 0 ? 0 : clampUnit(((now + this.learnSpent[i]! - before) / this.threshold[i]!) * c.learnSenseScale);
+      // With learnFeelings, how it feels counts too: joy is a reward, pain a punishment.
+      if (c.learnFeelings === 1 && before >= 0) reward = clampUnit(reward + this.feel[i * FEEL_SLOTS + FEEL_JOY]! - this.feel[i * FEEL_SLOTS + FEEL_PAIN]!);
       // Surprise: better (+) or worse (-) than usual. Then "usual" moves a little toward this result.
       const usual = this.learnAvg[i]!;
       const surprise = clampUnit(reward - usual);
@@ -4990,6 +5034,8 @@ export class Simulation {
     if (this.colonyInfoOn) this.updateColonies(n);
     if (this.signalOn) this.listen(n);
 
+    if (this.feelOn) this.feelingsStep(n);
+
     // Pass 0 (brains only): everyone who is due to think looks, smells and decides, before
     // anyone moves, so all brains see the same world whatever order they are processed in.
     if (brainMode > 0) {
@@ -5158,11 +5204,16 @@ export class Simulation {
         const power = this.attackPower[i]!;
         const odds = power / (power + this.defendedBy(prey, i));
         if (this.rng.next() < odds) this.kill(i, prey);
-        else if (this.hurt.length > 0) {
-          // Injury: the attack failed and the prey hurt the attacker, more the better armed it is compared with the attacker.
-          const preyPower = this.attackPower[prey]!;
-          const both = power + preyPower;
-          this.hurt[i] = both > 0 ? c.attackInjury * this.threshold[i]! * (preyPower / both) : 0;
+        else {
+          // The prey survived the attack: it hurts, and it knows where the attack came from.
+          if (this.feelOn) this.addPain(prey, c.painHit, i);
+          if (this.hurt.length > 0) {
+            // Injury: the attack failed and the prey hurt the attacker, more the better armed it is compared with the attacker.
+            const preyPower = this.attackPower[prey]!;
+            const both = power + preyPower;
+            this.hurt[i] = both > 0 ? c.attackInjury * this.threshold[i]! * (preyPower / both) : 0;
+            if (this.feelOn && both > 0) this.addPain(i, c.painInjury * (preyPower / both), prey);
+          }
         }
       }
     }
@@ -5296,6 +5347,14 @@ export class Simulation {
       this.plantTaken[i] = this.plantTaken[i]! + plantGain;
       this.meatTaken[i] = this.meatTaken[i]! + meatGain;
       if (this.chemOn) this.chemIntake[i] = this.chemIntake[i]! + plantGain + meatGain;
+      if (this.feelOn && plantRaw + meatRaw > 0) {
+        // Joy from a good meal (as a share of what it needs to breed), and the taste of this bite:
+        // energy kept per unit eaten, less any poison.
+        const f = i * FEEL_SLOTS;
+        this.feel[f + FEEL_JOY] = Math.min(1, this.feel[f + FEEL_JOY]! + (c.joyEat * (plantGain + meatGain)) / this.threshold[i]!);
+        const taste = (plantGain + meatGain - plantPoison - toxinLoss) / (plantRaw + meatRaw);
+        this.feel[f + FEEL_TASTE] = taste > 1 ? 1 : taste < -1 ? -1 : taste;
+      }
       if (this.homeValue.length > 0) {
         // Place memory: a better meal than any it remembers makes this spot home.
         const meal = (plantGain + meatGain) / this.threshold[i]!;
@@ -5640,6 +5699,10 @@ export class Simulation {
           const savedNextId = this.nextId;
           const child = this.spawn(this.id[a]!, this.x[a]!, this.y[a]!);
           if (child < 0) break birthsLoop;
+          if (this.feelOn && baby === 0) {
+            this.addJoy(a, c.joyBirth);
+            this.addJoy(b, c.joyBirth);
+          }
           this.parent2Id[child] = this.id[b]!;
           if (this.homeX.length > 0 && c.homeMode >= 2) {
             this.homeX[child] = this.homeX[a]!;
@@ -5701,6 +5764,7 @@ export class Simulation {
           const savedNextId = this.nextId;
           const child = this.spawn(this.id[parent]!, this.x[parent]!, this.y[parent]!);
           if (child < 0) break birthsLoop;
+          if (this.feelOn && baby === 0) this.addJoy(parent, c.joyBirth);
           if (this.homeX.length > 0 && c.homeMode >= 2) {
             this.homeX[child] = this.homeX[parent]!;
             this.homeY[child] = this.homeY[parent]!;
@@ -5803,8 +5867,64 @@ export class Simulation {
     return this.config.killOwnershipLeak;
   }
 
+  /** Feelings: organism i is hurt by `amount`, by organism `from` (pain points toward where that one stands). */
+  private addPain(i: number, amount: number, from: number): void {
+    const c = this.config;
+    const f = i * FEEL_SLOTS;
+    this.feel[f + FEEL_PAIN] = Math.min(1, this.feel[f + FEEL_PAIN]! + amount);
+    let dx = this.x[from]! - this.x[i]!;
+    let dy = this.y[from]! - this.y[i]!;
+    if (dx > c.worldWidth / 2) dx -= c.worldWidth;
+    else if (dx < -c.worldWidth / 2) dx += c.worldWidth;
+    if (dy > c.worldHeight / 2) dy -= c.worldHeight;
+    else if (dy < -c.worldHeight / 2) dy += c.worldHeight;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    // The latest hurt sets the direction (a hurt from right on top of it has none).
+    this.feel[f + FEEL_PAIN_X] = d > 0 ? dx / d : 0;
+    this.feel[f + FEEL_PAIN_Y] = d > 0 ? dy / d : 0;
+  }
+
+  /** Feelings: organism i feels `amount` of joy (joy stays between 0 and 1). */
+  private addJoy(i: number, amount: number): void {
+    const f = i * FEEL_SLOTS + FEEL_JOY;
+    this.feel[f] = Math.min(1, this.feel[f]! + amount);
+  }
+
+  /**
+   * Feelings, once a tick before anyone thinks: pain, joy and taste fade; being fed and free of pain is a quiet
+   * joy; and a curious animal enjoys finding itself somewhere it has not been lately. No energy moves here.
+   */
+  private feelingsStep(n: number): void {
+    const c = this.config;
+    const noting = this.curiosityOn && this.tick % c.noveltyEvery === 0;
+    const across = Math.ceil(c.worldWidth / c.noveltyCellSize);
+    for (let i = 0; i < n; i++) {
+      const f = i * FEEL_SLOTS;
+      const pain = this.feel[f + FEEL_PAIN]! * c.painFade;
+      this.feel[f + FEEL_PAIN] = pain < 1e-4 ? 0 : pain;
+      let joy = this.feel[f + FEEL_JOY]! * c.joyFade;
+      const fed = this.energy[i]! / this.threshold[i]! - 0.5;
+      if (fed > 0) joy += c.joyContent * Math.min(1, fed * 2) * (1 - pain);
+      this.feel[f + FEEL_TASTE] = this.feel[f + FEEL_TASTE]! * c.tasteFade;
+      if (noting) {
+        const square = Math.floor(this.y[i]! / c.noveltyCellSize) * across + Math.floor(this.x[i]! / c.noveltyCellSize);
+        const at = i * (NOVELTY_SLOTS + 1);
+        let seen = false;
+        for (let k = 0; k < NOVELTY_SLOTS; k++) if (this.novelty[at + k] === square) seen = true;
+        if (!seen) {
+          joy += c.curiosityJoy * this.genes[i * GENE_COUNT + GENE.curiosity]!;
+          const next = this.novelty[at + NOVELTY_SLOTS]!;
+          this.novelty[at + next] = square;
+          this.novelty[at + NOVELTY_SLOTS] = (next + 1) % NOVELTY_SLOTS;
+        }
+      }
+      this.feel[f + FEEL_JOY] = joy > 1 ? 1 : joy < 1e-4 ? 0 : joy;
+    }
+  }
+
   private kill(attacker: number, prey: number): void {
     const cell = this.cellOf[prey]!;
+    if (this.feelOn) this.addJoy(attacker, this.config.joyKill);
     if (this.toxOn) {
       // Remember what was killed and when, in case the meal turns out to be poisonous.
       this.lastKillHue[attacker] = this.genes[prey * GENE_COUNT + GENE.hue]!;
@@ -5895,6 +6015,8 @@ export class Simulation {
       this.brainWeight.copyWithin(target, source, source + count);
       if (this.memoryOn) this.memState.copyWithin(to * MEMORY_COUNT, from * MEMORY_COUNT, (from + 1) * MEMORY_COUNT);
       if (this.depthOn) this.brainState.copyWithin(to * HIDDEN_MAX, from * HIDDEN_MAX, (from + 1) * HIDDEN_MAX);
+      if (this.feelOn) this.feel.copyWithin(to * FEEL_SLOTS, from * FEEL_SLOTS, (from + 1) * FEEL_SLOTS);
+      if (this.curiosityOn) this.novelty.copyWithin(to * (NOVELTY_SLOTS + 1), from * (NOVELTY_SLOTS + 1), (from + 1) * (NOVELTY_SLOTS + 1));
       if (this.chemOn) this.chem.copyWithin(to * 4, from * 4, from * 4 + 4);
       if (this.learnOn) {
         this.learnDelta.copyWithin(to * LEARN_SLOTS, from * LEARN_SLOTS, (from + 1) * LEARN_SLOTS);
@@ -5944,6 +6066,8 @@ export class Simulation {
     organism("brainWeight", this.brainWeight, CONN_MAX);
     if (this.memoryOn) organism("memState", this.memState, MEMORY_COUNT);
     if (this.depthOn) organism("brainState", this.brainState, HIDDEN_MAX);
+    if (this.feelOn) organism("feel", this.feel, FEEL_SLOTS);
+    if (this.curiosityOn) organism("novelty", this.novelty, NOVELTY_SLOTS + 1);
     if (this.learnOn) {
       organism("learnDelta", this.learnDelta, LEARN_SLOTS);
       organism("learnTrace", this.learnTrace, LEARN_SLOTS);
@@ -6131,6 +6255,12 @@ export class Simulation {
     if (this.memoryOn) take("memState", this.memState);
     // (A world saved without depth starts every unit's last value at 0 when depth is switched on.)
     if (this.depthOn && snapshot.arrays.brainState) take("brainState", this.brainState);
+    // (Switched on for a world saved without them, feelings start calm and nothing has been noted yet.)
+    if (this.feelOn && snapshot.arrays.feel) take("feel", this.feel);
+    if (this.curiosityOn) {
+      if (snapshot.arrays.novelty) take("novelty", this.novelty);
+      else for (let i = 0; i < s.count; i++) this.novelty.fill(-1, i * (NOVELTY_SLOTS + 1), i * (NOVELTY_SLOTS + 1) + NOVELTY_SLOTS);
+    }
     if (this.learnOn) {
       take("learnDelta", this.learnDelta);
       take("learnTrace", this.learnTrace);
@@ -6250,6 +6380,7 @@ export class Simulation {
       case "pickiness":
       case "eye":
       case "attention":
+      case "curiosity":
         return this.genes[i * GENE_COUNT + GENE[name]]!;
       case "lifespan": {
         const range = this.ranges.lifespan;
@@ -6852,6 +6983,8 @@ export class Simulation {
       mixBits(this.outSpeed, n);
       mixBits(this.outAttack, n);
       if (this.depthOn) mixBits(this.brainState, n * HIDDEN_MAX);
+      if (this.feelOn) mixBits(this.feel, n * FEEL_SLOTS);
+      if (this.curiosityOn) for (let k = 0; k < n * (NOVELTY_SLOTS + 1); k++) mix(this.novelty[k]! >>> 0);
     }
     if (this.staminaOn) mixBits(this.stamina, n);
     if (this.bondsOn) for (let k = 0; k < n * BOND_SLOTS; k++) mix(this.bondTo[k]! >>> 0);

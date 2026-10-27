@@ -327,6 +327,42 @@ export interface SimConfig {
   preyAttention: number;
   attentionCost: number;
   initialAttention: number;
+  /**
+   * Phase 11, feelings and body senses (0 = off; needs brains). Seven brain inputs, all 0 when off:
+   * - Pain (0 to 1, and which way it came from): rises by painHit when it survives an attack (pointing at the
+   *   attacker), and by painInjury x the prey's share of fighting power when its own attack fails and it is
+   *   hurt (attackInjury). It keeps painFade of itself each tick.
+   * - Joy (0 to 1): rises by joyEat x (energy eaten / breeding energy), by joyKill for a kill, by joyBirth when
+   *   it has young, and by joyContent a tick while fed (above half its breeding energy) and free of pain. It
+   *   keeps joyFade of itself each tick.
+   * - Feeling sick (disease worlds), ready to breed (looking for a mate, or ready to split), and the taste of
+   *   the last bite (-1 to 1: energy kept per unit eaten, less any poison; it keeps tasteFade a tick).
+   * Feelings move no energy: they are only signals. Pain always has a cause and always fades.
+   */
+  feelings: number;
+  painHit: number;
+  painInjury: number;
+  painFade: number;
+  joyEat: number;
+  joyKill: number;
+  joyBirth: number;
+  joyContent: number;
+  joyFade: number;
+  tasteFade: number;
+  /**
+   * The curiosity gene (0 = off; needs feelings): the 35th gene. Every noveltyEvery ticks each animal notes the
+   * square it is in (squares noveltyCellSize across) among the last eight it noted; a square not among them gives
+   * curiosityJoy x gene of joy. Nothing else rewards it: if exploring pays, curiosity rises (this is where play
+   * could emerge). It costs curiosityCost x gene a tick (sensing line). Founders start at initialCuriosity.
+   */
+  curiosity: number;
+  curiosityJoy: number;
+  curiosityCost: number;
+  initialCuriosity: number;
+  noveltyEvery: number;
+  noveltyCellSize: number;
+  /** With learning brains and feelings: the learning reward is the energy change plus joy minus pain (0 = energy change only). */
+  learnFeelings: number;
 
   // --- Terrain (off by default) ---
   /**
@@ -1522,7 +1558,7 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   killCooldown: 20,
 
   brainMode: 0,
-  brainHidden: 8,
+  brainHidden: 4,
   brainHiddenMax: 16,
   brainDepth: 0,
   brainWaterRange: 64,
@@ -1571,6 +1607,23 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   preyAttention: 0,
   attentionCost: 0.001,
   initialAttention: 0,
+  feelings: 0,
+  painHit: 1,
+  painInjury: 1,
+  painFade: 0.9,
+  joyEat: 20,
+  joyKill: 0.5,
+  joyBirth: 1,
+  joyContent: 0.02,
+  joyFade: 0.9,
+  tasteFade: 0.9,
+  curiosity: 0,
+  curiosityJoy: 0.3,
+  curiosityCost: 0.001,
+  initialCuriosity: 0,
+  noveltyEvery: 20,
+  noveltyCellSize: 16,
+  learnFeelings: 0,
   terrainMode: 0,
   terrainScale: 8,
   terrainWaterFraction: 0.25,
@@ -2427,6 +2480,20 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (c.preyAttention !== 0 && c.preyAttention !== 1) problems.push("preyAttention must be 0 or 1");
   if (c.preyAttention === 1 && (c.brainMode === 0 || c.brainAppetiteSenses !== 1)) problems.push("preyAttention needs brains and brainAppetiteSenses 1 (it tunes the appetite senses)");
   if (!(c.attentionCost >= 0) || !(c.initialAttention >= 0 && c.initialAttention <= 1)) problems.push("attentionCost cannot be negative, and initialAttention must be between 0 and 1");
+  if (c.feelings !== 0 && c.feelings !== 1) problems.push("feelings must be 0 or 1");
+  else if (c.feelings === 1 && c.brainMode === 0) problems.push("feelings needs brains (feelings are brain senses)");
+  for (const [name, value] of [["painHit", c.painHit], ["painInjury", c.painInjury], ["joyEat", c.joyEat], ["joyKill", c.joyKill], ["joyBirth", c.joyBirth], ["joyContent", c.joyContent], ["curiosityJoy", c.curiosityJoy], ["curiosityCost", c.curiosityCost]] as const) {
+    if (!(value >= 0)) problems.push(`${name} cannot be negative`);
+  }
+  for (const [name, value] of [["painFade", c.painFade], ["joyFade", c.joyFade], ["tasteFade", c.tasteFade], ["initialCuriosity", c.initialCuriosity]] as const) {
+    if (!(value >= 0 && value <= 1)) problems.push(`${name} must be between 0 and 1`);
+  }
+  if (c.curiosity !== 0 && c.curiosity !== 1) problems.push("curiosity must be 0 or 1");
+  else if (c.curiosity === 1 && c.feelings !== 1) problems.push("curiosity needs feelings (it gives joy)");
+  if (!Number.isInteger(c.noveltyEvery) || c.noveltyEvery < 1) problems.push("noveltyEvery must be a whole number of 1 or more");
+  if (!(c.noveltyCellSize > 0)) problems.push("noveltyCellSize must be positive");
+  if (c.learnFeelings !== 0 && c.learnFeelings !== 1) problems.push("learnFeelings must be 0 or 1");
+  else if (c.learnFeelings === 1 && c.feelings !== 1) problems.push("learnFeelings needs feelings");
   if (c.scentDeposit < 0) problems.push("scentDeposit cannot be negative");
   if (!(c.scentDecay > 0 && c.scentDecay <= 1)) problems.push("scentDecay must be above 0 and at most 1");
   if (!(c.scentCellSize > 0) || c.worldWidth % c.scentCellSize !== 0 || c.worldHeight % c.scentCellSize !== 0) {
