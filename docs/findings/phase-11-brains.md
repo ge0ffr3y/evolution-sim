@@ -67,7 +67,14 @@ Brains are nowhere near their limits: bigger brains do not pay yet.
 - **Brains grew deeper, not bigger.** Nearly every brain grew a loop (a unit holding its value between thoughts), chains up to six units deep appeared in every world, and thinking units rose by half, but connections barely rose and the most complex brain is no bigger. Brains read fewer different senses (3.6 to 3.9 against 4.8): they lean on held thoughts more than on extra inputs.
 - **Joy is the one new sense evolution clearly wants**, most of all alongside the eye gene and vigilance.
 - **Disease fell by up to half** (23% sick to 11%), the strongest single effect (2.9 noise units with learning). Why is not known yet: the feelings or crowding senses could help animals keep apart, or the new costs thin the population that spreads disease. Worth a closer look before claiming a cause.
-- **Eyes narrow for everyone.** With the eye gene, plant eaters' eyes narrow too (0.70 to 0.74, narrower than today's), and meat and mixed eaters a little more (0.79); the link with diet is weak (correlation 0.14 to 0.19), as in Phase 9. Wide grazer eyes did not evolve: seeing far still pays every animal more than seeing around.
+- **Eyes narrow with meat in the diet (corrected, animal by animal).** The group averages above use "diet gene under 0.25" for plant eaters, and almost every animal is a slight mixed eater: only 7% have a diet gene under 0.02. Looked at animal by animal in the saved final worlds (eye gene + vigilance arm, 16,421 animals):
+
+  | Diet gene | 0 to 0.02 | 0.02 to 0.05 | 0.05 to 0.1 | 0.1 to 0.2 | 0.2 to 0.3 | 0.3 to 0.5 | 0.5 and up |
+  |---|---|---|---|---|---|---|---|
+  | Animals | 1,103 | 1,601 | 3,351 | 6,434 | 2,890 | 938 | 104 |
+  | Average eye (0.5 = today's, 1 = narrowest) | 0.50 | 0.54 | 0.64 | 0.74 | 0.81 | 0.83 | 0.84 |
+
+  Pure plant eaters keep today's eye on average, with a wide spread (the widest tenth at 0.11 or below, close to the widest eye). The eye narrows steadily with the diet gene up to about 0.3, then levels off. The link is stronger than in Phase 9 (correlation 0.36 against 0.24). It follows the diet gene (what an animal is built to eat) more than the meat it actually ate (correlation 0.20). In 3 of 16 worlds (seeds 4209 to 4211) pure grazers went clearly wide (0.24 to 0.33) while the rest stayed narrow. With learning on, the split mostly disappears (pure plant eaters 0.71, correlation 0.16). So narrow eyes for everyone is mostly because nearly everyone eats a little meat; wide eyes stay rare because pure grazers are rare.
 - **No meat eaters.** As with appetite tuning, the brakes on meat eating in the grand world are not in the brains.
 - **Costs:** 5 to 14% fewer animals, a few percent fewer species, and the simulation runs about 14% slower.
 
