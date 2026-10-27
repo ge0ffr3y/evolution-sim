@@ -1,0 +1,15 @@
+{
+  "name": "phase-11-package",
+  "question": "Phase 11, the whole brain package in the grand world: deeper brains (32 units, depth and loops), feelings and curiosity, better eyes with the focus action, surroundings and calls. Alone, with the eye gene and vigilance (so eyes can split by diet), and with learning brains that learn from joy and pain. Do brains grow beyond today's (12.5 connections, biggest 22), which new senses get used, do eyes split by diet (narrow for meat eaters, wide for plant eaters), do lasting meat eaters appear, and at what cost to species and population? 16 fresh seeds, 500,000 ticks.",
+  "base": "grand-world",
+  "ticks": 500000,
+  "seeds": "4201-4216",
+  "sampleEvery": 2500,
+  "arms": {
+    "control": {},
+    "brains": { "brainDepth": 1, "brainHiddenMax": 32, "feelings": 1, "curiosity": 1, "richVision": 1, "focusAction": 1, "worldSenses": 1, "calls": 1 },
+    "brains-eyes": { "brainDepth": 1, "brainHiddenMax": 32, "feelings": 1, "curiosity": 1, "richVision": 1, "focusAction": 1, "worldSenses": 1, "calls": 1, "eyeMode": 1, "vigilance": 1 },
+    "brains-eyes-learning": { "brainDepth": 1, "brainHiddenMax": 32, "feelings": 1, "curiosity": 1, "richVision": 1, "focusAction": 1, "worldSenses": 1, "calls": 1, "eyeMode": 1, "vigilance": 1, "brainLearning": 1, "learnFeelings": 1 }
+  },
+  "measures": ["all"]
+}
