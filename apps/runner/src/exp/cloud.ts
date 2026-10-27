@@ -22,9 +22,9 @@ export const TAG = { Key: "Project", Value: "evolution-sim" };
 /**
  * The monthly spending cap. The whole AWS account's spend counts toward it, including other projects'
  * cloud runs (since 2026-10-23 another simulation project runs there too, and the owner raised the budget
- * alert from $50 to $100).
+ * alert from $50 to $100; on 2026-10-27 to $150).
  */
-export const MONTHLY_CAP = 100;
+export const MONTHLY_CAP = 150;
 /** The machine is stopped for good at the estimated time times this (the estimate already allows for slow runs). */
 export const HARD_STOP_FACTOR = 1.3;
 /** Results in S3 are deleted after this many days. */

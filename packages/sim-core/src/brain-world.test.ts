@@ -865,3 +865,35 @@ describe("measuring purposeful behavior", () => {
     expect(towardSum / total).toBeLessThan(0.7);
   });
 });
+
+describe("brain census (watch only)", () => {
+  it("names the most complex brain alive and counts the senses brains read", () => {
+    const sim = new Simulation(1, stage({ initialOrganisms: 3 }));
+    // Organism 1: a thinking unit fed by two senses, plus a direct line from one of them (3 connections, 2 senses).
+    wire(sim, 1, INPUT.bias, HIDDEN_START, 1);
+    wire(sim, 1, INPUT.smellPlantSide, HIDDEN_START, 1);
+    wire(sim, 1, HIDDEN_START, TURN, 1);
+    wire(sim, 1, INPUT.bias, SPEED, 1);
+    // Organism 2: one direct line from a third sense.
+    wire(sim, 2, INPUT.energy, SPEED, 1);
+    const b = sim.stats().brain;
+    expect(b.biggest).toEqual({ id: sim.id[1], hidden: 1, connections: 4, senses: 2 });
+    expect(b.sensesInUse).toBe(3);
+    expect(b.sensesPerBrain).toBeCloseTo((0 + 2 + 1) / 3, 10);
+  });
+
+  it("is zero without brains, and asking for it changes nothing in the world", () => {
+    const none = new Simulation(1, { worldWidth: 64, worldHeight: 64, initialOrganisms: 20, brainMode: 0 });
+    expect(none.stats().brain.biggest.connections).toBe(0);
+    expect(none.stats().brain.sensesInUse).toBe(0);
+    const watched = new Simulation(4, { worldWidth: 128, worldHeight: 128, initialOrganisms: 60, brainMode: 2 });
+    const quiet = new Simulation(4, { worldWidth: 128, worldHeight: 128, initialOrganisms: 60, brainMode: 2 });
+    for (let k = 0; k < 10; k++) {
+      watched.run(200);
+      quiet.run(200);
+      watched.stats();
+    }
+    expect(watched.fingerprint()).toBe(quiet.fingerprint());
+    expect(watched.stats().brain.biggest.connections).toBeGreaterThan(0);
+  });
+});

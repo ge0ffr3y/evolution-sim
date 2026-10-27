@@ -6,10 +6,14 @@ import type { Rng } from "./rng";
  *
  * A brain is a list of connections (from node, to node, weight). Nodes are numbered:
  *   inputs   0 .. INPUT_COUNT-1           what the organism senses
- *   hidden   INPUT_COUNT .. +HIDDEN_MAX-1 optional thinking units (a single layer)
+ *   hidden   INPUT_COUNT .. +HIDDEN_MAX-1 optional thinking units
  *   outputs  after the hidden slots       what the organism does
- * Allowed connections are input->hidden, input->output and hidden->output, so a
- * brain can never loop back on itself.
+ * Allowed connections are input->hidden, input->output and hidden->output. With depth
+ * (brainDepth, Phase 11) a thinking unit can also feed another one: units are worked out in
+ * number order, so a unit feeding a later one passes on this thought's value (depth), and a
+ * unit feeding itself or an earlier one passes on its value from the previous thought (a loop,
+ * which is how a brain can hold a thought). Nothing ever waits on itself, so a thought always
+ * finishes in one pass.
  *
  * Mode 1 ("fixed layout"): every possible input->hidden and hidden->output
  * connection exists from birth, and only the weights evolve.
@@ -122,10 +126,61 @@ export const INPUT = {
   mateScentSide: VISION_INPUTS + 58,
   /** How full its stomach is (0 empty, 1 full; 0 without the gut). */
   fullness: VISION_INPUTS + 59,
-  bias: VISION_INPUTS + 60,
-  noise: VISION_INPUTS + 61,
+  /**
+   * Feelings and body (Phase 11, the feelings setting; all 0 without it): pain (0 to 1) and which way it came
+   * from (ahead and left, scaled by how strong it is), joy (0 to 1), feeling sick (0 or 1), ready to breed
+   * (0 or 1) and the taste of the last bite (-1 harmful to +1 good).
+   */
+  pain: VISION_INPUTS + 60,
+  painAhead: VISION_INPUTS + 61,
+  painSide: VISION_INPUTS + 62,
+  joy: VISION_INPUTS + 63,
+  sick: VISION_INPUTS + 64,
+  ready: VISION_INPUTS + 65,
+  taste: VISION_INPUTS + 66,
+  /**
+   * Better eyes (Phase 11, richVision; all 0 without it). For each of the ten things the eyes report (ray k,
+   * smaller then bigger: slot start + k x 2 + 0 or 1): how like its own colour it is (rayColour, -1 to 1) and
+   * whether it is coming toward it (+) or moving away (-) (rayMotion). Then how many smaller and bigger animals
+   * are in view, the nearest animal close behind (outside the view: how near, bigger + or smaller -), how much
+   * plant food lies at the edge of sight (ahead, ahead-left, ahead-right), and the focused target (focus
+   * action): which way, how near, coming closer or not.
+   */
+  rayColour: VISION_INPUTS + 67,
+  rayMotion: VISION_INPUTS + 77,
+  countSmaller: VISION_INPUTS + 87,
+  countBigger: VISION_INPUTS + 88,
+  behindNear: VISION_INPUTS + 89,
+  behindBigger: VISION_INPUTS + 90,
+  plantSightAhead: VISION_INPUTS + 91,
+  plantSightLeft: VISION_INPUTS + 92,
+  plantSightRight: VISION_INPUTS + 93,
+  focusAhead: VISION_INPUTS + 94,
+  focusSide: VISION_INPUTS + 95,
+  focusNear: VISION_INPUTS + 96,
+  focusClosing: VISION_INPUTS + 97,
+  /**
+   * Surroundings (Phase 11, worldSenses; all 0 without it): how crowded it is around (animals of any kind),
+   * ground tremor (bigger animals moving nearby, felt without seeing them), daylight (+1 midday, -1 midnight;
+   * 0 in worlds without days) and a compass (facing north +, facing east +).
+   */
+  crowding: VISION_INPUTS + 98,
+  tremor: VISION_INPUTS + 99,
+  light: VISION_INPUTS + 100,
+  compassNorth: VISION_INPUTS + 101,
+  compassEast: VISION_INPUTS + 102,
+  /**
+   * Hearing (Phase 11, calls; all 0 without it): the loudest call heard (0 to 1, fading with distance), which
+   * way it came from (ahead, left) and how like its own colour the caller is (-1 to 1).
+   */
+  hearLoud: VISION_INPUTS + 103,
+  hearAhead: VISION_INPUTS + 104,
+  hearSide: VISION_INPUTS + 105,
+  hearKin: VISION_INPUTS + 106,
+  bias: VISION_INPUTS + 107,
+  noise: VISION_INPUTS + 108,
 } as const;
-export const INPUT_COUNT = VISION_INPUTS + 62;
+export const INPUT_COUNT = VISION_INPUTS + 109;
 /**
  * Every brain layout so far, oldest first, so a saved world from any of them can be renumbered.
  * Each step inserted its new inputs at `insertedAt` (where the bias input was), so nodes below
@@ -140,21 +195,37 @@ export const BRAIN_LAYOUTS: readonly { inputs: number; slots: number; insertedAt
   { inputs: VISION_INPUTS + 59, slots: 768, insertedAt: VISION_INPUTS + 56 }, // Phase 9: the fat-reserve sense
   { inputs: VISION_INPUTS + 61, slots: 768, insertedAt: VISION_INPUTS + 57 }, // Phase 9: mate scent
   { inputs: VISION_INPUTS + 62, slots: 768, insertedAt: VISION_INPUTS + 59 }, // Phase 9: stomach fullness
+  { inputs: VISION_INPUTS + 69, slots: 768, insertedAt: VISION_INPUTS + 60 }, // Phase 11: feelings and body (pain, joy, sick, ready, taste)
+  { inputs: VISION_INPUTS + 100, slots: 768, insertedAt: VISION_INPUTS + 67 }, // Phase 11: better eyes (colour, motion, count, behind, plants by sight, focus); the focus output was added after the others
+  { inputs: VISION_INPUTS + 105, slots: 768, insertedAt: VISION_INPUTS + 98 }, // Phase 11: surroundings (crowding, tremor, light, compass)
+  { inputs: VISION_INPUTS + 109, slots: 768, insertedAt: VISION_INPUTS + 103 }, // Phase 11: hearing (the call output was added after the others)
 ];
-/** The node number in today's layout of a node saved with an older layout (identified by its input count). */
-export function renumberOldNode(node: number, savedInputs: number): number {
+/** Room for thinking units before Phase 11 (worlds saved then have their actions straight after 16 units). */
+export const OLD_HIDDEN_MAX = 16;
+/**
+ * The node number in today's layout of a node saved with an older layout (identified by its input count and
+ * its room for thinking units). Inputs inserted since then move everything after them up; more room for
+ * thinking units moves the actions up.
+ */
+export function renumberOldNode(node: number, savedInputs: number, savedHidden = OLD_HIDDEN_MAX): number {
   let n = node;
   for (let k = 1; k < BRAIN_LAYOUTS.length; k++) {
     const step = BRAIN_LAYOUTS[k]!;
     if (savedInputs >= step.inputs) continue;
     if (n >= step.insertedAt) n += step.inputs - BRAIN_LAYOUTS[k - 1]!.inputs;
   }
+  // n is now numbered with today's inputs but the saved room for units: actions come after savedHidden units.
+  if (n >= INPUT_COUNT + savedHidden) n += HIDDEN_MAX - savedHidden;
   return n;
 }
 /** Memory cells: the brain's last four memory outputs come back as inputs next time it thinks. */
 export const MEMORY_COUNT = 4;
 
-export const HIDDEN_MAX = 16;
+/**
+ * Room for this many thinking units per brain (Phase 11; it was 16). How many a world allows is set by
+ * brainHiddenMax (16 by default, so older worlds play out as before).
+ */
+export const HIDDEN_MAX = 64;
 export const HIDDEN_START = INPUT_COUNT;
 export const OUTPUT_START = INPUT_COUNT + HIDDEN_MAX;
 /**
@@ -162,9 +233,12 @@ export const OUTPUT_START = INPUT_COUNT + HIDDEN_MAX;
  * instead of overwriting: 0 or above means overwrite (what every brain did before), below 0 means
  * hold, up to wmKeepMax at -1. They come last, so adding them moved no other node.
  */
-export const OUTPUT = { turn: 0, speed: 1, attack: 2, memory0: 3, memory1: 4, memory2: 5, memory3: 6, gate0: 7, gate1: 8, gate2: 9, gate3: 10 } as const;
-export const OUTPUT_COUNT = 11;
+export const OUTPUT = { turn: 0, speed: 1, attack: 2, memory0: 3, memory1: 4, memory2: 5, memory3: 6, gate0: 7, gate1: 8, gate2: 9, gate3: 10, focus: 11, call: 12 } as const;
+/** (focus and call, Phase 11, came last, so adding them moved no other node.) */
+export const OUTPUT_COUNT = 13;
 export const NODE_COUNT = OUTPUT_START + OUTPUT_COUNT;
+/** Node numbers are stored in single bytes (Uint8Array), so there can be at most 256 nodes. A test checks this. */
+export const NODE_LIMIT = 256;
 
 /**
  * Most connections one brain can hold. A fully wired fixed-layout brain needs
@@ -188,6 +262,12 @@ export function inputLabel(index: number): string {
     const where = ["far right", "right", "ahead", "left", "far left"][ray]!;
     const what = ["smaller: near", "smaller: meaty", "bigger: near", "bigger: meaty"][channel]!;
     return `see ${where} ${what}`;
+  }
+  if (index >= INPUT.rayColour && index < INPUT.rayMotion + 2 * RAY_COUNT) {
+    const colour = index < INPUT.rayMotion;
+    const k = index - (colour ? INPUT.rayColour : INPUT.rayMotion);
+    const where = ["far right", "right", "ahead", "left", "far left"][Math.floor(k / 2)]!;
+    return `see ${where} ${k % 2 === 0 ? "smaller" : "bigger"}: ${colour ? "my colour" : "coming closer"}`;
   }
   const names: Record<number, string> = {
     [INPUT.smellPlantAhead]: "smell plants: ahead",
@@ -250,13 +330,40 @@ export function inputLabel(index: number): string {
     [INPUT.mateScentAhead]: "mate scent: ahead",
     [INPUT.mateScentSide]: "mate scent: left",
     [INPUT.fullness]: "my stomach: how full",
+    [INPUT.pain]: "pain",
+    [INPUT.painAhead]: "pain from: ahead",
+    [INPUT.painSide]: "pain from: left",
+    [INPUT.joy]: "joy",
+    [INPUT.sick]: "feeling sick",
+    [INPUT.ready]: "ready to breed",
+    [INPUT.taste]: "taste of last bite",
+    [INPUT.countSmaller]: "how many smaller in view",
+    [INPUT.countBigger]: "how many bigger in view",
+    [INPUT.behindNear]: "something behind: how near",
+    [INPUT.behindBigger]: "something behind: bigger",
+    [INPUT.plantSightAhead]: "plants in sight: ahead",
+    [INPUT.plantSightLeft]: "plants in sight: ahead-left",
+    [INPUT.plantSightRight]: "plants in sight: ahead-right",
+    [INPUT.focusAhead]: "focused target: ahead",
+    [INPUT.focusSide]: "focused target: left",
+    [INPUT.focusNear]: "focused target: how near",
+    [INPUT.focusClosing]: "focused target: coming closer",
+    [INPUT.crowding]: "crowding",
+    [INPUT.tremor]: "ground tremor",
+    [INPUT.light]: "daylight",
+    [INPUT.compassNorth]: "compass: facing north",
+    [INPUT.compassEast]: "compass: facing east",
+    [INPUT.hearLoud]: "hear a call: how loud",
+    [INPUT.hearAhead]: "hear a call: ahead",
+    [INPUT.hearSide]: "hear a call: left",
+    [INPUT.hearKin]: "hear a call: my colour",
     [INPUT.bias]: "bias",
     [INPUT.noise]: "noise",
   };
   return names[index] ?? `input ${index}`;
 }
 
-export const OUTPUT_LABELS = ["turn left", "speed", "attack", "write memory 1", "write memory 2", "write memory 3", "write memory 4", "hold memory 1", "hold memory 2", "hold memory 3", "hold memory 4"] as const;
+export const OUTPUT_LABELS = ["turn left", "speed", "attack", "write memory 1", "write memory 2", "write memory 3", "write memory 4", "hold memory 1", "hold memory 2", "hold memory 3", "hold memory 4", "focus", "call"] as const;
 
 /** A smooth squashing function between -1 and 1, built from exact arithmetic only. */
 export function soft(x: number): number {
@@ -279,17 +386,29 @@ export function evaluateBrain(
   outputs: Float64Array,
   /** Where this brain's weights start in `weight`, if not at `base` (a learning brain passes its own working copy). */
   weightBase = base,
+  /**
+   * Depth (brainDepth): each unit's value from the previous thought, at `stateBase` (updated here). Without it,
+   * thinking units take only inputs, exactly as before Phase 11.
+   */
+  state: Float32Array | null = null,
+  stateBase = 0,
 ): void {
   hidden.fill(0);
   outputs.fill(0);
-  // Pass 1: everything feeding a hidden unit comes from an input.
-  for (let c = 0; c < count; c++) {
-    const w = weight[weightBase + c]!;
-    if (w < prune && w > -prune) continue;
-    const target = to[base + c]!;
-    if (target < OUTPUT_START) hidden[target - HIDDEN_START] = hidden[target - HIDDEN_START]! + inputs[from[base + c]!]! * w;
+  if (state) {
+    thinkDeep(from, to, weight, base, count, prune, inputs, hidden, weightBase, state, stateBase);
+  } else {
+    // Pass 1: everything feeding a hidden unit comes from an input. (Unit-to-unit wiring, which only grows with
+    // depth, is ignored here, so a deep brain run without depth still thinks with what it can.)
+    for (let c = 0; c < count; c++) {
+      const w = weight[weightBase + c]!;
+      if (w < prune && w > -prune) continue;
+      const target = to[base + c]!;
+      const source = from[base + c]!;
+      if (target < OUTPUT_START && source < INPUT_COUNT) hidden[target - HIDDEN_START] = hidden[target - HIDDEN_START]! + inputs[source]! * w;
+    }
+    for (let h = 0; h < HIDDEN_MAX; h++) hidden[h] = soft(hidden[h]!);
   }
-  for (let h = 0; h < HIDDEN_MAX; h++) hidden[h] = soft(hidden[h]!);
   // Pass 2: outputs gather from inputs and from hidden units.
   for (let c = 0; c < count; c++) {
     const w = weight[weightBase + c]!;
@@ -302,6 +421,56 @@ export function evaluateBrain(
     }
   }
   for (let o = 0; o < OUTPUT_COUNT; o++) outputs[o] = soft(outputs[o]!);
+}
+
+/**
+ * Thinking units with depth and loops (see the top of this file). First every unit gathers its inputs, and
+ * the loops: values from itself or a later unit, as they were at the end of the previous thought. Then the
+ * units are finished in number order, each also taking this thought's value from earlier units that feed it.
+ * Finally each unit's value is kept for the next thought.
+ */
+function thinkDeep(
+  from: Uint8Array,
+  to: Uint8Array,
+  weight: Float32Array,
+  base: number,
+  count: number,
+  prune: number,
+  inputs: Float64Array,
+  hidden: Float64Array,
+  weightBase: number,
+  state: Float32Array,
+  stateBase: number,
+): void {
+  let forward = 0;
+  for (let c = 0; c < count; c++) {
+    const w = weight[weightBase + c]!;
+    if (w < prune && w > -prune) continue;
+    const target = to[base + c]!;
+    if (target >= OUTPUT_START) continue;
+    const t = target - HIDDEN_START;
+    const source = from[base + c]!;
+    if (source < INPUT_COUNT) hidden[t] = hidden[t]! + inputs[source]! * w;
+    else if (source - HIDDEN_START >= t) hidden[t] = hidden[t]! + state[stateBase + source - HIDDEN_START]! * w;
+    else forward++;
+  }
+  if (forward === 0) {
+    for (let h = 0; h < HIDDEN_MAX; h++) hidden[h] = soft(hidden[h]!);
+  } else {
+    for (let h = 0; h < HIDDEN_MAX; h++) {
+      // Units before this one are already finished, so their values this thought can be passed on.
+      for (let c = 0; c < count; c++) {
+        if (to[base + c] !== HIDDEN_START + h) continue;
+        const source = from[base + c]!;
+        if (source < INPUT_COUNT || source - HIDDEN_START >= h) continue;
+        const w = weight[weightBase + c]!;
+        if (w < prune && w > -prune) continue;
+        hidden[h] = hidden[h]! + hidden[source - HIDDEN_START]! * w;
+      }
+      hidden[h] = soft(hidden[h]!);
+    }
+  }
+  for (let h = 0; h < HIDDEN_MAX; h++) state[stateBase + h] = hidden[h]!;
 }
 
 /**
@@ -368,8 +537,8 @@ export interface BrainSize {
 
 /** Count a brain's working parts, ignoring connections too weak to matter. */
 export function measureBrain(from: Uint8Array, to: Uint8Array, weight: Float32Array, base: number, count: number, prune: number): BrainSize {
-  let hasIn = 0;
-  let hasOut = 0;
+  const hasIn = scratchIn.fill(0);
+  const hasOut = scratchOut.fill(0);
   let connections = 0;
   for (let c = 0; c < count; c++) {
     const w = weight[base + c]!;
@@ -377,13 +546,16 @@ export function measureBrain(from: Uint8Array, to: Uint8Array, weight: Float32Ar
     connections++;
     const source = from[base + c]!;
     const target = to[base + c]!;
-    if (target < OUTPUT_START) hasIn |= 1 << (target - HIDDEN_START);
-    if (source >= HIDDEN_START && source < OUTPUT_START) hasOut |= 1 << (source - HIDDEN_START);
+    if (target >= HIDDEN_START && target < OUTPUT_START) hasIn[target - HIDDEN_START] = 1;
+    if (source >= HIDDEN_START && source < OUTPUT_START) hasOut[source - HIDDEN_START] = 1;
   }
   let hidden = 0;
-  for (let h = 0; h < HIDDEN_MAX; h++) if ((hasIn & hasOut & (1 << h)) !== 0) hidden++;
+  for (let h = 0; h < HIDDEN_MAX; h++) if (hasIn[h] === 1 && hasOut[h] === 1) hidden++;
   return { hidden, connections };
 }
+/** Scratch flags for measureBrain and usedUnits (one per thinking unit; never part of the world). */
+const scratchIn = new Uint8Array(HIDDEN_MAX);
+const scratchOut = new Uint8Array(HIDDEN_MAX);
 
 /** Fill a brain with every possible input->hidden and hidden->output connection, all at weight zero. */
 export function initFixedBrain(from: Uint8Array, to: Uint8Array, weight: Float32Array, base: number, hiddenUnits: number): number {
@@ -426,16 +598,18 @@ function clampWeight(w: number): number {
   return w > WEIGHT_LIMIT ? WEIGHT_LIMIT : w < -WEIGHT_LIMIT ? -WEIGHT_LIMIT : w;
 }
 
-/** Which hidden units are used by at least one connection (bit mask). */
-function hiddenInUse(from: Uint8Array, to: Uint8Array, base: number, count: number): number {
-  let mask = 0;
+/** The hidden units used by at least one connection, lowest first. */
+function usedUnits(from: Uint8Array, to: Uint8Array, base: number, count: number): number[] {
+  const used = scratchIn.fill(0);
   for (let c = 0; c < count; c++) {
     const source = from[base + c]!;
     const target = to[base + c]!;
-    if (source >= HIDDEN_START && source < OUTPUT_START) mask |= 1 << (source - HIDDEN_START);
-    if (target >= HIDDEN_START && target < OUTPUT_START) mask |= 1 << (target - HIDDEN_START);
+    if (source >= HIDDEN_START && source < OUTPUT_START) used[source - HIDDEN_START] = 1;
+    if (target >= HIDDEN_START && target < OUTPUT_START) used[target - HIDDEN_START] = 1;
   }
-  return mask;
+  const list: number[] = [];
+  for (let h = 0; h < HIDDEN_MAX; h++) if (used[h] === 1) list.push(h);
+  return list;
 }
 
 function removeConnection(from: Uint8Array, to: Uint8Array, weight: Float32Array, base: number, count: number, index: number): number {
@@ -477,17 +651,21 @@ export function mutateBrain(
   if (mode !== 2) return count;
 
   // Add a connection between two things that may legally be connected.
+  const deep = c.brainDepth === 1;
   if (rng.next() < c.brainAddConnectionProb && count < CONN_MAX) {
-    const used = hiddenInUse(from, to, base, count);
+    const usedList = usedUnits(from, to, base, count);
     // Pick a kind: input->output, input->hidden, or hidden->output (the last two need a hidden unit in use).
+    // With depth, also hidden->hidden (a unit feeding a later one, itself, or an earlier one: see the top of this file).
     const kinds: number[] = [0];
-    if (used !== 0) kinds.push(1, 2);
+    if (usedList.length > 0) kinds.push(1, 2);
+    if (deep && usedList.length > 0) kinds.push(3);
     const kind = kinds[rng.int(kinds.length)]!;
     let source = 0;
     let target = 0;
-    const usedList: number[] = [];
-    for (let h = 0; h < HIDDEN_MAX; h++) if ((used & (1 << h)) !== 0) usedList.push(h);
-    if (kind === 0) {
+    if (kind === 3) {
+      source = HIDDEN_START + usedList[rng.int(usedList.length)]!;
+      target = HIDDEN_START + usedList[rng.int(usedList.length)]!;
+    } else if (kind === 0) {
       source = rng.int(INPUT_COUNT);
       target = OUTPUT_START + rng.int(OUTPUT_COUNT);
     } else if (kind === 1) {
@@ -506,17 +684,20 @@ export function mutateBrain(
   }
 
   // Add a hidden unit by splitting an input->output connection in two (the NEAT way).
+  // With depth, any connection can be split, so chains of units (depth) can grow.
   if (rng.next() < c.brainAddNodeProb && count + 2 <= CONN_MAX) {
-    const used = hiddenInUse(from, to, base, count);
+    const used = usedUnits(from, to, base, count);
     let free = -1;
-    for (let h = 0; h < HIDDEN_MAX; h++) {
-      if ((used & (1 << h)) === 0) {
-        free = h;
-        break;
+    for (let h = 0, k = 0; h < c.brainHiddenMax; h++) {
+      if (k < used.length && used[k] === h) {
+        k++;
+        continue;
       }
+      free = h;
+      break;
     }
     const direct: number[] = [];
-    for (let i = 0; i < count; i++) if (to[base + i]! >= OUTPUT_START && from[base + i]! < INPUT_COUNT) direct.push(i);
+    for (let i = 0; i < count; i++) if (deep || (to[base + i]! >= OUTPUT_START && from[base + i]! < INPUT_COUNT)) direct.push(i);
     if (free >= 0 && direct.length > 0) {
       const index = direct[rng.int(direct.length)]!;
       const source = from[base + index]!;
@@ -540,9 +721,7 @@ export function mutateBrain(
 
   // Remove a hidden unit and everything wired to it.
   if (rng.next() < c.brainRemoveNodeProb) {
-    const used = hiddenInUse(from, to, base, count);
-    const usedList: number[] = [];
-    for (let h = 0; h < HIDDEN_MAX; h++) if ((used & (1 << h)) !== 0) usedList.push(h);
+    const usedList = usedUnits(from, to, base, count);
     if (usedList.length > 0) {
       const node = HIDDEN_START + usedList[rng.int(usedList.length)]!;
       let i = 0;

@@ -19,6 +19,7 @@ import {
   CONN_MAX,
   BRAIN_LAYOUTS,
   renumberOldNode,
+  OLD_HIDDEN_MAX,
   HIDDEN_MAX,
   HIDDEN_START,
   INPUT,
@@ -110,12 +111,23 @@ export interface CostBreakdown {
   total: number;
 }
 
-/** How big evolved brains are, on average. */
+/** How big evolved brains are, on average, and the most complex one alive. */
 export interface BrainStats {
   /** Averages over everyone in each group: hidden units and working connections. */
   all: { hidden: number; connections: number };
   herbivores: { hidden: number; connections: number };
   carnivores: { hidden: number; connections: number };
+  /**
+   * The most complex brain alive: most working connections, then most thinking units, then the
+   * oldest id. `senses` is how many different inputs it reads. All zero when there are no brains.
+   */
+  biggest: { id: number; hidden: number; connections: number; senses: number };
+  /** How many different inputs at least one brain reads, and how many an average brain reads. */
+  sensesInUse: number;
+  sensesPerBrain: number;
+  /** Deeper brains (brainDepth): the longest chain of thinking units in any brain alive (1 = a single layer), and the share of brains with a loop. */
+  deepest: number;
+  loopShare: number;
 }
 
 /** One brain, for the brain viewer: its working connections and (if traced) what it is thinking right now. */
@@ -388,8 +400,21 @@ const SENSE_VISION = 1;
 const SENSE_SMELL = 2;
 const SENSE_BODY = 4;
 const SENSE_SOCIAL = 8;
+/** Crowding and ground tremor (worldSenses): need a count of the animals around. */
+const SENSE_AROUND = 16;
+/** Hearing (calls): needs a listen around for calls. */
+const SENSE_HEAR = 32;
 /** Room for this many remembered feeding places per animal (placeSlotsMax can allow fewer). */
 const PLACE_SLOTS = 4;
+/** Feelings (Phase 11): per organism, pain, the direction pain came from (x, y), joy and taste. */
+const FEEL_PAIN = 0;
+const FEEL_PAIN_X = 1;
+const FEEL_PAIN_Y = 2;
+const FEEL_JOY = 3;
+const FEEL_TASTE = 4;
+const FEEL_SLOTS = 5;
+/** Curiosity: the squares an animal noted lately (the last of the slots holds where the next one goes). */
+const NOVELTY_SLOTS = 8;
 /** Room for this many bonds per cell (the config can allow fewer). */
 const BOND_SLOTS = 6;
 
@@ -453,6 +478,65 @@ const EVENT_CHECK_EVERY = 10;
  * One call to step() is one tick. Everything is driven by the seeded Rng, so
  * the same seed and config always produce exactly the same history.
  */
+/** The per-organism arrays a world keeps, by kind, in the order they are saved (as "f32.0", "f32.1", ...). */
+export type OrganismLayout = Record<"f32" | "f64" | "u32" | "u16" | "u8", string[]>;
+
+/**
+ * Which per-organism arrays a world with these settings keeps, and their order. The world builds its lists from
+ * this, and loading uses it with a saved world's own settings to find each array by name, so a world saved with
+ * some features off can be loaded with them on. Keep the order: saved worlds depend on it.
+ */
+export function organismLayout(c: SimConfig): OrganismLayout {
+  const brains = c.brainMode > 0;
+  const bonds = c.multicellular === 1;
+  const f32 = ["x", "y", "headingX", "headingY", "size", "speed", "senseRange", "metabolism", "mutationRate", "diet", "attack", "armor", "basalCost", "moveCost", "senseCost", "attackCost", "attemptCost", "armorCost", "plantBite", "meatBite", "plantWeight", "meatWeight", "plantEff", "meatEff", "attackPower", "defense", "reach", "bodyEnergy", "bodyMatter", "threshold"];
+  if (brains) f32.push("brainCost", "outTurn", "outSpeed", "outAttack", "moveScale");
+  if (brains && c.sprintFatigue === 1) f32.push("stamina", "staminaMax", "staminaCost");
+  if (c.climateMode === 1 && c.thermalCostCoeff > 0) f32.push("thermalPref", "thermalScale");
+  if (c.agingCoeff > 0) f32.push("lifespan");
+  if (c.litterMax > 1) f32.push("litter");
+  if (c.kinTolerance === 1) f32.push("toleranceSq");
+  if (c.eyeMode === 1 && brains) f32.push("eyeHalf", "eyeReach");
+  if (brains && c.homeMode > 0) f32.push("homeX", "homeY");
+  if (brains && c.homeMode === 3) f32.push("homeValue");
+  if (brains && c.chemicals === 1) f32.push("chemIntake");
+  const f64 = ["energy", "plantTaken", "meatTaken"];
+  if (c.fatDepositRate > 0) f64.push("fatStore");
+  if (c.nutrientMode >= 1) f64.push("nutrientStore");
+  if (c.gutMode === 1) f64.push("gutMass", "gutEnergy");
+  if (c.drinking === 1) f32.push("hydration");
+  if (c.dietNutrients === 1) f64.push("dietA", "dietB", "dietC");
+  if (bonds && c.signaling === 1 && brains) f32.push("sharedThreatX", "sharedThreatY", "sharedThreatNear", "sharedFoodX", "sharedFoodY", "sharedFoodNear");
+  const u32 = ["id", "parentId", "age", "kills"];
+  if (c.speciesEvery > 0) u32.push("species");
+  if (c.sexualReproduction >= 1) u32.push("parent2Id");
+  const u8 = ["killed", "attempted"];
+  if (bonds && c.cellTypes === 1) {
+    u8.push("cellType");
+    f32.push("photoGain");
+  }
+  if (c.camouflageMode === 1) {
+    u8.push("hasImage");
+    f32.push("searchHue");
+  }
+  if (c.sexualReproduction === 2) u8.push("sexMode");
+  if (c.mutationLoadRate > 0) u32.push("loadMask");
+  if (c.toxinStrength > 0) {
+    f32.push("avoidStrength", "avoidHue", "lastKillHue");
+    u32.push("lastKillTick");
+  }
+  if (c.luckSpread > 0) f32.push("upkeepLuck", "fertilityLuck");
+  if (c.sexualReproduction === 2) u32.push("mateSince");
+  if (brains && c.chemicals === 1) u8.push("chemHit");
+  const u16 = ["resting"];
+  if (c.diseaseTransmission > 0) u16.push("infection", "sickFor", "immuneFor");
+  if (brains) {
+    u16.push("brainCount", "brainConnections");
+    u8.push("brainHidden", "brainSenses");
+  }
+  return { f32, f64, u32, u16, u8 };
+}
+
 export class Simulation {
   readonly config: SimConfig;
   readonly seed: number;
@@ -650,6 +734,9 @@ export class Simulation {
   /** Brain memory (what each brain wrote last time, MEMORY_COUNT numbers per organism) and the place each organism calls home. */
   private readonly memoryOn: boolean;
   private readonly memState: Float32Array;
+  /** Deeper brains (brainDepth): each thinking unit's value at the end of the last thought, HIDDEN_MAX per organism (for loops). */
+  private readonly depthOn: boolean;
+  private readonly brainState: Float32Array;
   /**
    * Learning brains (Phase 8f). learnOn: connections change during life; learnSensesOn: the learning
    * senses are offered; either one needs the reward bookkeeping (trackOn). For the first LEARN_SLOTS
@@ -842,6 +929,43 @@ export class Simulation {
   private pickyAlpha = 0;
   /** The eye (eyeMode): per organism, half the width of view (see EYE_TODAY) and how far it reaches compared with today's eye. */
   private readonly eyeOn: boolean;
+  /** Phase 11 appetite tuning: the attention gene is in use (preyAttention). */
+  private readonly attentionOn: boolean;
+  /** Phase 11 feelings: on, and per organism FEEL_SLOTS numbers (pain, its direction, joy, taste). */
+  private readonly feelOn: boolean;
+  private readonly feel: Float32Array;
+  /** Curiosity (the 35th gene): on, and the squares each animal noted lately (NOVELTY_SLOTS + 1 per organism). */
+  private readonly curiosityOn: boolean;
+  private readonly novelty: Int32Array;
+  /** Better eyes (richVision) and the focus action: on; each organism's last focus output and its locked target (index and id). */
+  private readonly richOn: boolean;
+  private readonly focusOn: boolean;
+  private readonly outFocus: Float32Array;
+  private readonly focusIdx: Int32Array;
+  private readonly focusId: Uint32Array;
+  /** Scratch while looking: how many smaller and bigger animals are in view, and the nearest one close behind. */
+  private visCountSmall = 0;
+  private visCountLarge = 0;
+  private visBehind = -1;
+  private visBehindDistSq = Infinity;
+  private visBehindLimitSq = 0;
+  /** Surroundings (worldSenses): on, and scratch while feeling around: how many nearby, and the tremor of bigger ones. */
+  private readonly worldSensesOn: boolean;
+  private aroundCount = 0;
+  private aroundTremor = 0;
+  private aroundCrowdSq = 0;
+  private aroundTremorSq = 0;
+  private aroundSize = 0;
+  /**
+   * Calls (calls): on; how loud each animal is calling now (from its last thought), and the same as it was at the
+   * start of this tick, which is what everyone hears (so the order animals think in never matters).
+   */
+  private readonly callsOn: boolean;
+  private readonly callNow: Float32Array;
+  private readonly callHeard: Float32Array;
+  /** Scratch while listening: the loudest call heard so far and who made it. */
+  private hearBest = 0;
+  private hearFrom = -1;
   private readonly eyeHalf: Float32Array;
   private readonly eyeReach: Float32Array;
   private visEyeHalf = 0;
@@ -1113,6 +1237,8 @@ export class Simulation {
   private seenCarnivore = false;
 
   // Arrays that must all move together when an organism is shuffled to a new slot.
+  /** The names of the per-organism arrays below, by kind, in saved order (organismLayout). */
+  private readonly layout: OrganismLayout;
   private readonly float32Fields: Float32Array[];
   private readonly float64Fields: Float64Array[];
   private readonly uint32Fields: Uint32Array[];
@@ -1287,6 +1413,20 @@ export class Simulation {
     this.rested = new Float32Array(this.restOn ? n : 0);
     this.hurt = new Float64Array(c.attackInjury > 0 ? n : 0);
     this.eyeOn = c.eyeMode === 1 && c.brainMode > 0;
+    this.attentionOn = c.preyAttention === 1 && c.brainMode > 0 && c.brainAppetiteSenses === 1;
+    this.feelOn = c.feelings === 1 && c.brainMode > 0;
+    this.feel = new Float32Array(this.feelOn ? n * FEEL_SLOTS : 0);
+    this.curiosityOn = this.feelOn && c.curiosity === 1;
+    this.novelty = new Int32Array(this.curiosityOn ? n * (NOVELTY_SLOTS + 1) : 0);
+    this.richOn = c.richVision === 1 && c.brainMode > 0;
+    this.worldSensesOn = c.worldSenses === 1 && c.brainMode > 0;
+    this.callsOn = c.calls === 1 && c.brainMode > 0;
+    this.callNow = new Float32Array(this.callsOn ? n : 0);
+    this.callHeard = new Float32Array(this.callsOn ? n : 0);
+    this.focusOn = c.focusAction === 1 && c.brainMode > 0;
+    this.outFocus = new Float32Array(this.focusOn ? n : 0);
+    this.focusIdx = new Int32Array(this.focusOn ? n : 0).fill(-1);
+    this.focusId = new Uint32Array(this.focusOn ? n : 0);
     this.eyeHalf = new Float32Array(this.eyeOn ? n : 0);
     this.eyeReach = new Float32Array(this.eyeOn ? n : 0);
     this.thermalScale = new Float32Array(this.thermalOn ? n : 0);
@@ -1336,6 +1476,8 @@ export class Simulation {
         (k === GENE.workingMemory && c.workingMemory === 1 && c.brainMemory === 1 && c.brainMode > 0) ||
         (k === GENE.pickiness && c.matePickiness === 1 && c.sexualReproduction >= 1) ||
         (k === GENE.eye && c.eyeMode === 1 && c.brainMode > 0) ||
+        (k === GENE.attention && this.attentionOn) ||
+        (k === GENE.curiosity && this.curiosityOn) ||
         ((k === GENE.stressResponse || k === GENE.calmResponse) && c.brainMode > 0 && c.chemicals === 1 && c.chemBodyEffects === 1),
     );
     this.kinLimitSq = c.kinDistance * c.kinDistance;
@@ -1397,6 +1539,8 @@ export class Simulation {
     this.torpid = new Float32Array(this.torporOn ? n : 0);
     this.memoryOn = c.brainMode > 0 && c.brainMemory === 1;
     this.memState = new Float32Array(this.memoryOn ? n * MEMORY_COUNT : 0);
+    this.depthOn = c.brainMode === 2 && c.brainDepth === 1;
+    this.brainState = new Float32Array(this.depthOn ? n * HIDDEN_MAX : 0);
     this.learnOn = c.brainMode > 0 && c.brainLearning === 1;
     this.learnSensesOn = c.brainMode > 0 && c.learnSenses === 1;
     this.trackOn = this.learnOn || this.learnSensesOn;
@@ -1445,13 +1589,13 @@ export class Simulation {
       if (name === "tolerance" || name === "sex" || name === "stressResponse" || name === "calmResponse" || name === "generosity") continue;
       // How much fat an animal banks can be left out too (fatRelated 0): physiology, not kind.
       if (name === "fat" && c.fatRelated === 0) continue;
-      // How choosy it is about mates is a behavior, not part of what kind of organism it is.
-      if (name === "pickiness") continue;
+      // How choosy it is about mates, and how closely it watches for prey, are behaviors, not part of what kind of organism it is.
+      if (name === "pickiness" || name === "attention" || name === "curiosity") continue;
       this.mateMask.push(GENE[name]);
     }
     this.species = new Uint32Array(c.speciesEvery > 0 ? n : 0);
     // Species, like compatibility, ignore tolerance of relatives: it is a behavior setting, not a kind of body.
-    const speciesGenes = this.activeGene.map((on, k) => on && k !== GENE.tolerance && k !== GENE.sex && k !== GENE.stressResponse && k !== GENE.calmResponse && k !== GENE.generosity && k !== GENE.signal && k !== GENE.learning && k !== GENE.placeMemory && k !== GENE.workingMemory && k !== GENE.pickiness && !(k === GENE.fat && c.fatRelated === 0));
+    const speciesGenes = this.activeGene.map((on, k) => on && k !== GENE.tolerance && k !== GENE.sex && k !== GENE.stressResponse && k !== GENE.calmResponse && k !== GENE.generosity && k !== GENE.signal && k !== GENE.learning && k !== GENE.placeMemory && k !== GENE.workingMemory && k !== GENE.pickiness && k !== GENE.attention && k !== GENE.curiosity && !(k === GENE.fat && c.fatRelated === 0));
     this.tracker = c.speciesEvery > 0 ? new SpeciesTracker(c, this.ranges, speciesGenes) : null;
     const staminaOrganisms = this.staminaOn ? n : 0;
     this.stamina = new Float32Array(staminaOrganisms);
@@ -1462,60 +1606,19 @@ export class Simulation {
     this.corpseOwner = new Uint32Array(guardCells);
     this.corpseOwnerUntil = new Uint32Array(guardCells);
 
-    this.float32Fields = [
-      this.x, this.y, this.headingX, this.headingY, this.size, this.speed, this.senseRange, this.metabolism,
-      this.mutationRate, this.diet, this.attack, this.armor, this.basalCost, this.moveCost, this.senseCost,
-      this.attackCost, this.attemptCost, this.armorCost, this.plantBite, this.meatBite, this.plantWeight,
-      this.meatWeight, this.plantEff, this.meatEff, this.attackPower, this.defense, this.reach,
-      this.bodyEnergy, this.bodyMatter, this.threshold,
-    ];
-    if (c.brainMode > 0) {
-      this.float32Fields.push(this.brainCost, this.outTurn, this.outSpeed, this.outAttack, this.moveScale);
-    }
-    if (this.staminaOn) this.float32Fields.push(this.stamina, this.staminaMax, this.staminaCost);
-    if (this.thermalOn) this.float32Fields.push(this.thermalPref, this.thermalScale);
-    if (this.agingOn) this.float32Fields.push(this.lifespan);
-    if (this.litterOn) this.float32Fields.push(this.litter);
-    if (this.kinToleranceOn) this.float32Fields.push(this.toleranceSq);
-    if (this.eyeOn) this.float32Fields.push(this.eyeHalf, this.eyeReach);
-    if (this.homeX.length > 0) this.float32Fields.push(this.homeX, this.homeY);
-    if (this.homeValue.length > 0) this.float32Fields.push(this.homeValue);
-
-    if (this.chemOn) this.float32Fields.push(this.chemIntake);
-    this.float64Fields = [this.energy, this.plantTaken, this.meatTaken];
-    if (this.fatOn) this.float64Fields.push(this.fatStore);
-    if (this.nutrientOn) this.float64Fields.push(this.nutrientStore);
-    if (this.gutOn) this.float64Fields.push(this.gutMass, this.gutEnergy);
-    if (this.drinkOn) this.float32Fields.push(this.hydration);
-    if (this.dietOn) this.float64Fields.push(this.dietA, this.dietB, this.dietC);
-    if (this.signalOn) this.float32Fields.push(this.sharedThreatX, this.sharedThreatY, this.sharedThreatNear, this.sharedFoodX, this.sharedFoodY, this.sharedFoodNear);
-    this.uint32Fields = [this.id, this.parentId, this.age, this.kills];
-    if (this.tracker) this.uint32Fields.push(this.species);
-    if (this.sexOn) this.uint32Fields.push(this.parent2Id);
-    this.uint8Fields = [this.killed, this.attempted];
-    if (this.typeOn) {
-      this.uint8Fields.push(this.cellType);
-      this.float32Fields.push(this.photoGain);
-    }
-    if (this.camoOn) {
-      this.uint8Fields.push(this.hasImage);
-      this.float32Fields.push(this.searchHue);
-    }
-    if (this.sexGeneOn) this.uint8Fields.push(this.sexMode);
-    if (this.loadOn) this.uint32Fields.push(this.loadMask);
-    if (this.toxOn) {
-      this.float32Fields.push(this.avoidStrength, this.avoidHue, this.lastKillHue);
-      this.uint32Fields.push(this.lastKillTick);
-    }
-    if (this.luckOn) this.float32Fields.push(this.upkeepLuck, this.fertilityLuck);
-    if (this.sexGeneOn) this.uint32Fields.push(this.mateSince);
-    if (this.chemOn) this.uint8Fields.push(this.chemHit);
-    this.uint16Fields = [this.resting];
-    if (this.diseaseOn) this.uint16Fields.push(this.infection, this.sickFor, this.immuneFor);
-    if (c.brainMode > 0) {
-      this.uint16Fields.push(this.brainCount, this.brainConnections);
-      this.uint8Fields.push(this.brainHidden, this.brainSenses);
-    }
+    // Per-organism arrays, by kind, in the order they are saved (see organismLayout).
+    this.layout = organismLayout(c);
+    const field = (name: string): SnapshotArray => {
+      const array = (this as unknown as Record<string, SnapshotArray>)[name];
+      // A name listed for these settings must be a full per-organism array (catches a layout out of step with the constructor).
+      if (!array || array.length < n) throw new Error(`organismLayout lists "${name}", but it is not a per-organism array in this world`);
+      return array;
+    };
+    this.float32Fields = this.layout.f32.map(field) as Float32Array[];
+    this.float64Fields = this.layout.f64.map(field) as Float64Array[];
+    this.uint32Fields = this.layout.u32.map(field) as Uint32Array[];
+    this.uint16Fields = this.layout.u16.map(field) as Uint16Array[];
+    this.uint8Fields = this.layout.u8.map(field) as Uint8Array[];
 
     // First generation: identical plant-eating, unarmed bodies with a random color each.
     const founder: number[] = new Array<number>(GENE_COUNT).fill(0);
@@ -1547,6 +1650,8 @@ export class Simulation {
     founder[GENE.workingMemory] = c.initialWorkingMemory;
     founder[GENE.pickiness] = c.initialPickiness;
     founder[GENE.eye] = c.initialEye;
+    founder[GENE.attention] = c.initialAttention;
+    founder[GENE.curiosity] = c.initialCuriosity;
     founder[GENE.generosity] = c.initialShare;
     for (let i = 0; i < c.initialOrganisms; i++) {
       let fx = this.rng.range(0, c.worldWidth);
@@ -2784,6 +2889,11 @@ export class Simulation {
     if (this.sexOn) this.parent2Id[i] = 0;
     if (this.sexGeneOn) this.sexMode[i] = 0;
     if (this.fatOn) this.fatStore[i] = 0;
+    if (this.feelOn) this.feel.fill(0, i * FEEL_SLOTS, (i + 1) * FEEL_SLOTS);
+    if (this.curiosityOn) {
+      this.novelty.fill(-1, i * (NOVELTY_SLOTS + 1), i * (NOVELTY_SLOTS + 1) + NOVELTY_SLOTS);
+      this.novelty[i * (NOVELTY_SLOTS + 1) + NOVELTY_SLOTS] = 0;
+    }
     if (this.gutOn) {
       this.gutMass[i] = 0;
       this.gutEnergy[i] = 0;
@@ -2812,6 +2922,7 @@ export class Simulation {
       this.fertilityLuck[i] = this.rollLuck();
     }
     if (this.memoryOn) this.memState.fill(0, i * MEMORY_COUNT, (i + 1) * MEMORY_COUNT);
+    if (this.depthOn) this.brainState.fill(0, i * HIDDEN_MAX, (i + 1) * HIDDEN_MAX);
     if (this.learnOn) {
       // A newborn has learned nothing yet (what its parents learned is not inherited).
       this.learnDelta.fill(0, i * LEARN_SLOTS, (i + 1) * LEARN_SLOTS);
@@ -2871,6 +2982,12 @@ export class Simulation {
       this.outAttack[i] = 0;
       this.moveScale[i] = 1;
     }
+    if (this.focusOn) {
+      this.outFocus[i] = 0;
+      this.focusIdx[i] = -1;
+      this.focusId[i] = 0;
+    }
+    if (this.callsOn) this.callNow[i] = 0;
     return i;
   }
 
@@ -2953,6 +3070,10 @@ export class Simulation {
     }
     // Being choosy about mates takes attention: a small cost on the sensing line.
     if (this.pickyOn) this.senseCost[i] = this.senseCost[i]! + c.pickinessCost * genes[g + GENE.pickiness]!;
+    // Paying attention to prey (the attention gene) is a small cost on the sensing line too.
+    if (this.attentionOn) this.senseCost[i] = this.senseCost[i]! + c.attentionCost * genes[g + GENE.attention]!;
+    // Curiosity (noticing what is new) is a small cost on the sensing line as well.
+    if (this.curiosityOn) this.senseCost[i] = this.senseCost[i]! + c.curiosityCost * genes[g + GENE.curiosity]!;
     if (this.eyeOn) {
       // The eye: wider (gene toward 0) sees more of the world around but less far; narrower (toward 1) the reverse.
       const e = genes[g + GENE.eye]!;
@@ -3318,6 +3439,9 @@ export class Simulation {
       if (source >= INPUT.chemReward && source <= INPUT.chemCalm) readsChem = true;
       if (source < INPUT.smellPlantAhead) senses |= SENSE_VISION;
       else if (source < INPUT.energy) senses |= SENSE_SMELL;
+      else if (source >= INPUT.rayColour && source <= INPUT.focusClosing) senses |= SENSE_VISION; // better eyes need a look around
+      else if (source === INPUT.crowding || source === INPUT.tremor) senses |= SENSE_AROUND;
+      else if (source >= INPUT.hearLoud && source <= INPUT.hearKin) senses |= SENSE_HEAR;
       else if (source >= INPUT.kinDensity && source <= INPUT.kinSide) senses |= SENSE_SOCIAL;
       else senses |= SENSE_BODY;
     }
@@ -3566,6 +3690,29 @@ export class Simulation {
   }
 
   /** What an organism notices when something is within sight: sorts it into the vision ray it falls in. */
+  /** Hearing: one animal near the listener (see think); a call carries loudness x callRange and fades with distance. */
+  private readonly hearCall = (index: number, distSq: number): void => {
+    if (index === this.visSelf || this.killed[index] === 1) return;
+    const loud = this.callHeard[index]!;
+    if (loud <= 0) return;
+    const reach = loud * this.config.callRange;
+    if (distSq >= reach * reach) return;
+    const level = loud * (1 - Math.sqrt(distSq) / reach);
+    if (level > this.hearBest) {
+      this.hearBest = level;
+      this.hearFrom = index;
+    }
+  };
+
+  /** Surroundings: one animal near the one feeling around (see think). */
+  private readonly feelAround = (index: number, distSq: number): void => {
+    if (index === this.visSelf || this.killed[index] === 1) return;
+    if (distSq <= this.aroundCrowdSq) this.aroundCount++;
+    if (distSq <= this.aroundTremorSq && this.size[index]! > this.aroundSize) {
+      this.aroundTremor += this.size[index]! * this.speed[index]! * this.moveScale[index]!;
+    }
+  };
+
   private readonly seeOther = (index: number, distSq: number): void => {
     if (index === this.visSelf || this.killed[index] === 1) return;
     if (this.camoOn && !this.detects(this.visSelf, index)) return; // well hidden
@@ -3586,20 +3733,37 @@ export class Simulation {
       // over its width. The angle is measured without trigonometry (see EYE_TODAY).
       const angle = forward >= 0 ? (forward + across > 0 ? across / (forward + across) : 0) : 2 - across / (across - forward);
       const half = this.visEyeHalf;
-      if (angle >= half) return; // outside this eye's view
+      if (angle >= half) {
+        // Outside this eye's view; better eyes still give a rough feel of something close behind.
+        if (this.richOn && distSq < this.visBehindDistSq && distSq <= this.visBehindLimitSq) {
+          this.visBehindDistSq = distSq;
+          this.visBehind = index;
+        }
+        return;
+      }
       if (angle < EYE_CUT1 * half) ray = 2;
       else if (angle < EYE_CUT2 * half) ray = side > 0 ? 3 : 1;
       else ray = side > 0 ? 4 : 0;
     } else {
-      if (forward <= 0) return; // behind me
       // Five rays, each 30 degrees wide: straight ahead, and two on each side. The cut-offs are
       // the tangents of 15, 45 and 75 degrees, so no trigonometry is needed.
-      if (across < 0.2679491924311227 * forward) ray = 2;
-      else if (across < forward) ray = side > 0 ? 3 : 1;
-      else if (across < 3.732050807568877 * forward) ray = side > 0 ? 4 : 0;
-      else return;
+      if (forward > 0 && across < 0.2679491924311227 * forward) ray = 2;
+      else if (forward > 0 && across < forward) ray = side > 0 ? 3 : 1;
+      else if (forward > 0 && across < 3.732050807568877 * forward) ray = side > 0 ? 4 : 0;
+      else {
+        // Behind me or too far to the side (see above: a rough feel of something close behind).
+        if (this.richOn && distSq < this.visBehindDistSq && distSq <= this.visBehindLimitSq) {
+          this.visBehindDistSq = distSq;
+          this.visBehind = index;
+        }
+        return;
+      }
     }
     // Is it something a hunter of my size could handle, or something bigger?
+    if (this.richOn) {
+      if (this.size[index]! <= this.visSizeLimit) this.visCountSmall++;
+      else this.visCountLarge++;
+    }
     if (this.size[index]! <= this.visSizeLimit) {
       if (distSq < this.rayDistSmall[ray]!) {
         this.rayDistSmall[ray] = distSq;
@@ -3629,9 +3793,12 @@ export class Simulation {
       this.outTurn[i] = 0;
       this.outSpeed[i] = 0;
       this.outAttack[i] = 0;
+      if (this.focusOn) this.outFocus[i] = 0;
+      if (this.callsOn) this.callNow[i] = 0;
       return;
     }
-    const seeing = (senses & SENSE_VISION) !== 0 || traced || publishing;
+    // (An animal holding a focus keeps looking, so it can find its target again.)
+    const seeing = (senses & SENSE_VISION) !== 0 || traced || publishing || (this.focusOn && this.outFocus[i]! > 0);
     const smelling = (senses & SENSE_SMELL) !== 0 || traced || publishing;
     inputs.fill(0);
     const x = this.x[i]!;
@@ -3656,6 +3823,14 @@ export class Simulation {
       this.visHx = hx;
       this.visHy = hy;
       this.visEyeHalf = this.eyeOn ? this.eyeHalf[i]! : 0;
+      if (this.richOn) {
+        this.visCountSmall = 0;
+        this.visCountLarge = 0;
+        this.visBehind = -1;
+        this.visBehindDistSq = Infinity;
+        const behind = range * c.behindRange;
+        this.visBehindLimitSq = behind * behind;
+      }
       this.hash.forEachNear(x, y, range, this.seeOther);
       for (let k = 0; k < RAY_COUNT; k++) {
         const slot = INPUT.visionStart + k * RAY_CHANNELS;
@@ -3669,8 +3844,36 @@ export class Simulation {
           inputs[slot + 2] = 1 - Math.sqrt(this.rayDistLarge[k]!) / range;
           inputs[slot + 3] = this.diet[larger]! * 2 - 1;
         }
+        if (this.richOn) {
+          // Better eyes: how like me each one looks, and whether it is coming my way.
+          for (let big = 0; big < 2; big++) {
+            const target = big === 0 ? smaller : larger;
+            if (target < 0) continue;
+            inputs[INPUT.rayColour + k * 2 + big] = this.colourLikeness(i, target);
+            inputs[INPUT.rayMotion + k * 2 + big] = this.comingCloser(i, target);
+          }
+        }
+      }
+      if (this.richOn) {
+        const half = c.visionCountHalf;
+        inputs[INPUT.countSmaller] = this.visCountSmall / (this.visCountSmall + half);
+        inputs[INPUT.countBigger] = this.visCountLarge / (this.visCountLarge + half);
+        const behind = this.visBehind;
+        if (behind >= 0) {
+          inputs[INPUT.behindNear] = 1 - Math.sqrt(this.visBehindDistSq / this.visBehindLimitSq);
+          inputs[INPUT.behindBigger] = this.size[behind]! > this.visSizeLimit ? 1 : -1;
+        }
       }
     }
+    if (this.richOn && seeing && range > 0.25) {
+      // Plants in sight: how much stands at the edge of sight, ahead and half-left and half-right.
+      const reach = range * c.plantSightReach;
+      const r = Math.SQRT1_2;
+      inputs[INPUT.plantSightAhead] = this.plantsAt(i, x + hx * reach, y + hy * reach);
+      inputs[INPUT.plantSightLeft] = this.plantsAt(i, x + (hx - hy) * r * reach, y + (hy + hx) * r * reach);
+      inputs[INPUT.plantSightRight] = this.plantsAt(i, x + (hx + hy) * r * reach, y + (hy - hx) * r * reach);
+    }
+    if (this.focusOn) this.trackFocus(i, seeing && range > 0.25, range, hx, hy);
 
     // Smell: which way do plants and corpses get stronger? (Compared across the four neighboring cells.)
     if (smelling) {
@@ -3762,6 +3965,8 @@ export class Simulation {
         this.outTurn[i] = 0;
         this.outSpeed[i] = 0;
         this.outAttack[i] = 0;
+        if (this.focusOn) this.outFocus[i] = 0;
+        if (this.callsOn) this.callNow[i] = 0;
         return;
       }
     }
@@ -3769,8 +3974,16 @@ export class Simulation {
     // Appetite shapes perception (optional): food signals are only as loud as the appetite
     // for that food. Threat signals are left alone.
     if (c.brainAppetiteSenses === 1) {
-      const meat = this.diet[i]!;
-      const plant = 1 - meat;
+      let meat = this.diet[i]!;
+      let plant = 1 - meat;
+      // Phase 11 tuning (both off by default, leaving today's exact numbers): a floor under each appetite, and
+      // the attention gene, which raises how strongly prey and meat are noticed toward full strength.
+      const floor = c.brainAppetiteFloor;
+      if (floor > 0) {
+        meat = floor + (1 - floor) * meat;
+        plant = floor + (1 - floor) * plant;
+      }
+      if (this.attentionOn) meat += (1 - meat) * this.genes[i * GENE_COUNT + GENE.attention]!;
       for (let k = 0; k < RAY_COUNT; k++) {
         const slot = INPUT.visionStart + k * RAY_CHANNELS;
         inputs[slot] = inputs[slot]! * meat;
@@ -3784,6 +3997,16 @@ export class Simulation {
       inputs[INPUT.smellPlantAhead] = inputs[INPUT.smellPlantAhead]! * plant;
       inputs[INPUT.smellPlantSide] = inputs[INPUT.smellPlantSide]! * plant;
       inputs[INPUT.plantHere] = inputs[INPUT.plantHere]! * plant;
+      if (this.richOn || this.focusOn) {
+        // Better eyes and focus: everything about smaller animals is prey sight; plants in sight are food sight.
+        for (let k = 0; k < RAY_COUNT; k++) {
+          inputs[INPUT.rayColour + k * 2] = inputs[INPUT.rayColour + k * 2]! * meat;
+          inputs[INPUT.rayMotion + k * 2] = inputs[INPUT.rayMotion + k * 2]! * meat;
+        }
+        inputs[INPUT.countSmaller] = inputs[INPUT.countSmaller]! * meat;
+        for (const k of [INPUT.focusAhead, INPUT.focusSide, INPUT.focusNear, INPUT.focusClosing]) inputs[k] = inputs[k]! * meat;
+        for (const k of [INPUT.plantSightAhead, INPUT.plantSightLeft, INPUT.plantSightRight]) inputs[k] = inputs[k]! * plant;
+      }
     }
 
     // Relatives nearby: how many, and which way the herd lies.
@@ -3964,6 +4187,59 @@ export class Simulation {
     inputs[INPUT.diet] = this.diet[i]! * 2 - 1;
     // Stamina left: -1 empty, +1 full (0 in worlds without sprint fatigue).
     if (this.staminaOn) inputs[INPUT.stamina] = this.staminaMax[i]! > 0 ? (this.stamina[i]! / this.staminaMax[i]!) * 2 - 1 : -1;
+    if (this.worldSensesOn) {
+      if ((senses & SENSE_AROUND) !== 0 || traced) {
+        // Feel around: how many animals are near, and the tremor of bigger ones moving.
+        this.visSelf = i;
+        this.visX = x;
+        this.visY = y;
+        this.aroundCount = 0;
+        this.aroundTremor = 0;
+        this.aroundCrowdSq = c.crowdRange * c.crowdRange;
+        this.aroundTremorSq = c.tremorRange * c.tremorRange;
+        this.aroundSize = this.size[i]!;
+        this.hash.forEachNear(x, y, Math.max(c.crowdRange, c.tremorRange), this.feelAround);
+        inputs[INPUT.crowding] = this.aroundCount / (this.aroundCount + c.crowdHalf);
+        inputs[INPUT.tremor] = this.aroundTremor / (this.aroundTremor + c.tremorHalf);
+      }
+      if (c.dayLength > 0) inputs[INPUT.light] = smoothWave(this.tick / c.dayLength + 0.25);
+      // North is the top of the map (y goes down), east is to the right.
+      inputs[INPUT.compassNorth] = -hy;
+      inputs[INPUT.compassEast] = hx;
+    }
+    if (this.callsOn && ((senses & SENSE_HEAR) !== 0 || traced)) {
+      // Listen: the loudest call that reaches here (heard as it was at the start of this tick).
+      this.visSelf = i;
+      this.visX = x;
+      this.visY = y;
+      this.hearBest = 0;
+      this.hearFrom = -1;
+      this.hash.forEachNear(x, y, c.callRange, this.hearCall);
+      const from = this.hearFrom;
+      if (from >= 0) {
+        const [dx, dy, d] = this.wayTo(i, from);
+        inputs[INPUT.hearLoud] = this.hearBest;
+        if (d > 0) {
+          inputs[INPUT.hearAhead] = (dx * hx + dy * hy) / d;
+          inputs[INPUT.hearSide] = (hx * dy - hy * dx) / d;
+        }
+        inputs[INPUT.hearKin] = this.colourLikeness(i, from);
+      }
+    }
+    if (this.feelOn) {
+      const f = i * FEEL_SLOTS;
+      const pain = this.feel[f + FEEL_PAIN]!;
+      const px = this.feel[f + FEEL_PAIN_X]!;
+      const py = this.feel[f + FEEL_PAIN_Y]!;
+      inputs[INPUT.pain] = pain;
+      // Which way the hurt came from, compared with where it faces (as the smells are), as strong as the pain.
+      inputs[INPUT.painAhead] = pain * (px * hx + py * hy);
+      inputs[INPUT.painSide] = pain * (hx * py - hy * px);
+      inputs[INPUT.joy] = this.feel[f + FEEL_JOY]!;
+      inputs[INPUT.taste] = this.feel[f + FEEL_TASTE]!;
+      if (this.diseaseOn && this.sickFor[i]! > 0) inputs[INPUT.sick] = 1;
+      if (this.sexGeneOn ? this.sexMode[i] === 2 : this.energy[i]! >= this.threshold[i]!) inputs[INPUT.ready] = 1;
+    }
     inputs[INPUT.bias] = 1;
     inputs[INPUT.noise] = ((Math.imul(this.tick + 1, 0x9e3779b1) ^ Math.imul(this.id[i]!, 0x85ebca6b)) >>> 0) / 2147483648 - 1;
 
@@ -3974,7 +4250,9 @@ export class Simulation {
       // young or neighbors as kept), as a share of what it needs to breed, scaled and capped.
       const now = this.energy[i]! + (this.fatOn ? this.fatStore[i]! : 0) + (this.gutOn ? this.gutEnergy[i]! : 0);
       const before = this.learnPrevE[i]!;
-      const reward = before < 0 ? 0 : clampUnit(((now + this.learnSpent[i]! - before) / this.threshold[i]!) * c.learnSenseScale);
+      let reward = before < 0 ? 0 : clampUnit(((now + this.learnSpent[i]! - before) / this.threshold[i]!) * c.learnSenseScale);
+      // With learnFeelings, how it feels counts too: joy is a reward, pain a punishment.
+      if (c.learnFeelings === 1 && before >= 0) reward = clampUnit(reward + this.feel[i * FEEL_SLOTS + FEEL_JOY]! - this.feel[i * FEEL_SLOTS + FEEL_PAIN]!);
       // Surprise: better (+) or worse (-) than usual. Then "usual" moves a little toward this result.
       const usual = this.learnAvg[i]!;
       const surprise = clampUnit(reward - usual);
@@ -4003,16 +4281,19 @@ export class Simulation {
 
     const hidden = this.thinkHidden;
     const outputs = this.thinkOutputs;
+    const deep = this.depthOn ? this.brainState : null;
     if (learning) {
       learnedWeights(this.brainWeight, i * CONN_MAX, count, this.learnDelta, i * LEARN_SLOTS, this.learnWeights);
-      evaluateBrain(this.brainFrom, this.brainTo, this.learnWeights, i * CONN_MAX, count, c.brainPruneBelow, inputs, hidden, outputs, 0);
+      evaluateBrain(this.brainFrom, this.brainTo, this.learnWeights, i * CONN_MAX, count, c.brainPruneBelow, inputs, hidden, outputs, 0, deep, i * HIDDEN_MAX);
       updateTraces(this.brainFrom, this.brainTo, i * CONN_MAX, count, this.learnTrace, i * LEARN_SLOTS, c.learnTraceDecay, inputs, hidden, outputs);
     } else {
-      evaluateBrain(this.brainFrom, this.brainTo, this.brainWeight, i * CONN_MAX, count, c.brainPruneBelow, inputs, hidden, outputs);
+      evaluateBrain(this.brainFrom, this.brainTo, this.brainWeight, i * CONN_MAX, count, c.brainPruneBelow, inputs, hidden, outputs, i * CONN_MAX, deep, i * HIDDEN_MAX);
     }
     this.outTurn[i] = outputs[OUTPUT.turn]!;
     this.outSpeed[i] = outputs[OUTPUT.speed]!;
     this.outAttack[i] = outputs[OUTPUT.attack]!;
+    if (this.focusOn) this.outFocus[i] = outputs[OUTPUT.focus]!;
+    if (this.callsOn) this.callNow[i] = outputs[OUTPUT.call]! > 0 ? outputs[OUTPUT.call]! : 0;
     if (this.wmOn) {
       // Working memory: the brain's hold gates decide, cell by cell, whether to overwrite or hold.
       carryMemory(this.memState, i * MEMORY_COUNT, outputs, this.wmCells[i]!, c.wmKeepMax);
@@ -4956,6 +5237,10 @@ export class Simulation {
     if (this.colonyInfoOn) this.updateColonies(n);
     if (this.signalOn) this.listen(n);
 
+    if (this.feelOn) this.feelingsStep(n);
+    // Calls: everyone hears this tick the calls as they stand now (made at their callers' last thoughts).
+    if (this.callsOn) this.callHeard.set(this.callNow.subarray(0, n));
+
     // Pass 0 (brains only): everyone who is due to think looks, smells and decides, before
     // anyone moves, so all brains see the same world whatever order they are processed in.
     if (brainMode > 0) {
@@ -5124,11 +5409,16 @@ export class Simulation {
         const power = this.attackPower[i]!;
         const odds = power / (power + this.defendedBy(prey, i));
         if (this.rng.next() < odds) this.kill(i, prey);
-        else if (this.hurt.length > 0) {
-          // Injury: the attack failed and the prey hurt the attacker, more the better armed it is compared with the attacker.
-          const preyPower = this.attackPower[prey]!;
-          const both = power + preyPower;
-          this.hurt[i] = both > 0 ? c.attackInjury * this.threshold[i]! * (preyPower / both) : 0;
+        else {
+          // The prey survived the attack: it hurts, and it knows where the attack came from.
+          if (this.feelOn) this.addPain(prey, c.painHit, i);
+          if (this.hurt.length > 0) {
+            // Injury: the attack failed and the prey hurt the attacker, more the better armed it is compared with the attacker.
+            const preyPower = this.attackPower[prey]!;
+            const both = power + preyPower;
+            this.hurt[i] = both > 0 ? c.attackInjury * this.threshold[i]! * (preyPower / both) : 0;
+            if (this.feelOn && both > 0) this.addPain(i, c.painInjury * (preyPower / both), prey);
+          }
         }
       }
     }
@@ -5262,6 +5552,14 @@ export class Simulation {
       this.plantTaken[i] = this.plantTaken[i]! + plantGain;
       this.meatTaken[i] = this.meatTaken[i]! + meatGain;
       if (this.chemOn) this.chemIntake[i] = this.chemIntake[i]! + plantGain + meatGain;
+      if (this.feelOn && plantRaw + meatRaw > 0) {
+        // Joy from a good meal (as a share of what it needs to breed), and the taste of this bite:
+        // energy kept per unit eaten, less any poison.
+        const f = i * FEEL_SLOTS;
+        this.feel[f + FEEL_JOY] = Math.min(1, this.feel[f + FEEL_JOY]! + (c.joyEat * (plantGain + meatGain)) / this.threshold[i]!);
+        const taste = (plantGain + meatGain - plantPoison - toxinLoss) / (plantRaw + meatRaw);
+        this.feel[f + FEEL_TASTE] = taste > 1 ? 1 : taste < -1 ? -1 : taste;
+      }
       if (this.homeValue.length > 0) {
         // Place memory: a better meal than any it remembers makes this spot home.
         const meal = (plantGain + meatGain) / this.threshold[i]!;
@@ -5388,7 +5686,10 @@ export class Simulation {
       if (this.fatOn) move *= 1 + c.fatMoveCost * (this.fatStore[i]! / this.threshold[i]!);
       if (this.torporOn) move *= (1 - this.torpid[i]!) * (1 - this.torpid[i]!); // slower costs less (cost goes with speed squared)
       if (this.staminaOn) move += this.staminaCost[i]!; // the upkeep of the sprint reserve counts as movement
-      const sensing = this.senseCost[i]!;
+      // (Holding a focus costs a little more attention while it lasts.)
+      // (Calling costs in proportion to how loud.)
+      let sensing = this.focusOn && this.outFocus[i]! > 0 ? this.senseCost[i]! + c.focusCost : this.senseCost[i]!;
+      if (this.callsOn) sensing += c.callCost * this.callNow[i]!;
       // (Injury, when on, is paid as fighting; kept in the old form when off.)
       const fighting = this.hurt.length > 0 ? this.attackCost[i]! + (this.attempted[i] === 1 ? this.attemptCost[i]! : 0) + this.hurt[i]! : this.attackCost[i]! + (this.attempted[i] === 1 ? this.attemptCost[i]! : 0);
       const armoring = this.armorCost[i]!;
@@ -5606,6 +5907,10 @@ export class Simulation {
           const savedNextId = this.nextId;
           const child = this.spawn(this.id[a]!, this.x[a]!, this.y[a]!);
           if (child < 0) break birthsLoop;
+          if (this.feelOn && baby === 0) {
+            this.addJoy(a, c.joyBirth);
+            this.addJoy(b, c.joyBirth);
+          }
           this.parent2Id[child] = this.id[b]!;
           if (this.homeX.length > 0 && c.homeMode >= 2) {
             this.homeX[child] = this.homeX[a]!;
@@ -5667,6 +5972,7 @@ export class Simulation {
           const savedNextId = this.nextId;
           const child = this.spawn(this.id[parent]!, this.x[parent]!, this.y[parent]!);
           if (child < 0) break birthsLoop;
+          if (this.feelOn && baby === 0) this.addJoy(parent, c.joyBirth);
           if (this.homeX.length > 0 && c.homeMode >= 2) {
             this.homeX[child] = this.homeX[parent]!;
             this.homeY[child] = this.homeY[parent]!;
@@ -5769,8 +6075,147 @@ export class Simulation {
     return this.config.killOwnershipLeak;
   }
 
+  /** Better eyes: how like viewer's colour target's is, from +1 (the same) to -1 (opposite on the colour wheel). */
+  private colourLikeness(viewer: number, target: number): number {
+    let d = this.genes[target * GENE_COUNT + GENE.hue]! - this.genes[viewer * GENE_COUNT + GENE.hue]!;
+    if (d < 0) d = -d;
+    if (d > 0.5) d = 1 - d;
+    return 1 - 4 * d;
+  }
+
+  /** The way from viewer to target across the wrap-around edges (x, y) and how far that is. */
+  private wayTo(viewer: number, target: number): [number, number, number] {
+    const c = this.config;
+    let dx = this.x[target]! - this.x[viewer]!;
+    let dy = this.y[target]! - this.y[viewer]!;
+    if (dx > c.worldWidth / 2) dx -= c.worldWidth;
+    else if (dx < -c.worldWidth / 2) dx += c.worldWidth;
+    if (dy > c.worldHeight / 2) dy -= c.worldHeight;
+    else if (dy < -c.worldHeight / 2) dy += c.worldHeight;
+    return [dx, dy, Math.sqrt(dx * dx + dy * dy)];
+  }
+
+  /** Better eyes: whether target is coming toward viewer (+) or moving away (-), by its own pace, as a share of speedMax. */
+  private comingCloser(viewer: number, target: number): number {
+    const [dx, dy, d] = this.wayTo(viewer, target);
+    if (d === 0) return 0;
+    const pace = this.speed[target]! * this.moveScale[target]!;
+    const toward = -(dx * this.headingX[target]! + dy * this.headingY[target]!) * pace;
+    return clampUnit(toward / (d * this.config.speedMax));
+  }
+
+  /** Better eyes: how much plant food (it could digest) stands at world point (px, py), 0 to 1. */
+  private plantsAt(i: number, px: number, py: number): number {
+    const c = this.config;
+    const wx = ((px % c.worldWidth) + c.worldWidth) % c.worldWidth;
+    const wy = ((py % c.worldHeight) + c.worldHeight) % c.worldHeight;
+    const cell = Math.floor(wy / c.foodCellSize) * this.gridWidth + Math.floor(wx / c.foodCellSize);
+    const worth = this.palateOn ? (this.plantToxOn ? Math.max(0, this.plantWorth(i, cell)) : this.palateMatch(i, cell)) : 1;
+    return Math.min(1, (this.food[cell]! * worth) / c.foodCap);
+  }
+
+  /**
+   * The focus action: while the brain's focus output (from its last thought) is above 0, keep the locked target
+   * if it is still alive and within focusHold x sight range, or else lock on to the nearest smaller animal in
+   * view; report where it is. Otherwise let go.
+   */
+  private trackFocus(i: number, looked: boolean, range: number, hx: number, hy: number): void {
+    const c = this.config;
+    const inputs = this.thinkInputs;
+    if (this.outFocus[i]! <= 0) {
+      this.focusIdx[i] = -1;
+      this.focusId[i] = 0;
+      return;
+    }
+    const hold = range * c.focusHold;
+    let t = this.focusIdx[i]!;
+    // (Other animals can move to new slots when some die, so the lock is checked by identity.)
+    if (!(t >= 0 && t < this.count && t !== i && this.id[t] === this.focusId[i] && this.killed[t] !== 1 && this.wayTo(i, t)[2] <= hold)) {
+      t = -1;
+      if (looked) {
+        let best = Infinity;
+        for (let k = 0; k < RAY_COUNT; k++) {
+          if (this.rayTargetSmall[k]! >= 0 && this.rayDistSmall[k]! < best) {
+            best = this.rayDistSmall[k]!;
+            t = this.rayTargetSmall[k]!;
+          }
+        }
+      }
+    }
+    if (t < 0) {
+      this.focusIdx[i] = -1;
+      this.focusId[i] = 0;
+      return;
+    }
+    this.focusIdx[i] = t;
+    this.focusId[i] = this.id[t]!;
+    const [dx, dy, d] = this.wayTo(i, t);
+    if (d > 0 && hold > 0) {
+      inputs[INPUT.focusAhead] = (dx * hx + dy * hy) / d;
+      inputs[INPUT.focusSide] = (hx * dy - hy * dx) / d;
+      inputs[INPUT.focusNear] = Math.max(0, 1 - d / hold);
+    } else inputs[INPUT.focusNear] = 1;
+    inputs[INPUT.focusClosing] = this.comingCloser(i, t);
+  }
+
+  /** Feelings: organism i is hurt by `amount`, by organism `from` (pain points toward where that one stands). */
+  private addPain(i: number, amount: number, from: number): void {
+    const c = this.config;
+    const f = i * FEEL_SLOTS;
+    this.feel[f + FEEL_PAIN] = Math.min(1, this.feel[f + FEEL_PAIN]! + amount);
+    let dx = this.x[from]! - this.x[i]!;
+    let dy = this.y[from]! - this.y[i]!;
+    if (dx > c.worldWidth / 2) dx -= c.worldWidth;
+    else if (dx < -c.worldWidth / 2) dx += c.worldWidth;
+    if (dy > c.worldHeight / 2) dy -= c.worldHeight;
+    else if (dy < -c.worldHeight / 2) dy += c.worldHeight;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    // The latest hurt sets the direction (a hurt from right on top of it has none).
+    this.feel[f + FEEL_PAIN_X] = d > 0 ? dx / d : 0;
+    this.feel[f + FEEL_PAIN_Y] = d > 0 ? dy / d : 0;
+  }
+
+  /** Feelings: organism i feels `amount` of joy (joy stays between 0 and 1). */
+  private addJoy(i: number, amount: number): void {
+    const f = i * FEEL_SLOTS + FEEL_JOY;
+    this.feel[f] = Math.min(1, this.feel[f]! + amount);
+  }
+
+  /**
+   * Feelings, once a tick before anyone thinks: pain, joy and taste fade; being fed and free of pain is a quiet
+   * joy; and a curious animal enjoys finding itself somewhere it has not been lately. No energy moves here.
+   */
+  private feelingsStep(n: number): void {
+    const c = this.config;
+    const noting = this.curiosityOn && this.tick % c.noveltyEvery === 0;
+    const across = Math.ceil(c.worldWidth / c.noveltyCellSize);
+    for (let i = 0; i < n; i++) {
+      const f = i * FEEL_SLOTS;
+      const pain = this.feel[f + FEEL_PAIN]! * c.painFade;
+      this.feel[f + FEEL_PAIN] = pain < 1e-4 ? 0 : pain;
+      let joy = this.feel[f + FEEL_JOY]! * c.joyFade;
+      const fed = this.energy[i]! / this.threshold[i]! - 0.5;
+      if (fed > 0) joy += c.joyContent * Math.min(1, fed * 2) * (1 - pain);
+      this.feel[f + FEEL_TASTE] = this.feel[f + FEEL_TASTE]! * c.tasteFade;
+      if (noting) {
+        const square = Math.floor(this.y[i]! / c.noveltyCellSize) * across + Math.floor(this.x[i]! / c.noveltyCellSize);
+        const at = i * (NOVELTY_SLOTS + 1);
+        let seen = false;
+        for (let k = 0; k < NOVELTY_SLOTS; k++) if (this.novelty[at + k] === square) seen = true;
+        if (!seen) {
+          joy += c.curiosityJoy * this.genes[i * GENE_COUNT + GENE.curiosity]!;
+          const next = this.novelty[at + NOVELTY_SLOTS]!;
+          this.novelty[at + next] = square;
+          this.novelty[at + NOVELTY_SLOTS] = (next + 1) % NOVELTY_SLOTS;
+        }
+      }
+      this.feel[f + FEEL_JOY] = joy > 1 ? 1 : joy < 1e-4 ? 0 : joy;
+    }
+  }
+
   private kill(attacker: number, prey: number): void {
     const cell = this.cellOf[prey]!;
+    if (this.feelOn) this.addJoy(attacker, this.config.joyKill);
     if (this.toxOn) {
       // Remember what was killed and when, in case the meal turns out to be poisonous.
       this.lastKillHue[attacker] = this.genes[prey * GENE_COUNT + GENE.hue]!;
@@ -5860,6 +6305,15 @@ export class Simulation {
       this.brainTo.copyWithin(target, source, source + count);
       this.brainWeight.copyWithin(target, source, source + count);
       if (this.memoryOn) this.memState.copyWithin(to * MEMORY_COUNT, from * MEMORY_COUNT, (from + 1) * MEMORY_COUNT);
+      if (this.depthOn) this.brainState.copyWithin(to * HIDDEN_MAX, from * HIDDEN_MAX, (from + 1) * HIDDEN_MAX);
+      if (this.feelOn) this.feel.copyWithin(to * FEEL_SLOTS, from * FEEL_SLOTS, (from + 1) * FEEL_SLOTS);
+      if (this.curiosityOn) this.novelty.copyWithin(to * (NOVELTY_SLOTS + 1), from * (NOVELTY_SLOTS + 1), (from + 1) * (NOVELTY_SLOTS + 1));
+      if (this.callsOn) this.callNow[to] = this.callNow[from]!;
+      if (this.focusOn) {
+        this.outFocus[to] = this.outFocus[from]!;
+        this.focusIdx[to] = this.focusIdx[from]!;
+        this.focusId[to] = this.focusId[from]!;
+      }
       if (this.chemOn) this.chem.copyWithin(to * 4, from * 4, from * 4 + 4);
       if (this.learnOn) {
         this.learnDelta.copyWithin(to * LEARN_SLOTS, from * LEARN_SLOTS, (from + 1) * LEARN_SLOTS);
@@ -5908,6 +6362,15 @@ export class Simulation {
     organism("brainTo", this.brainTo, CONN_MAX);
     organism("brainWeight", this.brainWeight, CONN_MAX);
     if (this.memoryOn) organism("memState", this.memState, MEMORY_COUNT);
+    if (this.depthOn) organism("brainState", this.brainState, HIDDEN_MAX);
+    if (this.feelOn) organism("feel", this.feel, FEEL_SLOTS);
+    if (this.curiosityOn) organism("novelty", this.novelty, NOVELTY_SLOTS + 1);
+    if (this.callsOn) organism("callNow", this.callNow);
+    if (this.focusOn) {
+      organism("outFocus", this.outFocus);
+      organism("focusIdx", this.focusIdx);
+      organism("focusId", this.focusId);
+    }
     if (this.learnOn) {
       organism("learnDelta", this.learnDelta, LEARN_SLOTS);
       organism("learnTrace", this.learnTrace, LEARN_SLOTS);
@@ -5951,7 +6414,7 @@ export class Simulation {
         ? { lineages: { records: this.lineageRecords, members: [...this.lineageOf], mustMate: [...this.mustMateIds], shelter: [...this.shelterUntil] } }
         : {}),
       catastrophe: [this.catKind, this.catStart, this.catEnd],
-      brainLayout: [INPUT_COUNT, CONN_MAX],
+      brainLayout: [INPUT_COUNT, CONN_MAX, HIDDEN_MAX],
       // (Only in worlds with disaster events, so older saved worlds still load.)
       ...(this.eventsOn ? { activeEvents: this.activeEvents, eventRng: Array.from(this.eventRng.getState()) } : {}),
       ...(this.plantEvoOn ? { plantRng: Array.from(this.plantRng.getState()) } : {}),
@@ -5968,9 +6431,11 @@ export class Simulation {
    * Bring a saved world back. With `seed` given, the world continues from the same moment
    * but with a different random future (a branch of the original history).
    */
-  static load(snapshot: SimSnapshot, options: { seed?: number } = {}): Simulation {
+  static load(snapshot: SimSnapshot, options: { seed?: number; changes?: Partial<SimConfig> } = {}): Simulation {
     if (snapshot.format !== SNAPSHOT_FORMAT) throw new Error(`Cannot load a saved world of format ${snapshot.format}`);
-    const sim = new Simulation(options.seed ?? snapshot.seed, snapshot.config);
+    // `changes`: settings to change as the world loads (features switched on, say). The save keeps its own
+    // settings, so loading still knows exactly what the saved world held.
+    const sim = new Simulation(options.seed ?? snapshot.seed, { ...snapshot.config, ...options.changes });
     sim.restore(snapshot, options.seed !== undefined);
     return sim;
   }
@@ -6035,7 +6500,7 @@ export class Simulation {
       worldEvents: WorldEvent[];
       interventionLog?: Intervention[];
       lineages?: { records: Omit<LineageInfo, "alive" | "aliveMeat">[]; members: [number, number][]; mustMate: number[]; shelter?: [number, number][] };
-      brainLayout?: [number, number];
+      brainLayout?: [number, number] | [number, number, number];
       activeEvents?: ActiveEvent[];
       eventRng?: number[];
       plantRng?: number[];
@@ -6046,11 +6511,18 @@ export class Simulation {
       rng: [number, number, number, number];
       species: Record<string, unknown> | null;
     };
-    this.float32Fields.forEach((array, k) => take(`f32.${k}`, array));
-    this.float64Fields.forEach((array, k) => take(`f64.${k}`, array));
-    this.uint32Fields.forEach((array, k) => take(`u32.${k}`, array));
-    this.uint16Fields.forEach((array, k) => take(`u16.${k}`, array));
-    this.uint8Fields.forEach((array, k) => take(`u8.${k}`, array));
+    // Each array is found by name in the saved world's own layout (worked out from its settings), so a world
+    // saved with some features off loads correctly with them switched on: the new arrays start empty.
+    const saved = organismLayout(snapshot.config);
+    // (Settings added since the save take their defaults, which are "off", so they do not count as a change.)
+    const changed = JSON.stringify(makeConfig(snapshot.config)) !== JSON.stringify(this.config);
+    for (const kind of ["f32", "f64", "u32", "u16", "u8"] as const) {
+      const arrays = { f32: this.float32Fields, f64: this.float64Fields, u32: this.uint32Fields, u16: this.uint16Fields, u8: this.uint8Fields }[kind];
+      this.layout[kind].forEach((name, k) => {
+        const at = changed ? saved[kind].indexOf(name) : k;
+        if (at >= 0) take(`${kind}.${at}`, arrays[k]!);
+      });
+    }
     // A world saved before a gene was added has fewer genes per animal. Copy each animal's genes
     // across at its own spacing so they line up (genes it never had stay 0: they are not in use there).
     const savedGenes = snapshot.arrays.genes;
@@ -6070,11 +6542,13 @@ export class Simulation {
     }
     // A world saved before Phase 8e has the older brain layout (fewer inputs, fewer connection slots): renumber it.
     const [savedInputs, savedSlots] = s.brainLayout ?? [BRAIN_LAYOUTS[0]!.inputs, BRAIN_LAYOUTS[0]!.slots];
-    if (this.config.brainMode > 0 && (savedInputs !== INPUT_COUNT || savedSlots !== CONN_MAX)) {
+    // Worlds saved before Phase 11 had room for 16 thinking units; the actions came straight after them.
+    const savedHidden = s.brainLayout?.[2] ?? OLD_HIDDEN_MAX;
+    if (this.config.brainMode > 0 && (savedInputs !== INPUT_COUNT || savedSlots !== CONN_MAX || savedHidden !== HIDDEN_MAX)) {
       const from = snapshot.arrays.brainFrom as Uint8Array;
       const to = snapshot.arrays.brainTo as Uint8Array;
       const weight = snapshot.arrays.brainWeight as Float32Array;
-      const renumber = (node: number): number => renumberOldNode(node, savedInputs);
+      const renumber = (node: number): number => renumberOldNode(node, savedInputs, savedHidden);
       this.brainFrom.fill(0);
       this.brainTo.fill(0);
       this.brainWeight.fill(0);
@@ -6091,6 +6565,20 @@ export class Simulation {
       take("brainWeight", this.brainWeight);
     }
     if (this.memoryOn) take("memState", this.memState);
+    // (A world saved without depth starts every unit's last value at 0 when depth is switched on.)
+    if (this.depthOn && snapshot.arrays.brainState) take("brainState", this.brainState);
+    // (Switched on for a world saved without them, feelings start calm and nothing has been noted yet.)
+    if (this.feelOn && snapshot.arrays.feel) take("feel", this.feel);
+    if (this.callsOn && snapshot.arrays.callNow) take("callNow", this.callNow);
+    if (this.focusOn && snapshot.arrays.focusId) {
+      take("outFocus", this.outFocus);
+      take("focusIdx", this.focusIdx);
+      take("focusId", this.focusId);
+    } else if (this.focusOn) this.focusIdx.fill(-1);
+    if (this.curiosityOn) {
+      if (snapshot.arrays.novelty) take("novelty", this.novelty);
+      else for (let i = 0; i < s.count; i++) this.novelty.fill(-1, i * (NOVELTY_SLOTS + 1), i * (NOVELTY_SLOTS + 1) + NOVELTY_SLOTS);
+    }
     if (this.learnOn) {
       take("learnDelta", this.learnDelta);
       take("learnTrace", this.learnTrace);
@@ -6152,6 +6640,14 @@ export class Simulation {
     this.rng.setState(newFuture ? new Rng((this.seed + this.tick) >>> 0).getState() : s.rng);
     if (this.tracker && s.species) this.tracker.importState(s.species);
     if (this.climateOn) this.updateClimate();
+    // Settings changed since the save (features switched on, say): work out every animal's traits, costs and
+    // brain again under the new settings. With unchanged settings nothing is recomputed.
+    if (changed) {
+      for (let i = 0; i < this.count; i++) {
+        this.express(i);
+        if (this.config.brainMode > 0) this.refreshBrain(i);
+      }
+    }
   }
 
   /** Every real species so far (alive or extinct), and the births and extinctions among them. */
@@ -6209,6 +6705,8 @@ export class Simulation {
       case "workingMemory":
       case "pickiness":
       case "eye":
+      case "attention":
+      case "curiosity":
         return this.genes[i * GENE_COUNT + GENE[name]]!;
       case "lifespan": {
         const range = this.ranges.lifespan;
@@ -6373,7 +6871,7 @@ export class Simulation {
       if (this.torporOn) move *= (1 - this.torpid[i]!) * (1 - this.torpid[i]!);
       if (this.staminaOn) move += this.staminaCost[i]!;
       out.movement += move;
-      out.sensing += this.senseCost[i]!;
+      out.sensing += this.senseCost[i]! + (this.focusOn && this.outFocus[i]! > 0 ? c.focusCost : 0) + (this.callsOn ? c.callCost * this.callNow[i]! : 0);
       out.attack += this.attackCost[i]! + (this.attempted[i] === 1 ? this.attemptCost[i]! : 0) + (this.hurt.length > 0 ? this.hurt[i]! : 0);
       out.armor += this.armorCost[i]!;
       if (brains) out.brain += this.brainCost[i]!;
@@ -6453,6 +6951,7 @@ export class Simulation {
         all: { hidden: mean(allHidden, n), connections: mean(allConnections, n) },
         herbivores: { hidden: mean(herbHidden, herbivores), connections: mean(herbConnections, herbivores) },
         carnivores: { hidden: mean(carnHidden, carnivores), connections: mean(carnConnections, carnivores) },
+        ...this.brainCensus(),
       },
       traits,
       classes: { herbivores, omnivores: n - herbivores - carnivores, carnivores },
@@ -6461,6 +6960,79 @@ export class Simulation {
       totalDetritus: sumOf(this.detritus),
       ledger: { ...this.ledger },
     };
+  }
+
+  /** The most complex brain alive, and how many different senses brains read (watch only). */
+  private brainCensus(): Pick<BrainStats, "biggest" | "sensesInUse" | "sensesPerBrain" | "deepest" | "loopShare"> {
+    const biggest = { id: 0, hidden: 0, connections: 0, senses: 0 };
+    if (this.config.brainMode === 0 || this.count === 0) return { biggest, sensesInUse: 0, sensesPerBrain: 0, deepest: 0, loopShare: 0 };
+    let deepest = this.brainHidden.subarray(0, this.count).some((h) => h > 0) ? 1 : 0;
+    let looping = 0;
+    const layer = new Int32Array(HIDDEN_MAX);
+    const prune = this.config.brainPruneBelow;
+    // lastSeenBy[k] = 1 + the last organism found reading input k, so each brain counts each input once.
+    const lastSeenBy = new Int32Array(INPUT_COUNT);
+    const anyone = new Uint8Array(INPUT_COUNT);
+    let best = -1;
+    let sensesTotal = 0;
+    for (let i = 0; i < this.count; i++) {
+      const base = i * CONN_MAX;
+      let senses = 0;
+      for (let k = 0; k < this.brainCount[i]!; k++) {
+        const w = this.brainWeight[base + k]!;
+        if (w < prune && w > -prune) continue;
+        const source = this.brainFrom[base + k]!;
+        if (source >= INPUT_COUNT || lastSeenBy[source] === i + 1) continue;
+        lastSeenBy[source] = i + 1;
+        anyone[source] = 1;
+        senses++;
+      }
+      sensesTotal += senses;
+      if (this.depthOn) {
+        // Chains: a unit fed by an earlier unit sits one step deeper. Units come in number order, so one
+        // pass over the links in order of their target settles it; repeat until nothing changes.
+        layer.fill(0);
+        let changed = true;
+        let loops = false;
+        for (let pass = 0; changed && pass < HIDDEN_MAX; pass++) {
+          changed = false;
+          for (let k = 0; k < this.brainCount[i]!; k++) {
+            const w = this.brainWeight[base + k]!;
+            if (w < prune && w > -prune) continue;
+            const f = this.brainFrom[base + k]!;
+            const t = this.brainTo[base + k]!;
+            if (f < HIDDEN_START || f >= OUTPUT_START || t < HIDDEN_START || t >= OUTPUT_START) continue;
+            if (f >= t) {
+              loops = true;
+              continue;
+            }
+            const d = layer[f - HIDDEN_START]! + 1;
+            if (d > layer[t - HIDDEN_START]!) {
+              layer[t - HIDDEN_START] = d;
+              changed = true;
+            }
+          }
+        }
+        for (let h = 0; h < HIDDEN_MAX; h++) if (layer[h]! + 1 > deepest) deepest = layer[h]! + 1;
+        if (loops) looping++;
+      }
+      const conn = this.brainConnections[i]!;
+      const hid = this.brainHidden[i]!;
+      if (
+        best < 0 ||
+        conn > biggest.connections ||
+        (conn === biggest.connections && (hid > biggest.hidden || (hid === biggest.hidden && this.id[i]! < biggest.id)))
+      ) {
+        best = i;
+        biggest.id = this.id[i]!;
+        biggest.hidden = hid;
+        biggest.connections = conn;
+        biggest.senses = senses;
+      }
+    }
+    let inUse = 0;
+    for (let k = 0; k < INPUT_COUNT; k++) inUse += anyone[k]!;
+    return { biggest, sensesInUse: inUse, sensesPerBrain: sensesTotal / this.count, deepest, loopShare: looping / this.count };
   }
 
   /** Add up all the matter in the world, in every form. It should never change. */
@@ -6736,6 +7308,14 @@ export class Simulation {
       mixBits(this.outTurn, n);
       mixBits(this.outSpeed, n);
       mixBits(this.outAttack, n);
+      if (this.depthOn) mixBits(this.brainState, n * HIDDEN_MAX);
+      if (this.feelOn) mixBits(this.feel, n * FEEL_SLOTS);
+      if (this.curiosityOn) for (let k = 0; k < n * (NOVELTY_SLOTS + 1); k++) mix(this.novelty[k]! >>> 0);
+      if (this.callsOn) mixBits(this.callNow, n);
+      if (this.focusOn) {
+        mixBits(this.outFocus, n);
+        mixInts(this.focusId, n);
+      }
     }
     if (this.staminaOn) mixBits(this.stamina, n);
     if (this.bondsOn) for (let k = 0; k < n * BOND_SLOTS; k++) mix(this.bondTo[k]! >>> 0);

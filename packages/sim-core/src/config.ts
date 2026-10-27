@@ -188,6 +188,19 @@ export interface SimConfig {
   brainMode: number;
   /** Hidden units in the fixed-layout brain (mode 1). */
   brainHidden: number;
+  /**
+   * Phase 11: the most thinking units an evolvable brain (mode 2) can grow, up to 64. 16 was the old fixed
+   * limit and is the default, so older worlds play out exactly as before.
+   */
+  brainHiddenMax: number;
+  /**
+   * Phase 11, deeper brains (0 = off; needs brainMode 2): thinking units can feed other thinking units. Units
+   * are worked out in number order: a unit feeding a later one passes on this thought's value (depth, ideas
+   * built on ideas), and a unit feeding itself or an earlier one passes on its value from the previous thought
+   * (a loop, so a brain can hold a thought or keep a rhythm). Mutations can then add unit-to-unit connections
+   * and split any connection with a new unit. Each unit's last value is saved with the world.
+   */
+  brainDepth: number;
   /** Brains sense the nearest water up to this far away (world units): the "water: how far" sense reads 1 at this distance or more. */
   brainWaterRange: number;
   /**
@@ -298,6 +311,102 @@ export interface SimConfig {
    * it doing anything, and the wiring wakes up when a lineage turns to meat.
    */
   brainAppetiteSenses: number;
+  /**
+   * Phase 11, tuning the appetite senses (needs brainAppetiteSenses 1; 0 = today). Each appetite signal is
+   * at least this strong: food signals reach the brain at floor + (1 - floor) x appetite, so a plant eater
+   * with a floor of 0.4 still sees prey at 40% strength, and its plants never fade below 40% either.
+   */
+  brainAppetiteFloor: number;
+  /**
+   * The attention gene (0 = off; needs brains and brainAppetiteSenses 1): the 34th gene. It lets evolution
+   * decide how strongly each animal notices prey and meat (the sight and trail of smaller animals, the smell of
+   * corpses, meat here), beyond what its diet gives: strength = base + (1 - base) x gene, where base is the
+   * appetite strength above. 0 is today's; 1 notices them fully whatever it eats. It costs attentionCost x gene
+   * a tick (sensing line). Founders start at initialAttention.
+   */
+  preyAttention: number;
+  attentionCost: number;
+  initialAttention: number;
+  /**
+   * Phase 11, feelings and body senses (0 = off; needs brains). Seven brain inputs, all 0 when off:
+   * - Pain (0 to 1, and which way it came from): rises by painHit when it survives an attack (pointing at the
+   *   attacker), and by painInjury x the prey's share of fighting power when its own attack fails and it is
+   *   hurt (attackInjury). It keeps painFade of itself each tick.
+   * - Joy (0 to 1): rises by joyEat x (energy eaten / breeding energy), by joyKill for a kill, by joyBirth when
+   *   it has young, and by joyContent a tick while fed (above half its breeding energy) and free of pain. It
+   *   keeps joyFade of itself each tick.
+   * - Feeling sick (disease worlds), ready to breed (looking for a mate, or ready to split), and the taste of
+   *   the last bite (-1 to 1: energy kept per unit eaten, less any poison; it keeps tasteFade a tick).
+   * Feelings move no energy: they are only signals. Pain always has a cause and always fades.
+   */
+  feelings: number;
+  painHit: number;
+  painInjury: number;
+  painFade: number;
+  joyEat: number;
+  joyKill: number;
+  joyBirth: number;
+  joyContent: number;
+  joyFade: number;
+  tasteFade: number;
+  /**
+   * The curiosity gene (0 = off; needs feelings): the 35th gene. Every noveltyEvery ticks each animal notes the
+   * square it is in (squares noveltyCellSize across) among the last eight it noted; a square not among them gives
+   * curiosityJoy x gene of joy. Nothing else rewards it: if exploring pays, curiosity rises (this is where play
+   * could emerge). It costs curiosityCost x gene a tick (sensing line). Founders start at initialCuriosity.
+   */
+  curiosity: number;
+  curiosityJoy: number;
+  curiosityCost: number;
+  initialCuriosity: number;
+  noveltyEvery: number;
+  noveltyCellSize: number;
+  /** With learning brains and feelings: the learning reward is the energy change plus joy minus pain (0 = energy change only). */
+  learnFeelings: number;
+  /**
+   * Phase 11, better eyes (0 = off; needs brains). Thirty-one more inputs, all 0 when off: for each of the ten
+   * things the eyes report, how like its own colour it is and whether it is coming closer (its own pace toward
+   * the viewer, as a share of speedMax); how many smaller and bigger animals are in view (n / (n +
+   * visionCountHalf)); the nearest animal close behind, outside the eye's view and within behindRange x sight
+   * range (how near, bigger or smaller: a rough feel, so a wide eye still pays); and how much plant food stands
+   * plantSightReach x sight range away, ahead and half-left and half-right. With appetite senses, everything
+   * about smaller animals is scaled by meat appetite (as prey sight is) and plant sight by plant appetite.
+   */
+  richVision: number;
+  visionCountHalf: number;
+  behindRange: number;
+  plantSightReach: number;
+  /**
+   * The focus action (0 = off; needs brains): a new brain output. While it is above 0 the eyes lock on to the
+   * nearest smaller animal in view and keep tracking it, even out of view, while it is within focusHold x sight
+   * range (a far-reaching narrow eye holds a lock further). Four inputs: which way it is (ahead, left), how near,
+   * and whether it is coming closer. Focusing costs focusCost a tick (sensing line). It only informs: steering
+   * and attacking are still up to the brain and the usual rules.
+   */
+  focusAction: number;
+  focusHold: number;
+  focusCost: number;
+  /**
+   * Phase 11, surroundings (0 = off; needs brains). Five inputs, all 0 when off: crowding (animals of any kind
+   * within crowdRange: n / (n + crowdHalf)); ground tremor (the size x pace of every bigger animal within
+   * tremorRange, added up: t / (t + tremorHalf), with no direction); daylight (the day's wave, +1 midday to -1
+   * midnight, in worlds with dayLength); and a compass (how much it faces north, the top of the map, and east).
+   */
+  worldSenses: number;
+  crowdRange: number;
+  crowdHalf: number;
+  tremorRange: number;
+  tremorHalf: number;
+  /**
+   * Phase 11, calls and hearing (0 = off; needs brains). A new brain output, call: above 0 it is how loud the
+   * animal calls (0 to 1), heard up to loudness x callRange away and fading with distance, one tick later (so
+   * the order animals are processed in never matters). Calling costs callCost x loudness a tick (sensing line).
+   * Four inputs: the loudest call heard, which way it came from (ahead, left) and how like its own colour the
+   * caller is. Nothing rewards calling itself: alarm, mating or hunting calls appear only if they pay.
+   */
+  calls: number;
+  callRange: number;
+  callCost: number;
 
   // --- Terrain (off by default) ---
   /**
@@ -1493,7 +1602,9 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   killCooldown: 20,
 
   brainMode: 0,
-  brainHidden: 8,
+  brainHidden: 4,
+  brainHiddenMax: 16,
+  brainDepth: 0,
   brainWaterRange: 64,
   brainVisionRange: 6,
   brainEvery: 2,
@@ -1536,6 +1647,42 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   brainCostPerNeuron: 0.0005,
   brainCostPerConnection: 0.0001,
   brainAppetiteSenses: 0,
+  brainAppetiteFloor: 0,
+  preyAttention: 0,
+  attentionCost: 0.001,
+  initialAttention: 0,
+  feelings: 0,
+  painHit: 1,
+  painInjury: 1,
+  painFade: 0.9,
+  joyEat: 20,
+  joyKill: 0.5,
+  joyBirth: 1,
+  joyContent: 0.02,
+  joyFade: 0.9,
+  tasteFade: 0.9,
+  curiosity: 0,
+  curiosityJoy: 0.3,
+  curiosityCost: 0.001,
+  initialCuriosity: 0,
+  noveltyEvery: 20,
+  noveltyCellSize: 16,
+  learnFeelings: 0,
+  richVision: 0,
+  visionCountHalf: 3,
+  behindRange: 0.4,
+  plantSightReach: 0.7,
+  focusAction: 0,
+  focusHold: 1.5,
+  focusCost: 0.002,
+  worldSenses: 0,
+  crowdRange: 8,
+  crowdHalf: 5,
+  tremorRange: 12,
+  tremorHalf: 2,
+  calls: 0,
+  callRange: 20,
+  callCost: 0.003,
   terrainMode: 0,
   terrainScale: 8,
   terrainWaterFraction: 0.25,
@@ -2017,6 +2164,9 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (c.herbivoreAttackPenalty < 0) problems.push("herbivoreAttackPenalty cannot be negative");
   if (![0, 1, 2].includes(c.brainMode)) problems.push("brainMode must be 0 (no brains), 1 (fixed layout) or 2 (evolvable layout)");
   if (!Number.isInteger(c.brainHidden) || c.brainHidden < 1 || c.brainHidden > HIDDEN_MAX) problems.push(`brainHidden must be a whole number from 1 to ${HIDDEN_MAX}`);
+  if (!Number.isInteger(c.brainHiddenMax) || c.brainHiddenMax < 1 || c.brainHiddenMax > HIDDEN_MAX) problems.push(`brainHiddenMax must be a whole number from 1 to ${HIDDEN_MAX}`);
+  if (c.brainDepth !== 0 && c.brainDepth !== 1) problems.push("brainDepth must be 0 or 1");
+  else if (c.brainDepth === 1 && c.brainMode !== 2) problems.push("brainDepth needs brainMode 2 (an evolvable layout)");
   else if (c.brainMode === 1 && c.brainHidden * (INPUT_COUNT + OUTPUT_COUNT) > CONN_MAX) {
     problems.push(`brainHidden ${c.brainHidden} needs ${c.brainHidden * (INPUT_COUNT + OUTPUT_COUNT)} connections per brain, but only ${CONN_MAX} fit (use at most ${Math.floor(CONN_MAX / (INPUT_COUNT + OUTPUT_COUNT))})`);
   }
@@ -2385,6 +2535,39 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   }
   if (c.killOwnershipLeak < 0 || c.killOwnershipLeak > 1) problems.push("killOwnershipLeak must be between 0 and 1");
   if (![0, 1].includes(c.brainAppetiteSenses)) problems.push("brainAppetiteSenses must be 0 or 1");
+  if (!(c.brainAppetiteFloor >= 0 && c.brainAppetiteFloor <= 1)) problems.push("brainAppetiteFloor must be between 0 and 1");
+  if (c.preyAttention !== 0 && c.preyAttention !== 1) problems.push("preyAttention must be 0 or 1");
+  if (c.preyAttention === 1 && (c.brainMode === 0 || c.brainAppetiteSenses !== 1)) problems.push("preyAttention needs brains and brainAppetiteSenses 1 (it tunes the appetite senses)");
+  if (!(c.attentionCost >= 0) || !(c.initialAttention >= 0 && c.initialAttention <= 1)) problems.push("attentionCost cannot be negative, and initialAttention must be between 0 and 1");
+  if (c.feelings !== 0 && c.feelings !== 1) problems.push("feelings must be 0 or 1");
+  else if (c.feelings === 1 && c.brainMode === 0) problems.push("feelings needs brains (feelings are brain senses)");
+  for (const [name, value] of [["painHit", c.painHit], ["painInjury", c.painInjury], ["joyEat", c.joyEat], ["joyKill", c.joyKill], ["joyBirth", c.joyBirth], ["joyContent", c.joyContent], ["curiosityJoy", c.curiosityJoy], ["curiosityCost", c.curiosityCost]] as const) {
+    if (!(value >= 0)) problems.push(`${name} cannot be negative`);
+  }
+  for (const [name, value] of [["painFade", c.painFade], ["joyFade", c.joyFade], ["tasteFade", c.tasteFade], ["initialCuriosity", c.initialCuriosity]] as const) {
+    if (!(value >= 0 && value <= 1)) problems.push(`${name} must be between 0 and 1`);
+  }
+  if (c.curiosity !== 0 && c.curiosity !== 1) problems.push("curiosity must be 0 or 1");
+  else if (c.curiosity === 1 && c.feelings !== 1) problems.push("curiosity needs feelings (it gives joy)");
+  if (!Number.isInteger(c.noveltyEvery) || c.noveltyEvery < 1) problems.push("noveltyEvery must be a whole number of 1 or more");
+  if (!(c.noveltyCellSize > 0)) problems.push("noveltyCellSize must be positive");
+  if (c.richVision !== 0 && c.richVision !== 1) problems.push("richVision must be 0 or 1");
+  else if (c.richVision === 1 && c.brainMode === 0) problems.push("richVision needs brains");
+  if (c.focusAction !== 0 && c.focusAction !== 1) problems.push("focusAction must be 0 or 1");
+  else if (c.focusAction === 1 && c.brainMode === 0) problems.push("focusAction needs brains");
+  if (!(c.visionCountHalf > 0)) problems.push("visionCountHalf must be positive");
+  for (const [name, value] of [["behindRange", c.behindRange], ["plantSightReach", c.plantSightReach]] as const) if (!(value >= 0 && value <= 1)) problems.push(`${name} must be between 0 and 1`);
+  if (!(c.focusHold >= 1) || !(c.focusCost >= 0)) problems.push("focusHold must be at least 1 and focusCost cannot be negative");
+  if (c.calls !== 0 && c.calls !== 1) problems.push("calls must be 0 or 1");
+  else if (c.calls === 1 && c.brainMode === 0) problems.push("calls needs brains");
+  if (!(c.callRange > 0) || !(c.callCost >= 0)) problems.push("callRange must be positive and callCost cannot be negative");
+  else if (c.calls === 1 && c.callRange >= Math.min(c.worldWidth, c.worldHeight) / 2) problems.push("callRange must be under half the world");
+  if (c.worldSenses !== 0 && c.worldSenses !== 1) problems.push("worldSenses must be 0 or 1");
+  else if (c.worldSenses === 1 && c.brainMode === 0) problems.push("worldSenses needs brains");
+  if (!(c.crowdRange > 0) || !(c.crowdHalf > 0) || !(c.tremorRange > 0) || !(c.tremorHalf > 0)) problems.push("crowdRange, crowdHalf, tremorRange and tremorHalf must be positive");
+  else if (c.worldSenses === 1 && Math.max(c.crowdRange, c.tremorRange) >= Math.min(c.worldWidth, c.worldHeight) / 2) problems.push("crowdRange and tremorRange must be under half the world");
+  if (c.learnFeelings !== 0 && c.learnFeelings !== 1) problems.push("learnFeelings must be 0 or 1");
+  else if (c.learnFeelings === 1 && c.feelings !== 1) problems.push("learnFeelings needs feelings");
   if (c.scentDeposit < 0) problems.push("scentDeposit cannot be negative");
   if (!(c.scentDecay > 0 && c.scentDecay <= 1)) problems.push("scentDecay must be above 0 and at most 1");
   if (!(c.scentCellSize > 0) || c.worldWidth % c.scentCellSize !== 0 || c.worldHeight % c.scentCellSize !== 0) {

@@ -79,6 +79,8 @@ function recordPoint(s: Simulation): void {
     connectionsHerbivores: stats.brain.herbivores.connections,
     hiddenCarnivores: stats.brain.carnivores.hidden,
     connectionsCarnivores: stats.brain.carnivores.connections,
+    connectionsBiggest: stats.brain.biggest.connections,
+    hiddenBiggest: stats.brain.biggest.hidden,
     colonyShare: stats.population > 0 ? stats.colonies.cells / stats.population : 0,
     colonyMeanSize: stats.colonies.meanSize,
     colonyMeanTypes: stats.colonies.meanTypes,
@@ -500,7 +502,7 @@ self.onmessage = (event: MessageEvent<ToWorker>) => {
     case "load":
       try {
         const snapshot = snapshotFromBytes(message.bytes);
-        startWorld(Simulation.load(snapshot, message.branchSeed === undefined ? {} : { seed: message.branchSeed }));
+        startWorld(Simulation.load(snapshot, { ...(message.branchSeed === undefined ? {} : { seed: message.branchSeed }), ...(message.changes ? { changes: message.changes } : {}) }));
       } catch (error) {
         self.postMessage({ type: "loadFailed", message: error instanceof Error ? error.message : String(error) } satisfies LoadFailedMessage);
       }

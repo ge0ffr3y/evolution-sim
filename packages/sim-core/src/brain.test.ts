@@ -115,15 +115,15 @@ describe("brain size", () => {
 
   it("a fixed-layout brain has every input->hidden and hidden->output connection, all at zero", () => {
     const b = blankBrain();
-    const n = initFixedBrain(b.from, b.to, b.weight, 0, 8);
-    expect(n).toBe(8 * INPUT_COUNT + 8 * OUTPUT_COUNT);
+    const n = initFixedBrain(b.from, b.to, b.weight, 0, 4); // the default since Phase 11 (8 no longer fits with the new senses)
+    expect(n).toBe(4 * INPUT_COUNT + 4 * OUTPUT_COUNT);
     expect(n).toBeLessThanOrEqual(CONN_MAX);
     for (let c = 0; c < n; c++) expect(b.weight[c]).toBe(0);
     expect(measureBrain(b.from, b.to, b.weight, 0, n, 0.05)).toEqual({ hidden: 0, connections: 0 });
   });
 
   it("input count matches the documented layout", () => {
-    expect(INPUT_COUNT).toBe(5 * RAY_CHANNELS + 62);
+    expect(INPUT_COUNT).toBe(5 * RAY_CHANNELS + 109);
   });
 });
 

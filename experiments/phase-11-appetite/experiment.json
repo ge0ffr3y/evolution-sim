@@ -1,0 +1,15 @@
+{
+  "name": "phase-11-appetite",
+  "question": "Phase 11, step 2: tuning the appetite senses in the grand world. Today a plant eater sees prey only as strongly as its diet is meaty. Does a floor under the appetite (0.25, 0.5), or the evolvable attention gene (preyAttention, founders at 0), lead to more lasting meat eaters, more feeding levels, bigger brains or more prey sight wired, and at what cost to species and population? 16 fresh seeds, 500,000 ticks.",
+  "base": "grand-world",
+  "ticks": 500000,
+  "seeds": "4101-4116",
+  "sampleEvery": 2500,
+  "arms": {
+    "control": {},
+    "floor-25": { "brainAppetiteFloor": 0.25 },
+    "floor-50": { "brainAppetiteFloor": 0.5 },
+    "attention": { "preyAttention": 1 }
+  },
+  "measures": ["all"]
+}
