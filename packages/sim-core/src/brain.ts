@@ -159,10 +159,20 @@ export const INPUT = {
   focusSide: VISION_INPUTS + 95,
   focusNear: VISION_INPUTS + 96,
   focusClosing: VISION_INPUTS + 97,
-  bias: VISION_INPUTS + 98,
-  noise: VISION_INPUTS + 99,
+  /**
+   * Surroundings (Phase 11, worldSenses; all 0 without it): how crowded it is around (animals of any kind),
+   * ground tremor (bigger animals moving nearby, felt without seeing them), daylight (+1 midday, -1 midnight;
+   * 0 in worlds without days) and a compass (facing north +, facing east +).
+   */
+  crowding: VISION_INPUTS + 98,
+  tremor: VISION_INPUTS + 99,
+  light: VISION_INPUTS + 100,
+  compassNorth: VISION_INPUTS + 101,
+  compassEast: VISION_INPUTS + 102,
+  bias: VISION_INPUTS + 103,
+  noise: VISION_INPUTS + 104,
 } as const;
-export const INPUT_COUNT = VISION_INPUTS + 100;
+export const INPUT_COUNT = VISION_INPUTS + 105;
 /**
  * Every brain layout so far, oldest first, so a saved world from any of them can be renumbered.
  * Each step inserted its new inputs at `insertedAt` (where the bias input was), so nodes below
@@ -179,6 +189,7 @@ export const BRAIN_LAYOUTS: readonly { inputs: number; slots: number; insertedAt
   { inputs: VISION_INPUTS + 62, slots: 768, insertedAt: VISION_INPUTS + 59 }, // Phase 9: stomach fullness
   { inputs: VISION_INPUTS + 69, slots: 768, insertedAt: VISION_INPUTS + 60 }, // Phase 11: feelings and body (pain, joy, sick, ready, taste)
   { inputs: VISION_INPUTS + 100, slots: 768, insertedAt: VISION_INPUTS + 67 }, // Phase 11: better eyes (colour, motion, count, behind, plants by sight, focus); the focus output was added after the others
+  { inputs: VISION_INPUTS + 105, slots: 768, insertedAt: VISION_INPUTS + 98 }, // Phase 11: surroundings (crowding, tremor, light, compass)
 ];
 /** Room for thinking units before Phase 11 (worlds saved then have their actions straight after 16 units). */
 export const OLD_HIDDEN_MAX = 16;
@@ -328,6 +339,11 @@ export function inputLabel(index: number): string {
     [INPUT.focusSide]: "focused target: left",
     [INPUT.focusNear]: "focused target: how near",
     [INPUT.focusClosing]: "focused target: coming closer",
+    [INPUT.crowding]: "crowding",
+    [INPUT.tremor]: "ground tremor",
+    [INPUT.light]: "daylight",
+    [INPUT.compassNorth]: "compass: facing north",
+    [INPUT.compassEast]: "compass: facing east",
     [INPUT.bias]: "bias",
     [INPUT.noise]: "noise",
   };

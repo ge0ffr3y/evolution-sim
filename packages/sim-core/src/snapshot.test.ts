@@ -144,7 +144,7 @@ describe("saving and loading a world", () => {
       "behaviorHeading", "behaviorIds", "behaviorIsHunter", "behaviorSideLeft",
       "pickAttacker", "pickBest", "pickBestDistSq", "pickSizeLimit", "hurt", "seedChem", "seedSeason", "seedWarm", "seedToxin",
       "rayDistLarge", "rayDistSmall", "rayTargetLarge", "rayTargetSmall",
-      "visHx", "visHy", "visSelf", "visSizeLimit", "visX", "visY", "visCountSmall", "visCountLarge", "visBehind", "visBehindDistSq", "visBehindLimitSq",
+      "visHx", "visHy", "visSelf", "visSizeLimit", "visX", "visY", "visCountSmall", "visCountLarge", "visBehind", "visBehindDistSq", "visBehindLimitSq", "aroundCount", "aroundTremor", "aroundCrowdSq", "aroundTremorSq", "aroundSize", "feelAround",
       "thinkHidden", "thinkInputs", "thinkOutputs", "traceHidden", "traceInputs", "traceOutputs", "traceValid", "traceId",
       "meatClaim", "plantClaim", "plantShare", "meatShare", "meatDensity", "parents",
       "kinLimitSq", "kinCount", "kinVx", "kinVy", "herdSelf", "seeKin", "countHerd", "ready", "pairs", "mateMask", "mateSelf", "mateBest", "mateBestDistSq", "mateBestScore", "considerMate", "sexOn",

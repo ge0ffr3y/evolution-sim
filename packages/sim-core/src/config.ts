@@ -386,6 +386,17 @@ export interface SimConfig {
   focusAction: number;
   focusHold: number;
   focusCost: number;
+  /**
+   * Phase 11, surroundings (0 = off; needs brains). Five inputs, all 0 when off: crowding (animals of any kind
+   * within crowdRange: n / (n + crowdHalf)); ground tremor (the size x pace of every bigger animal within
+   * tremorRange, added up: t / (t + tremorHalf), with no direction); daylight (the day's wave, +1 midday to -1
+   * midnight, in worlds with dayLength); and a compass (how much it faces north, the top of the map, and east).
+   */
+  worldSenses: number;
+  crowdRange: number;
+  crowdHalf: number;
+  tremorRange: number;
+  tremorHalf: number;
 
   // --- Terrain (off by default) ---
   /**
@@ -1654,6 +1665,11 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   focusAction: 0,
   focusHold: 1.5,
   focusCost: 0.002,
+  worldSenses: 0,
+  crowdRange: 8,
+  crowdHalf: 5,
+  tremorRange: 12,
+  tremorHalf: 2,
   terrainMode: 0,
   terrainScale: 8,
   terrainWaterFraction: 0.25,
@@ -2529,6 +2545,10 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (!(c.visionCountHalf > 0)) problems.push("visionCountHalf must be positive");
   for (const [name, value] of [["behindRange", c.behindRange], ["plantSightReach", c.plantSightReach]] as const) if (!(value >= 0 && value <= 1)) problems.push(`${name} must be between 0 and 1`);
   if (!(c.focusHold >= 1) || !(c.focusCost >= 0)) problems.push("focusHold must be at least 1 and focusCost cannot be negative");
+  if (c.worldSenses !== 0 && c.worldSenses !== 1) problems.push("worldSenses must be 0 or 1");
+  else if (c.worldSenses === 1 && c.brainMode === 0) problems.push("worldSenses needs brains");
+  if (!(c.crowdRange > 0) || !(c.crowdHalf > 0) || !(c.tremorRange > 0) || !(c.tremorHalf > 0)) problems.push("crowdRange, crowdHalf, tremorRange and tremorHalf must be positive");
+  else if (c.worldSenses === 1 && Math.max(c.crowdRange, c.tremorRange) >= Math.min(c.worldWidth, c.worldHeight) / 2) problems.push("crowdRange and tremorRange must be under half the world");
   if (c.learnFeelings !== 0 && c.learnFeelings !== 1) problems.push("learnFeelings must be 0 or 1");
   else if (c.learnFeelings === 1 && c.feelings !== 1) problems.push("learnFeelings needs feelings");
   if (c.scentDeposit < 0) problems.push("scentDeposit cannot be negative");

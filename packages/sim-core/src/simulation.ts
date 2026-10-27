@@ -400,6 +400,8 @@ const SENSE_VISION = 1;
 const SENSE_SMELL = 2;
 const SENSE_BODY = 4;
 const SENSE_SOCIAL = 8;
+/** Crowding and ground tremor (worldSenses): need a count of the animals around. */
+const SENSE_AROUND = 16;
 /** Room for this many remembered feeding places per animal (placeSlotsMax can allow fewer). */
 const PLACE_SLOTS = 4;
 /** Feelings (Phase 11): per organism, pain, the direction pain came from (x, y), joy and taste. */
@@ -945,6 +947,13 @@ export class Simulation {
   private visBehind = -1;
   private visBehindDistSq = Infinity;
   private visBehindLimitSq = 0;
+  /** Surroundings (worldSenses): on, and scratch while feeling around: how many nearby, and the tremor of bigger ones. */
+  private readonly worldSensesOn: boolean;
+  private aroundCount = 0;
+  private aroundTremor = 0;
+  private aroundCrowdSq = 0;
+  private aroundTremorSq = 0;
+  private aroundSize = 0;
   private readonly eyeHalf: Float32Array;
   private readonly eyeReach: Float32Array;
   private visEyeHalf = 0;
@@ -1398,6 +1407,7 @@ export class Simulation {
     this.curiosityOn = this.feelOn && c.curiosity === 1;
     this.novelty = new Int32Array(this.curiosityOn ? n * (NOVELTY_SLOTS + 1) : 0);
     this.richOn = c.richVision === 1 && c.brainMode > 0;
+    this.worldSensesOn = c.worldSenses === 1 && c.brainMode > 0;
     this.focusOn = c.focusAction === 1 && c.brainMode > 0;
     this.outFocus = new Float32Array(this.focusOn ? n : 0);
     this.focusIdx = new Int32Array(this.focusOn ? n : 0).fill(-1);
@@ -3414,6 +3424,7 @@ export class Simulation {
       if (source < INPUT.smellPlantAhead) senses |= SENSE_VISION;
       else if (source < INPUT.energy) senses |= SENSE_SMELL;
       else if (source >= INPUT.rayColour && source <= INPUT.focusClosing) senses |= SENSE_VISION; // better eyes need a look around
+      else if (source === INPUT.crowding || source === INPUT.tremor) senses |= SENSE_AROUND;
       else if (source >= INPUT.kinDensity && source <= INPUT.kinSide) senses |= SENSE_SOCIAL;
       else senses |= SENSE_BODY;
     }
@@ -3662,6 +3673,15 @@ export class Simulation {
   }
 
   /** What an organism notices when something is within sight: sorts it into the vision ray it falls in. */
+  /** Surroundings: one animal near the one feeling around (see think). */
+  private readonly feelAround = (index: number, distSq: number): void => {
+    if (index === this.visSelf || this.killed[index] === 1) return;
+    if (distSq <= this.aroundCrowdSq) this.aroundCount++;
+    if (distSq <= this.aroundTremorSq && this.size[index]! > this.aroundSize) {
+      this.aroundTremor += this.size[index]! * this.speed[index]! * this.moveScale[index]!;
+    }
+  };
+
   private readonly seeOther = (index: number, distSq: number): void => {
     if (index === this.visSelf || this.killed[index] === 1) return;
     if (this.camoOn && !this.detects(this.visSelf, index)) return; // well hidden
@@ -4134,6 +4154,26 @@ export class Simulation {
     inputs[INPUT.diet] = this.diet[i]! * 2 - 1;
     // Stamina left: -1 empty, +1 full (0 in worlds without sprint fatigue).
     if (this.staminaOn) inputs[INPUT.stamina] = this.staminaMax[i]! > 0 ? (this.stamina[i]! / this.staminaMax[i]!) * 2 - 1 : -1;
+    if (this.worldSensesOn) {
+      if ((senses & SENSE_AROUND) !== 0 || traced) {
+        // Feel around: how many animals are near, and the tremor of bigger ones moving.
+        this.visSelf = i;
+        this.visX = x;
+        this.visY = y;
+        this.aroundCount = 0;
+        this.aroundTremor = 0;
+        this.aroundCrowdSq = c.crowdRange * c.crowdRange;
+        this.aroundTremorSq = c.tremorRange * c.tremorRange;
+        this.aroundSize = this.size[i]!;
+        this.hash.forEachNear(x, y, Math.max(c.crowdRange, c.tremorRange), this.feelAround);
+        inputs[INPUT.crowding] = this.aroundCount / (this.aroundCount + c.crowdHalf);
+        inputs[INPUT.tremor] = this.aroundTremor / (this.aroundTremor + c.tremorHalf);
+      }
+      if (c.dayLength > 0) inputs[INPUT.light] = smoothWave(this.tick / c.dayLength + 0.25);
+      // North is the top of the map (y goes down), east is to the right.
+      inputs[INPUT.compassNorth] = -hy;
+      inputs[INPUT.compassEast] = hx;
+    }
     if (this.feelOn) {
       const f = i * FEEL_SLOTS;
       const pain = this.feel[f + FEEL_PAIN]!;
