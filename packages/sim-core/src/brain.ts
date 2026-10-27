@@ -6,10 +6,14 @@ import type { Rng } from "./rng";
  *
  * A brain is a list of connections (from node, to node, weight). Nodes are numbered:
  *   inputs   0 .. INPUT_COUNT-1           what the organism senses
- *   hidden   INPUT_COUNT .. +HIDDEN_MAX-1 optional thinking units (a single layer)
+ *   hidden   INPUT_COUNT .. +HIDDEN_MAX-1 optional thinking units
  *   outputs  after the hidden slots       what the organism does
- * Allowed connections are input->hidden, input->output and hidden->output, so a
- * brain can never loop back on itself.
+ * Allowed connections are input->hidden, input->output and hidden->output. With depth
+ * (brainDepth, Phase 11) a thinking unit can also feed another one: units are worked out in
+ * number order, so a unit feeding a later one passes on this thought's value (depth), and a
+ * unit feeding itself or an earlier one passes on its value from the previous thought (a loop,
+ * which is how a brain can hold a thought). Nothing ever waits on itself, so a thought always
+ * finishes in one pass.
  *
  * Mode 1 ("fixed layout"): every possible input->hidden and hidden->output
  * connection exists from birth, and only the weights evolve.
@@ -141,20 +145,32 @@ export const BRAIN_LAYOUTS: readonly { inputs: number; slots: number; insertedAt
   { inputs: VISION_INPUTS + 61, slots: 768, insertedAt: VISION_INPUTS + 57 }, // Phase 9: mate scent
   { inputs: VISION_INPUTS + 62, slots: 768, insertedAt: VISION_INPUTS + 59 }, // Phase 9: stomach fullness
 ];
-/** The node number in today's layout of a node saved with an older layout (identified by its input count). */
-export function renumberOldNode(node: number, savedInputs: number): number {
+/** Room for thinking units before Phase 11 (worlds saved then have their actions straight after 16 units). */
+export const OLD_HIDDEN_MAX = 16;
+/**
+ * The node number in today's layout of a node saved with an older layout (identified by its input count and
+ * its room for thinking units). Inputs inserted since then move everything after them up; more room for
+ * thinking units moves the actions up.
+ */
+export function renumberOldNode(node: number, savedInputs: number, savedHidden = OLD_HIDDEN_MAX): number {
   let n = node;
   for (let k = 1; k < BRAIN_LAYOUTS.length; k++) {
     const step = BRAIN_LAYOUTS[k]!;
     if (savedInputs >= step.inputs) continue;
     if (n >= step.insertedAt) n += step.inputs - BRAIN_LAYOUTS[k - 1]!.inputs;
   }
+  // n is now numbered with today's inputs but the saved room for units: actions come after savedHidden units.
+  if (n >= INPUT_COUNT + savedHidden) n += HIDDEN_MAX - savedHidden;
   return n;
 }
 /** Memory cells: the brain's last four memory outputs come back as inputs next time it thinks. */
 export const MEMORY_COUNT = 4;
 
-export const HIDDEN_MAX = 16;
+/**
+ * Room for this many thinking units per brain (Phase 11; it was 16). How many a world allows is set by
+ * brainHiddenMax (16 by default, so older worlds play out as before).
+ */
+export const HIDDEN_MAX = 64;
 export const HIDDEN_START = INPUT_COUNT;
 export const OUTPUT_START = INPUT_COUNT + HIDDEN_MAX;
 /**
@@ -165,6 +181,8 @@ export const OUTPUT_START = INPUT_COUNT + HIDDEN_MAX;
 export const OUTPUT = { turn: 0, speed: 1, attack: 2, memory0: 3, memory1: 4, memory2: 5, memory3: 6, gate0: 7, gate1: 8, gate2: 9, gate3: 10 } as const;
 export const OUTPUT_COUNT = 11;
 export const NODE_COUNT = OUTPUT_START + OUTPUT_COUNT;
+/** Node numbers are stored in single bytes (Uint8Array), so there can be at most 256 nodes. A test checks this. */
+export const NODE_LIMIT = 256;
 
 /**
  * Most connections one brain can hold. A fully wired fixed-layout brain needs
@@ -279,17 +297,29 @@ export function evaluateBrain(
   outputs: Float64Array,
   /** Where this brain's weights start in `weight`, if not at `base` (a learning brain passes its own working copy). */
   weightBase = base,
+  /**
+   * Depth (brainDepth): each unit's value from the previous thought, at `stateBase` (updated here). Without it,
+   * thinking units take only inputs, exactly as before Phase 11.
+   */
+  state: Float32Array | null = null,
+  stateBase = 0,
 ): void {
   hidden.fill(0);
   outputs.fill(0);
-  // Pass 1: everything feeding a hidden unit comes from an input.
-  for (let c = 0; c < count; c++) {
-    const w = weight[weightBase + c]!;
-    if (w < prune && w > -prune) continue;
-    const target = to[base + c]!;
-    if (target < OUTPUT_START) hidden[target - HIDDEN_START] = hidden[target - HIDDEN_START]! + inputs[from[base + c]!]! * w;
+  if (state) {
+    thinkDeep(from, to, weight, base, count, prune, inputs, hidden, weightBase, state, stateBase);
+  } else {
+    // Pass 1: everything feeding a hidden unit comes from an input. (Unit-to-unit wiring, which only grows with
+    // depth, is ignored here, so a deep brain run without depth still thinks with what it can.)
+    for (let c = 0; c < count; c++) {
+      const w = weight[weightBase + c]!;
+      if (w < prune && w > -prune) continue;
+      const target = to[base + c]!;
+      const source = from[base + c]!;
+      if (target < OUTPUT_START && source < INPUT_COUNT) hidden[target - HIDDEN_START] = hidden[target - HIDDEN_START]! + inputs[source]! * w;
+    }
+    for (let h = 0; h < HIDDEN_MAX; h++) hidden[h] = soft(hidden[h]!);
   }
-  for (let h = 0; h < HIDDEN_MAX; h++) hidden[h] = soft(hidden[h]!);
   // Pass 2: outputs gather from inputs and from hidden units.
   for (let c = 0; c < count; c++) {
     const w = weight[weightBase + c]!;
@@ -302,6 +332,56 @@ export function evaluateBrain(
     }
   }
   for (let o = 0; o < OUTPUT_COUNT; o++) outputs[o] = soft(outputs[o]!);
+}
+
+/**
+ * Thinking units with depth and loops (see the top of this file). First every unit gathers its inputs, and
+ * the loops: values from itself or a later unit, as they were at the end of the previous thought. Then the
+ * units are finished in number order, each also taking this thought's value from earlier units that feed it.
+ * Finally each unit's value is kept for the next thought.
+ */
+function thinkDeep(
+  from: Uint8Array,
+  to: Uint8Array,
+  weight: Float32Array,
+  base: number,
+  count: number,
+  prune: number,
+  inputs: Float64Array,
+  hidden: Float64Array,
+  weightBase: number,
+  state: Float32Array,
+  stateBase: number,
+): void {
+  let forward = 0;
+  for (let c = 0; c < count; c++) {
+    const w = weight[weightBase + c]!;
+    if (w < prune && w > -prune) continue;
+    const target = to[base + c]!;
+    if (target >= OUTPUT_START) continue;
+    const t = target - HIDDEN_START;
+    const source = from[base + c]!;
+    if (source < INPUT_COUNT) hidden[t] = hidden[t]! + inputs[source]! * w;
+    else if (source - HIDDEN_START >= t) hidden[t] = hidden[t]! + state[stateBase + source - HIDDEN_START]! * w;
+    else forward++;
+  }
+  if (forward === 0) {
+    for (let h = 0; h < HIDDEN_MAX; h++) hidden[h] = soft(hidden[h]!);
+  } else {
+    for (let h = 0; h < HIDDEN_MAX; h++) {
+      // Units before this one are already finished, so their values this thought can be passed on.
+      for (let c = 0; c < count; c++) {
+        if (to[base + c] !== HIDDEN_START + h) continue;
+        const source = from[base + c]!;
+        if (source < INPUT_COUNT || source - HIDDEN_START >= h) continue;
+        const w = weight[weightBase + c]!;
+        if (w < prune && w > -prune) continue;
+        hidden[h] = hidden[h]! + hidden[source - HIDDEN_START]! * w;
+      }
+      hidden[h] = soft(hidden[h]!);
+    }
+  }
+  for (let h = 0; h < HIDDEN_MAX; h++) state[stateBase + h] = hidden[h]!;
 }
 
 /**
@@ -368,8 +448,8 @@ export interface BrainSize {
 
 /** Count a brain's working parts, ignoring connections too weak to matter. */
 export function measureBrain(from: Uint8Array, to: Uint8Array, weight: Float32Array, base: number, count: number, prune: number): BrainSize {
-  let hasIn = 0;
-  let hasOut = 0;
+  const hasIn = scratchIn.fill(0);
+  const hasOut = scratchOut.fill(0);
   let connections = 0;
   for (let c = 0; c < count; c++) {
     const w = weight[base + c]!;
@@ -377,13 +457,16 @@ export function measureBrain(from: Uint8Array, to: Uint8Array, weight: Float32Ar
     connections++;
     const source = from[base + c]!;
     const target = to[base + c]!;
-    if (target < OUTPUT_START) hasIn |= 1 << (target - HIDDEN_START);
-    if (source >= HIDDEN_START && source < OUTPUT_START) hasOut |= 1 << (source - HIDDEN_START);
+    if (target >= HIDDEN_START && target < OUTPUT_START) hasIn[target - HIDDEN_START] = 1;
+    if (source >= HIDDEN_START && source < OUTPUT_START) hasOut[source - HIDDEN_START] = 1;
   }
   let hidden = 0;
-  for (let h = 0; h < HIDDEN_MAX; h++) if ((hasIn & hasOut & (1 << h)) !== 0) hidden++;
+  for (let h = 0; h < HIDDEN_MAX; h++) if (hasIn[h] === 1 && hasOut[h] === 1) hidden++;
   return { hidden, connections };
 }
+/** Scratch flags for measureBrain and usedUnits (one per thinking unit; never part of the world). */
+const scratchIn = new Uint8Array(HIDDEN_MAX);
+const scratchOut = new Uint8Array(HIDDEN_MAX);
 
 /** Fill a brain with every possible input->hidden and hidden->output connection, all at weight zero. */
 export function initFixedBrain(from: Uint8Array, to: Uint8Array, weight: Float32Array, base: number, hiddenUnits: number): number {
@@ -426,16 +509,18 @@ function clampWeight(w: number): number {
   return w > WEIGHT_LIMIT ? WEIGHT_LIMIT : w < -WEIGHT_LIMIT ? -WEIGHT_LIMIT : w;
 }
 
-/** Which hidden units are used by at least one connection (bit mask). */
-function hiddenInUse(from: Uint8Array, to: Uint8Array, base: number, count: number): number {
-  let mask = 0;
+/** The hidden units used by at least one connection, lowest first. */
+function usedUnits(from: Uint8Array, to: Uint8Array, base: number, count: number): number[] {
+  const used = scratchIn.fill(0);
   for (let c = 0; c < count; c++) {
     const source = from[base + c]!;
     const target = to[base + c]!;
-    if (source >= HIDDEN_START && source < OUTPUT_START) mask |= 1 << (source - HIDDEN_START);
-    if (target >= HIDDEN_START && target < OUTPUT_START) mask |= 1 << (target - HIDDEN_START);
+    if (source >= HIDDEN_START && source < OUTPUT_START) used[source - HIDDEN_START] = 1;
+    if (target >= HIDDEN_START && target < OUTPUT_START) used[target - HIDDEN_START] = 1;
   }
-  return mask;
+  const list: number[] = [];
+  for (let h = 0; h < HIDDEN_MAX; h++) if (used[h] === 1) list.push(h);
+  return list;
 }
 
 function removeConnection(from: Uint8Array, to: Uint8Array, weight: Float32Array, base: number, count: number, index: number): number {
@@ -477,17 +562,21 @@ export function mutateBrain(
   if (mode !== 2) return count;
 
   // Add a connection between two things that may legally be connected.
+  const deep = c.brainDepth === 1;
   if (rng.next() < c.brainAddConnectionProb && count < CONN_MAX) {
-    const used = hiddenInUse(from, to, base, count);
+    const usedList = usedUnits(from, to, base, count);
     // Pick a kind: input->output, input->hidden, or hidden->output (the last two need a hidden unit in use).
+    // With depth, also hidden->hidden (a unit feeding a later one, itself, or an earlier one: see the top of this file).
     const kinds: number[] = [0];
-    if (used !== 0) kinds.push(1, 2);
+    if (usedList.length > 0) kinds.push(1, 2);
+    if (deep && usedList.length > 0) kinds.push(3);
     const kind = kinds[rng.int(kinds.length)]!;
     let source = 0;
     let target = 0;
-    const usedList: number[] = [];
-    for (let h = 0; h < HIDDEN_MAX; h++) if ((used & (1 << h)) !== 0) usedList.push(h);
-    if (kind === 0) {
+    if (kind === 3) {
+      source = HIDDEN_START + usedList[rng.int(usedList.length)]!;
+      target = HIDDEN_START + usedList[rng.int(usedList.length)]!;
+    } else if (kind === 0) {
       source = rng.int(INPUT_COUNT);
       target = OUTPUT_START + rng.int(OUTPUT_COUNT);
     } else if (kind === 1) {
@@ -506,17 +595,20 @@ export function mutateBrain(
   }
 
   // Add a hidden unit by splitting an input->output connection in two (the NEAT way).
+  // With depth, any connection can be split, so chains of units (depth) can grow.
   if (rng.next() < c.brainAddNodeProb && count + 2 <= CONN_MAX) {
-    const used = hiddenInUse(from, to, base, count);
+    const used = usedUnits(from, to, base, count);
     let free = -1;
-    for (let h = 0; h < HIDDEN_MAX; h++) {
-      if ((used & (1 << h)) === 0) {
-        free = h;
-        break;
+    for (let h = 0, k = 0; h < c.brainHiddenMax; h++) {
+      if (k < used.length && used[k] === h) {
+        k++;
+        continue;
       }
+      free = h;
+      break;
     }
     const direct: number[] = [];
-    for (let i = 0; i < count; i++) if (to[base + i]! >= OUTPUT_START && from[base + i]! < INPUT_COUNT) direct.push(i);
+    for (let i = 0; i < count; i++) if (deep || (to[base + i]! >= OUTPUT_START && from[base + i]! < INPUT_COUNT)) direct.push(i);
     if (free >= 0 && direct.length > 0) {
       const index = direct[rng.int(direct.length)]!;
       const source = from[base + index]!;
@@ -540,9 +632,7 @@ export function mutateBrain(
 
   // Remove a hidden unit and everything wired to it.
   if (rng.next() < c.brainRemoveNodeProb) {
-    const used = hiddenInUse(from, to, base, count);
-    const usedList: number[] = [];
-    for (let h = 0; h < HIDDEN_MAX; h++) if ((used & (1 << h)) !== 0) usedList.push(h);
+    const usedList = usedUnits(from, to, base, count);
     if (usedList.length > 0) {
       const node = HIDDEN_START + usedList[rng.int(usedList.length)]!;
       let i = 0;

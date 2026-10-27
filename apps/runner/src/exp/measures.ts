@@ -482,7 +482,7 @@ export const MEASURES: Record<string, Measure> = {
 
   brains: {
     describe:
-      "brain size: average thinking units and working connections, the most complex brain alive (its connections, thinking units and senses read), how many different senses at least one brain reads, and how many an average brain reads (needs brains)",
+      "brain size: average thinking units and working connections, the most complex brain alive (its connections, thinking units and senses read), how many different senses at least one brain reads, how many an average brain reads, and with deeper brains the longest chain of thinking units and the share of brains with a loop (needs brains)",
     sample: ({ stats }) => {
       const b = stats().brain;
       return {
@@ -493,6 +493,8 @@ export const MEASURES: Record<string, Measure> = {
         brainBiggestSenses: b.biggest.senses,
         brainSensesInUse: b.sensesInUse,
         brainSensesPerBrain: round(b.sensesPerBrain, 3),
+        brainDeepest: b.deepest,
+        brainLoopShare: round(b.loopShare, 4),
       };
     },
     summarize: (rows) => ({
@@ -503,6 +505,8 @@ export const MEASURES: Record<string, Measure> = {
       brainBiggestHiddenEver: rows.length ? Math.max(...rows.map((r) => r.brainBiggestHidden ?? 0)) : null,
       brainSensesInUseLate: lateMean(rows, "brainSensesInUse"),
       brainSensesPerBrainLate: lateMean(rows, "brainSensesPerBrain"),
+      brainDeepestEver: rows.length ? Math.max(...rows.map((r) => r.brainDeepest ?? 0)) : null,
+      brainLoopShareLate: lateMean(rows, "brainLoopShare"),
     }),
   },
 

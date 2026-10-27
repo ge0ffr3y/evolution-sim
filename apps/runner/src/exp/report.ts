@@ -37,6 +37,7 @@ export const KEY_MEASURES: [string, string][] = [
   ["brainConnectionsLate", "brain connections"],
   ["brainBiggestConnectionsEver", "most complex brain ever (connections)"],
   ["brainSensesPerBrainLate", "senses read per brain"],
+  ["brainDeepestEver", "longest chain of thinking units ever"],
   ["plantFillLate", "plants standing (share of capacity)"],
   ["wornShareLate", "worn ground"],
   ["pinnedGenesLate", "genes pinned at a limit"],

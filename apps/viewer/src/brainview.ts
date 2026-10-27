@@ -27,9 +27,11 @@ function activationColor(value: number | null): string {
 }
 
 /**
- * Draws a brain as three columns: what it senses (left), its hidden thinking units
- * (middle), and what it does (right). Lines are connections: blue pushes up, red pushes
- * down, thicker means stronger. Node brightness shows what the organism is thinking right now.
+ * Draws a brain as columns: what it senses (left), its hidden thinking units (middle), and what it
+ * does (right). With deeper brains the thinking units spread over several columns, one per step of
+ * depth (a unit fed by another unit sits one column to its right). Lines are connections: blue
+ * pushes up, red pushes down, thicker means stronger. A dashed curve is a loop: a unit's value from
+ * the previous thought. Node brightness shows what the organism is thinking right now.
  */
 /**
  * height: drawing height in pixels (a smaller panel can use a shorter one).
@@ -64,6 +66,7 @@ export function drawBrain(canvas: HTMLCanvasElement, brain: BrainSnapshot, heigh
   const inputX = Math.min(112, width * 0.4);
   const outputX = width - Math.max(64, Math.ceil(longestLabel + valueWidth) + 18);
   const hiddenX = (inputX + outputX) / 2;
+  const isUnit = (n: number): boolean => n >= HIDDEN_START && n < OUTPUT_START;
 
   // Positions of every node that is drawn.
   const wiredInputs = [...new Set(brain.links.map((l) => l.from).filter((n) => n < INPUT_COUNT))].sort((a, b) => a - b);
@@ -72,14 +75,26 @@ export function drawBrain(canvas: HTMLCanvasElement, brain: BrainSnapshot, heigh
   const inputY = (i: number): number => (shownInputs.length <= 1 ? height / 2 : 12 + ((inputRow.get(i) ?? 0) * (height - 24)) / (shownInputs.length - 1));
   // With three outputs this is the old layout (a quarter, half and three quarters of the way down).
   const outputY = (o: number): number => (height * ((outputRow.get(o) ?? 0) + 1)) / (shownOutputs.length + 1);
-  const usedHidden = [...new Set(brain.links.flatMap((l) => [l.from, l.to]).filter((n) => n >= HIDDEN_START && n < OUTPUT_START))].sort((a, b) => a - b);
-  const hiddenY = (node: number): number => {
-    const k = usedHidden.indexOf(node);
-    return 20 + ((k + 0.5) * (height - 40)) / Math.max(usedHidden.length, 1);
+  const usedHidden = [...new Set(brain.links.flatMap((l) => [l.from, l.to]).filter(isUnit))].sort((a, b) => a - b);
+  // Depth: a unit fed this thought by an earlier unit sits one column further right than it.
+  // (Units are worked out in number order, so going lowest first, every feeding unit is placed already.)
+  const layer = new Map<number, number>();
+  for (const node of usedHidden) {
+    let depth = 0;
+    for (const l of brain.links) if (l.to === node && isUnit(l.from) && l.from < node) depth = Math.max(depth, (layer.get(l.from) ?? 0) + 1);
+    layer.set(node, depth);
+  }
+  const layers = usedHidden.length ? Math.max(...layer.values()) + 1 : 1;
+  const inLayer = (k: number): number[] => usedHidden.filter((n) => layer.get(n) === k);
+  const hiddenPos = (node: number): [number, number] => {
+    const k = layer.get(node) ?? 0;
+    const column = inLayer(k);
+    const x = layers === 1 ? hiddenX : inputX + 30 + ((outputX - inputX - 60) * k) / (layers - 1);
+    return [x, 20 + ((column.indexOf(node) + 0.5) * (height - 40)) / Math.max(column.length, 1)];
   };
   const position = (node: number): [number, number] => {
     if (node < INPUT_COUNT) return [inputX, inputY(node)];
-    if (node < OUTPUT_START) return [hiddenX, hiddenY(node)];
+    if (node < OUTPUT_START) return hiddenPos(node);
     return [outputX, outputY(node - OUTPUT_START)];
   };
 
@@ -91,10 +106,24 @@ export function drawBrain(canvas: HTMLCanvasElement, brain: BrainSnapshot, heigh
     ctx.strokeStyle = `rgba(${link.weight >= 0 ? POSITIVE : NEGATIVE}, ${0.3 + 0.12 * strength})`;
     ctx.lineWidth = 0.6 + strength * 0.9;
     ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
+    const loop = isUnit(link.from) && isUnit(link.to) && link.from >= link.to;
+    if (!loop) {
+      ctx.setLineDash([]);
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+    } else if (link.from === link.to) {
+      // A unit feeding itself: a small dashed ring above it.
+      ctx.setLineDash([3, 2]);
+      ctx.arc(x1, y1 - 9, 6, 0, Math.PI * 2);
+    } else {
+      // A loop back to an earlier unit: a dashed curve bulging upward.
+      ctx.setLineDash([3, 2]);
+      ctx.moveTo(x1, y1);
+      ctx.quadraticCurveTo((x1 + x2) / 2, Math.min(y1, y2) - 30, x2, y2);
+    }
     ctx.stroke();
   }
+  ctx.setLineDash([]);
 
   ctx.textBaseline = "middle";
 

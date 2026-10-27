@@ -188,6 +188,19 @@ export interface SimConfig {
   brainMode: number;
   /** Hidden units in the fixed-layout brain (mode 1). */
   brainHidden: number;
+  /**
+   * Phase 11: the most thinking units an evolvable brain (mode 2) can grow, up to 64. 16 was the old fixed
+   * limit and is the default, so older worlds play out exactly as before.
+   */
+  brainHiddenMax: number;
+  /**
+   * Phase 11, deeper brains (0 = off; needs brainMode 2): thinking units can feed other thinking units. Units
+   * are worked out in number order: a unit feeding a later one passes on this thought's value (depth, ideas
+   * built on ideas), and a unit feeding itself or an earlier one passes on its value from the previous thought
+   * (a loop, so a brain can hold a thought or keep a rhythm). Mutations can then add unit-to-unit connections
+   * and split any connection with a new unit. Each unit's last value is saved with the world.
+   */
+  brainDepth: number;
   /** Brains sense the nearest water up to this far away (world units): the "water: how far" sense reads 1 at this distance or more. */
   brainWaterRange: number;
   /**
@@ -1510,6 +1523,8 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
 
   brainMode: 0,
   brainHidden: 8,
+  brainHiddenMax: 16,
+  brainDepth: 0,
   brainWaterRange: 64,
   brainVisionRange: 6,
   brainEvery: 2,
@@ -2037,6 +2052,9 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   if (c.herbivoreAttackPenalty < 0) problems.push("herbivoreAttackPenalty cannot be negative");
   if (![0, 1, 2].includes(c.brainMode)) problems.push("brainMode must be 0 (no brains), 1 (fixed layout) or 2 (evolvable layout)");
   if (!Number.isInteger(c.brainHidden) || c.brainHidden < 1 || c.brainHidden > HIDDEN_MAX) problems.push(`brainHidden must be a whole number from 1 to ${HIDDEN_MAX}`);
+  if (!Number.isInteger(c.brainHiddenMax) || c.brainHiddenMax < 1 || c.brainHiddenMax > HIDDEN_MAX) problems.push(`brainHiddenMax must be a whole number from 1 to ${HIDDEN_MAX}`);
+  if (c.brainDepth !== 0 && c.brainDepth !== 1) problems.push("brainDepth must be 0 or 1");
+  else if (c.brainDepth === 1 && c.brainMode !== 2) problems.push("brainDepth needs brainMode 2 (an evolvable layout)");
   else if (c.brainMode === 1 && c.brainHidden * (INPUT_COUNT + OUTPUT_COUNT) > CONN_MAX) {
     problems.push(`brainHidden ${c.brainHidden} needs ${c.brainHidden * (INPUT_COUNT + OUTPUT_COUNT)} connections per brain, but only ${CONN_MAX} fit (use at most ${Math.floor(CONN_MAX / (INPUT_COUNT + OUTPUT_COUNT))})`);
   }

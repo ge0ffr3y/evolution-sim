@@ -19,6 +19,7 @@ import {
   CONN_MAX,
   BRAIN_LAYOUTS,
   renumberOldNode,
+  OLD_HIDDEN_MAX,
   HIDDEN_MAX,
   HIDDEN_START,
   INPUT,
@@ -124,6 +125,9 @@ export interface BrainStats {
   /** How many different inputs at least one brain reads, and how many an average brain reads. */
   sensesInUse: number;
   sensesPerBrain: number;
+  /** Deeper brains (brainDepth): the longest chain of thinking units in any brain alive (1 = a single layer), and the share of brains with a loop. */
+  deepest: number;
+  loopShare: number;
 }
 
 /** One brain, for the brain viewer: its working connections and (if traced) what it is thinking right now. */
@@ -658,6 +662,9 @@ export class Simulation {
   /** Brain memory (what each brain wrote last time, MEMORY_COUNT numbers per organism) and the place each organism calls home. */
   private readonly memoryOn: boolean;
   private readonly memState: Float32Array;
+  /** Deeper brains (brainDepth): each thinking unit's value at the end of the last thought, HIDDEN_MAX per organism (for loops). */
+  private readonly depthOn: boolean;
+  private readonly brainState: Float32Array;
   /**
    * Learning brains (Phase 8f). learnOn: connections change during life; learnSensesOn: the learning
    * senses are offered; either one needs the reward bookkeeping (trackOn). For the first LEARN_SLOTS
@@ -1409,6 +1416,8 @@ export class Simulation {
     this.torpid = new Float32Array(this.torporOn ? n : 0);
     this.memoryOn = c.brainMode > 0 && c.brainMemory === 1;
     this.memState = new Float32Array(this.memoryOn ? n * MEMORY_COUNT : 0);
+    this.depthOn = c.brainMode === 2 && c.brainDepth === 1;
+    this.brainState = new Float32Array(this.depthOn ? n * HIDDEN_MAX : 0);
     this.learnOn = c.brainMode > 0 && c.brainLearning === 1;
     this.learnSensesOn = c.brainMode > 0 && c.learnSenses === 1;
     this.trackOn = this.learnOn || this.learnSensesOn;
@@ -2825,6 +2834,7 @@ export class Simulation {
       this.fertilityLuck[i] = this.rollLuck();
     }
     if (this.memoryOn) this.memState.fill(0, i * MEMORY_COUNT, (i + 1) * MEMORY_COUNT);
+    if (this.depthOn) this.brainState.fill(0, i * HIDDEN_MAX, (i + 1) * HIDDEN_MAX);
     if (this.learnOn) {
       // A newborn has learned nothing yet (what its parents learned is not inherited).
       this.learnDelta.fill(0, i * LEARN_SLOTS, (i + 1) * LEARN_SLOTS);
@@ -4026,12 +4036,13 @@ export class Simulation {
 
     const hidden = this.thinkHidden;
     const outputs = this.thinkOutputs;
+    const deep = this.depthOn ? this.brainState : null;
     if (learning) {
       learnedWeights(this.brainWeight, i * CONN_MAX, count, this.learnDelta, i * LEARN_SLOTS, this.learnWeights);
-      evaluateBrain(this.brainFrom, this.brainTo, this.learnWeights, i * CONN_MAX, count, c.brainPruneBelow, inputs, hidden, outputs, 0);
+      evaluateBrain(this.brainFrom, this.brainTo, this.learnWeights, i * CONN_MAX, count, c.brainPruneBelow, inputs, hidden, outputs, 0, deep, i * HIDDEN_MAX);
       updateTraces(this.brainFrom, this.brainTo, i * CONN_MAX, count, this.learnTrace, i * LEARN_SLOTS, c.learnTraceDecay, inputs, hidden, outputs);
     } else {
-      evaluateBrain(this.brainFrom, this.brainTo, this.brainWeight, i * CONN_MAX, count, c.brainPruneBelow, inputs, hidden, outputs);
+      evaluateBrain(this.brainFrom, this.brainTo, this.brainWeight, i * CONN_MAX, count, c.brainPruneBelow, inputs, hidden, outputs, i * CONN_MAX, deep, i * HIDDEN_MAX);
     }
     this.outTurn[i] = outputs[OUTPUT.turn]!;
     this.outSpeed[i] = outputs[OUTPUT.speed]!;
@@ -5883,6 +5894,7 @@ export class Simulation {
       this.brainTo.copyWithin(target, source, source + count);
       this.brainWeight.copyWithin(target, source, source + count);
       if (this.memoryOn) this.memState.copyWithin(to * MEMORY_COUNT, from * MEMORY_COUNT, (from + 1) * MEMORY_COUNT);
+      if (this.depthOn) this.brainState.copyWithin(to * HIDDEN_MAX, from * HIDDEN_MAX, (from + 1) * HIDDEN_MAX);
       if (this.chemOn) this.chem.copyWithin(to * 4, from * 4, from * 4 + 4);
       if (this.learnOn) {
         this.learnDelta.copyWithin(to * LEARN_SLOTS, from * LEARN_SLOTS, (from + 1) * LEARN_SLOTS);
@@ -5931,6 +5943,7 @@ export class Simulation {
     organism("brainTo", this.brainTo, CONN_MAX);
     organism("brainWeight", this.brainWeight, CONN_MAX);
     if (this.memoryOn) organism("memState", this.memState, MEMORY_COUNT);
+    if (this.depthOn) organism("brainState", this.brainState, HIDDEN_MAX);
     if (this.learnOn) {
       organism("learnDelta", this.learnDelta, LEARN_SLOTS);
       organism("learnTrace", this.learnTrace, LEARN_SLOTS);
@@ -5974,7 +5987,7 @@ export class Simulation {
         ? { lineages: { records: this.lineageRecords, members: [...this.lineageOf], mustMate: [...this.mustMateIds], shelter: [...this.shelterUntil] } }
         : {}),
       catastrophe: [this.catKind, this.catStart, this.catEnd],
-      brainLayout: [INPUT_COUNT, CONN_MAX],
+      brainLayout: [INPUT_COUNT, CONN_MAX, HIDDEN_MAX],
       // (Only in worlds with disaster events, so older saved worlds still load.)
       ...(this.eventsOn ? { activeEvents: this.activeEvents, eventRng: Array.from(this.eventRng.getState()) } : {}),
       ...(this.plantEvoOn ? { plantRng: Array.from(this.plantRng.getState()) } : {}),
@@ -6058,7 +6071,7 @@ export class Simulation {
       worldEvents: WorldEvent[];
       interventionLog?: Intervention[];
       lineages?: { records: Omit<LineageInfo, "alive" | "aliveMeat">[]; members: [number, number][]; mustMate: number[]; shelter?: [number, number][] };
-      brainLayout?: [number, number];
+      brainLayout?: [number, number] | [number, number, number];
       activeEvents?: ActiveEvent[];
       eventRng?: number[];
       plantRng?: number[];
@@ -6093,11 +6106,13 @@ export class Simulation {
     }
     // A world saved before Phase 8e has the older brain layout (fewer inputs, fewer connection slots): renumber it.
     const [savedInputs, savedSlots] = s.brainLayout ?? [BRAIN_LAYOUTS[0]!.inputs, BRAIN_LAYOUTS[0]!.slots];
-    if (this.config.brainMode > 0 && (savedInputs !== INPUT_COUNT || savedSlots !== CONN_MAX)) {
+    // Worlds saved before Phase 11 had room for 16 thinking units; the actions came straight after them.
+    const savedHidden = s.brainLayout?.[2] ?? OLD_HIDDEN_MAX;
+    if (this.config.brainMode > 0 && (savedInputs !== INPUT_COUNT || savedSlots !== CONN_MAX || savedHidden !== HIDDEN_MAX)) {
       const from = snapshot.arrays.brainFrom as Uint8Array;
       const to = snapshot.arrays.brainTo as Uint8Array;
       const weight = snapshot.arrays.brainWeight as Float32Array;
-      const renumber = (node: number): number => renumberOldNode(node, savedInputs);
+      const renumber = (node: number): number => renumberOldNode(node, savedInputs, savedHidden);
       this.brainFrom.fill(0);
       this.brainTo.fill(0);
       this.brainWeight.fill(0);
@@ -6114,6 +6129,8 @@ export class Simulation {
       take("brainWeight", this.brainWeight);
     }
     if (this.memoryOn) take("memState", this.memState);
+    // (A world saved without depth starts every unit's last value at 0 when depth is switched on.)
+    if (this.depthOn && snapshot.arrays.brainState) take("brainState", this.brainState);
     if (this.learnOn) {
       take("learnDelta", this.learnDelta);
       take("learnTrace", this.learnTrace);
@@ -6489,9 +6506,12 @@ export class Simulation {
   }
 
   /** The most complex brain alive, and how many different senses brains read (watch only). */
-  private brainCensus(): Pick<BrainStats, "biggest" | "sensesInUse" | "sensesPerBrain"> {
+  private brainCensus(): Pick<BrainStats, "biggest" | "sensesInUse" | "sensesPerBrain" | "deepest" | "loopShare"> {
     const biggest = { id: 0, hidden: 0, connections: 0, senses: 0 };
-    if (this.config.brainMode === 0 || this.count === 0) return { biggest, sensesInUse: 0, sensesPerBrain: 0 };
+    if (this.config.brainMode === 0 || this.count === 0) return { biggest, sensesInUse: 0, sensesPerBrain: 0, deepest: 0, loopShare: 0 };
+    let deepest = this.brainHidden.subarray(0, this.count).some((h) => h > 0) ? 1 : 0;
+    let looping = 0;
+    const layer = new Int32Array(HIDDEN_MAX);
     const prune = this.config.brainPruneBelow;
     // lastSeenBy[k] = 1 + the last organism found reading input k, so each brain counts each input once.
     const lastSeenBy = new Int32Array(INPUT_COUNT);
@@ -6511,6 +6531,34 @@ export class Simulation {
         senses++;
       }
       sensesTotal += senses;
+      if (this.depthOn) {
+        // Chains: a unit fed by an earlier unit sits one step deeper. Units come in number order, so one
+        // pass over the links in order of their target settles it; repeat until nothing changes.
+        layer.fill(0);
+        let changed = true;
+        let loops = false;
+        for (let pass = 0; changed && pass < HIDDEN_MAX; pass++) {
+          changed = false;
+          for (let k = 0; k < this.brainCount[i]!; k++) {
+            const w = this.brainWeight[base + k]!;
+            if (w < prune && w > -prune) continue;
+            const f = this.brainFrom[base + k]!;
+            const t = this.brainTo[base + k]!;
+            if (f < HIDDEN_START || f >= OUTPUT_START || t < HIDDEN_START || t >= OUTPUT_START) continue;
+            if (f >= t) {
+              loops = true;
+              continue;
+            }
+            const d = layer[f - HIDDEN_START]! + 1;
+            if (d > layer[t - HIDDEN_START]!) {
+              layer[t - HIDDEN_START] = d;
+              changed = true;
+            }
+          }
+        }
+        for (let h = 0; h < HIDDEN_MAX; h++) if (layer[h]! + 1 > deepest) deepest = layer[h]! + 1;
+        if (loops) looping++;
+      }
       const conn = this.brainConnections[i]!;
       const hid = this.brainHidden[i]!;
       if (
@@ -6527,7 +6575,7 @@ export class Simulation {
     }
     let inUse = 0;
     for (let k = 0; k < INPUT_COUNT; k++) inUse += anyone[k]!;
-    return { biggest, sensesInUse: inUse, sensesPerBrain: sensesTotal / this.count };
+    return { biggest, sensesInUse: inUse, sensesPerBrain: sensesTotal / this.count, deepest, loopShare: looping / this.count };
   }
 
   /** Add up all the matter in the world, in every form. It should never change. */
@@ -6803,6 +6851,7 @@ export class Simulation {
       mixBits(this.outTurn, n);
       mixBits(this.outSpeed, n);
       mixBits(this.outAttack, n);
+      if (this.depthOn) mixBits(this.brainState, n * HIDDEN_MAX);
     }
     if (this.staminaOn) mixBits(this.stamina, n);
     if (this.bondsOn) for (let k = 0; k < n * BOND_SLOTS; k++) mix(this.bondTo[k]! >>> 0);
