@@ -298,6 +298,22 @@ export interface SimConfig {
    * it doing anything, and the wiring wakes up when a lineage turns to meat.
    */
   brainAppetiteSenses: number;
+  /**
+   * Phase 11, tuning the appetite senses (needs brainAppetiteSenses 1; 0 = today). Each appetite signal is
+   * at least this strong: food signals reach the brain at floor + (1 - floor) x appetite, so a plant eater
+   * with a floor of 0.4 still sees prey at 40% strength, and its plants never fade below 40% either.
+   */
+  brainAppetiteFloor: number;
+  /**
+   * The attention gene (0 = off; needs brains and brainAppetiteSenses 1): the 34th gene. It lets evolution
+   * decide how strongly each animal notices prey and meat (the sight and trail of smaller animals, the smell of
+   * corpses, meat here), beyond what its diet gives: strength = base + (1 - base) x gene, where base is the
+   * appetite strength above. 0 is today's; 1 notices them fully whatever it eats. It costs attentionCost x gene
+   * a tick (sensing line). Founders start at initialAttention.
+   */
+  preyAttention: number;
+  attentionCost: number;
+  initialAttention: number;
 
   // --- Terrain (off by default) ---
   /**
@@ -1536,6 +1552,10 @@ export const DEFAULT_CONFIG: Readonly<SimConfig> = {
   brainCostPerNeuron: 0.0005,
   brainCostPerConnection: 0.0001,
   brainAppetiteSenses: 0,
+  brainAppetiteFloor: 0,
+  preyAttention: 0,
+  attentionCost: 0.001,
+  initialAttention: 0,
   terrainMode: 0,
   terrainScale: 8,
   terrainWaterFraction: 0.25,
@@ -2385,6 +2405,10 @@ export function makeConfig(overrides: Partial<SimConfig> = {}): SimConfig {
   }
   if (c.killOwnershipLeak < 0 || c.killOwnershipLeak > 1) problems.push("killOwnershipLeak must be between 0 and 1");
   if (![0, 1].includes(c.brainAppetiteSenses)) problems.push("brainAppetiteSenses must be 0 or 1");
+  if (!(c.brainAppetiteFloor >= 0 && c.brainAppetiteFloor <= 1)) problems.push("brainAppetiteFloor must be between 0 and 1");
+  if (c.preyAttention !== 0 && c.preyAttention !== 1) problems.push("preyAttention must be 0 or 1");
+  if (c.preyAttention === 1 && (c.brainMode === 0 || c.brainAppetiteSenses !== 1)) problems.push("preyAttention needs brains and brainAppetiteSenses 1 (it tunes the appetite senses)");
+  if (!(c.attentionCost >= 0) || !(c.initialAttention >= 0 && c.initialAttention <= 1)) problems.push("attentionCost cannot be negative, and initialAttention must be between 0 and 1");
   if (c.scentDeposit < 0) problems.push("scentDeposit cannot be negative");
   if (!(c.scentDecay > 0 && c.scentDecay <= 1)) problems.push("scentDecay must be above 0 and at most 1");
   if (!(c.scentCellSize > 0) || c.worldWidth % c.scentCellSize !== 0 || c.worldHeight % c.scentCellSize !== 0) {

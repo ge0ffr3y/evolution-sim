@@ -850,6 +850,8 @@ export class Simulation {
   private pickyAlpha = 0;
   /** The eye (eyeMode): per organism, half the width of view (see EYE_TODAY) and how far it reaches compared with today's eye. */
   private readonly eyeOn: boolean;
+  /** Phase 11 appetite tuning: the attention gene is in use (preyAttention). */
+  private readonly attentionOn: boolean;
   private readonly eyeHalf: Float32Array;
   private readonly eyeReach: Float32Array;
   private visEyeHalf = 0;
@@ -1295,6 +1297,7 @@ export class Simulation {
     this.rested = new Float32Array(this.restOn ? n : 0);
     this.hurt = new Float64Array(c.attackInjury > 0 ? n : 0);
     this.eyeOn = c.eyeMode === 1 && c.brainMode > 0;
+    this.attentionOn = c.preyAttention === 1 && c.brainMode > 0 && c.brainAppetiteSenses === 1;
     this.eyeHalf = new Float32Array(this.eyeOn ? n : 0);
     this.eyeReach = new Float32Array(this.eyeOn ? n : 0);
     this.thermalScale = new Float32Array(this.thermalOn ? n : 0);
@@ -1344,6 +1347,7 @@ export class Simulation {
         (k === GENE.workingMemory && c.workingMemory === 1 && c.brainMemory === 1 && c.brainMode > 0) ||
         (k === GENE.pickiness && c.matePickiness === 1 && c.sexualReproduction >= 1) ||
         (k === GENE.eye && c.eyeMode === 1 && c.brainMode > 0) ||
+        (k === GENE.attention && this.attentionOn) ||
         ((k === GENE.stressResponse || k === GENE.calmResponse) && c.brainMode > 0 && c.chemicals === 1 && c.chemBodyEffects === 1),
     );
     this.kinLimitSq = c.kinDistance * c.kinDistance;
@@ -1453,13 +1457,13 @@ export class Simulation {
       if (name === "tolerance" || name === "sex" || name === "stressResponse" || name === "calmResponse" || name === "generosity") continue;
       // How much fat an animal banks can be left out too (fatRelated 0): physiology, not kind.
       if (name === "fat" && c.fatRelated === 0) continue;
-      // How choosy it is about mates is a behavior, not part of what kind of organism it is.
-      if (name === "pickiness") continue;
+      // How choosy it is about mates, and how closely it watches for prey, are behaviors, not part of what kind of organism it is.
+      if (name === "pickiness" || name === "attention") continue;
       this.mateMask.push(GENE[name]);
     }
     this.species = new Uint32Array(c.speciesEvery > 0 ? n : 0);
     // Species, like compatibility, ignore tolerance of relatives: it is a behavior setting, not a kind of body.
-    const speciesGenes = this.activeGene.map((on, k) => on && k !== GENE.tolerance && k !== GENE.sex && k !== GENE.stressResponse && k !== GENE.calmResponse && k !== GENE.generosity && k !== GENE.signal && k !== GENE.learning && k !== GENE.placeMemory && k !== GENE.workingMemory && k !== GENE.pickiness && !(k === GENE.fat && c.fatRelated === 0));
+    const speciesGenes = this.activeGene.map((on, k) => on && k !== GENE.tolerance && k !== GENE.sex && k !== GENE.stressResponse && k !== GENE.calmResponse && k !== GENE.generosity && k !== GENE.signal && k !== GENE.learning && k !== GENE.placeMemory && k !== GENE.workingMemory && k !== GENE.pickiness && k !== GENE.attention && !(k === GENE.fat && c.fatRelated === 0));
     this.tracker = c.speciesEvery > 0 ? new SpeciesTracker(c, this.ranges, speciesGenes) : null;
     const staminaOrganisms = this.staminaOn ? n : 0;
     this.stamina = new Float32Array(staminaOrganisms);
@@ -1555,6 +1559,7 @@ export class Simulation {
     founder[GENE.workingMemory] = c.initialWorkingMemory;
     founder[GENE.pickiness] = c.initialPickiness;
     founder[GENE.eye] = c.initialEye;
+    founder[GENE.attention] = c.initialAttention;
     founder[GENE.generosity] = c.initialShare;
     for (let i = 0; i < c.initialOrganisms; i++) {
       let fx = this.rng.range(0, c.worldWidth);
@@ -2961,6 +2966,8 @@ export class Simulation {
     }
     // Being choosy about mates takes attention: a small cost on the sensing line.
     if (this.pickyOn) this.senseCost[i] = this.senseCost[i]! + c.pickinessCost * genes[g + GENE.pickiness]!;
+    // Paying attention to prey (the attention gene) is a small cost on the sensing line too.
+    if (this.attentionOn) this.senseCost[i] = this.senseCost[i]! + c.attentionCost * genes[g + GENE.attention]!;
     if (this.eyeOn) {
       // The eye: wider (gene toward 0) sees more of the world around but less far; narrower (toward 1) the reverse.
       const e = genes[g + GENE.eye]!;
@@ -3777,8 +3784,16 @@ export class Simulation {
     // Appetite shapes perception (optional): food signals are only as loud as the appetite
     // for that food. Threat signals are left alone.
     if (c.brainAppetiteSenses === 1) {
-      const meat = this.diet[i]!;
-      const plant = 1 - meat;
+      let meat = this.diet[i]!;
+      let plant = 1 - meat;
+      // Phase 11 tuning (both off by default, leaving today's exact numbers): a floor under each appetite, and
+      // the attention gene, which raises how strongly prey and meat are noticed toward full strength.
+      const floor = c.brainAppetiteFloor;
+      if (floor > 0) {
+        meat = floor + (1 - floor) * meat;
+        plant = floor + (1 - floor) * plant;
+      }
+      if (this.attentionOn) meat += (1 - meat) * this.genes[i * GENE_COUNT + GENE.attention]!;
       for (let k = 0; k < RAY_COUNT; k++) {
         const slot = INPUT.visionStart + k * RAY_CHANNELS;
         inputs[slot] = inputs[slot]! * meat;
@@ -6217,6 +6232,7 @@ export class Simulation {
       case "workingMemory":
       case "pickiness":
       case "eye":
+      case "attention":
         return this.genes[i * GENE_COUNT + GENE[name]]!;
       case "lifespan": {
         const range = this.ranges.lifespan;

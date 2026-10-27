@@ -278,6 +278,7 @@ const GENE_LABELS: Record<GeneName, string> = {
   workingMemory: "Working memory (how many memory cells it can use; the brain decides what to hold)",
   pickiness: "Pickiness (turns down mates that eat differently, when it has a choice)",
   eye: "Eye (wide and short at 0, today's at 0.5, narrow, far and sharp at 1)",
+  attention: "Attention to prey (how strongly it notices prey and meat beyond what its diet gives)",
 };
 
 function traitText(gene: GeneName, value: number): string {
