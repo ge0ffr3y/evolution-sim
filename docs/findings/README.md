@@ -1,6 +1,6 @@
 # What we found
 
-Evolution Sim is a deterministic artificial-life world. Every organism starts as the same unarmed plant eater, every trait costs energy, and the same seed always gives the same history, so any result can be replayed and tested on many worlds. This page sums up what came out of it: what emerges on its own, what the experiments showed, and what still does not work. The details are in the [devlog](../devlog/README.md), the working notes ([Phase 9](phase-9-headline-experiments.md), [living plants](living-plants.md)) and the experiment results page in the viewer.
+Evolution Sim is a deterministic artificial-life world. Every organism starts as the same unarmed plant eater, every trait costs energy, and the same seed always gives the same history, so any result can be replayed and tested on many worlds. This page sums up what came out of it: what emerges on its own, what the experiments showed, and what still does not work. The details are in the [devlog](../devlog/README.md), the working notes ([Phase 9](phase-9-headline-experiments.md), [living plants](living-plants.md), [bigger brains](phase-11-brains.md)) and the experiment results page in the viewer.
 
 ## What emerges on its own
 

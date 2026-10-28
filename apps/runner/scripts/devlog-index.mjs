@@ -10,7 +10,8 @@ const groups = [
   { title: "A changing world and ecology (Phases 6 and 7, v0.3)", from: 6, to: 7 },
   { title: "Multicellularity and the grand world (Phase 8, v0.4)", from: 8, to: 15 },
   { title: "Experiments at scale (Phase 9)", from: 16, to: 24 },
-  { title: "Ship it (Phase 10, v1.0)", from: 25, to: 99 },
+  { title: "Ship it (Phase 10, v1.0)", from: 25, to: 25 },
+  { title: "Bigger brains (Phase 11)", from: 26, to: 99 },
 ];
 const entries = readdirSync(dir)
   .filter((f) => /^\d{4}-.*\.md$/.test(f))
@@ -23,7 +24,7 @@ const entries = readdirSync(dir)
     const short = (summary.match(/^(.*?[.!?])\s+(.*?[.!?])(\s|$)/)?.slice(1, 3).join(" ") ?? summary).trim();
     return { n: Number(file.slice(0, 4)), file, title, short };
   });
-let out = "# Devlog\n\nOne entry per phase or part of a phase, from an empty repository to living plants: what was built, what emerged, what broke, and one image each. Newest last. For the results in one place, see [What we found](../findings/README.md).\n";
+let out = "# Devlog\n\nOne entry per phase or part of a phase, from an empty repository to bigger brains: what was built, what emerged, what broke, and one image each. Newest last. For the results in one place, see [What we found](../findings/README.md).\n";
 for (const g of groups) {
   const list = entries.filter((e) => e.n >= g.from && e.n <= g.to);
   if (!list.length) continue;

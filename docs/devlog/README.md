@@ -1,6 +1,6 @@
 # Devlog
 
-One entry per phase or part of a phase, from an empty repository to living plants: what was built, what emerged, what broke, and one image each. Newest last. For the results in one place, see [What we found](../findings/README.md).
+One entry per phase or part of a phase, from an empty repository to bigger brains: what was built, what emerged, what broke, and one image each. Newest last. For the results in one place, see [What we found](../findings/README.md).
 
 ## Building the world (Phases 0 to 3, v0.1)
 
@@ -45,3 +45,7 @@ One entry per phase or part of a phase, from an empty repository to living plant
 ## Ship it (Phase 10, v1.0)
 
 25. **[Ship it](0025-ship-it.md)**. Phase 10, and the v1.0 release. The simulation becomes something a visitor can open, understand and share: a front page with six featured worlds, links that replay any run exactly, the findings and the devlog on the site, and a new README.
+
+## Bigger brains (Phase 11)
+
+26. **[Bigger brains and richer senses](0026-bigger-brains.md)**. Phase 11. Brains get room to grow deeper, and much more to sense: pain and joy, colour and motion, a focus that can lock on to prey, ground tremor, daylight, a compass, and calls that others can hear.
