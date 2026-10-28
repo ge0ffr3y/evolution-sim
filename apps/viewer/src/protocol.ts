@@ -222,6 +222,8 @@ export interface FrameMessage {
   /** Bonds between cells as pairs of organism indices (a, b, a, b, ...), and the size of each organism's colony (null without multicellularity). */
   bonds: Uint32Array | null;
   colonySize: Uint16Array | null;
+  /** Each organism's species number (0 = not in a species yet); null in worlds without species tracking. For shapes on the map. */
+  speciesOf: Uint32Array | null;
   /** The cell type of each organism (0 generalist, 1 feeder, 2 mover, 3 photosynthesizer, 4 armor, 5 sensor); null without cell types. */
   cellType: Uint8Array | null;
   /** For each organism: 0 healthy, 1 sick, 2 immune (null in worlds without disease). */
