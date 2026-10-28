@@ -273,6 +273,11 @@ function postFrame(s: Simulation): void {
   const sense = s.senseRange.slice(0, n);
   const hue = new Float32Array(n);
   const diet = s.diet.slice(0, n);
+  let speciesOf: Uint32Array | null = null;
+  if (s.config.speciesEvery > 0) {
+    speciesOf = new Uint32Array(n);
+    for (let i = 0; i < n; i++) speciesOf[i] = s.speciesOf(i);
+  }
   const energyFraction = new Float32Array(n);
   for (let i = 0; i < n; i++) {
     hue[i] = s.traitOf("hue", i);
@@ -376,6 +381,7 @@ function postFrame(s: Simulation): void {
     hydration,
     bonds,
     colonySize,
+    speciesOf,
     cellType: s.cellType.length > 0 ? s.cellType.slice(0, n) : null,
     background,
     plantKindMap,
@@ -426,6 +432,7 @@ function postFrame(s: Simulation): void {
   if (dietBalance) transfer.push(dietBalance.buffer);
   if (bonds) transfer.push(bonds.buffer);
   if (colonySize) transfer.push(colonySize.buffer);
+  if (speciesOf) transfer.push(speciesOf.buffer);
   if (message.cellType) transfer.push(message.cellType.buffer);
   if (health) transfer.push(health.buffer);
   if (climate) transfer.push(climate.temperature.buffer, climate.growth.buffer);

@@ -75,6 +75,20 @@ function pick(palette: readonly string[], t: number): string {
   return palette[Math.round(clamped * (PALETTE_SIZE - 1))]!;
 }
 
+/**
+ * Species shapes for the map (x, y corners for a dot of radius 1, scaled to about a unit circle's area). A null
+ * entry is a circle. Species numbers pick a shape in turn, so neighbouring species usually differ.
+ */
+const POLYGON = (corners: number, turn: number, scale: number): number[] =>
+  Array.from({ length: corners }, (_, k) => [Math.cos(turn + (2 * Math.PI * k) / corners) * scale, Math.sin(turn + (2 * Math.PI * k) / corners) * scale]).flat();
+const SHAPES: readonly (number[] | null)[] = [
+  null,
+  POLYGON(4, Math.PI / 4, 1.25), // square
+  POLYGON(3, -Math.PI / 2, 1.55), // triangle
+  POLYGON(4, 0, 1.25), // diamond
+  POLYGON(3, Math.PI / 2, 1.55), // upside-down triangle
+];
+
 /** Color for one organism under the chosen mode. */
 export function organismColor(mode: ColorBy, frame: FrameMessage, i: number): string {
   switch (mode) {
@@ -160,6 +174,12 @@ function hueToRgb(h: number): [number, number, number] {
 /** Draws the food grid and the organisms onto a canvas. */
 export class WorldRenderer {
   colorBy: ColorBy = "diet";
+  /**
+   * Optional (the stream turns them on): draw each organism as its species' shape (circle, square, triangle,
+   * diamond or upside-down triangle, by species number, so a species keeps its shape), and scale every dot.
+   */
+  shapeBySpecies = false;
+  dotScale = 1;
   overlay: Overlay = "plants";
 
   private readonly ctx: CanvasRenderingContext2D;
@@ -255,10 +275,18 @@ export class WorldRenderer {
     for (let i = 0; i < frame.count; i++) {
       // Dot area grows with body size.
       // (never smaller than about a pixel and a half, so organisms stay visible in big worlds)
-      const radius = Math.max(scaleX * (0.35 + 0.45 * Math.sqrt(frame.size[i]!)), 1.5);
+      const radius = Math.max(scaleX * (0.35 + 0.45 * Math.sqrt(frame.size[i]!)), 1.5) * this.dotScale;
       ctx.fillStyle = organismColor(this.colorBy, frame, i);
       ctx.beginPath();
-      ctx.arc(frame.x[i]! * scaleX, frame.y[i]! * scaleY, radius, 0, Math.PI * 2);
+      const px = frame.x[i]! * scaleX;
+      const py = frame.y[i]! * scaleY;
+      const shape = this.shapeBySpecies && frame.speciesOf ? (SHAPES[frame.speciesOf[i]! % SHAPES.length] ?? null) : null;
+      if (shape) {
+        // A polygon with about the area of the circle it replaces.
+        ctx.moveTo(px + shape[0]! * radius, py + shape[1]! * radius);
+        for (let k = 2; k < shape.length; k += 2) ctx.lineTo(px + shape[k]! * radius, py + shape[k + 1]! * radius);
+        ctx.closePath();
+      } else ctx.arc(px, py, radius, 0, Math.PI * 2);
       ctx.fill();
     }
 
